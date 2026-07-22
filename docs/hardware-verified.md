@@ -60,7 +60,7 @@ reporting degrades to unavailable and nothing else breaks.
 
 | Capture | Status |
 | --- | --- |
-| V2.2 sync beacon (6-comma) + our ACK | ⏳ → `protocol/fixtures/lora/` |
-| V2.1 X4 state traffic (26-comma), overnight | ⏳ → `protocol/fixtures/lora/` |
-| Stock ThermoWorks receiver still works after our pairing | ⏳ |
-| Q1 / Q4 / Q8 / units manipulations performed | ⏳ |
+| V2.2 sync beacon (6-comma) + our ACK | ✅ 2026-07-21 → [`x4-events-10min.loralog`](../protocol/fixtures/lora/x4-events-10min.loralog): sync field0=`000000` (not the X2's `020001`), freq 918.5 MHz decoded, our `SUCCESS` ACK captured |
+| V2.1 X4 state traffic (26-comma), overnight | ⏳ overnight pending. 10-min event choreography done 2026-07-21: 37 state packets, hot-water curve, 2 real dropouts, cadence wobble during menu use |
+| Stock ThermoWorks receiver still works after our pairing | ⏳ visually confirm and record here |
+| Q1 / Q4 / Q8 / units manipulations performed | ✅ 2026-07-21 — Q1 never left `30`; Q4 detach `state=3` **freezes last temp, does not zero** (reattach jumps straight 3→0; shorted-jack state still uncaptured); Q8 trailing `new_alarm` is **edge-triggered**, one packet per alarm event; units flip confirms field 2 (1=°F, 0=°C), temps in tenths of active unit, alarm bands in whole degrees of active unit |
