@@ -9,7 +9,6 @@ import 'package:bridge_protocol/bridge_protocol.dart';
 
 import 'thermal.dart';
 
-
 /// A fully generated cook, ready to serialize.
 class GeneratedCook {
   GeneratedCook({
@@ -76,9 +75,7 @@ class SmkFile {
     final header = SessionHeader.decode(bytes);
     final samples = <SampleRec>[];
     final recLen = header.recLen;
-    for (var off = header.hdrLen;
-        off + recLen <= bytes.length;
-        off += recLen) {
+    for (var off = header.hdrLen; off + recLen <= bytes.length; off += recLen) {
       // Stride by rec_len; parse the leading 16 bytes we understand.
       samples.add(SampleRec.decode(bytes, off));
     }
@@ -91,17 +88,17 @@ int _tenths(double f) => (f * 10).round().clamp(-5800, 5720);
 /// Converts model output to wire records. Detached probes carry the sentinel,
 /// never a number — the specific bug the reference has and we refuse to.
 List<SampleRec> toSampleRecs(List<ModelSample> model) => [
-      for (final m in model)
-        SampleRec(
-          t: m.tS,
-          temp: [
-            for (var i = 0; i < 4; i++)
-              m.detached[i] ? tempDetached : _tenths(m.tempsF[i]),
-          ],
-          flags: m.sourceCelsius ? 1 << 6 : 0,
-          rssi: m.rssi,
-        ),
-    ];
+  for (final m in model)
+    SampleRec(
+      t: m.tS,
+      temp: [
+        for (var i = 0; i < 4; i++)
+          m.detached[i] ? tempDetached : _tenths(m.tempsF[i]),
+      ],
+      flags: m.sourceCelsius ? 1 << 6 : 0,
+      rssi: m.rssi,
+    ),
+];
 
 SessionHeader buildHeader({
   required int sessionId,

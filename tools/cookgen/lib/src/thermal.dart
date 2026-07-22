@@ -6,7 +6,6 @@ library;
 
 import 'dart:math';
 
-
 /// One simulated probe.
 class ProbeSpec {
   const ProbeSpec({
@@ -49,7 +48,11 @@ class StallEvent {
 
 /// A probe reads detached (sentinel) for a window.
 class DetachEvent {
-  const DetachEvent({required this.probe, required this.fromS, required this.toS});
+  const DetachEvent({
+    required this.probe,
+    required this.fromS,
+    required this.toS,
+  });
   final int probe; // 0-based index
   final int fromS;
   final int toS;
@@ -91,7 +94,10 @@ class CookModel {
     this.detaches = const [],
     this.celsiusSwitch,
     this.dropoutPct = 0,
-  }) : assert(probes.length == 4, 'always model 4 slots; use role 0 for unused');
+  }) : assert(
+         probes.length == 4,
+         'always model 4 slots; use role 0 for unused',
+       );
 
   final int seed;
   final int durationS;
@@ -155,7 +161,8 @@ class CookModel {
               if (inWindow && inBand) {
                 // Evaporation balances heat input: pull to the plateau with
                 // |slope| well under 2 °F/hr plus tiny noise.
-                dT = (s.plateauF - temps[i]) * 0.05 * dtH * 60 / 30 +
+                dT =
+                    (s.plateauF - temps[i]) * 0.05 * dtH * 60 / 30 +
                     (rand.nextDouble() - 0.5) * 0.02;
               }
             }
@@ -175,9 +182,7 @@ class CookModel {
       final detached = [
         for (var i = 0; i < probes.length; i++)
           probes[i].role == 0 ||
-              detaches.any(
-                (d) => d.probe == i && t >= d.fromS && t < d.toS,
-              ),
+              detaches.any((d) => d.probe == i && t >= d.fromS && t < d.toS),
       ];
 
       out.add(
@@ -185,8 +190,7 @@ class CookModel {
           tS: t,
           tempsF: List.of(temps),
           detached: detached,
-          sourceCelsius:
-              celsiusSwitch != null && t >= celsiusSwitch!.atS,
+          sourceCelsius: celsiusSwitch != null && t >= celsiusSwitch!.atS,
           rssi: -62 - (rand.nextDouble() * 14).round(),
         ),
       );

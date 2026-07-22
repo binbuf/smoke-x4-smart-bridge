@@ -46,10 +46,10 @@ void main() {
     });
 
     test('multiple gaps in one series', () {
-      expect(
-        findGaps([0, 30, 300, 330, 900]),
-        [(fromT: 30, toT: 300), (fromT: 330, toT: 900)],
-      );
+      expect(findGaps([0, 30, 300, 330, 900]), [
+        (fromT: 30, toT: 300),
+        (fromT: 330, toT: 900),
+      ]);
     });
 
     test('a 30-minute dropout is one gap, boundaries intact', () {

@@ -9,7 +9,7 @@
 name: smoke_x4_smart_bridge_workspace
 publish_to: none
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.8.0
 workspace:
   - tools/protogen
   - tools/bridge_protocol

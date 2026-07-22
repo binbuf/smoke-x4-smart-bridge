@@ -9,10 +9,7 @@ library;
 /// Downsamples [data] (ordered by t) to [threshold] points. The first and
 /// last points are always kept. threshold ≥ 3; fewer input points than the
 /// threshold come back unchanged.
-List<({int t, double f})> lttb(
-  List<({int t, double f})> data,
-  int threshold,
-) {
+List<({int t, double f})> lttb(List<({int t, double f})> data, int threshold) {
   if (threshold >= data.length || data.length < 3) {
     return List.of(data);
   }
@@ -49,9 +46,10 @@ List<({int t, double f})> lttb(
     var maxArea = -1.0;
     var chosen = data[rangeStart];
     for (var j = rangeStart; j < rangeEnd; j++) {
-      final area = ((prev.t - avgT) * (data[j].f - prev.f) -
-              (prev.t - data[j].t) * (avgF - prev.f))
-          .abs();
+      final area =
+          ((prev.t - avgT) * (data[j].f - prev.f) -
+                  (prev.t - data[j].t) * (avgF - prev.f))
+              .abs();
       if (area > maxArea) {
         maxArea = area;
         chosen = data[j];

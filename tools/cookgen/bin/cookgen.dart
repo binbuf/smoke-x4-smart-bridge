@@ -7,8 +7,7 @@ import 'package:cookgen/cookgen.dart';
 ///        --out protocol/fixtures/brisket-18h.smk
 void main(List<String> argv) {
   final parser = ArgParser()
-    ..addOption('scenario',
-        defaultsTo: 'brisket-18h', allowed: scenarioNames)
+    ..addOption('scenario', defaultsTo: 'brisket-18h', allowed: scenarioNames)
     ..addOption('seed', defaultsTo: '42')
     ..addOption('out', help: 'output .smk path (sibling .mrk written too)')
     ..addOption('hours', help: 'override the scenario duration')
@@ -29,9 +28,7 @@ void main(List<String> argv) {
   final cook = generateScenario(
     scenario,
     seed: int.parse(args['seed'] as String),
-    hours: args['hours'] != null
-        ? double.parse(args['hours'] as String)
-        : null,
+    hours: args['hours'] != null ? double.parse(args['hours'] as String) : null,
     probes: int.parse(args['probes'] as String),
     dropoutPct: args['dropout-pct'] != null
         ? double.parse(args['dropout-pct'] as String)

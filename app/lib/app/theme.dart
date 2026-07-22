@@ -23,27 +23,29 @@ abstract final class SmokeTheme {
   /// The default theme. Dark-first is a product requirement, not a style
   /// preference (design 08 §8.7).
   static ThemeData get dark {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: seed,
-      brightness: Brightness.dark,
-    ).copyWith(
-      // Push contrast beyond the Material defaults: near-black surface,
-      // near-white foreground, for legibility outdoors at night.
-      surface: const Color(0xFF0D0F12),
-      onSurface: const Color(0xFFF2F3F5),
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: seed,
+          brightness: Brightness.dark,
+        ).copyWith(
+          // Push contrast beyond the Material defaults: near-black surface,
+          // near-white foreground, for legibility outdoors at night.
+          surface: const Color(0xFF0D0F12),
+          onSurface: const Color(0xFFF2F3F5),
+        );
     return _base(scheme);
   }
 
   /// The light theme, for reading the same screens in daylight.
   static ThemeData get light {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: seed,
-      brightness: Brightness.light,
-    ).copyWith(
-      surface: const Color(0xFFFDFBF8),
-      onSurface: const Color(0xFF17181A),
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: seed,
+          brightness: Brightness.light,
+        ).copyWith(
+          surface: const Color(0xFFFDFBF8),
+          onSurface: const Color(0xFF17181A),
+        );
     return _base(scheme);
   }
 
@@ -73,10 +75,7 @@ abstract final class SmokeTheme {
     // Body/label sizes are bumped one step over the Material defaults —
     // "large type" applies to everything, not only the headline numbers.
     final textTheme = ThemeData(brightness: scheme.brightness).textTheme
-        .apply(
-          bodyColor: scheme.onSurface,
-          displayColor: scheme.onSurface,
-        )
+        .apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface)
         .copyWith(
           displayLarge: headlineTemp,
           displayMedium: secondaryTemp,

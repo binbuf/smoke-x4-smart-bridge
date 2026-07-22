@@ -12,12 +12,13 @@ import 'package:smoke_bridge/data/dto/records.g.dart';
 
 void main() {
   final dir = Directory('${repoRoot()}/protocol/fixtures/records');
-  final fixtures = dir
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.hex'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final fixtures =
+      dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.hex'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   test('the corpus is present (5 samples + 2 headers + 1 mark)', () {
     expect(fixtures.length, 8);

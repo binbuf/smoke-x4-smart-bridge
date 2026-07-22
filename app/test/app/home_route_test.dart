@@ -6,10 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/app/router.dart';
 import 'package:smoke_bridge/app/theme.dart';
 
-Widget _appWith(ThemeData theme) => MaterialApp.router(
-  theme: theme,
-  routerConfig: createRouter(),
-);
+Widget _appWith(ThemeData theme) =>
+    MaterialApp.router(theme: theme, routerConfig: createRouter());
 
 void _expectHomePlaceholder(WidgetTester tester, Brightness brightness) {
   expect(find.byType(HomePlaceholderScreen), findsOneWidget);

@@ -57,10 +57,8 @@ void installGlobalErrorHooks() {
 
 /// Replacement for the default grey/red [ErrorWidget]: a readable, in-place
 /// error screen.
-Widget appErrorWidgetBuilder(FlutterErrorDetails details) => AppErrorScreen(
-  error: details.exception,
-  stack: details.stack,
-);
+Widget appErrorWidgetBuilder(FlutterErrorDetails details) =>
+    AppErrorScreen(error: details.exception, stack: details.stack);
 
 /// Wraps the app (via `MaterialApp.builder`) and overlays [AppErrorScreen]
 /// whenever [AppErrors.lastFatal] is set by the zone handler.
@@ -70,20 +68,19 @@ class ErrorBoundary extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) =>
-      ValueListenableBuilder<AppErrorReport?>(
-        valueListenable: AppErrors.lastFatal,
-        builder: (context, report, _) {
-          if (report == null) {
-            return child;
-          }
-          return AppErrorScreen(
-            error: report.error,
-            stack: report.stack,
-            onDismiss: AppErrors.clearFatal,
-          );
-        },
+  Widget build(BuildContext context) => ValueListenableBuilder<AppErrorReport?>(
+    valueListenable: AppErrors.lastFatal,
+    builder: (context, report, _) {
+      if (report == null) {
+        return child;
+      }
+      return AppErrorScreen(
+        error: report.error,
+        stack: report.stack,
+        onDismiss: AppErrors.clearFatal,
       );
+    },
+  );
 }
 
 /// The readable error screen: message plus a stack snippet.
@@ -139,11 +136,7 @@ class AppErrorScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               error.toString(),
-              style: const TextStyle(
-                color: _fg,
-                fontSize: 17,
-                height: 1.4,
-              ),
+              style: const TextStyle(color: _fg, fontSize: 17, height: 1.4),
             ),
             const SizedBox(height: 16),
             Text(

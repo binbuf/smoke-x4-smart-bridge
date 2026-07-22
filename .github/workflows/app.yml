@@ -1,0 +1,64 @@
+# T1.6 — the Flutter app lane: analyze, format, test, debug APK, and the
+# one project-specific rule worth a grep forever: app/lib/domain/ must not
+# import anything from Flutter (design 08 §8.3 — hard rule).
+name: app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'protocol/fixtures/**'
+      - '.github/workflows/app.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'protocol/fixtures/**'
+      - '.github/workflows/app.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.7
+          cache: true
+
+      - run: flutter pub get
+
+      - name: domain/ imports nothing from Flutter
+        run: |
+          if grep -rnE "import\s+['\"](package:flutter|dart:ui)" lib/domain/; then
+            echo "::error::app/lib/domain/ must stay pure Dart (08 §8.3)"
+            exit 1
+          fi
+
+      - name: Generated code is fresh
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- lib
+
+      - run: flutter analyze
+
+      - name: dart format
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - run: flutter test
+
+      - name: Debug APK
+        run: flutter build apk --debug

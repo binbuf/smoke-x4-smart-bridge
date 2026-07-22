@@ -69,9 +69,11 @@ OlsFit? olsFit(List<ValuePoint> pts) {
 }
 
 /// The valid (non-null) points of [series] with `t` in `(endT - windowS, endT]`.
-List<ValuePoint> windowedValid(List<TempPoint> series, int endT, int windowS) =>
-    [
-      for (final p in series)
-        if (p.t > endT - windowS && p.t <= endT && p.f != null)
-          (t: p.t, f: p.f!),
-    ];
+List<ValuePoint> windowedValid(
+  List<TempPoint> series,
+  int endT,
+  int windowS,
+) => [
+  for (final p in series)
+    if (p.t > endT - windowS && p.t <= endT && p.f != null) (t: p.t, f: p.f!),
+];

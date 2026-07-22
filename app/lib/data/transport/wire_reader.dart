@@ -51,7 +51,9 @@ class SmkArchive {
     return CookSession(
       id: h.sessionId,
       name: h.name,
-      startedUnixMs: h.clockValid && h.startedUnixMs != 0 ? h.startedUnixMs : null,
+      startedUnixMs: h.clockValid && h.startedUnixMs != 0
+          ? h.startedUnixMs
+          : null,
       endedUnixMs: h.closed && h.endedUnixMs != 0 ? h.endedUnixMs : null,
       samplePeriodS: h.samplePeriodS,
       sampleCount: h.sampleCount,
@@ -77,17 +79,20 @@ class SmkArchive {
 /// Maps one wire record to the domain. Exposed for stream parsing
 /// (`format=bin` sync responses reuse it).
 Sample sampleFromRec(dto.SampleRec r) => Sample(
-      t: r.t,
-      tempsF10: r.tempNullable,
-      billows: r.billows,
-      newAlarm: r.newAlarm,
-      sourceCelsius: r.sourceCelsius,
-      rssi: r.rssi,
-    );
+  t: r.t,
+  tempsF10: r.tempNullable,
+  billows: r.billows,
+  newAlarm: r.newAlarm,
+  sourceCelsius: r.sourceCelsius,
+  rssi: r.rssi,
+);
 
 /// Parses a bare record stream (a `format=bin` samples response), given the
 /// `rec_len` learned from the session header.
-List<Sample> samplesFromBin(Uint8List bytes, {int recLen = dto.SampleRec.size}) {
+List<Sample> samplesFromBin(
+  Uint8List bytes, {
+  int recLen = dto.SampleRec.size,
+}) {
   final out = <Sample>[];
   for (var off = 0; off + recLen <= bytes.length; off += recLen) {
     final rec = dto.SampleRec.decode(bytes, off);
@@ -101,9 +106,11 @@ List<Sample> samplesFromBin(Uint8List bytes, {int recLen = dto.SampleRec.size}) 
 /// Parses a `.mrk` byte stream.
 List<Mark> marksFromBytes(Uint8List bytes) {
   final out = <Mark>[];
-  for (var off = 0;
-      off + dto.MarkRec.size <= bytes.length;
-      off += dto.MarkRec.size) {
+  for (
+    var off = 0;
+    off + dto.MarkRec.size <= bytes.length;
+    off += dto.MarkRec.size
+  ) {
     final rec = dto.MarkRec.decode(bytes, off);
     if (!rec.crcOk) {
       continue;

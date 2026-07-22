@@ -15,13 +15,14 @@ import 'package:smoke_bridge/domain/entities/entities.dart';
 import 'records_parity_test.dart' show repoRoot;
 
 void main() {
-  final smk = File('${repoRoot()}/protocol/fixtures/brisket-18h.smk')
-      .readAsBytesSync();
-  final mrk = File('${repoRoot()}/protocol/fixtures/brisket-18h.mrk')
-      .readAsBytesSync();
+  final smk = File(
+    '${repoRoot()}/protocol/fixtures/brisket-18h.smk',
+  ).readAsBytesSync();
+  final mrk = File(
+    '${repoRoot()}/protocol/fixtures/brisket-18h.mrk',
+  ).readAsBytesSync();
 
-  MockTransport transport() =>
-      MockTransport.fromSmkBytes(smk, mrkBytes: mrk);
+  MockTransport transport() => MockTransport.fromSmkBytes(smk, mrkBytes: mrk);
 
   test('capabilities: everything except OTA', () {
     final t = transport();
@@ -69,10 +70,7 @@ void main() {
   });
 
   test('an unknown session id fails like the API would', () {
-    expect(
-      () => transport().samples(999).toList(),
-      throwsA(isA<StateError>()),
-    );
+    expect(() => transport().samples(999).toList(), throwsA(isA<StateError>()));
   });
 
   test('live() serves the trailing window instantly', () async {

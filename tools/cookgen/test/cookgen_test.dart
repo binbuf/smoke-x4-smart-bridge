@@ -32,7 +32,9 @@ void main() {
       final steady = pit.skip(pit.length ~/ 4).toList();
       final mean = steady.reduce((a, b) => a + b) / steady.length;
       final varSum = steady.fold<double>(
-          0, (a, v) => a + (v - mean) * (v - mean));
+        0,
+        (a, v) => a + (v - mean) * (v - mean),
+      );
       final sigma = varSum / steady.length;
       expect(mean, inInclusiveRange(230, 265));
       expect(sigma, greaterThan(0.05), reason: 'a real pit wanders');
@@ -53,7 +55,11 @@ void main() {
 
       expect(gapAt(0.1), greaterThan(gapAt(0.4)));
       expect(gapAt(0.4), greaterThan(gapAt(0.9)));
-      expect(food.every((v) => v < 300), isTrue, reason: 'never above pit band');
+      expect(
+        food.every((v) => v < 300),
+        isTrue,
+        reason: 'never above pit band',
+      );
       // Early slope is much steeper than late slope (asymptotic approach).
       final early = food[20] - food[10];
       final late = food[food.length - 10] - food[food.length - 20];
@@ -120,8 +126,8 @@ void main() {
         if (was != now) {
           flips++;
           // Canonical °F on both sides of the switch: no unit cliff.
-          final delta =
-              (cook.samples[i].temp[0] - cook.samples[i - 1].temp[0]).abs();
+          final delta = (cook.samples[i].temp[0] - cook.samples[i - 1].temp[0])
+              .abs();
           expect(delta, lessThan(50), reason: 'no 20°-looking cliff');
         }
       }
@@ -150,16 +156,21 @@ void main() {
       // ~18 h at 30 s with ~1% dropout.
       expect(parsed.samples.length, inInclusiveRange(2050, 2161));
       // The detached window is sentinels, never zeros.
-      final detachWindow = parsed.samples
-          .where((s) => s.t >= 9 * 3600 && s.t < 9 * 3600 + 2400);
+      final detachWindow = parsed.samples.where(
+        (s) => s.t >= 9 * 3600 && s.t < 9 * 3600 + 2400,
+      );
       expect(detachWindow.every((s) => s.temp[3] == tempDetached), isTrue);
     });
 
     test('committed fixture matches regeneration (seed 42)', () {
       final fixture = File('../../protocol/fixtures/brisket-18h.smk');
-      expect(fixture.existsSync(), isTrue,
-          reason: 'regenerate with: dart run cookgen --scenario brisket-18h '
-              '--seed 42 --out protocol/fixtures/brisket-18h.smk');
+      expect(
+        fixture.existsSync(),
+        isTrue,
+        reason:
+            'regenerate with: dart run cookgen --scenario brisket-18h '
+            '--seed 42 --out protocol/fixtures/brisket-18h.smk',
+      );
       final cook = generateScenario('brisket-18h', seed: 42);
       expect(fixture.readAsBytesSync(), cook.smkBytes());
       final mrk = File('../../protocol/fixtures/brisket-18h.mrk');

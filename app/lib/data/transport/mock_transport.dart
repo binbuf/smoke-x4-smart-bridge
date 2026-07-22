@@ -18,9 +18,8 @@ class MockTransport implements BridgeTransport {
     Uint8List smkBytes, {
     Uint8List? mrkBytes,
     this.replayPeriod = Duration.zero,
-  })  : _archive = SmkArchive.parse(smkBytes),
-        _marks =
-            mrkBytes != null ? marksFromBytes(mrkBytes) : const <Mark>[];
+  }) : _archive = SmkArchive.parse(smkBytes),
+       _marks = mrkBytes != null ? marksFromBytes(mrkBytes) : const <Mark>[];
 
   final SmkArchive _archive;
   final List<Mark> _marks;
@@ -37,12 +36,12 @@ class MockTransport implements BridgeTransport {
 
   @override
   BridgeCapabilities get capabilities => const BridgeCapabilities(
-        liveState: true,
-        fullHistory: true,
-        historyPreview: true,
-        config: true,
-        ota: false,
-      );
+    liveState: true,
+    fullHistory: true,
+    historyPreview: true,
+    config: true,
+    ota: false,
+  );
 
   @override
   Stream<BridgeEvent> get events async* {

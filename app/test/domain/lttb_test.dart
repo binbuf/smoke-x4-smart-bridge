@@ -44,7 +44,8 @@ List<({int t, double f})> referenceLttb(
     var maxArea = -1.0;
     var nextA = rangeOffs;
     for (; rangeOffs < rangeTo; rangeOffs++) {
-      final area = ((pointAX - avgX) * (data[rangeOffs].f - pointAY) -
+      final area =
+          ((pointAX - avgX) * (data[rangeOffs].f - pointAY) -
                   (pointAX - data[rangeOffs].t) * (avgY - pointAY))
               .abs() *
           0.5;
@@ -74,8 +75,11 @@ void main() {
     for (final seed in [1, 7, 42]) {
       final data = randomWalk(500, seed);
       for (final threshold in [10, 50, 123]) {
-        expect(lttb(data, threshold), referenceLttb(data, threshold),
-            reason: 'seed $seed threshold $threshold');
+        expect(
+          lttb(data, threshold),
+          referenceLttb(data, threshold),
+          reason: 'seed $seed threshold $threshold',
+        );
       }
     }
   });
@@ -85,15 +89,15 @@ void main() {
     // exactly what naive stride decimation steps over.
     final data = <({int t, double f})>[
       for (var i = 0; i < 2880; i++)
-        (
-          t: i * 30,
-          f: i == 1500 ? 210.0 : 250 + 4 * sin(i / 120),
-        ),
+        (t: i * 30, f: i == 1500 ? 210.0 : 250 + 4 * sin(i / 120)),
     ];
     final out = lttb(data, 400);
     expect(out.length, 400);
-    expect(out.any((p) => p.t == 1500 * 30 && p.f == 210.0), isTrue,
-        reason: 'the spike must survive decimation');
+    expect(
+      out.any((p) => p.t == 1500 * 30 && p.f == 210.0),
+      isTrue,
+      reason: 'the spike must survive decimation',
+    );
   });
 
   test('keeps endpoints and hits the exact threshold', () {

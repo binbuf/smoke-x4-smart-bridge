@@ -13,13 +13,10 @@ import 'error_boundary.dart';
 /// async — can escape without being logged and surfaced in the in-app
 /// error boundary.
 void bootstrap() {
-  runZonedGuarded<void>(
-    () {
-      // Must run in the same zone as runApp.
-      WidgetsFlutterBinding.ensureInitialized();
-      installGlobalErrorHooks();
-      runApp(const ProviderScope(child: SmokeBridgeApp()));
-    },
-    AppErrors.reportFatal,
-  );
+  runZonedGuarded<void>(() {
+    // Must run in the same zone as runApp.
+    WidgetsFlutterBinding.ensureInitialized();
+    installGlobalErrorHooks();
+    runApp(const ProviderScope(child: SmokeBridgeApp()));
+  }, AppErrors.reportFatal);
 }

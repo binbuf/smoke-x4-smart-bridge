@@ -7,7 +7,6 @@ import 'package:bridge_protocol/bridge_protocol.dart';
 import 'smk_io.dart';
 import 'thermal.dart';
 
-
 const scenarioNames = [
   'brisket-18h',
   'stall',
@@ -55,9 +54,7 @@ GeneratedCook generateScenario(
           LidOpenEvent(atS: 4 * 3600, dropF: 38, recoverS: 540),
           LidOpenEvent(atS: 11 * 3600 + 900, dropF: 30, recoverS: 480),
         ],
-        stalls: const [
-          StallEvent(startS: 5 * 3600, durationS: 3 * 3600 + 600),
-        ],
+        stalls: const [StallEvent(startS: 5 * 3600, durationS: 3 * 3600 + 600)],
         detaches: const [
           // Ambient probe unplugged for ~40 min mid-cook.
           DetachEvent(probe: 3, fromS: 9 * 3600, toS: 9 * 3600 + 2400),
@@ -147,16 +144,17 @@ GeneratedCook generateScenario(
         seed: seed,
         durationS: durationS,
         probes: fourProbes,
-        stalls: const [
-          StallEvent(startS: 5 * 3600, durationS: 3 * 3600),
-        ],
+        stalls: const [StallEvent(startS: 5 * 3600, durationS: 3 * 3600)],
         dropoutPct: dropoutPct ?? 0.2,
       );
       name = 'The long haul';
 
     default:
-      throw ArgumentError.value(scenario, 'scenario',
-          'unknown — expected one of $scenarioNames');
+      throw ArgumentError.value(
+        scenario,
+        'scenario',
+        'unknown — expected one of $scenarioNames',
+      );
   }
 
   final samples = toSampleRecs(model.run());
@@ -170,9 +168,5 @@ GeneratedCook generateScenario(
   return GeneratedCook(header: header, samples: samples, marks: marks);
 }
 
-MarkRec _mark(int t, int kind, int probe, String text) => MarkRec(
-      t: t,
-      kind: kind,
-      probe: probe,
-      textRaw: utf8ToPadded(text, 24),
-    );
+MarkRec _mark(int t, int kind, int probe, String text) =>
+    MarkRec(t: t, kind: kind, probe: probe, textRaw: utf8ToPadded(text, 24));

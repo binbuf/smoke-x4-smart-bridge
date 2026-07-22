@@ -10,12 +10,13 @@ import 'package:test/test.dart';
 /// parse, so a C/Dart divergence shows up as a red test on one side.
 void main() {
   final dir = Directory(p.join(_repoRoot(), 'protocol', 'fixtures', 'records'));
-  final fixtures = dir
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.hex'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final fixtures =
+      dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.hex'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   test('fixture corpus is present', () {
     expect(fixtures, isNotEmpty);
@@ -43,8 +44,11 @@ void main() {
           for (var i = 0; i < 4; i++) {
             expect(s.temp[i], int.parse(expected['temp$i']!));
             final expectNull = expected['temp${i}_null'] == '1';
-            expect(s.tempOrNull(i) == null, expectNull,
-                reason: 'temp$i null-ness');
+            expect(
+              s.tempOrNull(i) == null,
+              expectNull,
+              reason: 'temp$i null-ness',
+            );
             if (expectNull) {
               // The load-bearing rule: a sentinel must never surface as a number.
               expect(s.tempNullable[i], isNull);
@@ -105,9 +109,7 @@ void main() {
   }
 
   test('future-version header is read, not rejected', () {
-    final bytes = _readHex(
-      File(p.join(dir.path, 'header-future-version.hex')),
-    );
+    final bytes = _readHex(File(p.join(dir.path, 'header-future-version.hex')));
     final h = SessionHeader.decode(bytes);
     expect(h.version, 2);
     expect(h.recLen, 20, reason: 'readers must stride by rec_len');
@@ -115,9 +117,7 @@ void main() {
   });
 
   test('corrupt sample fails its CRC check', () {
-    final bytes = _readHex(
-      File(p.join(dir.path, 'sample-four-attached.hex')),
-    );
+    final bytes = _readHex(File(p.join(dir.path, 'sample-four-attached.hex')));
     bytes[5] ^= 0xFF; // flip a temp byte
     expect(SampleRec.decode(bytes).crcOk, isFalse);
   });

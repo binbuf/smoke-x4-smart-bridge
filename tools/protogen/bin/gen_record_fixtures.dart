@@ -14,14 +14,20 @@ void main() {
   final dir = Directory(p.join(_repoRoot(), 'protocol', 'fixtures', 'records'))
     ..createSync(recursive: true);
 
-  void write(String name, String comment, Uint8List bytes,
-      Map<String, Object> expected) {
+  void write(
+    String name,
+    String comment,
+    Uint8List bytes,
+    Map<String, Object> expected,
+  ) {
     final hex = StringBuffer('# $comment\n');
     for (var i = 0; i < bytes.length; i += 16) {
-      hex.writeln([
-        for (var j = i; j < i + 16 && j < bytes.length; j++)
-          bytes[j].toRadixString(16).padLeft(2, '0'),
-      ].join(' '));
+      hex.writeln(
+        [
+          for (var j = i; j < i + 16 && j < bytes.length; j++)
+            bytes[j].toRadixString(16).padLeft(2, '0'),
+        ].join(' '),
+      );
     }
     File(p.join(dir.path, '$name.hex')).writeAsStringSync(hex.toString());
     final exp = StringBuffer('# $comment\n');
@@ -31,22 +37,22 @@ void main() {
   }
 
   Map<String, Object> sampleExpect(SampleRec s) => {
-        'kind': 'sample',
-        'crc_ok': 1,
-        't': s.t,
-        for (var i = 0; i < 4; i++) 'temp$i': s.temp[i],
-        for (var i = 0; i < 4; i++)
-          'temp${i}_null': s.tempOrNull(i) == null ? 1 : 0,
-        'flags': s.flags,
-        'flag_p1_alarm': s.p1Alarm ? 1 : 0,
-        'flag_p2_alarm': s.p2Alarm ? 1 : 0,
-        'flag_p3_alarm': s.p3Alarm ? 1 : 0,
-        'flag_p4_alarm': s.p4Alarm ? 1 : 0,
-        'flag_billows': s.billows ? 1 : 0,
-        'flag_new_alarm': s.newAlarm ? 1 : 0,
-        'flag_source_celsius': s.sourceCelsius ? 1 : 0,
-        'rssi': s.rssi,
-      };
+    'kind': 'sample',
+    'crc_ok': 1,
+    't': s.t,
+    for (var i = 0; i < 4; i++) 'temp$i': s.temp[i],
+    for (var i = 0; i < 4; i++)
+      'temp${i}_null': s.tempOrNull(i) == null ? 1 : 0,
+    'flags': s.flags,
+    'flag_p1_alarm': s.p1Alarm ? 1 : 0,
+    'flag_p2_alarm': s.p2Alarm ? 1 : 0,
+    'flag_p3_alarm': s.p3Alarm ? 1 : 0,
+    'flag_p4_alarm': s.p4Alarm ? 1 : 0,
+    'flag_billows': s.billows ? 1 : 0,
+    'flag_new_alarm': s.newAlarm ? 1 : 0,
+    'flag_source_celsius': s.sourceCelsius ? 1 : 0,
+    'rssi': s.rssi,
+  };
 
   final fourAttached = SampleRec(
     t: 43230,
@@ -112,30 +118,30 @@ void main() {
   );
 
   Map<String, Object> headerExpect(SessionHeader h) => {
-        'kind': 'header',
-        'crc_ok': 1,
-        'magic_ok': h.magicOk ? 1 : 0,
-        'version': h.version,
-        'hdr_len': h.hdrLen,
-        'rec_len': h.recLen,
-        'num_probes': h.numProbes,
-        'flag_clock_valid': h.clockValid ? 1 : 0,
-        'flag_closed': h.closed ? 1 : 0,
-        'flag_pinned': h.pinned ? 1 : 0,
-        'flag_source_celsius': h.sourceCelsius ? 1 : 0,
-        'session_id': h.sessionId,
-        'started_unix_ms': h.startedUnixMs,
-        'ended_unix_ms': h.endedUnixMs,
-        'started_uptime_s': h.startedUptimeS,
-        'sample_period_s': h.samplePeriodS,
-        'sample_count': h.sampleCount,
-        'device_id': h.deviceId,
-        'name': h.name,
-        for (var i = 0; i < 4; i++) 'probe_name$i': h.probeName[i],
-        for (var i = 0; i < 4; i++) 'probe_role$i': h.probeRole[i],
-        for (var i = 0; i < 4; i++) 'probe_target$i': h.probeTarget[i],
-        'mark_count': h.markCount,
-      };
+    'kind': 'header',
+    'crc_ok': 1,
+    'magic_ok': h.magicOk ? 1 : 0,
+    'version': h.version,
+    'hdr_len': h.hdrLen,
+    'rec_len': h.recLen,
+    'num_probes': h.numProbes,
+    'flag_clock_valid': h.clockValid ? 1 : 0,
+    'flag_closed': h.closed ? 1 : 0,
+    'flag_pinned': h.pinned ? 1 : 0,
+    'flag_source_celsius': h.sourceCelsius ? 1 : 0,
+    'session_id': h.sessionId,
+    'started_unix_ms': h.startedUnixMs,
+    'ended_unix_ms': h.endedUnixMs,
+    'started_uptime_s': h.startedUptimeS,
+    'sample_period_s': h.samplePeriodS,
+    'sample_count': h.sampleCount,
+    'device_id': h.deviceId,
+    'name': h.name,
+    for (var i = 0; i < 4; i++) 'probe_name$i': h.probeName[i],
+    for (var i = 0; i < 4; i++) 'probe_role$i': h.probeRole[i],
+    for (var i = 0; i < 4; i++) 'probe_target$i': h.probeTarget[i],
+    'mark_count': h.markCount,
+  };
 
   final noClock = SessionHeader(
     numProbes: 4,

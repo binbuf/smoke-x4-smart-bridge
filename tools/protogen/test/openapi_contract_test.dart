@@ -16,8 +16,10 @@ String findRepoRoot() {
     }
     final parent = p.dirname(dir);
     if (parent == dir) {
-      fail('could not locate repo root (protocol/openapi.yaml) above '
-          '${Directory.current.path}');
+      fail(
+        'could not locate repo root (protocol/openapi.yaml) above '
+        '${Directory.current.path}',
+      );
     }
     dir = parent;
   }
@@ -132,18 +134,29 @@ void main() {
 
     test('sessions/{id}/samples carries all seven query parameters and '
         'all four response content types', () {
-      final op = ((spec['paths'] as YamlMap)['/api/v1/sessions/{id}/samples']
-          as YamlMap)['get'] as YamlMap;
+      final op =
+          ((spec['paths'] as YamlMap)['/api/v1/sessions/{id}/samples']
+                  as YamlMap)['get']
+              as YamlMap;
       final params = (op['parameters'] as YamlList)
           .map(deref)
           .map((param) => (param as YamlMap)['name'] as String?)
           .whereType<String>()
           .toSet();
-      for (final name in ['from', 'to', 'stride', 'bucket', 'agg', 'format', 'probes']) {
+      for (final name in [
+        'from',
+        'to',
+        'stride',
+        'bucket',
+        'agg',
+        'format',
+        'probes',
+      ]) {
         expect(params, contains(name), reason: 'samples missing ?$name');
       }
       final content =
-          ((op['responses'] as YamlMap)['200'] as YamlMap)['content'] as YamlMap;
+          ((op['responses'] as YamlMap)['200'] as YamlMap)['content']
+              as YamlMap;
       final types = content.keys.map((k) => k.toString()).toSet();
       expect(
         types,
@@ -159,27 +172,38 @@ void main() {
 
   group('/live schema', () {
     test('probe temp_f10 is nullable and attached is a required boolean', () {
-      final op = ((spec['paths'] as YamlMap)['/api/v1/live'] as YamlMap)['get']
-          as YamlMap;
-      final schema = deref(
-        ((((op['responses'] as YamlMap)['200'] as YamlMap)['content']
-                as YamlMap)['application/json'] as YamlMap)['schema'],
-      ) as YamlMap;
-      final probeSchema = deref(
-        (deref(schema['properties']['probes']) as YamlMap)['items'],
-      ) as YamlMap;
+      final op =
+          ((spec['paths'] as YamlMap)['/api/v1/live'] as YamlMap)['get']
+              as YamlMap;
+      final schema =
+          deref(
+                ((((op['responses'] as YamlMap)['200'] as YamlMap)['content']
+                        as YamlMap)['application/json']
+                    as YamlMap)['schema'],
+              )
+              as YamlMap;
+      final probeSchema =
+          deref((deref(schema['properties']['probes']) as YamlMap)['items'])
+              as YamlMap;
       final props = probeSchema['properties'] as YamlMap;
 
       final tempF10 = props['temp_f10'] as YamlMap;
-      expect(tempF10['nullable'], isTrue,
-          reason: 'a detached probe must be null, not optional-with-default');
-      expect(tempF10.containsKey('default'), isFalse,
-          reason: 'temp_f10 must not carry a default');
+      expect(
+        tempF10['nullable'],
+        isTrue,
+        reason: 'a detached probe must be null, not optional-with-default',
+      );
+      expect(
+        tempF10.containsKey('default'),
+        isFalse,
+        reason: 'temp_f10 must not carry a default',
+      );
 
       final attached = props['attached'] as YamlMap;
       expect(attached['type'], 'boolean');
-      final required =
-          (probeSchema['required'] as YamlList).map((e) => e.toString());
+      final required = (probeSchema['required'] as YamlList).map(
+        (e) => e.toString(),
+      );
       expect(required, contains('attached'));
     });
 
@@ -188,35 +212,53 @@ void main() {
       final recent = deref(live['properties']['recent']) as YamlMap;
       final series = recent['properties']['series'] as YamlMap;
       final items = series['items'] as YamlMap;
-      expect(items['nullable'], isTrue,
-          reason: 'a fully-detached probe series is null');
-      expect((items['items'] as YamlMap)['nullable'], isTrue,
-          reason: 'individual detached samples are null');
+      expect(
+        items['nullable'],
+        isTrue,
+        reason: 'a fully-detached probe series is null',
+      );
+      expect(
+        (items['items'] as YamlMap)['nullable'],
+        isTrue,
+        reason: 'individual detached samples are null',
+      );
     });
   });
 
   group('error model', () {
     test('ErrorCode enumerates exactly the §6.1 table', () {
       final schema = resolveRef('#/components/schemas/ErrorCode') as YamlMap;
-      final declared = (schema['enum'] as YamlList).map((e) => e.toString()).toSet();
-      final expected =
-          errorCodesByStatus.values.expand((codes) => codes).toSet();
+      final declared = (schema['enum'] as YamlList)
+          .map((e) => e.toString())
+          .toSet();
+      final expected = errorCodesByStatus.values
+          .expand((codes) => codes)
+          .toSet();
       expect(declared, expected);
     });
 
     test('every documented error code has a fixture matching the envelope', () {
       for (final code in errorCodesByStatus.values.expand((codes) => codes)) {
         final file = File(p.join(fixturesDir, 'error-$code.json'));
-        expect(file.existsSync(), isTrue,
-            reason: 'missing fixture error-$code.json');
+        expect(
+          file.existsSync(),
+          isTrue,
+          reason: 'missing fixture error-$code.json',
+        );
         final body = jsonDecode(file.readAsStringSync());
         expect(body, isA<Map<String, dynamic>>(), reason: 'error-$code.json');
         final error = (body as Map<String, dynamic>)['error'];
-        expect(error, isA<Map<String, dynamic>>(),
-            reason: 'error-$code.json lacks the envelope');
+        expect(
+          error,
+          isA<Map<String, dynamic>>(),
+          reason: 'error-$code.json lacks the envelope',
+        );
         final envelope = error as Map<String, dynamic>;
-        expect(envelope['code'], code,
-            reason: 'error-$code.json carries the wrong code');
+        expect(
+          envelope['code'],
+          code,
+          reason: 'error-$code.json carries the wrong code',
+        );
         expect(envelope['message'], isA<String>());
         expect((envelope['message'] as String).isNotEmpty, isTrue);
       }
@@ -235,12 +277,15 @@ void main() {
             final status = int.tryParse(respEntry.key.toString());
             if (status == null || status < 400) continue;
             final response = deref(respEntry.value) as YamlMap;
-            final json = ((response['content'] as YamlMap)['application/json']
-                as YamlMap)['schema'] as YamlMap;
+            final json =
+                ((response['content'] as YamlMap)['application/json']
+                        as YamlMap)['schema']
+                    as YamlMap;
             expect(
               json[r'$ref'],
               '#/components/schemas/ErrorEnvelope',
-              reason: '${pathEntry.key} ${opEntry.key} $status must use the '
+              reason:
+                  '${pathEntry.key} ${opEntry.key} $status must use the '
                   'error envelope',
             );
             checked++;
@@ -253,8 +298,9 @@ void main() {
 
   group('/stream concurrency cap', () {
     test('documents 503 busy for a third concurrent upgrade', () {
-      final op = ((spec['paths'] as YamlMap)['/api/v1/stream'] as YamlMap)['get']
-          as YamlMap;
+      final op =
+          ((spec['paths'] as YamlMap)['/api/v1/stream'] as YamlMap)['get']
+              as YamlMap;
       final description = op['description'] as String;
       expect(description, contains('max_open_sockets = 7'));
       expect(description.toLowerCase(), contains('2 concurrent websocket'));
@@ -262,8 +308,10 @@ void main() {
 
       final resp503 = (op['responses'] as YamlMap)['503'] as YamlMap;
       expect(resp503['description'] as String, contains('busy'));
-      final schema = ((resp503['content'] as YamlMap)['application/json']
-          as YamlMap)['schema'] as YamlMap;
+      final schema =
+          ((resp503['content'] as YamlMap)['application/json']
+                  as YamlMap)['schema']
+              as YamlMap;
       expect(schema[r'$ref'], '#/components/schemas/ErrorEnvelope');
     });
 
@@ -282,17 +330,22 @@ void main() {
         'WsPingFrame',
         'WsAckAlarmFrame',
       ]) {
-        expect(schemas.containsKey(frame), isTrue,
-            reason: 'missing WebSocket frame schema $frame');
+        expect(
+          schemas.containsKey(frame),
+          isTrue,
+          reason: 'missing WebSocket frame schema $frame',
+        );
       }
     });
   });
 
   group('success fixtures', () {
     test('status.json parses with the §6.2 top-level keys', () {
-      final body = jsonDecode(
-        File(p.join(fixturesDir, 'status.json')).readAsStringSync(),
-      ) as Map<String, dynamic>;
+      final body =
+          jsonDecode(
+                File(p.join(fixturesDir, 'status.json')).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
       for (final key in [
         'device',
         'time',
@@ -305,58 +358,81 @@ void main() {
         'session',
         'alarms',
       ]) {
-        expect(body.containsKey(key), isTrue,
-            reason: 'status.json missing top-level "$key"');
+        expect(
+          body.containsKey(key),
+          isTrue,
+          reason: 'status.json missing top-level "$key"',
+        );
       }
     });
 
     test('live-two-detached.json: probes 3+4 are null, never 0', () {
-      final body = jsonDecode(
-        File(p.join(fixturesDir, 'live-two-detached.json')).readAsStringSync(),
-      ) as Map<String, dynamic>;
+      final body =
+          jsonDecode(
+                File(
+                  p.join(fixturesDir, 'live-two-detached.json'),
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
       final probes = body['probes'] as List<dynamic>;
       expect(probes, hasLength(4));
       for (final i in [2, 3]) {
         final probe = probes[i] as Map<String, dynamic>;
         expect(probe['attached'], isFalse);
-        expect(probe.containsKey('temp_f10'), isTrue,
-            reason: 'detached temp_f10 is explicit null, not omitted');
+        expect(
+          probe.containsKey('temp_f10'),
+          isTrue,
+          reason: 'detached temp_f10 is explicit null, not omitted',
+        );
         expect(probe['temp_f10'], isNull);
       }
-      final series = (body['recent'] as Map<String, dynamic>)['series'] as List<dynamic>;
+      final series =
+          (body['recent'] as Map<String, dynamic>)['series'] as List<dynamic>;
       expect(series[2], isNull);
       expect(series[3], isNull);
     });
 
-    test('samples-bucketed-gaps.json: minmax buckets with a non-empty gaps array', () {
-      final body = jsonDecode(
-        File(p.join(fixturesDir, 'samples-bucketed-gaps.json'))
-            .readAsStringSync(),
-      ) as Map<String, dynamic>;
-      expect(body['bucket_s'], 90);
-      expect(body['agg'], 'minmax');
-      final gaps = body['gaps'] as List<dynamic>;
-      expect(gaps, isNotEmpty);
-      final gap = gaps.first as Map<String, dynamic>;
-      expect(gap['from'], isA<int>());
-      expect(gap['to'], isA<int>());
-      for (final series in body['series'] as List<dynamic>) {
-        final entry = series as Map<String, dynamic>;
-        for (final key in ['min', 'mean', 'max']) {
-          expect(entry[key], hasLength(body['count'] as int));
+    test(
+      'samples-bucketed-gaps.json: minmax buckets with a non-empty gaps array',
+      () {
+        final body =
+            jsonDecode(
+                  File(
+                    p.join(fixturesDir, 'samples-bucketed-gaps.json'),
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        expect(body['bucket_s'], 90);
+        expect(body['agg'], 'minmax');
+        final gaps = body['gaps'] as List<dynamic>;
+        expect(gaps, isNotEmpty);
+        final gap = gaps.first as Map<String, dynamic>;
+        expect(gap['from'], isA<int>());
+        expect(gap['to'], isA<int>());
+        for (final series in body['series'] as List<dynamic>) {
+          final entry = series as Map<String, dynamic>;
+          for (final key in ['min', 'mean', 'max']) {
+            expect(entry[key], hasLength(body['count'] as int));
+          }
         }
-      }
-    });
+      },
+    );
 
     test('config/wifi accept fixtures: AP carries the PSK, STA never does', () {
-      final ap = jsonDecode(
-        File(p.join(fixturesDir, 'config-wifi-accept-ap.json'))
-            .readAsStringSync(),
-      ) as Map<String, dynamic>;
-      final sta = jsonDecode(
-        File(p.join(fixturesDir, 'config-wifi-accept-sta.json'))
-            .readAsStringSync(),
-      ) as Map<String, dynamic>;
+      final ap =
+          jsonDecode(
+                File(
+                  p.join(fixturesDir, 'config-wifi-accept-ap.json'),
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final sta =
+          jsonDecode(
+                File(
+                  p.join(fixturesDir, 'config-wifi-accept-sta.json'),
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
       for (final body in [ap, sta]) {
         expect(body['accepted'], isTrue);
         expect(body['applying_in_ms'], isA<int>());
@@ -370,8 +446,11 @@ void main() {
       final staExpect = sta['expect'] as Map<String, dynamic>;
       expect(staExpect['mode'], 'sta');
       expect(staExpect['host'], isA<String>());
-      expect(staExpect.containsKey('psk'), isFalse,
-          reason: 'a STA password must never be echoed');
+      expect(
+        staExpect.containsKey('psk'),
+        isFalse,
+        reason: 'a STA password must never be echoed',
+      );
     });
   });
 }

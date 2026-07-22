@@ -6,8 +6,9 @@ import 'package:smoke_bridge/domain/analysis/analysis.dart';
 import 'package:smoke_bridge/domain/entities/entities.dart';
 
 /// Runs the detector over (t, f) pairs, returning stall state per t.
-Map<int, bool> run(StallDetector d, List<({int t, double? f})> pts) =>
-    {for (final p in pts) p.t: d.add(p.t, p.f)};
+Map<int, bool> run(StallDetector d, List<({int t, double? f})> pts) => {
+  for (final p in pts) p.t: d.add(p.t, p.f),
+};
 
 /// Piecewise series builder at 30 s cadence.
 List<({int t, double? f})> ramp({
@@ -15,11 +16,10 @@ List<({int t, double? f})> ramp({
   required int toT,
   required double startF,
   required double fPerHr,
-}) =>
-    [
-      for (var t = fromT; t <= toT; t += 30)
-        (t: t, f: startF + fPerHr * (t - fromT) / 3600),
-    ];
+}) => [
+  for (var t = fromT; t <= toT; t += 30)
+    (t: t, f: startF + fPerHr * (t - fromT) / 3600),
+];
 
 void main() {
   test('enters after 30 sustained minutes flat inside the band', () {
@@ -70,9 +70,7 @@ void main() {
 
   test('exits only after 15 sustained minutes above 4 °F/hr', () {
     final d = StallDetector();
-    final plateau = [
-      ...ramp(fromT: 0, toT: 7200, startF: 157, fPerHr: 0),
-    ];
+    final plateau = [...ramp(fromT: 0, toT: 7200, startF: 157, fPerHr: 0)];
     final states1 = run(d, plateau);
     expect(states1[7200], isTrue);
 
@@ -105,9 +103,7 @@ void main() {
 
   test('detached (null) samples do not satisfy the band condition', () {
     final d = StallDetector();
-    final pts = [
-      for (var t = 0; t <= 10800; t += 30) (t: t, f: null),
-    ];
+    final pts = [for (var t = 0; t <= 10800; t += 30) (t: t, f: null)];
     expect(run(d, pts).values.any((s) => s), isFalse);
   });
 }

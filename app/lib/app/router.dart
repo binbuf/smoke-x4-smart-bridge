@@ -47,10 +47,7 @@ class HomePlaceholderScreen extends StatelessWidget {
             // Connection placeholder — becomes the live connection status
             // chip once the transport layer exists (A3).
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(24),

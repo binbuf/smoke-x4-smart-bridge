@@ -1,0 +1,58 @@
+# T1.6 / P1.4 — the contract lane: regenerate every protocol/gen output and
+# every deterministic fixture, and fail on ANY diff. Editing records.yaml
+# without regenerating turns this red; so does hand-editing generated code.
+name: protocol
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - run: dart pub get
+
+      - name: protocol/gen is current
+        run: dart run protogen --check
+
+      - name: Golden record fixtures are current
+        run: |
+          dart run protogen:gen_record_fixtures
+          git diff --exit-code -- protocol/fixtures/records
+
+      - name: cookgen fixture is current (seed 42)
+        run: |
+          dart run cookgen --scenario brisket-18h --seed 42 \
+            --out protocol/fixtures/brisket-18h.smk
+          git diff --exit-code -- protocol/fixtures/brisket-18h.smk \
+            protocol/fixtures/brisket-18h.mrk
+
+      - name: Tool formatting
+        run: dart format --output=none --set-exit-if-changed tools
+
+      - name: Record parity (Dart side of the shared vectors)
+        run: dart test
+        working-directory: tools/bridge_protocol
+
+      - name: Contract lint (openapi + http fixtures)
+        run: dart test
+        working-directory: tools/protogen
+
+      - name: cookgen suite
+        run: dart test
+        working-directory: tools/cookgen
+
+      - name: sim suite
+        run: dart test
+        working-directory: tools/sim

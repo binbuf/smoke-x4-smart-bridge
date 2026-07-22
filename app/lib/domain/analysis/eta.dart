@@ -134,8 +134,9 @@ EtaResult _linear(
   final slopeLow = fit.slope - 1.96 * fit.slopeStdError; // °F/s
   final slopeHigh = fit.slope + 1.96 * fit.slopeStdError;
   final fastS = remainF / slopeHigh;
-  final slowS =
-      slopeLow > 0 ? remainF / slopeLow : etaMaxHorizon.inSeconds.toDouble();
+  final slowS = slopeLow > 0
+      ? remainF / slopeLow
+      : etaMaxHorizon.inSeconds.toDouble();
   return _range(fastS, slowS);
 }
 

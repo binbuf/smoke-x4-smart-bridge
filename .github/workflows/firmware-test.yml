@@ -1,0 +1,41 @@
+# T1.5 — the host unit-test suite: plain CMake + CTest, no ESP-IDF, no
+# hardware, warnings as errors, with coverage (design 10 §10.5–10.6).
+name: firmware-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure with coverage
+        run: >
+          cmake -S firmware/test -B firmware/test/build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_FLAGS="--coverage"
+
+      - name: Build
+        run: cmake --build firmware/test/build
+
+      - name: Run
+        run: ctest --test-dir firmware/test/build --output-on-failure
+
+      - name: Coverage summary
+        run: |
+          pip install --quiet gcovr
+          gcovr --root firmware --filter 'firmware/(main|components)/' \
+                --print-summary --xml coverage.xml
+        continue-on-error: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: host-test-coverage
+          path: coverage.xml

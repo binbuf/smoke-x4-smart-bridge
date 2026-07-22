@@ -14,10 +14,12 @@ import 'package:smoke_bridge/domain/entities/entities.dart';
 import 'records_parity_test.dart' show repoRoot;
 
 void main() {
-  final smkBytes = File('${repoRoot()}/protocol/fixtures/brisket-18h.smk')
-      .readAsBytesSync();
-  final mrkBytes = File('${repoRoot()}/protocol/fixtures/brisket-18h.mrk')
-      .readAsBytesSync();
+  final smkBytes = File(
+    '${repoRoot()}/protocol/fixtures/brisket-18h.smk',
+  ).readAsBytesSync();
+  final mrkBytes = File(
+    '${repoRoot()}/protocol/fixtures/brisket-18h.mrk',
+  ).readAsBytesSync();
 
   group('brisket-18h.smk', () {
     final archive = SmkArchive.parse(smkBytes);
@@ -109,9 +111,7 @@ void main() {
 
     test('a torn tail stops cleanly at the last valid record', () {
       final whole = SmkArchive.parse(smkBytes).records.length;
-      final torn = Uint8List.fromList(
-        smkBytes.sublist(0, smkBytes.length - 7),
-      );
+      final torn = Uint8List.fromList(smkBytes.sublist(0, smkBytes.length - 7));
       final archive = SmkArchive.parse(torn);
       expect(archive.records.length, whole - 1);
     });
@@ -134,9 +134,13 @@ void main() {
           stalledAt.add(s.t);
         }
       }
-      expect(stalledAt, isNotEmpty,
-          reason: 'the generator and the detector must agree about what a '
-              'stall looks like');
+      expect(
+        stalledAt,
+        isNotEmpty,
+        reason:
+            'the generator and the detector must agree about what a '
+            'stall looks like',
+      );
       // The scenario stalls from 5 h for ~3 h; detection needs the 30-min
       // sustain, so it lands inside the window.
       expect(stalledAt.first, greaterThan(5 * 3600));

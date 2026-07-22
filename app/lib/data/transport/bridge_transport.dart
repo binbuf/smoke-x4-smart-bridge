@@ -77,10 +77,8 @@ sealed class ControlCommand with _$ControlCommand {
 /// The configurable surface (a subset in M0; grows with the settings work).
 @freezed
 abstract class BridgeConfig with _$BridgeConfig {
-  const factory BridgeConfig({
-    String? displayUnits,
-    List<Probe>? probes,
-  }) = _BridgeConfig;
+  const factory BridgeConfig({String? displayUnits, List<Probe>? probes}) =
+      _BridgeConfig;
 }
 
 /// The one interface every screen talks to (08 §8.1). Implementations:

@@ -9,8 +9,7 @@ List<TempPoint> series(
   int toT,
   double? Function(int t) f, {
   int stepS = 30,
-}) =>
-    [for (var t = fromT; t <= toT; t += stepS) (t: t, f: f(t))];
+}) => [for (var t = fromT; t <= toT; t += stepS) (t: t, f: f(t))];
 
 void main() {
   test('a perfectly linear rise fits exactly', () {
@@ -52,8 +51,10 @@ void main() {
       ...series(0, 240, (t) => 150.0),
       ...series(510, 600, (t) => 150.0),
     ];
-    expect(s.where((p) => p.f != null).length,
-        greaterThanOrEqualTo(rateMinValidSamples));
+    expect(
+      s.where((p) => p.f != null).length,
+      greaterThanOrEqualTo(rateMinValidSamples),
+    );
     expect(rateOfChange(s), isNull);
   });
 

@@ -3,3 +3,6 @@ idf_component_register(
     INCLUDE_DIRS "include"
     PRIV_REQUIRES esp_event esp_timer
 )
+
+# Our code builds warning-clean; IDF components are not our battle.
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)

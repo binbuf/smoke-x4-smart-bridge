@@ -1,0 +1,88 @@
+# T1.5 — firmware build in the ESP-IDF v5.4 container, with the binary-size
+# and free-space delta reported on every PR (design 10 §10.6). With 2.5 MB
+# app slots holding Wi-Fi + BLE + httpd + LittleFS, the day someone adds a
+# library that doesn't fit should be the day they find out.
+name: firmware-build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firmware/**'
+      - 'protocol/gen/**'
+      - '.github/workflows/firmware-build.yml'
+  pull_request:
+    paths:
+      - 'firmware/**'
+      - 'protocol/gen/**'
+      - '.github/workflows/firmware-build.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v5.4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (heltec-v3)
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          cd firmware
+          idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
+          idf.py size
+
+      - name: Size report
+        shell: bash
+        run: |
+          APP_BIN=$(ls firmware/build/*.bin | grep -v bootloader | grep -v partition | head -1)
+          SIZE=$(stat -c%s "$APP_BIN")
+          SLOT=$((0x280000))
+          FREE=$((SLOT - SIZE))
+          PCT=$((SIZE * 100 / SLOT))
+          {
+            echo "### Firmware size — heltec-v3"
+            echo ""
+            echo "| | bytes | of 2560 KB slot |"
+            echo "| --- | ---: | ---: |"
+            echo "| app image | $SIZE | ${PCT}% |"
+            echo "| free in slot | $FREE | $((100 - PCT))% |"
+          } > size-report.md
+          cat size-report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ "$SIZE" -ge "$SLOT" ]; then
+            echo "::error::app image ($SIZE B) does not fit the 2560 KB OTA slot"
+            exit 1
+          fi
+
+      - name: Comment size on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('size-report.md', 'utf8');
+            const marker = '### Firmware size — heltec-v3';
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number });
+            const mine = comments.find(c => c.body.startsWith(marker));
+            if (mine) {
+              await github.rest.issues.updateComment({
+                ...context.repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.issue.number, body });
+            }
+
+      - name: Upload image
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-bridge-heltec-v3
+          path: |
+            firmware/build/*.bin
+            firmware/build/*.elf
+            firmware/build/*.map
+          if-no-files-found: error

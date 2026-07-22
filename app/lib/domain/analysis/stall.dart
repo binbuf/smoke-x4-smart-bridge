@@ -51,7 +51,8 @@ class StallDetector {
     final slope = rateOfChange(_series, atT: t);
 
     if (!_stalled) {
-      final entering = slope != null &&
+      final entering =
+          slope != null &&
           slope.abs() < stallEnterSlopeFPerHr &&
           f != null &&
           f >= stallBandLowF &&

@@ -27,8 +27,9 @@ void main(List<String> args) {
   var stale = false;
   targets.forEach((path, content) {
     final file = File(path);
-    final current =
-        file.existsSync() ? file.readAsStringSync().replaceAll('\r\n', '\n') : null;
+    final current = file.existsSync()
+        ? file.readAsStringSync().replaceAll('\r\n', '\n')
+        : null;
     if (current == content) return;
     if (check) {
       stderr.writeln('stale: ${p.relative(path, from: root)}');
@@ -51,15 +52,17 @@ void main(List<String> args) {
 /// Formats emitted Dart through `dart format` so committed output is stable
 /// under the repo-wide format check.
 String _format(String source) {
-  final tmp = File(p.join(
-    Directory.systemTemp.createTempSync('protogen').path,
-    'records.g.dart',
-  ));
-  tmp.writeAsStringSync(source);
-  final result = Process.runSync(
-    Platform.resolvedExecutable,
-    ['format', tmp.path],
+  final tmp = File(
+    p.join(
+      Directory.systemTemp.createTempSync('protogen').path,
+      'records.g.dart',
+    ),
   );
+  tmp.writeAsStringSync(source);
+  final result = Process.runSync(Platform.resolvedExecutable, [
+    'format',
+    tmp.path,
+  ]);
   if (result.exitCode != 0) {
     throw StateError('dart format failed on emitted code:\n${result.stderr}');
   }

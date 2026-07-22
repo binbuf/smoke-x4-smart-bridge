@@ -19,9 +19,9 @@ enum WireType {
   final bool signed;
 
   static WireType parse(String s) => WireType.values.firstWhere(
-        (t) => t.name == s,
-        orElse: () => throw SpecException('unknown type "$s"'),
-      );
+    (t) => t.name == s,
+    orElse: () => throw SpecException('unknown type "$s"'),
+  );
 }
 
 class SpecException implements Exception {
@@ -94,8 +94,7 @@ class FieldSpec {
   bool get isVariable => varLenField != null || varLenImplicit;
 
   /// Wire size in bytes; for variable fields, the maximum.
-  int get maxByteSize =>
-      type.size * (isVariable ? (max ?? 0) : count) * rows;
+  int get maxByteSize => type.size * (isVariable ? (max ?? 0) : count) * rows;
 
   /// Offset is only meaningful for fields before the first variable field.
   int? offset;
@@ -219,8 +218,7 @@ class ProtocolSpec {
           bits: (f['bits'] as YamlList?)?.cast<String>().toList(),
           sentinel: sentinel,
           crc: f['crc'] == null ? null : CrcSpec.parse(f['crc'] as YamlMap),
-          varLenField:
-              varLen is String && varLen != 'implicit' ? varLen : null,
+          varLenField: varLen is String && varLen != 'implicit' ? varLen : null,
           varLenImplicit: varLen == 'implicit',
           max: f['max'] as int?,
           reserved: (f['reserved'] as bool?) ?? false,
@@ -270,7 +268,9 @@ class ProtocolSpec {
           offset += f.type.size * f.count * f.rows;
         }
         if (f.enumName != null && !enums.containsKey(f.enumName)) {
-          throw SpecException('${r.name}.${f.name}: unknown enum ${f.enumName}');
+          throw SpecException(
+            '${r.name}.${f.name}: unknown enum ${f.enumName}',
+          );
         }
       }
       if (r.declaredSize != null) {
