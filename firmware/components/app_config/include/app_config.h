@@ -1,14 +1,19 @@
-/* app_config.h — declared in the design 03 §3.1 component map; implemented in
- * M1+. The M0 skeleton keeps the component compiled and linked so the build
- * shape is real from the first commit. */
+/* app_config — NVS-backed typed configuration (design 03 §3.6).
+ *
+ * The typed API lives in app_config_store.h; this header only carries the
+ * device-side entry point. No other component opens NVS directly. */
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
+
+#include "app_config_store.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Returns 0 on success. Stub until the component's milestone lands. */
+/* Wires the NVS backend into the store, runs migrations, and generates the
+ * AP PSK on first boot. NVS itself must already be initialised (boot step 3).
+ * Returns APP_CONFIG_OK on success. */
 int app_config_init(void);
 
 #ifdef __cplusplus

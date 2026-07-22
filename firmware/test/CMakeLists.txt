@@ -51,6 +51,17 @@ target_include_directories(test_boot_seq PRIVATE
 )
 add_test(NAME boot_seq COMMAND test_boot_seq)
 
+# Typed config store: schema round-trips, the reference-compatible sx_pair
+# blob, the v0→v1 adoption migration, notifications, PSK (F7.1–F7.3).
+add_executable(test_app_config
+    test_app_config.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_app_config PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+)
+add_test(NAME app_config COMMAND test_app_config)
+
 # Task table invariants (F1.4).
 add_executable(test_tasks_table test_tasks_table.c)
 target_include_directories(test_tasks_table PRIVATE

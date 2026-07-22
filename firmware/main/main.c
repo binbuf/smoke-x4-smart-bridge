@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
+#include "app_config.h"
 #include "bench.h"
 #include "boot_seq.h"
 #include "double_reset.h"
@@ -62,6 +63,17 @@ static int step_event_loop(void *ctx) {
     return esp_event_loop_create_default() == ESP_OK ? 0 : -1;
 }
 
+static int step_config(void *ctx) {
+    (void)ctx;
+    const int rc = app_config_init();
+    if (rc != APP_CONFIG_OK) {
+        ESP_LOGE(TAG, "app_config_init failed (%d)", rc);
+        return -1;
+    }
+    ESP_LOGI(TAG, "config store at version %u", app_config_store_version());
+    return 0;
+}
+
 static int step_stub(void *ctx) {
     (void)ctx;
     return 0;
@@ -104,7 +116,7 @@ void app_main(void) {
             {
                 [BRIDGE_BOOT_NVS - 1] = step_nvs,
                 [BRIDGE_BOOT_BOOT_REASON - 1] = step_boot_reason,
-                [BRIDGE_BOOT_CONFIG - 1] = step_stub, /* F7 */
+                [BRIDGE_BOOT_CONFIG - 1] = step_config,
                 [BRIDGE_BOOT_EVENT_LOOP - 1] = step_event_loop,
                 [BRIDGE_BOOT_POWER - 1] = step_stub, /* F12 */
                 [BRIDGE_BOOT_UI - 1] = step_stub,    /* F11 */
