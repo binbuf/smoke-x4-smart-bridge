@@ -51,6 +51,17 @@ target_include_directories(test_boot_seq PRIVATE
 )
 add_test(NAME boot_seq COMMAND test_boot_seq)
 
+# Smoke X payload parser: reference seed corpus + real X4 vectors
+# (F3.1–F3.5).
+add_executable(test_smoke_x_parser
+    test_smoke_x_parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+)
+target_include_directories(test_smoke_x_parser PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+)
+add_test(NAME smoke_x_parser COMMAND test_smoke_x_parser)
+
 # Typed config store: schema round-trips, the reference-compatible sx_pair
 # blob, the v0→v1 adoption migration, notifications, PSK (F7.1–F7.3).
 add_executable(test_app_config

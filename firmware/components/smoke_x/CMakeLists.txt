@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "smoke_x.c"
+    SRCS "smoke_x.c" "smoke_x_parser.c"
     INCLUDE_DIRS "include"
 )
 
