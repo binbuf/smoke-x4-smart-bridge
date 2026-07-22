@@ -3,3 +3,5 @@ idf_component_register(
     INCLUDE_DIRS "."
     PRIV_REQUIRES bridge_event nvs_flash esp_event esp_timer
 )
+
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)
