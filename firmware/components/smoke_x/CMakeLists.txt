@@ -1,5 +1,6 @@
 idf_component_register(
-    SRCS "smoke_x.c" "smoke_x_parser.c" "smoke_x_ctrl.c"
+    SRCS "smoke_x.c" "smoke_x_parser.c" "smoke_x_ctrl.c" "smoke_x_pktring.c"
+         "smoke_x_novelty.c"
     INCLUDE_DIRS "include"
     PRIV_REQUIRES app_config
 )
