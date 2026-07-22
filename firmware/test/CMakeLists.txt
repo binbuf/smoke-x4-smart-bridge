@@ -62,6 +62,18 @@ target_include_directories(test_smoke_x_parser PRIVATE
 )
 add_test(NAME smoke_x_parser COMMAND test_smoke_x_parser)
 
+# Raw packet ring and novelty seen-set (F4.1/F4.2).
+add_executable(test_smoke_x_novelty
+    test_smoke_x_novelty.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_novelty.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_pktring.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+)
+target_include_directories(test_smoke_x_novelty PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+)
+add_test(NAME smoke_x_novelty COMMAND test_smoke_x_novelty)
+
 # Pairing state machine, watchdog, and packet accounting (F3.4/F3.6/F3.7).
 add_executable(test_smoke_x_ctrl
     test_smoke_x_ctrl.c
