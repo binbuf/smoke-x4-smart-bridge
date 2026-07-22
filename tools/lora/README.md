@@ -30,13 +30,24 @@ probes at room temperature produce fully real X4 vectors.
 
 **Part 1 — capture with the reference firmware (V1.2, V2.1, V2.2):**
 
+The reference targets IDF v5.4; building it on **v6.0.2 needs the committed
+patch** [`reference-idf6.patch`](reference-idf6.patch) (cJSON and esp-mqtt
+moved to the component manager, split-driver REQUIRES, two C23 call fixes,
+web-UI image build disabled — it needs bash+node and capture doesn't need
+it). This exact flow has been built and verified on this machine; the ready
+working copy lives at `~\esp-work\smoke-x-receiver` (`build/smoke-x.bin`).
+
 ```powershell
-# ESP-IDF 5.4 PowerShell. Build a COPY — docs/reference/ stays frozen.
+# From scratch (reproducible). Always build a COPY — docs/reference/ stays frozen.
+. D:\esp-idf-v6.0.2\export.ps1
 mkdir ~\esp-work; cd ~\esp-work
 Copy-Item -Recurse D:\repos\binbuf\smoke-x4-smart-bridge\docs\reference\smoke-x-receiver .
 cd smoke-x-receiver
-git clone https://github.com/nopnop2002/esp-idf-sx126x.git   # submodule dir is empty in the snapshot
+git clone https://github.com/nopnop2002/esp-idf-sx126x.git   # both submodule dirs are
+git clone https://github.com/nopnop2002/esp-idf-sx127x.git   # empty in the snapshot
+patch -p1 < D:\repos\binbuf\smoke-x4-smart-bridge\tools\lora\reference-idf6.patch
 Copy-Item sdkconfig.heltec-v3 sdkconfig
+Add-Content sdkconfig "CONFIG_I2C_SUPPRESS_DEPRECATE_WARN=y"
 idf.py build
 idf.py -p COMx flash monitor          # COM port from Device Manager
 ```
