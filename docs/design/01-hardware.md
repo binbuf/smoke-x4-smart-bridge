@@ -1,23 +1,23 @@
 # 01 — Hardware
 
-Target board: **Heltec WiFi LoRa 32 (V3)** — sold as *"ESP32 LoRa V3 Development Board + 3000 mAh
-Battery Set, Integrated WiFi Bluetooth SX1262 CP2102 0.96-inch OLED Display"*. Heltec part
+Target board: **Heltec WiFi LoRa 32 (V3)** — sold as _"ESP32 LoRa V3 Development Board + 3000 mAh
+Battery Set, Integrated WiFi Bluetooth SX1262 CP2102 0.96-inch OLED Display"_. Heltec part
 `HTIT-WB32LA`. The V4 (`WiFi LoRa 32 V4`) shares the chip, radio, and GPIO map and should run the
 same firmware unchanged; treat it as untested.
 
 ## 1.1 Silicon and memory
 
-| | |
-| --- | --- |
-| MCU | **ESP32-S3FN8** — dual-core Xtensa LX7 @ up to 240 MHz |
-| SRAM | **512 KB** internal, + 16 KB RTC SRAM, 384 KB ROM |
-| **PSRAM** | **None.** The FN8 package is flash-only. This is the dominant constraint on the whole design |
-| Flash | **8 MB** SiP, DIO |
-| Radio (LoRa) | Semtech **SX1262**, 863–928 MHz band as sold for US (902–928 MHz), TX up to 21 ±1 dBm, RX sensitivity to −137 dBm |
-| Radio (2.4 GHz) | Wi-Fi 802.11 b/g/n + **Bluetooth LE 5 only — no Bluetooth Classic** (ESP32-S3 has no BR/EDR) |
-| Display | 0.96" 128×64 SSD1306 OLED, I²C |
-| USB | Type-C via **CP2102** UART bridge (GPIO43/44); ESP32-S3 native USB also broken out (GPIO19/20) |
-| Battery | SH1.25-2 (JST-SH 2-pin) connector, onboard Li-ion charger + protection |
+|                 |                                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| MCU             | **ESP32-S3FN8** — dual-core Xtensa LX7 @ up to 240 MHz                                                            |
+| SRAM            | **512 KB** internal, + 16 KB RTC SRAM, 384 KB ROM                                                                 |
+| **PSRAM**       | **None.** The FN8 package is flash-only. This is the dominant constraint on the whole design                      |
+| Flash           | **8 MB** SiP, DIO                                                                                                 |
+| Radio (LoRa)    | Semtech **SX1262**, 863–928 MHz band as sold for US (902–928 MHz), TX up to 21 ±1 dBm, RX sensitivity to −137 dBm |
+| Radio (2.4 GHz) | Wi-Fi 802.11 b/g/n + **Bluetooth LE 5 only — no Bluetooth Classic** (ESP32-S3 has no BR/EDR)                      |
+| Display         | 0.96" 128×64 SSD1306 OLED, I²C                                                                                    |
+| USB             | Type-C via **CP2102** UART bridge (GPIO43/44); ESP32-S3 native USB also broken out (GPIO19/20)                    |
+| Battery         | SH1.25-2 (JST-SH 2-pin) connector, onboard Li-ion charger + protection                                            |
 
 > **The no-PSRAM fact drives three decisions.** NimBLE over Bluedroid (D6), streamed responses
 > instead of a JSON DOM (D7), and a hard ceiling on concurrent HTTP/WebSocket clients (see
@@ -31,26 +31,26 @@ bench before firmware depends on them** — see §1.6.
 
 ### Reserved by onboard peripherals
 
-| GPIO | Function | Notes |
-| --- | --- | --- |
-| 0 | **PRG button** | Strapping pin. Active LOW. Boot-mode select at reset, free for app use afterwards. Our only user input ([07](07-display-and-controls.md)) |
-| 1 | **VBAT sense (ADC1_CH0)** | Through a resistor divider gated by GPIO37 ⚠ |
-| 8 | SX1262 `NSS` | SPI2 chip select |
-| 9 | SX1262 `SCK` | |
-| 10 | SX1262 `MOSI` | |
-| 11 | SX1262 `MISO` | |
-| 12 | SX1262 `RST` | |
-| 13 | SX1262 `BUSY` | |
-| 14 | SX1262 `DIO1` | IRQ line. **The vendored `ra01s` driver polls rather than using DIO1** — see §1.5 |
-| 17 | OLED `SDA` | I²C0 |
-| 18 | OLED `SCL` | I²C0 |
-| 21 | OLED `RST` | |
-| 35 | **White LED** | Active HIGH, PWM-capable. Used for alarm signalling |
-| 36 | **Vext control** | **Active LOW** (P-channel MOSFET). Must be driven LOW to power the OLED rail |
-| 37 | **ADC_Ctrl** ⚠ | Drive LOW to enable the battery divider. See the conflict note below |
-| 43 / 44 | UART0 TX/RX | CP2102 console — keep free for logs and Improv-Serial |
-| 19 / 20 | USB D− / D+ | Native USB |
-| 45 / 46 | Strapping | Avoid |
+| GPIO    | Function                  | Notes                                                                                                                                     |
+| ------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 0       | **PRG button**            | Strapping pin. Active LOW. Boot-mode select at reset, free for app use afterwards. Our only user input ([07](07-display-and-controls.md)) |
+| 1       | **VBAT sense (ADC1_CH0)** | Through a resistor divider gated by GPIO37 ⚠                                                                                              |
+| 8       | SX1262 `NSS`              | SPI2 chip select                                                                                                                          |
+| 9       | SX1262 `SCK`              |                                                                                                                                           |
+| 10      | SX1262 `MOSI`             |                                                                                                                                           |
+| 11      | SX1262 `MISO`             |                                                                                                                                           |
+| 12      | SX1262 `RST`              |                                                                                                                                           |
+| 13      | SX1262 `BUSY`             |                                                                                                                                           |
+| 14      | SX1262 `DIO1`             | IRQ line. **The vendored `ra01s` driver polls rather than using DIO1** — see §1.5                                                         |
+| 17      | OLED `SDA`                | I²C0                                                                                                                                      |
+| 18      | OLED `SCL`                | I²C0                                                                                                                                      |
+| 21      | OLED `RST`                |                                                                                                                                           |
+| 35      | **White LED**             | Active HIGH, PWM-capable. Used for alarm signalling                                                                                       |
+| 36      | **Vext control**          | **Active LOW** (P-channel MOSFET). Must be driven LOW to power the OLED rail                                                              |
+| 37      | **ADC_Ctrl** ⚠            | Drive LOW to enable the battery divider. See the conflict note below                                                                      |
+| 43 / 44 | UART0 TX/RX               | CP2102 console — keep free for logs and Improv-Serial                                                                                     |
+| 19 / 20 | USB D− / D+               | Native USB                                                                                                                                |
+| 45 / 46 | Strapping                 | Avoid                                                                                                                                     |
 
 > ⚠ **GPIO37 conflict.** Several published pinouts list GPIO33–38 as "SPI flash / SubSPI — do not
 > use". That guidance is for ESP32-S3 parts with **octal** PSRAM, which claim those pins. The FN8
@@ -83,10 +83,10 @@ v_batt = v_adc * VBAT_DIVIDER_RATIO;
 
 **The divider ratio is disputed in public sources and must be calibrated:**
 
-| Source | Claimed factor |
-| --- | --- |
-| Heltec community forum (390 kΩ / 100 kΩ, `VBAT = 100/(100+390) × VADC`) | **×4.9** |
-| ESPHome device profile for this board | **×2.0** |
+| Source                                                                  | Claimed factor |
+| ----------------------------------------------------------------------- | -------------- |
+| Heltec community forum (390 kΩ / 100 kΩ, `VBAT = 100/(100+390) × VADC`) | **×4.9**       |
+| ESPHome device profile for this board                                   | **×2.0**       |
 
 Do not hard-code either. Store `vbat_cal_num` / `vbat_cal_den` in NVS, default to ×4.9, and expose
 a one-point calibration command (`POST /api/v1/config/device {"vbat_actual_mv": 4020}`) that
@@ -98,18 +98,18 @@ off a cliff.
 
 Free heap at boot on a bare ESP32-S3FN8 app is ~380 KB. Planned allocation:
 
-| Consumer | Estimate | Notes |
-| --- | --- | --- |
-| Wi-Fi driver (AP or STA) | 50–70 KB | Trim `CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM` / dynamic TX buffers; we move tens of KB, not megabits |
-| lwIP | 20–30 KB | |
-| NimBLE host + controller | 35–45 KB | Bluedroid would be ~140 KB. Non-negotiable (D6) |
-| `esp_http_server` | 8 KB + ~6 KB per open connection | Cap at 4 concurrent, 2 of them WebSocket |
-| LittleFS (2 mounts) | 8–16 KB | Cache/lookahead sizes are tunable; larger cache = faster, more RAM |
-| mDNS | ~4 KB | |
-| Application task stacks | ~26 KB | lora_rx 4K, smoke_x 4K, cook_store 4K, ui 4K, alarm 3K, ble_app 4K, net 3K |
-| Live sample ring (2 h @ 30 s) | 3.9 KB | 240 × 16 B |
-| Scratch buffers | ≤ 6 KB | Streaming keeps these small by construction |
-| **Total** | **~160–210 KB** | Leaves ~170–220 KB headroom |
+| Consumer                      | Estimate                         | Notes                                                                                              |
+| ----------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Wi-Fi driver (AP or STA)      | 50–70 KB                         | Trim `CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM` / dynamic TX buffers; we move tens of KB, not megabits |
+| lwIP                          | 20–30 KB                         |                                                                                                    |
+| NimBLE host + controller      | 35–45 KB                         | Bluedroid would be ~140 KB. Non-negotiable (D6)                                                    |
+| `esp_http_server`             | 8 KB + ~6 KB per open connection | Cap at 4 concurrent, 2 of them WebSocket                                                           |
+| LittleFS (2 mounts)           | 8–16 KB                          | Cache/lookahead sizes are tunable; larger cache = faster, more RAM                                 |
+| mDNS                          | ~4 KB                            |                                                                                                    |
+| Application task stacks       | ~26 KB                           | lora_rx 4K, smoke_x 4K, cook_store 4K, ui 4K, alarm 3K, ble_app 4K, net 3K                         |
+| Live sample ring (2 h @ 30 s) | 3.9 KB                           | 240 × 16 B                                                                                         |
+| Scratch buffers               | ≤ 6 KB                           | Streaming keeps these small by construction                                                        |
+| **Total**                     | **~160–210 KB**                  | Leaves ~170–220 KB headroom                                                                        |
 
 Headroom is real but not generous. Rules that follow from it:
 
@@ -124,18 +124,18 @@ Headroom is real but not generous. Rules that follow from it:
 
 The reference firmware's working SX1262 settings, which we inherit verbatim:
 
-| Parameter | Value | Notes |
-| --- | --- | --- |
-| Driver | [`nopnop2002/esp-idf-sx126x`](https://github.com/nopnop2002/esp-idf-sx126x) (`ra01s`) | Vendored as a component. **Polling `LoRaReceive()`, not DIO1 interrupt-driven** |
-| Spreading factor | 9 | |
-| Bandwidth | index 4 = 125 kHz | SX126x driver uses an index, not Hz — unlike the SX1276 path |
-| Coding rate | 1 = 4/5 | |
-| Preamble | 10 symbols | |
-| Sync word | 0x12 | Private-network sync word |
-| CRC | on | |
-| TX power | 22 dBm | Only ever used for the single pairing ACK |
-| TCXO | 3.3 V, LDO regulator | `LoRaBegin(freq, 22, 3.3, 1)` |
-| Frequency | 902–928 MHz, learned during pairing | X4 syncs on 915.0 MHz, X2 on 920.0 MHz |
+| Parameter        | Value                                                                                 | Notes                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Driver           | [`nopnop2002/esp-idf-sx126x`](https://github.com/nopnop2002/esp-idf-sx126x) (`ra01s`) | Vendored as a component. **Polling `LoRaReceive()`, not DIO1 interrupt-driven** |
+| Spreading factor | 9                                                                                     |                                                                                 |
+| Bandwidth        | index 4 = 125 kHz                                                                     | SX126x driver uses an index, not Hz — unlike the SX1276 path                    |
+| Coding rate      | 1 = 4/5                                                                               |                                                                                 |
+| Preamble         | 10 symbols                                                                            |                                                                                 |
+| Sync word        | 0x12                                                                                  | Private-network sync word                                                       |
+| CRC              | on                                                                                    |                                                                                 |
+| TX power         | 22 dBm                                                                                | Only ever used for the single pairing ACK                                       |
+| TCXO             | 3.3 V, LDO regulator                                                                  | `LoRaBegin(freq, 22, 3.3, 1)`                                                   |
+| Frequency        | 902–928 MHz, learned during pairing                                                   | X4 syncs on 915.0 MHz, X2 on 920.0 MHz                                          |
 
 Two consequences of the polling driver worth designing around:
 
@@ -153,31 +153,31 @@ Two consequences of the polling driver worth designing around:
 
 ## 1.6 Power budget
 
-The headline question — *can it run a 24 hour cook on the 3000 mAh pack?* — depends entirely on
+The headline question — _can it run a 24 hour cook on the 3000 mAh pack?_ — depends entirely on
 Wi-Fi mode.
 
 Component draw (typical, from datasheets and comparable measurements; **all figures need bench
 confirmation**):
 
-| Component | Draw |
-| --- | --- |
+| Component                                                      | Draw           |
+| -------------------------------------------------------------- | -------------- |
 | ESP32-S3 @ 240 MHz, Wi-Fi **AP** beaconing (no sleep possible) | 100–130 mA avg |
-| ESP32-S3 @ 240 MHz, Wi-Fi **STA** with `WIFI_PS_MIN_MODEM` | 40–70 mA avg |
-| SX1262 continuous RX | ~5 mA |
-| SSD1306 128×64, typical content | 7–15 mA |
-| NimBLE advertising @ 1 s interval | 1–3 mA |
-| Regulator + CP2102 quiescent | 3–6 mA |
+| ESP32-S3 @ 240 MHz, Wi-Fi **STA** with `WIFI_PS_MIN_MODEM`     | 40–70 mA avg   |
+| SX1262 continuous RX                                           | ~5 mA          |
+| SSD1306 128×64, typical content                                | 7–15 mA        |
+| NimBLE advertising @ 1 s interval                              | 1–3 mA         |
+| Regulator + CP2102 quiescent                                   | 3–6 mA         |
 
 Usable pack energy: 3000 mAh nominal, derate to ~2700 mAh after regulator loss and the
 low-voltage cutoff.
 
-| Scenario | Avg draw | Estimated runtime |
-| --- | --- | --- |
-| **AP mode, OLED always on** | ~145 mA | **~18.5 h — does not cover a 24 h cook** |
-| AP mode, OLED sleeps after 60 s | ~133 mA | ~20 h |
-| AP mode, OLED sleep + CPU 160 MHz + DFS | ~110 mA | ~24 h — marginal |
-| **STA mode, modem sleep, OLED sleep** | ~70 mA | **~38 h** |
-| STA mode, battery-saver profile | ~55 mA | ~49 h |
+| Scenario                                | Avg draw | Estimated runtime                        |
+| --------------------------------------- | -------- | ---------------------------------------- |
+| **AP mode, OLED always on**             | ~145 mA  | **~18.5 h — does not cover a 24 h cook** |
+| AP mode, OLED sleeps after 60 s         | ~133 mA  | ~20 h                                    |
+| AP mode, OLED sleep + CPU 160 MHz + DFS | ~110 mA  | ~24 h — marginal                         |
+| **STA mode, modem sleep, OLED sleep**   | ~70 mA   | **~38 h**                                |
+| STA mode, battery-saver profile         | ~55 mA   | ~49 h                                    |
 
 Design conclusions:
 
@@ -189,8 +189,8 @@ Design conclusions:
 3. **OLED auto-sleep after 60 s** (configurable, wake on button or alarm) is the cheapest single
    win and is in the v1.0 scope.
 4. **Battery is for portability and ride-through, not for the whole cook.** The board charges over
-   USB-C while running, so the supported long-cook setup is *USB power bank or wall adapter, with
-   the pack as a UPS*. Document this prominently in the app's onboarding and in the README.
+   USB-C while running, so the supported long-cook setup is _USB power bank or wall adapter, with
+   the pack as a UPS_. Document this prominently in the app's onboarding and in the README.
 5. A `battery_saver` config profile (CPU 160 MHz, OLED 30 s, BLE adv 2 s, WebSocket push throttled)
    is exposed over the API and auto-engages below 20 % SoC, with a notification.
 
@@ -200,11 +200,11 @@ Design conclusions:
 
 ## 1.7 Flash budget
 
-| Region | Size | Contents |
-| --- | --- | --- |
-| App slots (×2) | 2.5 MB each | Estimated app image 1.6–1.9 MB (IDF base + Wi-Fi + BLE/NimBLE + httpd + LittleFS + mbedTLS for OTA). ~30 % headroom |
-| `www` LittleFS | 512 KB | **Reserved, empty in v1** (D13). Would hold a gzipped fallback web UI; the reference's Vue bundle fits in ~200 KB gzipped |
-| `cooks` LittleFS | 2.375 MB | Cook history. **~155,600 samples ≈ 1,290 h ≈ 54 days of continuous 30 s logging**, before ~10 % filesystem overhead |
+| Region           | Size        | Contents                                                                                                                  |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| App slots (×2)   | 2.5 MB each | Estimated app image 1.6–1.9 MB (IDF base + Wi-Fi + BLE/NimBLE + httpd + LittleFS + mbedTLS for OTA). ~30 % headroom       |
+| `www` LittleFS   | 512 KB      | **Reserved, empty in v1** (D13). Would hold a gzipped fallback web UI; the reference's Vue bundle fits in ~200 KB gzipped |
+| `cooks` LittleFS | 2.375 MB    | Cook history. **~155,600 samples ≈ 1,290 h ≈ 54 days of continuous 30 s logging**, before ~10 % filesystem overhead       |
 
 Full table in [03 — Firmware Architecture §3.5](03-firmware-architecture.md).
 
@@ -239,4 +239,4 @@ Run before any firmware depends on these. Record results in `docs/design/hardwar
 - [ESPHome device profile — Heltec WiFi LoRa 32 V3](https://devices.esphome.io/devices/heltec-wifi-lora-32-v3/)
 - [Community GPIO reference (boorker-watchdog)](https://github.com/SirPangolin/boorker-watchdog/blob/main/docs/hardware/heltec-v3-pinout.md)
 - [`nopnop2002/esp-idf-sx126x`](https://github.com/nopnop2002/esp-idf-sx126x)
-</content>
+  </content>
