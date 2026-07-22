@@ -1,0 +1,15 @@
+# Normalize all text to LF in the repo and on checkout — this monorepo builds
+# on Linux CI and Windows/macOS workstations alike.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary cook fixtures and images — never line-ending-normalized.
+*.smk binary
+*.mrk binary
+*.raw binary
+*.bin binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.jar binary
