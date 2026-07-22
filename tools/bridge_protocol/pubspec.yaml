@@ -1,0 +1,14 @@
+name: bridge_protocol
+description: >-
+  Generated wire codecs for the tool packages (sim, cookgen). lib/records.g.dart is emitted
+  by tools/protogen from protocol/records.yaml — the canonical copy lives at
+  protocol/gen/records.g.dart; this package exists so Dart tools can import it as a package.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.6.0
+dev_dependencies:
+  lints: ^5.1.0
+  path: ^1.9.0
+  test: ^1.25.0

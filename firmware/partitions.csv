@@ -1,0 +1,14 @@
+# 8 MB flash, OTA-capable from day one (D8) — design 03 §3.5, byte-exact.
+# 0x5A0000 + 0x260000 = 0x800000: nothing stranded. App slots are 64 KB
+# aligned; the 56 KB the alignment would waste becomes the coredump partition.
+# `www` is declared and left unformatted (D13): reclaiming it later is free,
+# carving it out later would erase every stored cook.
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x6000,
+otadata,    data, ota,      0xF000,   0x2000,
+phy_init,   data, phy,      0x11000,  0x1000,
+coredump,   data, coredump, 0x12000,  0xE000,
+ota_0,      app,  ota_0,    0x20000,  0x280000,
+ota_1,      app,  ota_1,    0x2A0000, 0x280000,
+www,        data, littlefs, 0x520000, 0x80000,
+cooks,      data, littlefs, 0x5A0000, 0x260000,

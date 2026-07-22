@@ -1,0 +1,7 @@
+# mark_rec: multibyte UTF-8 text survives the fixed 24-byte field
+kind=mark
+crc_ok=1
+t=21600
+mark_kind=1
+probe=2
+text=wrapped ✓ 完了

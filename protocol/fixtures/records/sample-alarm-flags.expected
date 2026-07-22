@@ -1,0 +1,21 @@
+# sample_rec: alarm enabled on probes 1+2, new_alarm set in this packet
+kind=sample
+crc_ok=1
+t=55800
+temp0=2503
+temp1=2035
+temp2=1610
+temp3=900
+temp0_null=0
+temp1_null=0
+temp2_null=0
+temp3_null=0
+flags=35
+flag_p1_alarm=1
+flag_p2_alarm=1
+flag_p3_alarm=0
+flag_p4_alarm=0
+flag_billows=0
+flag_new_alarm=1
+flag_source_celsius=0
+rssi=-65

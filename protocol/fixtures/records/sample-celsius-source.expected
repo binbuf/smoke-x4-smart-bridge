@@ -1,0 +1,21 @@
+# sample_rec: source packet was °C; stored values already canonical °F
+kind=sample
+crc_ok=1
+t=600
+temp0=770
+temp1=774
+temp2=778
+temp3=782
+temp0_null=0
+temp1_null=0
+temp2_null=0
+temp3_null=0
+flags=64
+flag_p1_alarm=0
+flag_p2_alarm=0
+flag_p3_alarm=0
+flag_p4_alarm=0
+flag_billows=0
+flag_new_alarm=0
+flag_source_celsius=1
+rssi=-68

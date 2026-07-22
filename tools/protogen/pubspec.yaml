@@ -1,0 +1,17 @@
+name: protogen
+description: >-
+  Emits the committed record codecs (protocol/gen/record_gen.h, records.g.dart and its
+  package copies) from protocol/records.yaml. CI regenerates and fails on any diff.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.6.0
+dependencies:
+  path: ^1.9.0
+  yaml: ^3.1.2
+dev_dependencies:
+  bridge_protocol:
+    path: ../bridge_protocol
+  lints: ^5.1.0
+  test: ^1.25.0

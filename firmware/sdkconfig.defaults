@@ -1,0 +1,43 @@
+# sdkconfig.defaults — deltas from IDF defaults per design 03 §3.8.
+# Per-board additions live in sdkconfig.defaults.heltec-v3; the generated
+# root sdkconfig is never committed.
+
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+# Partition table (03 §3.5) — OTA slots + reserved www + cooks history
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# BLE: NimBLE, not Bluedroid (D6) — ~100 KB of SRAM on a no-PSRAM part
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=2
+
+# Wi-Fi + BLE share the 2.4 GHz radio
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
+
+# WebSocket support in esp_http_server
+CONFIG_HTTPD_WS_SUPPORT=y
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+
+# OTA safety: a fresh image is pending-verify until the 03 §3.7 health gate
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Watchdogs: a task that blocks on flash past its budget panics loudly
+CONFIG_ESP_TASK_WDT_INIT=y
+
+# Panic handling + coredump partition (03 §3.7)
+CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+
+# Power: tickless idle + DFS-capable
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+
+# Trim Wi-Fi buffers — we move kilobytes, not megabits (01 §1.4)
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_TX_BUFFER_TYPE=1
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16

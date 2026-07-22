@@ -1,0 +1,21 @@
+# sample_rec: all four probes attached, no flags
+kind=sample
+crc_ok=1
+t=43230
+temp0=2431
+temp1=1632
+temp2=1594
+temp3=887
+temp0_null=0
+temp1_null=0
+temp2_null=0
+temp3_null=0
+flags=0
+flag_p1_alarm=0
+flag_p2_alarm=0
+flag_p3_alarm=0
+flag_p4_alarm=0
+flag_billows=0
+flag_new_alarm=0
+flag_source_celsius=0
+rssi=-71

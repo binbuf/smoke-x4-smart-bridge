@@ -1,0 +1,21 @@
+# sample_rec: every probe detached
+kind=sample
+crc_ok=1
+t=90
+temp0=-32768
+temp1=-32768
+temp2=-32768
+temp3=-32768
+temp0_null=1
+temp1_null=1
+temp2_null=1
+temp3_null=1
+flags=0
+flag_p1_alarm=0
+flag_p2_alarm=0
+flag_p3_alarm=0
+flag_p4_alarm=0
+flag_billows=0
+flag_new_alarm=0
+flag_source_celsius=0
+rssi=-80

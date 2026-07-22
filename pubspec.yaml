@@ -1,0 +1,17 @@
+# Dart pub workspace root for the tool packages (the Flutter app stays standalone).
+#
+# Note on the M0 exit-gate command: `dart run tools/sim` (a directory path) is not a valid
+# `dart run` target form in any Dart SDK. The equivalent, from the repo root, is:
+#
+#     dart run sim --cook fixtures/brisket-18h.smk
+#
+# which this workspace makes work. `make sim` wraps the same thing.
+name: smoke_x4_smart_bridge_workspace
+publish_to: none
+environment:
+  sdk: ^3.6.0
+workspace:
+  - tools/protogen
+  - tools/bridge_protocol
+  - tools/cookgen
+  - tools/sim

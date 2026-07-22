@@ -1,0 +1,9 @@
+# sdkconfig.defaults.heltec-v3 — board-specific configuration for the
+# Heltec WiFi LoRa 32 V3 (ESP32-S3FN8, SX1262, SSD1306).
+#
+# The v2/v3 board matrix of the reference collapses to this single target;
+# pin assignments live in code (design 01 §1.2), not Kconfig, until F2/F11
+# introduce the radio and display components in M1+.
+
+# CP2102 console on UART0 (GPIO43/44)
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
