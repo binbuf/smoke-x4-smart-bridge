@@ -62,6 +62,19 @@ target_include_directories(test_smoke_x_parser PRIVATE
 )
 add_test(NAME smoke_x_parser COMMAND test_smoke_x_parser)
 
+# Pairing state machine, watchdog, and packet accounting (F3.4/F3.6/F3.7).
+add_executable(test_smoke_x_ctrl
+    test_smoke_x_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_smoke_x_ctrl PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+)
+add_test(NAME smoke_x_ctrl COMMAND test_smoke_x_ctrl)
+
 # Typed config store: schema round-trips, the reference-compatible sx_pair
 # blob, the v0→v1 adoption migration, notifications, PSK (F7.1–F7.3).
 add_executable(test_app_config
