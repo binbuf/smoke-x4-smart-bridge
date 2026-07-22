@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -41,7 +42,12 @@ void main(List<String> argv) {
       exitCode = 66;
       return;
     }
-    packets.addAll(parseMonitorLog(file.readAsStringSync()));
+    // Raw serial captures carry non-UTF-8 bytes around every reset (boot-ROM
+    // banner, half-transmitted lines); decode leniently rather than requiring
+    // a hand-sanitized log.
+    packets.addAll(
+      parseMonitorLog(utf8.decode(file.readAsBytesSync(), allowMalformed: true)),
+    );
   }
   if (packets.isEmpty) {
     stderr.writeln(

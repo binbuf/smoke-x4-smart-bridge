@@ -7,9 +7,14 @@ import 'dart:math';
 import 'capture.dart';
 
 /// Field indices inside a state message (02 §2.2.3).
+///
+/// Field 3 was assumed to be `new_alarm` (an X2-era inference). The real X4
+/// capture (x4-events-10min) shows it resting at `1` and moving to `2` around
+/// alarm/menu activity — role unknown — while the *trailing* field is the one
+/// that pulses `1` on each new alarm event.
 const _idxField1 = 1;
 const _idxUnits = 2;
-const _idxNewAlarm = 3;
+const _idxHdr3 = 3;
 const _probeFieldCount = 5;
 
 class CaptureReport {
@@ -68,6 +73,15 @@ class CaptureReport {
     return out;
   }
 
+  /// Distinct values of header field 3 — role unknown; see the index comment.
+  Map<String, int> hdr3Values() {
+    final out = <String, int>{};
+    for (final p in states) {
+      out.update(p.fields[_idxHdr3], (n) => n + 1, ifAbsent: () => 1);
+    }
+    return out;
+  }
+
   Map<String, int> trailingValues() {
     final out = <String, int>{};
     for (final p in states) {
@@ -76,13 +90,13 @@ class CaptureReport {
     return out;
   }
 
-  /// Maximal runs of consecutive state packets with new_alarm set (Q8):
-  /// run length 1 → edge-triggered; sustained runs → level.
+  /// Maximal runs of consecutive state packets with the trailing `new_alarm`
+  /// field set (Q8): run length 1 → edge-triggered; sustained runs → level.
   List<int> newAlarmRuns() {
     final runs = <int>[];
     var run = 0;
     for (final p in states) {
-      final set = p.fields[_idxNewAlarm] != '0';
+      final set = p.fields.last != '0';
       if (set) {
         run++;
       } else if (run > 0) {
@@ -188,15 +202,19 @@ class CaptureReport {
         )
         ..writeln('- units field values: ${_fmt(unitsValues())}')
         ..writeln(
-          '- trailing field values (Q3 context): '
-          '${_fmt(trailingValues())}',
+          '- header field 3 values (role unknown; rests at `1`, moves to `2` '
+          'around alarm/menu activity): ${_fmt(hdr3Values())}',
         );
       final runs = newAlarmRuns();
       if (runs.isEmpty) {
-        b.writeln('- **Q8** — `new_alarm` never fired in this capture.');
+        b.writeln(
+          '- **Q8** — trailing `new_alarm` field never fired in this '
+          'capture: ${_fmt(trailingValues())}',
+        );
       } else {
         b.writeln(
-          '- **Q8** — `new_alarm` episodes (consecutive packets): '
+          '- **Q8** — trailing `new_alarm` field ${_fmt(trailingValues())}; '
+          'episodes (consecutive packets): '
           '$runs → ${runs.every((r) => r <= 1)
               ? 'looks EDGE-triggered'
               : runs.any((r) => r > 2)
@@ -240,7 +258,11 @@ class CaptureReport {
         if (f1 != '30' && seenNovel.add('field1=$f1')) {
           why.add('field1 `$f1`');
         }
-        if (p.fields[_idxNewAlarm] != '0' && seenNovel.add('new_alarm')) {
+        final h3 = p.fields[_idxHdr3];
+        if (h3 != '1' && seenNovel.add('hdr3=$h3')) {
+          why.add('hdr3 `$h3`');
+        }
+        if (p.fields.last != '0' && seenNovel.add('new_alarm')) {
           why.add('new_alarm set');
         }
         if (p.fields[_idxUnits] != '1' && seenNovel.add('celsius')) {
