@@ -26,16 +26,15 @@ typedef struct {
     bool force_ap; /* double reset or PRG recovery window */
 } boot_ctx_t;
 
-static uint64_t rtc_now_ms(void)
-{
+static uint64_t rtc_now_ms(void) {
     return (uint64_t)esp_timer_get_time() / 1000u;
 }
 
-static int step_nvs(void *ctx)
-{
+static int step_nvs(void *ctx) {
     (void)ctx;
     esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+        err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGW(TAG, "NVS needs erase (%s), erasing", esp_err_to_name(err));
         if (nvs_flash_erase() != ESP_OK) {
             return -1;
@@ -45,8 +44,7 @@ static int step_nvs(void *ctx)
     return err == ESP_OK ? 0 : -1;
 }
 
-static int step_boot_reason(void *ctx)
-{
+static int step_boot_reason(void *ctx) {
     boot_ctx_t *boot = ctx;
     const uint64_t now = rtc_now_ms();
     if (bridge_double_reset_check(&s_drt_token, now)) {
@@ -58,28 +56,24 @@ static int step_boot_reason(void *ctx)
     return 0;
 }
 
-static int step_event_loop(void *ctx)
-{
+static int step_event_loop(void *ctx) {
     (void)ctx;
     return esp_event_loop_create_default() == ESP_OK ? 0 : -1;
 }
 
-static int step_stub(void *ctx)
-{
+static int step_stub(void *ctx) {
     (void)ctx;
     return 0;
 }
 
-static int step_recovery_window(void *ctx)
-{
+static int step_recovery_window(void *ctx) {
     (void)ctx;
     /* 3 s PRG hold on the splash — stubbed until F11 (app_ui). */
     ESP_LOGI(TAG, "PRG recovery window: stub until F11");
     return 0;
 }
 
-static int step_ota_health_gate(void *ctx)
-{
+static int step_ota_health_gate(void *ctx) {
     (void)ctx;
     /* esp_ota_mark_app_valid_cancel_rollback() behind the 03 §3.7 health
      * gate — stubbed until F14. */
@@ -87,39 +81,38 @@ static int step_ota_health_gate(void *ctx)
     return 0;
 }
 
-static void disarm_timer_cb(void *arg)
-{
+static void disarm_timer_cb(void *arg) {
     (void)arg;
     bridge_double_reset_disarm(&s_drt_token);
     ESP_LOGD(TAG, "double-reset token disarmed");
 }
 
-void app_main(void)
-{
+void app_main(void) {
     ESP_LOGI(TAG, "Smoke X4 Smart Bridge — M0 skeleton");
     ESP_LOGI(TAG, "task stack budget: %d B declared across %u tasks",
              (int)BRIDGE_TASK_STACK_TOTAL, (unsigned)BRIDGE_TASK_COUNT);
 
     boot_ctx_t boot = {0};
     const bridge_boot_ops_t ops = {
-        .steps = {
-            [BRIDGE_BOOT_NVS - 1] = step_nvs,
-            [BRIDGE_BOOT_BOOT_REASON - 1] = step_boot_reason,
-            [BRIDGE_BOOT_CONFIG - 1] = step_stub,      /* F7 */
-            [BRIDGE_BOOT_EVENT_LOOP - 1] = step_event_loop,
-            [BRIDGE_BOOT_POWER - 1] = step_stub,       /* F12 */
-            [BRIDGE_BOOT_UI - 1] = step_stub,          /* F11 */
-            [BRIDGE_BOOT_RECOVERY_WINDOW - 1] = step_recovery_window,
-            [BRIDGE_BOOT_COOK_STORE - 1] = step_stub,  /* F5 */
-            [BRIDGE_BOOT_SMOKE_X_INIT - 1] = step_stub,  /* F3 */
-            [BRIDGE_BOOT_SMOKE_X_START - 1] = step_stub, /* F2/F3 */
-            [BRIDGE_BOOT_TIME - 1] = step_stub,        /* F6 */
-            [BRIDGE_BOOT_NET - 1] = step_stub,         /* F8 */
-            [BRIDGE_BOOT_API - 1] = step_stub,         /* F9 */
-            [BRIDGE_BOOT_BLE - 1] = step_stub,         /* F10 */
-            [BRIDGE_BOOT_ALARM - 1] = step_stub,       /* F13 */
-            [BRIDGE_BOOT_OTA_HEALTH_GATE - 1] = step_ota_health_gate,
-        },
+        .steps =
+            {
+                [BRIDGE_BOOT_NVS - 1] = step_nvs,
+                [BRIDGE_BOOT_BOOT_REASON - 1] = step_boot_reason,
+                [BRIDGE_BOOT_CONFIG - 1] = step_stub, /* F7 */
+                [BRIDGE_BOOT_EVENT_LOOP - 1] = step_event_loop,
+                [BRIDGE_BOOT_POWER - 1] = step_stub, /* F12 */
+                [BRIDGE_BOOT_UI - 1] = step_stub,    /* F11 */
+                [BRIDGE_BOOT_RECOVERY_WINDOW - 1] = step_recovery_window,
+                [BRIDGE_BOOT_COOK_STORE - 1] = step_stub,    /* F5 */
+                [BRIDGE_BOOT_SMOKE_X_INIT - 1] = step_stub,  /* F3 */
+                [BRIDGE_BOOT_SMOKE_X_START - 1] = step_stub, /* F2/F3 */
+                [BRIDGE_BOOT_TIME - 1] = step_stub,          /* F6 */
+                [BRIDGE_BOOT_NET - 1] = step_stub,           /* F8 */
+                [BRIDGE_BOOT_API - 1] = step_stub,           /* F9 */
+                [BRIDGE_BOOT_BLE - 1] = step_stub,           /* F10 */
+                [BRIDGE_BOOT_ALARM - 1] = step_stub,         /* F13 */
+                [BRIDGE_BOOT_OTA_HEALTH_GATE - 1] = step_ota_health_gate,
+            },
     };
 
     bridge_boot_result_t result;

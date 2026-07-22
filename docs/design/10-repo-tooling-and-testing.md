@@ -57,11 +57,29 @@ actually earns its cost:
 sample_rec:
   size: 16
   fields:
-    - { name: t,     type: u32 }
-    - { name: temp,  type: i16, count: 4, sentinel: { -32768: detached, -32767: invalid } }
-    - { name: flags, type: u8,  bits: [p1_alarm, p2_alarm, p3_alarm, p4_alarm,
-                                       billows, new_alarm, source_celsius, _rsv] }
-    - { name: rssi,  type: i8 }
+    - { name: t, type: u32 }
+    - {
+        name: temp,
+        type: i16,
+        count: 4,
+        sentinel: { -32768: detached, -32767: invalid },
+      }
+    - {
+        name: flags,
+        type: u8,
+        bits:
+          [
+            p1_alarm,
+            p2_alarm,
+            p3_alarm,
+            p4_alarm,
+            billows,
+            new_alarm,
+            source_celsius,
+            _rsv,
+          ],
+      }
+    - { name: rssi, type: i8 }
     - { name: crc16, type: u16, crc: { poly: ccitt_false, over: 0..13 } }
 ```
 
@@ -73,8 +91,8 @@ rather than an error.
 **JSON models are hand-written but golden-tested.** `openapi.yaml` documents the HTTP contract and
 feeds external tooling; the Dart models are hand-written `freezed` classes. Generated JSON models
 are more trouble than they solve at this scale — but every request and response shape has a fixture
-in `protocol/fixtures/`, and both the firmware's host tests and the app's tests parse the *same
-bytes* and assert the same values. Drift shows up as a red test, not a field returning null in the
+in `protocol/fixtures/`, and both the firmware's host tests and the app's tests parse the _same
+bytes_ and assert the same values. Drift shows up as a red test, not a field returning null in the
 field.
 
 ## 10.3 `tools/sim` — the fake bridge
@@ -94,18 +112,18 @@ dart run tools/sim --advertise-mdns          # so app discovery is exercised too
 
 Scenarios exist for every case that is painful to produce on real hardware:
 
-| Scenario | Reproduces |
-| --- | --- |
-| `stall` | A 3-hour plateau at 158 °F — for the stall detector and ETA suppression |
-| `lid-open` | A 40 °F pit drop and recovery — for the grace-window logic |
-| `base-lost` | Packets stop dead — for the watchdog and gap rendering |
-| `flaky` | 5–20 % packet loss — for gap detection at every scale |
-| `unpaired` | The pairing flow, without holding a base station in sync mode |
-| `detached` | Probes unplugged mid-cook — for the null-not-zero rule |
-| `celsius` | A mid-cook unit switch — for the canonical-°F conversion |
-| `storage-full` | The retention path |
-| `ota` | Upload, progress, reboot |
-| `long` | 54 days of samples, for pagination and decimation at the limit |
+| Scenario       | Reproduces                                                              |
+| -------------- | ----------------------------------------------------------------------- |
+| `stall`        | A 3-hour plateau at 158 °F — for the stall detector and ETA suppression |
+| `lid-open`     | A 40 °F pit drop and recovery — for the grace-window logic              |
+| `base-lost`    | Packets stop dead — for the watchdog and gap rendering                  |
+| `flaky`        | 5–20 % packet loss — for gap detection at every scale                   |
+| `unpaired`     | The pairing flow, without holding a base station in sync mode           |
+| `detached`     | Probes unplugged mid-cook — for the null-not-zero rule                  |
+| `celsius`      | A mid-cook unit switch — for the canonical-°F conversion                |
+| `storage-full` | The retention path                                                      |
+| `ota`          | Upload, progress, reboot                                                |
+| `long`         | 54 days of samples, for pagination and decimation at the limit          |
 
 `tools/cookgen` synthesizes new fixtures from a simple thermal model (Newton cooling toward a pit
 temperature that itself wanders, plus evaporative-plateau and lid-open events), so scenarios can be
@@ -122,11 +140,11 @@ you flash for a session, because flashing it costs a cook and you only get so ma
 
 **Capture is always on, in three layers.**
 
-| Layer | Where | Cost | Answers |
-| --- | --- | --- | --- |
-| `GET /api/v1/debug/packets` | RAM ring, last 64 payloads | free | "what did it just receive?" |
-| `novelty.log` | flash, 64 KB ring, structurally-new packets only | 2.6 % of `cooks` | Q1, Q2, Q3, Q4, Q6, Q8 — over normal use ([02 §2.7](02-smoke-x-protocol.md)) |
-| `<id>.raw` | flash, whole session, opt-in per cook | ~345 KB / 24 h, last 2 kept | full-fidelity replay corpus |
+| Layer                       | Where                                            | Cost                        | Answers                                                                      |
+| --------------------------- | ------------------------------------------------ | --------------------------- | ---------------------------------------------------------------------------- |
+| `GET /api/v1/debug/packets` | RAM ring, last 64 payloads                       | free                        | "what did it just receive?"                                                  |
+| `novelty.log`               | flash, 64 KB ring, structurally-new packets only | 2.6 % of `cooks`            | Q1, Q2, Q3, Q4, Q6, Q8 — over normal use ([02 §2.7](02-smoke-x-protocol.md)) |
+| `<id>.raw`                  | flash, whole session, opt-in per cook            | ~345 KB / 24 h, last 2 kept | full-fidelity replay corpus                                                  |
 
 `tools/lora/pull.py` fetches all three over HTTP and normalizes them into `.loralog` files under
 `protocol/fixtures/lora/`. No serial cable, no reflash, no interrupting a cook.
@@ -139,17 +157,17 @@ convenience, it is the thing that makes iteration possible at all.
 
 **Capture opportunities**, ordered by what a normal cook yields for free:
 
-| # | Do this | Get | Effort |
-| --- | --- | --- | --- |
-| 1 | Cook anything, all four probes attached | The first real X4 vectors — every X4 test in the reference is synthetic | none, just cook |
-| 2 | Let it run overnight | Q1 (does field 1 ever leave `30`?), interval statistics, real dropouts and RSSI decay | none |
-| 3 | Unplug and replug a probe mid-cook | Q4 — probe `state` values beyond `0`/`3` | 10 seconds |
-| 4 | Set a tight alarm band so it trips, leave it tripped | Q8 — is `new_alarm` edge or level? | 1 minute |
-| 5 | Flip the base between °F and °C mid-cook | The unit-change path, and whether anything else shifts | 1 minute |
-| 6 | Re-sync the base while the bridge is unpaired | Q2, Q6 — real X4 sync vectors | 2 minutes |
-| 7 | Short the probe jack, open it, exceed range | The rest of Q4 | bench, no cook needed |
-| 8 | *Borrow an X2* | Q2 comparison across models | opportunistic |
-| 9 | *Borrow a Billows* | Q3, Q5 — the only blocked questions | opportunistic |
+| #   | Do this                                              | Get                                                                                   | Effort                |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------- |
+| 1   | Cook anything, all four probes attached              | The first real X4 vectors — every X4 test in the reference is synthetic               | none, just cook       |
+| 2   | Let it run overnight                                 | Q1 (does field 1 ever leave `30`?), interval statistics, real dropouts and RSSI decay | none                  |
+| 3   | Unplug and replug a probe mid-cook                   | Q4 — probe `state` values beyond `0`/`3`                                              | 10 seconds            |
+| 4   | Set a tight alarm band so it trips, leave it tripped | Q8 — is `new_alarm` edge or level?                                                    | 1 minute              |
+| 5   | Flip the base between °F and °C mid-cook             | The unit-change path, and whether anything else shifts                                | 1 minute              |
+| 6   | Re-sync the base while the bridge is unpaired        | Q2, Q6 — real X4 sync vectors                                                         | 2 minutes             |
+| 7   | Short the probe jack, open it, exceed range          | The rest of Q4                                                                        | bench, no cook needed |
+| 8   | _Borrow an X2_                                       | Q2 comparison across models                                                           | opportunistic         |
+| 9   | _Borrow a Billows_                                   | Q3, Q5 — the only blocked questions                                                   | opportunistic         |
 
 Items 1–7 need no equipment beyond what's already in hand and mostly happen by cooking. Because the
 novelty log runs unattended, **items 1, 2, 4, and 5 collect themselves** — the evidence is waiting at
@@ -208,14 +226,14 @@ disconnect, and the cache survives a restart. Runs headless on an emulator in CI
 
 ## 10.6 CI
 
-| Workflow | Runs | Does |
-| --- | --- | --- |
-| `firmware-build.yml` | push, PR | `espressif/idf:release-v5.4` container → build, report binary size and free-space delta, upload artifacts |
-| `firmware-test.yml` | push, PR | CMake + CTest host tests, with coverage |
-| `app.yml` | push, PR | `flutter analyze`, `dart format --set-exit-if-changed`, `flutter test`, build a debug APK |
-| `integration.yml` | PR, nightly | Emulator + `tools/sim`, `integration_test` |
-| `protocol.yml` | push, PR | Regenerate `protocol/gen/**` and fail on any diff |
-| `release.yml` | tag `v*` | Merged `.bin`, release APK, changelog, GitHub Release, publish the web installer |
+| Workflow             | Runs        | Does                                                                                                      |
+| -------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| `firmware-build.yml` | push, PR    | `espressif/idf:release-v5.4` container → build, report binary size and free-space delta, upload artifacts |
+| `firmware-test.yml`  | push, PR    | CMake + CTest host tests, with coverage                                                                   |
+| `app.yml`            | push, PR    | `flutter analyze`, `dart format --set-exit-if-changed`, `flutter test`, build a debug APK                 |
+| `integration.yml`    | PR, nightly | Emulator + `tools/sim`, `integration_test`                                                                |
+| `protocol.yml`       | push, PR    | Regenerate `protocol/gen/**` and fail on any diff                                                         |
+| `release.yml`        | tag `v*`    | Merged `.bin`, release APK, changelog, GitHub Release, publish the web installer                          |
 
 Binary-size reporting on every PR is worth the two lines it costs: with 2.5 MB app slots and a
 BLE + Wi-Fi + filesystem image, the day someone adds a library that doesn't fit should be the day
@@ -247,7 +265,7 @@ contract binds them and the app enforces a minimum firmware version
 The browser installer is worth copying from the reference outright: it uses
 [`esp-web-tools`](https://esphome.github.io/esp-web-tools/) so a user with Chrome or Edge plugs the
 board in, clicks Install, and is done — no Python, no esptool, no toolchain. Ours adds a first-boot
-step: after flashing, the page shows *"open the Smoke Bridge app and look for `SmokeBridge-XXXX`"*,
+step: after flashing, the page shows _"open the Smoke Bridge app and look for `SmokeBridge-XXXX`"_,
 which hands off to the BLE onboarding in [05 §5.7](05-connectivity-and-provisioning.md).
 
 Manual flashing stays documented for people who prefer it:
@@ -255,4 +273,5 @@ Manual flashing stays documented for people who prefer it:
 ```bash
 python -m esptool --chip esp32s3 -p <PORT> -b 460800 write_flash 0x0 smoke-bridge-heltec-v3-1.0.0.bin
 ```
+
 </content>

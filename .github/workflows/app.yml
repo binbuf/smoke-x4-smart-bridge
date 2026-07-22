@@ -7,14 +7,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'app/**'
-      - 'protocol/fixtures/**'
-      - '.github/workflows/app.yml'
+      - "app/**"
+      - "protocol/fixtures/**"
+      - ".github/workflows/app.yml"
   pull_request:
     paths:
-      - 'app/**'
-      - 'protocol/fixtures/**'
-      - '.github/workflows/app.yml'
+      - "app/**"
+      - "protocol/fixtures/**"
+      - ".github/workflows/app.yml"
 
 permissions:
   contents: read
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - uses: subosito/flutter-action@v2
         with:

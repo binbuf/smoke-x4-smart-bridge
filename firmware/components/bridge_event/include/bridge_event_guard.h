@@ -24,7 +24,8 @@ typedef void (*bridge_event_guard_violation_fn)(const char *handler_name,
 
 /* Installs the violation callback (debug builds install one that aborts).
  * NULL restores the default (no-op). */
-void bridge_event_guard_set_violation_handler(bridge_event_guard_violation_fn fn);
+void bridge_event_guard_set_violation_handler(
+    bridge_event_guard_violation_fn fn);
 
 /* Returns true when end - start is within budget; otherwise invokes the
  * violation handler and returns false. */

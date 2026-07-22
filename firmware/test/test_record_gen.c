@@ -11,8 +11,7 @@
 
 /* ── fixture file helpers ─────────────────────────────────────────── */
 
-static size_t read_hex(const char *path, uint8_t *out, size_t cap)
-{
+static size_t read_hex(const char *path, uint8_t *out, size_t cap) {
     FILE *f = fopen(path, "r");
     if (f == NULL) {
         return 0;
@@ -52,8 +51,7 @@ typedef struct {
     char value[64];
 } kv_t;
 
-static size_t read_expected(const char *path, kv_t *out, size_t cap)
-{
+static size_t read_expected(const char *path, kv_t *out, size_t cap) {
     FILE *f = fopen(path, "r");
     if (f == NULL) {
         return 0;
@@ -79,8 +77,7 @@ static size_t read_expected(const char *path, kv_t *out, size_t cap)
     return n;
 }
 
-static const char *kv_get(const kv_t *kv, size_t n, const char *key)
-{
+static const char *kv_get(const kv_t *kv, size_t n, const char *key) {
     for (size_t i = 0; i < n; i++) {
         if (strcmp(kv[i].key, key) == 0) {
             return kv[i].value;
@@ -89,15 +86,13 @@ static const char *kv_get(const kv_t *kv, size_t n, const char *key)
     return NULL;
 }
 
-static long long kv_ll(const kv_t *kv, size_t n, const char *key)
-{
+static long long kv_ll(const kv_t *kv, size_t n, const char *key) {
     const char *v = kv_get(kv, n, key);
     CHECK(v != NULL);
     return v != NULL ? strtoll(v, NULL, 10) : 0;
 }
 
-static unsigned long long kv_ull(const kv_t *kv, size_t n, const char *key)
-{
+static unsigned long long kv_ull(const kv_t *kv, size_t n, const char *key) {
     const char *v = kv_get(kv, n, key);
     CHECK(v != NULL);
     return v != NULL ? strtoull(v, NULL, 10) : 0;
@@ -105,8 +100,7 @@ static unsigned long long kv_ull(const kv_t *kv, size_t n, const char *key)
 
 /* NUL-padded UTF-8 field → C string comparison against the expected value. */
 static void check_padded_str(const char *field, size_t field_len,
-                             const char *expected)
-{
+                             const char *expected) {
     char buf[64];
     size_t n = 0;
     while (n < field_len && field[n] != '\0' && n < sizeof buf - 1) {
@@ -120,8 +114,7 @@ static void check_padded_str(const char *field, size_t field_len,
 /* ── per-kind fixture checks ──────────────────────────────────────── */
 
 static void check_sample(const uint8_t *bytes, size_t len, const kv_t *kv,
-                         size_t n)
-{
+                         size_t n) {
     CHECK_EQ_INT(len, BRIDGE_SAMPLE_REC_SIZE);
     bridge_sample_rec_t s;
     const bool crc_ok = bridge_sample_rec_decode(bytes, &s);
@@ -160,8 +153,7 @@ static void check_sample(const uint8_t *bytes, size_t len, const kv_t *kv,
 }
 
 static void check_header(const uint8_t *bytes, size_t len, const kv_t *kv,
-                         size_t n)
-{
+                         size_t n) {
     CHECK_EQ_INT(len, BRIDGE_SESSION_HEADER_SIZE);
     bridge_session_header_t h;
     const bool crc_ok = bridge_session_header_decode(bytes, &h);
@@ -206,8 +198,7 @@ static void check_header(const uint8_t *bytes, size_t len, const kv_t *kv,
 }
 
 static void check_mark(const uint8_t *bytes, size_t len, const kv_t *kv,
-                       size_t n)
-{
+                       size_t n) {
     CHECK_EQ_INT(len, BRIDGE_MARK_REC_SIZE);
     bridge_mark_rec_t m;
     const bool crc_ok = bridge_mark_rec_decode(bytes, &m);
@@ -224,15 +215,13 @@ static void check_mark(const uint8_t *bytes, size_t len, const kv_t *kv,
 
 /* ── tests ────────────────────────────────────────────────────────── */
 
-static void test_crc_check_values(void)
-{
+static void test_crc_check_values(void) {
     const uint8_t check[] = "123456789";
     CHECK_EQ_INT(bridge_crc16(check, 9), 0x29B1);
     CHECK(bridge_crc32(check, 9) == 0xCBF43926u);
 }
 
-static void test_hand_written_vector(void)
-{
+static void test_hand_written_vector(void) {
     /* t=1; temp = [100, DETACHED, INVALID, -580 (-58.0 °F, probe min)];
      * flags = 0x40 (source_celsius); rssi = -100; CRC-16 = 0xA8B9. */
     static const uint8_t vec[16] = {
@@ -255,8 +244,7 @@ static void test_hand_written_vector(void)
     CHECK(memcmp(out, vec, 16) == 0);
 }
 
-static void test_corrupt_crc_detected(void)
-{
+static void test_corrupt_crc_detected(void) {
     bridge_sample_rec_t s = {0};
     s.t = 42;
     s.temp[0] = 2431;
@@ -267,8 +255,7 @@ static void test_corrupt_crc_detected(void)
     CHECK(!bridge_sample_rec_decode(buf, &d));
 }
 
-static void test_fixture_corpus(void)
-{
+static void test_fixture_corpus(void) {
     DIR *dir = opendir(FIXTURES_DIR);
     CHECK(dir != NULL);
     if (dir == NULL) {
@@ -284,8 +271,7 @@ static void test_fixture_corpus(void)
         fixtures_seen++;
         char hex_path[512];
         char exp_path[512];
-        snprintf(hex_path, sizeof hex_path, "%s/%s", FIXTURES_DIR,
-                 ent->d_name);
+        snprintf(hex_path, sizeof hex_path, "%s/%s", FIXTURES_DIR, ent->d_name);
         snprintf(exp_path, sizeof exp_path, "%s/%.*s.expected", FIXTURES_DIR,
                  (int)(dot - ent->d_name), ent->d_name);
 
@@ -317,8 +303,7 @@ static void test_fixture_corpus(void)
     CHECK_EQ_INT(fixtures_seen, 8);
 }
 
-static void test_var_payload_roundtrip(void)
-{
+static void test_var_payload_roundtrip(void) {
     bridge_live_state_t ls = {0};
     ls.ver = 1;
     ls.flags = BRIDGE_LIVE_STATE_FLAGS_PAIRED;
@@ -355,8 +340,7 @@ static void test_var_payload_roundtrip(void)
     CHECK_EQ_INT(bridge_wifi_config_unpack(wire, (size_t)len - 3, &back), -1);
 }
 
-int main(void)
-{
+int main(void) {
     test_crc_check_values();
     test_hand_written_vector();
     test_corrupt_crc_detected();

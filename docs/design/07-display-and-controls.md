@@ -6,10 +6,10 @@ next to it with no phone in your hand**.
 Two questions from the brief, answered up front:
 
 > **Should the button switch modes?**
-> Yes — but as a *context action on the Network page*, not a global toggle. A blind global
+> Yes — but as a _context action on the Network page_, not a global toggle. A blind global
 > "long-press swaps AP/STA" is one pocket-press away from taking your bridge off the network 12
 > hours into a cook. Requiring the user to navigate to the Network page first means the screen
-> already shows what they're switching *from* and *to*.
+> already shows what they're switching _from_ and _to_.
 
 > **Should the screen show Wi-Fi info when hosting, or the joined network when a client?**
 > Yes, both — on a dedicated Network page that renders differently per mode (SSID **and password**
@@ -18,15 +18,15 @@ Two questions from the brief, answered up front:
 
 ## 7.1 The display
 
-| | |
-| --- | --- |
-| Panel | SSD1306, 128×64, I²C @ 400 kHz (SDA 17, SCL 18, RST 21) |
-| Power | Vext (GPIO36) must be driven **LOW** |
-| Small font | 5×7 glyphs on a 6×8 cell → **21 columns × 8 rows** |
-| Large font | 12×24 digits + `°`, for the headline temperature. ~1.2 KB of table |
-| Refresh | 1 Hz, and immediately on any state change. Paused while asleep |
-| Sleep | after `display_timeout_s` (default 60 s) → panel off (`0xAE`), render task idles |
-| Wake | any button, any alarm, session start/end, network state change, BLE connect |
+|            |                                                                                  |
+| ---------- | -------------------------------------------------------------------------------- |
+| Panel      | SSD1306, 128×64, I²C @ 400 kHz (SDA 17, SCL 18, RST 21)                          |
+| Power      | Vext (GPIO36) must be driven **LOW**                                             |
+| Small font | 5×7 glyphs on a 6×8 cell → **21 columns × 8 rows**                               |
+| Large font | 12×24 digits + `°`, for the headline temperature. ~1.2 KB of table               |
+| Refresh    | 1 Hz, and immediately on any state change. Paused while asleep                   |
+| Sleep      | after `display_timeout_s` (default 60 s) → panel off (`0xAE`), render task idles |
+| Wake       | any button, any alarm, session start/end, network state change, BLE connect      |
 
 Sleeping the panel saves ~10 mA — the cheapest single item in the power budget
 ([01 §1.6](01-hardware.md)) — and matters because an AP-mode bridge cannot otherwise sleep at all.
@@ -43,13 +43,13 @@ Row 7 (the bottom line) is reserved on every page:
 ●sta  04:12  71%  ⚠
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `●` / `○` | filled = LoRa packet within the last 60 s; hollow = base lost |
-| `sta` / `ap` / `---` | network mode; `ap*` when a client is associated |
-| `04:12` | elapsed time in the active cook, or `--:--` |
-| `71%` | battery SoC, or `USB` when charging |
-| `⚠` | an unacknowledged alarm exists |
+| Field                | Meaning                                                       |
+| -------------------- | ------------------------------------------------------------- |
+| `●` / `○`            | filled = LoRa packet within the last 60 s; hollow = base lost |
+| `sta` / `ap` / `---` | network mode; `ap*` when a client is associated               |
+| `04:12`              | elapsed time in the active cook, or `--:--`                   |
+| `71%`                | battery SoC, or `USB` when charging                           |
+| `⚠`                  | an unacknowledged alarm exists                                |
 
 ## 7.2 Pages
 
@@ -292,13 +292,13 @@ dealing with it.
 
 One button — GPIO0, active LOW, sampled at 20 ms with a 30 ms debounce.
 
-| Gesture | Timing | Action |
-| --- | --- | --- |
-| **Tap** | < 400 ms | Next page. Wakes the display (and that press is consumed by the wake, not by page-advance). Acknowledges an alarm overlay |
-| **Double-tap** | two taps < 400 ms apart | Add a mark at the current instant, named `Mark N`. Toast: `Mark 4 added` |
-| **Hold 2 s** | 2 s | The current page's context action, always behind a 3 s release-to-cancel confirm |
-| **Hold 10 s** | 10 s | Factory reset — wipes pairing, network config, BLE bonds, and **all cook history**. Countdown from 5, three separate `KEEP HOLDING` prompts |
-| **Hold during splash** | 3 s at boot | Force AP mode for this boot |
+| Gesture                | Timing                  | Action                                                                                                                                      |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tap**                | < 400 ms                | Next page. Wakes the display (and that press is consumed by the wake, not by page-advance). Acknowledges an alarm overlay                   |
+| **Double-tap**         | two taps < 400 ms apart | Add a mark at the current instant, named `Mark N`. Toast: `Mark 4 added`                                                                    |
+| **Hold 2 s**           | 2 s                     | The current page's context action, always behind a 3 s release-to-cancel confirm                                                            |
+| **Hold 10 s**          | 10 s                    | Factory reset — wipes pairing, network config, BLE bonds, and **all cook history**. Countdown from 5, three separate `KEEP HOLDING` prompts |
+| **Hold during splash** | 3 s at boot             | Force AP mode for this boot                                                                                                                 |
 
 ### Gesture state machine
 
@@ -322,7 +322,7 @@ One button — GPIO0, active LOW, sampled at 20 ms with a 30 ms debounce.
 
 Two properties worth stating because they are what make a one-button UI tolerable:
 
-1. **Hold actions commit on *release*, not on reaching the threshold.** The countdown gives a
+1. **Hold actions commit on _release_, not on reaching the threshold.** The countdown gives a
    visible cancel path: let go early and nothing happens.
 2. **A wake press is consumed.** Waking a sleeping display never also changes the page, so the user
    always sees the state they left before acting on it.
@@ -345,15 +345,15 @@ the confirm flow, and the overlays are all unchanged.
 The white LED on GPIO35 (active HIGH, LEDC PWM). Governed by `led_enabled`, default `alarms_only` —
 a light blinking all night on a bedside bridge is a reason to unplug it.
 
-| Pattern | Meaning |
-| --- | --- |
-| Off | Normal, or the user disabled it |
-| 2 Hz blink | **Unacknowledged alarm** |
-| Solid | Pairing mode active |
-| Double-blink every 2 s | Base station lost |
-| Slow breathe | OTA in progress |
+| Pattern                    | Meaning                                                     |
+| -------------------------- | ----------------------------------------------------------- |
+| Off                        | Normal, or the user disabled it                             |
+| 2 Hz blink                 | **Unacknowledged alarm**                                    |
+| Solid                      | Pairing mode active                                         |
+| Double-blink every 2 s     | Base station lost                                           |
+| Slow breathe               | OTA in progress                                             |
 | One 20 ms flash per packet | Heartbeat — off by default, useful during antenna placement |
-| 5 s rapid flash | `identify` from the app, for telling two bridges apart |
+| 5 s rapid flash            | `identify` from the app, for telling two bridges apart      |
 
 An optional piezo on GPIO7 mirrors the alarm pattern when `buzzer_enabled` is set; the code is
 present and a no-op when unfitted.
@@ -374,4 +374,4 @@ for a 1 KB framebuffer on a device with no PSRAM.
   so the whole display layer is testable on the host. `tools/render_oled_preview.py` (the reference
   ships one) turns the framebuffer into a PNG, which makes visual review possible in CI without
   hardware.
-</content>
+  </content>

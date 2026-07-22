@@ -9,15 +9,13 @@ static int g_violations = 0;
 static uint64_t g_last_elapsed = 0;
 static const char *g_last_name = NULL;
 
-static void count_violation(const char *name, uint64_t elapsed_us)
-{
+static void count_violation(const char *name, uint64_t elapsed_us) {
     g_violations++;
     g_last_elapsed = elapsed_us;
     g_last_name = name;
 }
 
-int main(void)
-{
+int main(void) {
     bridge_event_guard_set_violation_handler(count_violation);
 
     /* Within budget: no violation. */

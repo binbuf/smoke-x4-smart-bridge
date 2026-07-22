@@ -7,8 +7,7 @@
 
 #include <stdint.h>
 
-int main(void)
-{
+int main(void) {
     FILE *f = fopen(SMK_FIXTURE, "rb");
     CHECK(f != NULL);
     if (f == NULL) {
@@ -54,8 +53,8 @@ int main(void)
     fclose(f);
 
     CHECK_EQ_INT(count, h.sample_count);
-    CHECK(gaps_over_45s > 0);   /* ~1 % dropout must leave visible gaps */
-    CHECK(detached_seen > 50);  /* the mid-cook detach window */
+    CHECK(gaps_over_45s > 0);  /* ~1 % dropout must leave visible gaps */
+    CHECK(detached_seen > 50); /* the mid-cook detach window */
 
     return test_summary("test_smk_fixture");
 }

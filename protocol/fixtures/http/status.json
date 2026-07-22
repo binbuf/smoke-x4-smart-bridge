@@ -9,7 +9,12 @@
     "reset_reason": "poweron",
     "coredump_available": false
   },
-  "time": { "unix_ms": 1774094400000, "source": "phone", "tz_offset_min": -300, "valid": true },
+  "time": {
+    "unix_ms": 1774094400000,
+    "source": "phone",
+    "tz_offset_min": -300,
+    "valid": true
+  },
   "net": {
     "mode": "sta",
     "state": "up",
@@ -29,7 +34,13 @@
     "last_packet_s_ago": 12,
     "base_lost": false
   },
-  "radio": { "rssi": -71, "snr": 9, "packets_ok": 4102, "packets_bad": 3, "id_mismatch": 0 },
+  "radio": {
+    "rssi": -71,
+    "snr": 9,
+    "packets_ok": 4102,
+    "packets_bad": 3,
+    "id_mismatch": 0
+  },
   "storage": {
     "total_b": 2490368,
     "used_b": 214016,
@@ -47,6 +58,12 @@
     "samples": 1440
   },
   "alarms": [
-    { "id": 3, "rule": "target_reached", "probe": 1, "since_unix_ms": 1774094100000, "acked": false }
+    {
+      "id": 3,
+      "rule": "target_reached",
+      "probe": 1,
+      "since_unix_ms": 1774094100000,
+      "acked": false
+    }
   ]
 }

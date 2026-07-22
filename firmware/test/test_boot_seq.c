@@ -20,12 +20,11 @@ static fake_t g_fake;
 
 static int fake_step_1(void *ctx);
 
-#define FAKE_STEP(n)                                        \
-    static int fake_step_##n(void *ctx)                     \
-    {                                                       \
-        (void)ctx;                                          \
-        g_fake.calls[g_fake.n_calls++] = (n);               \
-        return g_fake.fail_step == (n) ? -1 : 0;            \
+#define FAKE_STEP(n)                             \
+    static int fake_step_##n(void *ctx) {        \
+        (void)ctx;                               \
+        g_fake.calls[g_fake.n_calls++] = (n);    \
+        return g_fake.fail_step == (n) ? -1 : 0; \
     }
 
 FAKE_STEP(1)
@@ -45,27 +44,37 @@ FAKE_STEP(14)
 FAKE_STEP(15)
 FAKE_STEP(16)
 
-static bridge_boot_ops_t fake_ops(void)
-{
+static bridge_boot_ops_t fake_ops(void) {
     bridge_boot_ops_t ops = {
-        .steps = {
-            fake_step_1, fake_step_2, fake_step_3, fake_step_4,
-            fake_step_5, fake_step_6, fake_step_7, fake_step_8,
-            fake_step_9, fake_step_10, fake_step_11, fake_step_12,
-            fake_step_13, fake_step_14, fake_step_15, fake_step_16,
-        },
+        .steps =
+            {
+                fake_step_1,
+                fake_step_2,
+                fake_step_3,
+                fake_step_4,
+                fake_step_5,
+                fake_step_6,
+                fake_step_7,
+                fake_step_8,
+                fake_step_9,
+                fake_step_10,
+                fake_step_11,
+                fake_step_12,
+                fake_step_13,
+                fake_step_14,
+                fake_step_15,
+                fake_step_16,
+            },
     };
     return ops;
 }
 
-static void reset_fake(int fail_step)
-{
+static void reset_fake(int fail_step) {
     memset(&g_fake, 0, sizeof g_fake);
     g_fake.fail_step = fail_step;
 }
 
-static void test_clean_boot(void)
-{
+static void test_clean_boot(void) {
     reset_fake(0);
     const bridge_boot_ops_t ops = fake_ops();
     bridge_boot_result_t res;
@@ -76,8 +85,7 @@ static void test_clean_boot(void)
     CHECK_EQ_INT(g_fake.n_calls, 16);
 }
 
-static void test_step12_failure_still_boots(void)
-{
+static void test_step12_failure_still_boots(void) {
     /* The named case: app_net_start (step 12) errors; the device is still
      * booted with steps 1–11 complete, and later steps still run — every
      * step after cook_store is individually failure-tolerant. */
@@ -92,8 +100,7 @@ static void test_step12_failure_still_boots(void)
     CHECK_EQ_INT(g_fake.calls[15], 16);
 }
 
-static void test_fatal_steps_abort(void)
-{
+static void test_fatal_steps_abort(void) {
     /* Only NVS (1) and the event loop (4) are fatal. */
     reset_fake(BRIDGE_BOOT_NVS);
     bridge_boot_ops_t ops = fake_ops();
@@ -109,8 +116,7 @@ static void test_fatal_steps_abort(void)
     CHECK_EQ_INT(g_fake.n_calls, 4);
 }
 
-static void test_lora_before_network(void)
-{
+static void test_lora_before_network(void) {
     /* The ordering invariant: smoke_x_start (LoRa RX) runs before
      * app_net_start and app_ble_start. Data capture is the product. */
     reset_fake(0);
@@ -135,16 +141,14 @@ static void test_lora_before_network(void)
     CHECK(idx_lora < idx_ble);
 }
 
-static void test_null_steps_are_skipped(void)
-{
+static void test_null_steps_are_skipped(void) {
     const bridge_boot_ops_t ops = {0}; /* all NULL — a bare skeleton boots */
     bridge_boot_result_t res;
     CHECK(bridge_boot_run(&ops, NULL, &res));
     CHECK_EQ_INT(res.steps_completed, 16);
 }
 
-static void test_double_reset_token(void)
-{
+static void test_double_reset_token(void) {
     /* "Reset": the token variable survives; only the clock moves. */
     bridge_drt_token_t rtc = {0};
 
@@ -181,8 +185,7 @@ static void test_double_reset_token(void)
     CHECK(!bridge_double_reset_check(&rtc, 8000));
 }
 
-int main(void)
-{
+int main(void) {
     test_clean_boot();
     test_step12_failure_still_boots();
     test_fatal_steps_abort();

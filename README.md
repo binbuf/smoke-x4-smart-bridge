@@ -70,8 +70,8 @@ everything host-verifiable is built and tested here first.
 
 ## Open decisions
 
-| # | Question | Needed by |
-| --- | --- | --- |
+| #       | Question                                                                                                                                                                                        | Needed by                 |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
 | **Q-F** | **Public repo or private?** Affects licensing posture and whether the browser installer can live on GitHub Pages. Also tracked in [`docs/tasks/standing-work.md`](docs/tasks/standing-work.md). | before M6 / first release |
 
 ## Provenance and attribution

@@ -18,8 +18,7 @@ typedef struct {
     const char *name;
 } guard_ctx_t;
 
-static void log_violation(const char *handler_name, uint64_t elapsed_us)
-{
+static void log_violation(const char *handler_name, uint64_t elapsed_us) {
     ESP_LOGE(TAG, "handler %s ran %llu us (> %u us budget)",
              handler_name != NULL ? handler_name : "?",
              (unsigned long long)elapsed_us,
@@ -31,8 +30,7 @@ static void log_violation(const char *handler_name, uint64_t elapsed_us)
 }
 
 static void guarded_trampoline(void *arg, esp_event_base_t base, int32_t id,
-                               void *event_data)
-{
+                               void *event_data) {
     guard_ctx_t *ctx = arg;
     const uint64_t start = (uint64_t)esp_timer_get_time();
     ctx->handler(ctx->handler_arg, base, id, event_data);
@@ -41,8 +39,7 @@ static void guarded_trampoline(void *arg, esp_event_base_t base, int32_t id,
 
 esp_err_t bridge_event_handler_register(bridge_event_id_t id,
                                         esp_event_handler_t handler,
-                                        void *handler_arg, const char *name)
-{
+                                        void *handler_arg, const char *name) {
     guard_ctx_t *ctx = calloc(1, sizeof(*ctx));
     if (ctx == NULL) {
         return ESP_ERR_NO_MEM;
@@ -59,13 +56,12 @@ esp_err_t bridge_event_handler_register(bridge_event_id_t id,
 }
 
 esp_err_t bridge_event_post(bridge_event_id_t id, const void *payload,
-                            size_t payload_size)
-{
+                            size_t payload_size) {
     return esp_event_post(BRIDGE_EVENT, (int32_t)id, payload, payload_size, 0);
 }
 
-static void install_default_violation_handler(void) __attribute__((constructor));
 static void install_default_violation_handler(void)
-{
+    __attribute__((constructor));
+static void install_default_violation_handler(void) {
     bridge_event_guard_set_violation_handler(log_violation);
 }

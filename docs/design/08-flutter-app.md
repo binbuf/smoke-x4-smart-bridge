@@ -22,15 +22,15 @@ abstract interface class BridgeTransport {
 
 Three implementations:
 
-| Implementation | Backed by | Capabilities |
-| --- | --- | --- |
-| `HttpTransport` | REST + WebSocket ([06](06-device-api.md)) | everything |
-| `BleTransport` | Bridge Control Service ([05 §5.6](05-connectivity-and-provisioning.md)) | live state, 2 h pit preview, config, control — **no full history** in v1 |
-| `MockTransport` | `tools/sim` or a recorded cook fixture | everything, deterministic |
+| Implementation  | Backed by                                                               | Capabilities                                                             |
+| --------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `HttpTransport` | REST + WebSocket ([06](06-device-api.md))                               | everything                                                               |
+| `BleTransport`  | Bridge Control Service ([05 §5.6](05-connectivity-and-provisioning.md)) | live state, 2 h pit preview, config, control — **no full history** in v1 |
+| `MockTransport` | `tools/sim` or a recorded cook fixture                                  | everything, deterministic                                                |
 
 The dashboard, the chart, the alarm engine, and the session list are written once. A capability flag
 drives the two places where the difference is visible to the user: the chart shows
-*"connected over Bluetooth — full history needs Wi-Fi"* instead of a stub, and the session list is
+_"connected over Bluetooth — full history needs Wi-Fi"_ instead of a stub, and the session list is
 read from the local cache rather than the device.
 
 This is what makes decision D1 (custom GATT over `wifi_provisioning`) pay off in the app as well as
@@ -39,20 +39,20 @@ using the same screen you use at home.
 
 ## 8.2 Packages
 
-| Concern | Package | Why this one |
-| --- | --- | --- |
-| State | `riverpod` / `flutter_riverpod` + `riverpod_generator` | Compile-time-safe providers, first-class async/stream primitives, testable with no widget tree |
-| Models | `freezed` + `json_serializable` | Immutable unions; exhaustive `switch` over `BridgeEvent` variants |
-| BLE | `flutter_blue_plus` | Actively maintained, good Android 12+ permission handling, direct GATT control |
-| Discovery | `nsd` | Wraps Android `NsdManager`. `multicast_dns` has a long-standing Android discovery bug ([flutter#155499](https://github.com/flutter/flutter/issues/155499)) |
-| HTTP | `dio` | Interceptors, cancel tokens, per-request timeouts, streamed responses for `format=bin` |
-| WebSocket | `web_socket_channel` | |
-| Local DB | `drift` | Typed queries, migrations, batch inserts, works on a background isolate |
-| Charts | `fl_chart` | MIT, no licence cost, adequate at our data sizes after decimation. Syncfusion is faster at 10⁵ points but is commercial and we never exceed ~3×10³ |
-| Notifications | `flutter_local_notifications` | Channels, full-screen intent for critical alarms |
-| Foreground service | `flutter_foreground_task` | Typed FGS for Android 14, isolate communication |
-| Prefs | `shared_preferences` | |
-| Logging | `logger` + a ring buffer exportable from the debug screen | Field diagnosis without a cable |
+| Concern            | Package                                                   | Why this one                                                                                                                                               |
+| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State              | `riverpod` / `flutter_riverpod` + `riverpod_generator`    | Compile-time-safe providers, first-class async/stream primitives, testable with no widget tree                                                             |
+| Models             | `freezed` + `json_serializable`                           | Immutable unions; exhaustive `switch` over `BridgeEvent` variants                                                                                          |
+| BLE                | `flutter_blue_plus`                                       | Actively maintained, good Android 12+ permission handling, direct GATT control                                                                             |
+| Discovery          | `nsd`                                                     | Wraps Android `NsdManager`. `multicast_dns` has a long-standing Android discovery bug ([flutter#155499](https://github.com/flutter/flutter/issues/155499)) |
+| HTTP               | `dio`                                                     | Interceptors, cancel tokens, per-request timeouts, streamed responses for `format=bin`                                                                     |
+| WebSocket          | `web_socket_channel`                                      |                                                                                                                                                            |
+| Local DB           | `drift`                                                   | Typed queries, migrations, batch inserts, works on a background isolate                                                                                    |
+| Charts             | `fl_chart`                                                | MIT, no licence cost, adequate at our data sizes after decimation. Syncfusion is faster at 10⁵ points but is commercial and we never exceed ~3×10³         |
+| Notifications      | `flutter_local_notifications`                             | Channels, full-screen intent for critical alarms                                                                                                           |
+| Foreground service | `flutter_foreground_task`                                 | Typed FGS for Android 14, isolate communication                                                                                                            |
+| Prefs              | `shared_preferences`                                      |                                                                                                                                                            |
+| Logging            | `logger` + a ring buffer exportable from the debug screen | Field diagnosis without a cable                                                                                                                            |
 
 Deliberately **not** used: any ESP provisioning package. We speak our own GATT protocol, and those
 packages assume Espressif's protobuf scheme.
@@ -143,13 +143,13 @@ three hours pulls 360 samples = 5.8 KB.
 
 Drift schema:
 
-| Table | Notes |
-| --- | --- |
-| `bridges` | id, name, last IP, last seen, BLE address, api token |
-| `sessions` | mirrors the on-device header + `syncedMaxT`, `isComplete` |
-| `samples` | `(bridgeId, sessionId, t)` PK; `p1..p4` nullable ints (tenths °F); `flags`, `rssi` |
-| `marks` | including app-only marks not yet pushed |
-| `alarmLog` | local record of what fired and when it was seen |
+| Table      | Notes                                                                              |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `bridges`  | id, name, last IP, last seen, BLE address, api token                               |
+| `sessions` | mirrors the on-device header + `syncedMaxT`, `isComplete`                          |
+| `samples`  | `(bridgeId, sessionId, t)` PK; `p1..p4` nullable ints (tenths °F); `flags`, `rssi` |
+| `marks`    | including app-only marks not yet pushed                                            |
+| `alarmLog` | local record of what fired and when it was seen                                    |
 
 One row per sample: a 24 h cook is 2,880 rows, 50 cached cooks is ~144 k rows — a size SQLite treats
 as trivial, and it buys free range queries and aggregation. If profiling ever disagrees, the
@@ -206,9 +206,9 @@ A five-step wizard driven entirely by BLE, mirroring the handoff in
 1. **Find** — BLE scan; each result shows the scan-response blob (`Smoke Bridge A4F2 · pit 243°F`)
 2. **Pair** — bond; a 6-digit passkey appears on the bridge's OLED, entered in the app
 3. **Time** — silently sets the clock so the session is correctly dated from the first sample
-4. **Network** — *"Host its own network"* vs *"Join a Wi-Fi network"*, with honest copy about the
+4. **Network** — _"Host its own network"_ vs _"Join a Wi-Fi network"_, with honest copy about the
    battery cost of hosting and the range cost of joining. Wi-Fi list comes from the device's scan
-5. **Handoff** — live progress, then verification, then *"Connected — you're all set"*. On failure,
+5. **Handoff** — live progress, then verification, then _"Connected — you're all set"_. On failure,
    BLE is still up, so the recovery path (revert to hosting) is one button
 
 ### Sessions
@@ -249,7 +249,7 @@ value at that instant.
 
 **Interaction.** Window chips (15 m / 1 h / 6 h / 15 h / All) for the common cases; pinch and drag
 adjust `minX`/`maxX` for free exploration; double-tap resets. Live mode auto-scrolls the window
-unless the user has panned, in which case a *"jump to now"* pill appears — the standard log-viewer
+unless the user has panned, in which case a _"jump to now"_ pill appears — the standard log-viewer
 behaviour, and the one people expect.
 
 **Colour.** Probe series need a categorical palette that is colourblind-safe, legible in direct
@@ -268,7 +268,7 @@ Two platform channels, both small and both ours:
 **`platform/network_binder`** — wraps `ConnectivityManager` for AP mode
 ([05 §5.8.1](05-connectivity-and-provisioning.md)): request a Wi-Fi network with
 `NET_CAPABILITY_INTERNET` removed, `bindProcessToNetwork` on availability, unbind on teardown. Also
-exposes `WifiNetworkSpecifier`-based joining so tapping *"Join SmokeBridge-A4F2"* doesn't dump the
+exposes `WifiNetworkSpecifier`-based joining so tapping _"Join SmokeBridge-A4F2"_ doesn't dump the
 user into system settings. ~120 lines of Kotlin.
 
 **`platform/cook_service`** — the foreground service host ([09](09-alarms-and-insights.md)).
@@ -284,13 +284,13 @@ opt-in, and the app degrades to "reconnect when you open it" if declined.
 
 ## 8.9 Testing
 
-| Layer | Approach |
-| --- | --- |
-| `domain/` | Plain `flutter test`. ETA projection, stall detection, lid-open, LTTB, unit conversion, gap detection — all pure functions with table-driven cases |
-| Wire parsing | Golden tests against the fixtures in `protocol/fixtures/`, shared byte-for-byte with the firmware's host tests |
-| Repositories | `MockTransport` + an in-memory drift database |
-| Widgets | `golden_toolkit` snapshots for the dashboard, tiles, and chart at several data shapes — including *no probes*, *all detached*, *mid-gap*, and *alarm active* |
-| Integration | `integration_test` driving the app against `tools/sim` replaying a recorded 18-hour cook at 100× speed. Runs in CI with no hardware |
+| Layer        | Approach                                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `domain/`    | Plain `flutter test`. ETA projection, stall detection, lid-open, LTTB, unit conversion, gap detection — all pure functions with table-driven cases           |
+| Wire parsing | Golden tests against the fixtures in `protocol/fixtures/`, shared byte-for-byte with the firmware's host tests                                               |
+| Repositories | `MockTransport` + an in-memory drift database                                                                                                                |
+| Widgets      | `golden_toolkit` snapshots for the dashboard, tiles, and chart at several data shapes — including _no probes_, _all detached_, _mid-gap_, and _alarm active_ |
+| Integration  | `integration_test` driving the app against `tools/sim` replaying a recorded 18-hour cook at 100× speed. Runs in CI with no hardware                          |
 
 The simulator ([10 §10.3](10-repo-tooling-and-testing.md)) is what makes the app developable and
 testable before the firmware exists, and what keeps CI honest afterwards.

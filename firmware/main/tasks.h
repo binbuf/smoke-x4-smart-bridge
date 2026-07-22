@@ -18,15 +18,15 @@ extern "C" {
 #endif
 
 /*                     name        stack  prio  core                         */
-#define BRIDGE_TASK_TABLE(X)                                                  \
-    X(lora_rx,    4096, 6, 1) /* poll SX1262, hand payloads to smoke_x_ctrl */\
-    X(smoke_x,    3072, 5, 0) /* decode, pairing state machine, publish     */\
-    X(cook_store, 4096, 4, 0) /* drain queue → LittleFS append, retention   */\
-    X(app_ui,     4096, 3, 0) /* 4 Hz button sampling, 1 Hz OLED render     */\
-    X(app_alarm,  3072, 4, 0) /* rules on each sample + 10 s tick           */\
-    X(app_net,    3072, 4, 0) /* Wi-Fi state machine, retry backoff, mDNS   */\
-    X(app_power,  2560, 2, 0) /* battery ADC every 30 s, SoC filter         */\
-    X(ws_push,    3072, 4, 0) /* serialize + fan out WebSocket frames       */
+#define BRIDGE_TASK_TABLE(X)                                                     \
+    X(lora_rx, 4096, 6, 1)    /* poll SX1262, hand payloads to smoke_x_ctrl */   \
+    X(smoke_x, 3072, 5, 0)    /* decode, pairing state machine, publish     */   \
+    X(cook_store, 4096, 4, 0) /* drain queue → LittleFS append, retention   */ \
+    X(app_ui, 4096, 3, 0)     /* 4 Hz button sampling, 1 Hz OLED render     */   \
+    X(app_alarm, 3072, 4, 0) /* rules on each sample + 10 s tick           */    \
+    X(app_net, 3072, 4, 0)   /* Wi-Fi state machine, retry backoff, mDNS   */    \
+    X(app_power, 2560, 2, 0) /* battery ADC every 30 s, SoC filter         */    \
+    X(ws_push, 3072, 4, 0)   /* serialize + fan out WebSocket frames       */
 
 typedef struct {
     const char *name;
@@ -37,9 +37,8 @@ typedef struct {
 
 #define BRIDGE_TASK_DEF(name_, stack_, prio_, core_) \
     {#name_, (stack_), (prio_), (core_)},
-static const bridge_task_def_t bridge_task_defs[] __attribute__((unused)) = {
-    BRIDGE_TASK_TABLE(BRIDGE_TASK_DEF)
-};
+static const bridge_task_def_t bridge_task_defs[]
+    __attribute__((unused)) = {BRIDGE_TASK_TABLE(BRIDGE_TASK_DEF)};
 #undef BRIDGE_TASK_DEF
 
 #define BRIDGE_TASK_COUNT \

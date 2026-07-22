@@ -9,18 +9,18 @@
 
 The arithmetic, because it is the whole reason this is easy:
 
-| | |
-| --- | --- |
-| Base station transmit interval | 30 s |
-| Samples per hour | 120 |
-| **Samples in 24 h** | **2,880** |
-| Bytes per sample (fixed, all 4 probes + flags + link quality + CRC) | **16 B** |
-| **Bytes for a 24 h cook** | **46,080 B ≈ 45 KB** |
-| Bytes for a 15 h cook | ~28 KB |
-| `cooks` partition | **2,432 KB** |
-| Samples it holds | ~155,600 |
-| **Continuous logging time** | **~1,297 h ≈ 54 days** |
-| Realistic after ~10 % LittleFS overhead + 256 B/session headers | **~48 days, or ~48 full 24 h cooks** |
+|                                                                     |                                      |
+| ------------------------------------------------------------------- | ------------------------------------ |
+| Base station transmit interval                                      | 30 s                                 |
+| Samples per hour                                                    | 120                                  |
+| **Samples in 24 h**                                                 | **2,880**                            |
+| Bytes per sample (fixed, all 4 probes + flags + link quality + CRC) | **16 B**                             |
+| **Bytes for a 24 h cook**                                           | **46,080 B ≈ 45 KB**                 |
+| Bytes for a 15 h cook                                               | ~28 KB                               |
+| `cooks` partition                                                   | **2,432 KB**                         |
+| Samples it holds                                                    | ~155,600                             |
+| **Continuous logging time**                                         | **~1,297 h ≈ 54 days**               |
+| Realistic after ~10 % LittleFS overhead + 256 B/session headers     | **~48 days, or ~48 full 24 h cooks** |
 
 A 24-hour cook is 1.8 % of the partition. The constraint was never storage capacity — the
 reference project's 10-hour ceiling came from holding history in **RAM** as a `cJSON` document
@@ -47,19 +47,19 @@ typedef struct __attribute__((packed)) {
 } bridge_sample_rec_t;   /* == 16 */
 ```
 
-| `temp[i]` value | Meaning |
-| --- | --- |
-| `INT16_MIN` (−32768) | **Probe detached.** Never plot as a temperature |
-| `INT16_MIN + 1` | Probe present but reading invalid / out of range (reserved, pending [02 Q4](02-smoke-x-protocol.md)) |
-| otherwise | Temperature × 10, °F. Probe range −58…572 °F → −580…5720, well inside `int16` |
+| `temp[i]` value      | Meaning                                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------------------- |
+| `INT16_MIN` (−32768) | **Probe detached.** Never plot as a temperature                                                      |
+| `INT16_MIN + 1`      | Probe present but reading invalid / out of range (reserved, pending [02 Q4](02-smoke-x-protocol.md)) |
+| otherwise            | Temperature × 10, °F. Probe range −58…572 °F → −580…5720, well inside `int16`                        |
 
-| `flags` bit | Meaning |
-| --- | --- |
-| 0–3 | Alarm **enabled** on probe 1–4 (mirrors the packet's per-probe alarm field) |
-| 4 | Billows attached |
-| 5 | `new_alarm` was set in this packet |
-| 6 | Source packet was in °C (provenance only — the stored value is already °F) |
-| 7 | Reserved |
+| `flags` bit | Meaning                                                                     |
+| ----------- | --------------------------------------------------------------------------- |
+| 0–3         | Alarm **enabled** on probe 1–4 (mirrors the packet's per-probe alarm field) |
+| 4           | Billows attached                                                            |
+| 5           | `new_alarm` was set in this packet                                          |
+| 6           | Source packet was in °C (provenance only — the stored value is already °F)  |
+| 7           | Reserved                                                                    |
 
 **Why canonical °F rather than "whatever the base sent":** the user can flip the base station
 between °F and °C mid-cook, which would otherwise leave a single series with two unit regimes and a
@@ -73,29 +73,29 @@ the specific failure the reference cannot represent, because its samples carry n
 
 ### Session header — 256 bytes, at offset 0 of every `.smk`
 
-| Off | Size | Field | Notes |
-| --- | --- | --- | --- |
-| 0 | 4 | `magic` | `"SMKS"` |
-| 4 | 2 | `version` | 1 |
-| 6 | 2 | `hdr_len` | 256 |
-| 8 | 2 | `rec_len` | 16 |
-| 10 | 1 | `num_probes` | 2 or 4 |
-| 11 | 1 | `flags` | b0 `clock_valid`, b1 `closed`, b2 `pinned`, b3 `source_celsius` |
-| 12 | 4 | `session_id` | monotonic, from NVS |
-| 16 | 8 | `started_unix_ms` | 0 until the clock is known; back-patched (§4.4) |
-| 24 | 8 | `ended_unix_ms` | 0 while open |
-| 32 | 4 | `started_uptime_s` | for correlating with logs across a reboot |
-| 36 | 4 | `sample_period_s` | nominal 30 |
-| 40 | 4 | `sample_count` | authoritative on close; derived from file size while open |
-| 44 | 4 | — | reserved |
-| 48 | 8 | `device_id[8]` | the paired base station |
-| 56 | 40 | `name[40]` | user label, UTF-8 |
-| 96 | 48 | `probe_name[4][12]` | UTF-8 |
-| 144 | 4 | `probe_role[4]` | 0 unused · 1 pit · 2 food · 3 ambient |
-| 148 | 8 | `probe_target[4]` | int16 tenths °F, 0 = no target |
-| 156 | 4 | `mark_count` | |
-| 160 | 92 | — | reserved, zeroed |
-| 252 | 4 | `crc32` | over bytes 0..251 |
+| Off | Size | Field               | Notes                                                           |
+| --- | ---- | ------------------- | --------------------------------------------------------------- |
+| 0   | 4    | `magic`             | `"SMKS"`                                                        |
+| 4   | 2    | `version`           | 1                                                               |
+| 6   | 2    | `hdr_len`           | 256                                                             |
+| 8   | 2    | `rec_len`           | 16                                                              |
+| 10  | 1    | `num_probes`        | 2 or 4                                                          |
+| 11  | 1    | `flags`             | b0 `clock_valid`, b1 `closed`, b2 `pinned`, b3 `source_celsius` |
+| 12  | 4    | `session_id`        | monotonic, from NVS                                             |
+| 16  | 8    | `started_unix_ms`   | 0 until the clock is known; back-patched (§4.4)                 |
+| 24  | 8    | `ended_unix_ms`     | 0 while open                                                    |
+| 32  | 4    | `started_uptime_s`  | for correlating with logs across a reboot                       |
+| 36  | 4    | `sample_period_s`   | nominal 30                                                      |
+| 40  | 4    | `sample_count`      | authoritative on close; derived from file size while open       |
+| 44  | 4    | —                   | reserved                                                        |
+| 48  | 8    | `device_id[8]`      | the paired base station                                         |
+| 56  | 40   | `name[40]`          | user label, UTF-8                                               |
+| 96  | 48   | `probe_name[4][12]` | UTF-8                                                           |
+| 144 | 4    | `probe_role[4]`     | 0 unused · 1 pit · 2 food · 3 ambient                           |
+| 148 | 8    | `probe_target[4]`   | int16 tenths °F, 0 = no target                                  |
+| 156 | 4    | `mark_count`        |                                                                 |
+| 160 | 92   | —                   | reserved, zeroed                                                |
+| 252 | 4    | `crc32`             | over bytes 0..251                                               |
 
 The header makes each file **self-describing**: pull a `.smk` off the device and it is fully
 interpretable with no index, no database, and no firmware.
@@ -128,7 +128,7 @@ and from the alarm engine (kinds 2/5/7 written automatically when lid-open or an
 └── novelty.log       64 KB ring, text — see 02 §2.7
 ```
 
-`novelty.log` is partition-wide, not per-session: it accumulates one line per *structurally new*
+`novelty.log` is partition-wide, not per-session: it accumulates one line per _structurally new_
 packet across the device's whole life, which is what makes protocol investigation free
 ([02 §2.7](02-smoke-x-protocol.md)). `.raw` files are opt-in per session (~345 KB per 24 h) and the
 retention policy keeps only the two most recent.
@@ -161,7 +161,7 @@ The board has no battery-backed RTC. Three possible clock sources, in preference
 The design keeps these strictly separated:
 
 - **Samples always store `t` = seconds since session start**, derived from `esp_timer`. This is
-  monotonic, never adjusted, and never wrong. The graph's x-axis is always correct *relative* to
+  monotonic, never adjusted, and never wrong. The graph's x-axis is always correct _relative_ to
   the cook, which is the axis that actually matters for barbecue.
 - **Wall-clock is a session-level property**: `started_unix_ms` + `clock_valid`.
 
@@ -217,7 +217,7 @@ reset silently discards the entire cook.
 A session is created automatically — asking the user to remember to press start before an 18-hour
 brisket is a design that loses data.
 
-**Start** when *all* of:
+**Start** when _all_ of:
 
 - the bridge is paired and receiving state messages
 - at least one probe is attached
@@ -245,12 +245,12 @@ renames from the app; the header's `name` field is rewritten in place.
 
 Configurable, with these defaults:
 
-| Setting | Default | Behaviour |
-| --- | --- | --- |
-| `retention_max_sessions` | 64 | Beyond this, delete the oldest **closed, unpinned** session |
-| `retention_min_free_pct` | 10 % | Below this, delete oldest closed unpinned sessions until satisfied |
-| Pinned sessions | — | Never auto-deleted. Set from the app |
-| The active session | — | Never deleted, ever |
+| Setting                  | Default | Behaviour                                                          |
+| ------------------------ | ------- | ------------------------------------------------------------------ |
+| `retention_max_sessions` | 64      | Beyond this, delete the oldest **closed, unpinned** session        |
+| `retention_min_free_pct` | 10 %    | Below this, delete oldest closed unpinned sessions until satisfied |
+| Pinned sessions          | —       | Never auto-deleted. Set from the app                               |
+| The active session       | —       | Never deleted, ever                                                |
 
 If the active session alone would fill the partition — 54 days of continuous logging — appending
 stops, `BRIDGE_EVT_STORAGE` fires with `full`, and the OLED and app both say so. Practically
@@ -282,12 +282,12 @@ a faint envelope ([08](08-flutter-app.md)).
 
 Typical requests:
 
-| View | Query | Points | Bytes |
-| --- | --- | --- | --- |
-| Live dashboard (last 2 h) | `from=t-7200` | 240 | 3.8 KB |
-| Full 15 h cook | `bucket=60&agg=minmax` | 900 | ~22 KB |
-| Full 24 h cook | `bucket=90&agg=minmax` | 960 | ~23 KB |
-| Full-fidelity export | `format=csv` | 2,880 | ~130 KB CSV |
+| View                      | Query                  | Points | Bytes       |
+| ------------------------- | ---------------------- | ------ | ----------- |
+| Live dashboard (last 2 h) | `from=t-7200`          | 240    | 3.8 KB      |
+| Full 15 h cook            | `bucket=60&agg=minmax` | 900    | ~22 KB      |
+| Full 24 h cook            | `bucket=90&agg=minmax` | 960    | ~23 KB      |
+| Full-fidelity export      | `format=csv`           | 2,880  | ~130 KB CSV |
 
 Even the unaggregated raw form (46 KB for 24 h) is trivial over Wi-Fi; aggregation exists for the
 chart's sake and for the constrained BLE path, not to save the network.
@@ -300,13 +300,13 @@ requires Wi-Fi** in v1.0, and the app says so rather than silently showing a stu
 
 ## 4.9 Flash endurance
 
-| | |
-| --- | --- |
-| Sample data written per 24 h | 46 KB |
-| Realistic programmed bytes/day incl. LittleFS metadata | < 100 KB |
-| Five years of daily cooking | ~180 MB |
-| Spread over a 2,432 KB wear-levelled partition | **~75 erase cycles per sector** |
-| Typical SPI NOR endurance | 100,000 cycles |
+|                                                        |                                 |
+| ------------------------------------------------------ | ------------------------------- |
+| Sample data written per 24 h                           | 46 KB                           |
+| Realistic programmed bytes/day incl. LittleFS metadata | < 100 KB                        |
+| Five years of daily cooking                            | ~180 MB                         |
+| Spread over a 2,432 KB wear-levelled partition         | **~75 erase cycles per sector** |
+| Typical SPI NOR endurance                              | 100,000 cycles                  |
 
 Three orders of magnitude of margin. The `fsync` cadence, the retention churn, and the session
 header rewrites are all irrelevant against this. Endurance is not a design constraint here and the

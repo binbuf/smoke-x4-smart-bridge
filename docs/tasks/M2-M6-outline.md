@@ -1,8 +1,8 @@
 # M2–M6 — Epic-level outline
 
-**Deliberately not planned in detail.** [§12.1](../design/12-task-planning-notes.md): *"M4–M6 depend
+**Deliberately not planned in detail.** [§12.1](../design/12-task-planning-notes.md): _"M4–M6 depend
 on facts that don't exist yet (real packet formats, measured RAM headroom, how Android behaves on the
-actual phone). Planning them now produces fiction that later gets rewritten."*
+actual phone). Planning them now produces fiction that later gets rewritten."_
 
 Plan each milestone as the previous one exits. What follows is scope, dependencies, exit gates, and
 the handful of planning decisions worth recording now so they aren't rediscovered later.
@@ -11,15 +11,15 @@ the handful of planning decisions worth recording now so they aren't rediscovere
 
 ## M2 — Network and API
 
-| Epic | Scope | Design |
-| --- | --- | --- |
-| **F8** | `app_net` — AP/STA state machine, backoff retry, mDNS, DNS hijack, captive shim | [05 §5.3–5.5, §5.8.1](../design/05-connectivity-and-provisioning.md) |
-| **F9** | `app_api` — httpd, REST, **streamed** history, WebSocket fan-out | [06](../design/06-device-api.md) |
-| **F4.4** | `/api/v1/debug/packets` and `/debug/novelty` — the read half of M1's capture work | [02 §2.7](../design/02-smoke-x-protocol.md) |
-| **T4.1b** | `tools/lora/pull.py` — fetch ring, novelty, and `.raw` over HTTP | [10 §10.4](../design/10-repo-tooling-and-testing.md) |
-| **A5** | `HttpTransport` — REST + WebSocket | [08 §8.1](../design/08-flutter-app.md) |
-| **A7** | `ConnectionManager` — racing discovery, cache, manual entry, backoff | [08 §8.4](../design/08-flutter-app.md) |
-| **A14** | `platform/network_binder` (Kotlin), permissions flow, manifest | [05 §5.8](../design/05-connectivity-and-provisioning.md) |
+| Epic      | Scope                                                                             | Design                                                               |
+| --------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **F8**    | `app_net` — AP/STA state machine, backoff retry, mDNS, DNS hijack, captive shim   | [05 §5.3–5.5, §5.8.1](../design/05-connectivity-and-provisioning.md) |
+| **F9**    | `app_api` — httpd, REST, **streamed** history, WebSocket fan-out                  | [06](../design/06-device-api.md)                                     |
+| **F4.4**  | `/api/v1/debug/packets` and `/debug/novelty` — the read half of M1's capture work | [02 §2.7](../design/02-smoke-x-protocol.md)                          |
+| **T4.1b** | `tools/lora/pull.py` — fetch ring, novelty, and `.raw` over HTTP                  | [10 §10.4](../design/10-repo-tooling-and-testing.md)                 |
+| **A5**    | `HttpTransport` — REST + WebSocket                                                | [08 §8.1](../design/08-flutter-app.md)                               |
+| **A7**    | `ConnectionManager` — racing discovery, cache, manual entry, backoff              | [08 §8.4](../design/08-flutter-app.md)                               |
+| **A14**   | `platform/network_binder` (Kotlin), permissions flow, manifest                    | [05 §5.8](../design/05-connectivity-and-provisioning.md)             |
 
 **Exit gate:** `curl` retrieves a 24-hour cook as CSV and as raw records; a WebSocket client receives
 live samples; AP↔STA switching works from `curl`; **free heap ≥ 150 KB with everything running.**
@@ -51,13 +51,13 @@ pointing at the app.
 
 ## M3 — BLE and provisioning
 
-| Epic | Scope | Design |
-| --- | --- | --- |
+| Epic     | Scope                                                                                       | Design                                                      |
+| -------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | **F11a** | `app_ui` **partial** — SSD1306 driver, framebuffer primitives, PNG harness, passkey overlay | [07 §7.1, §7.3, §7.6](../design/07-display-and-controls.md) |
-| **F10** | `app_ble` — NimBLE, Bridge Control Service, bonding, OLED passkey | [05 §5.6](../design/05-connectivity-and-provisioning.md) |
-| **A6** | `BleTransport` — flutter_blue_plus + GATT | [05 §5.6](../design/05-connectivity-and-provisioning.md) |
-| **A8** | Onboarding wizard — scan, bond, passkey, mode choice, handoff | [05 §5.7](../design/05-connectivity-and-provisioning.md) |
-| **V3a** | Coexistence checks deferred from V1.6 | [01 §1.8](../design/01-hardware.md) |
+| **F10**  | `app_ble` — NimBLE, Bridge Control Service, bonding, OLED passkey                           | [05 §5.6](../design/05-connectivity-and-provisioning.md)    |
+| **A6**   | `BleTransport` — flutter_blue_plus + GATT                                                   | [05 §5.6](../design/05-connectivity-and-provisioning.md)    |
+| **A8**   | Onboarding wizard — scan, bond, passkey, mode choice, handoff                               | [05 §5.7](../design/05-connectivity-and-provisioning.md)    |
+| **V3a**  | Coexistence checks deferred from V1.6                                                       | [01 §1.8](../design/01-hardware.md)                         |
 
 **Exit gate:** a phone provisions the bridge from factory-reset to a working STA connection entirely
 over BLE, **and can recover from a deliberately wrong Wi-Fi password without touching the hardware.**
@@ -85,13 +85,13 @@ negotiated MTU. Test on the same three OEM builds as R3.
 
 ## M4 — Flutter MVP
 
-| Epic | Scope | Design |
-| --- | --- | --- |
-| **A9** | Dashboard, probe tiles, session controls | [08 §8.6](../design/08-flutter-app.md) |
-| **A10** | Chart — LTTB, gaps, min/max envelope, overlays, pan/zoom | [08 §8.7](../design/08-flutter-app.md) |
-| **A11** | Sessions list, detail, stats, export | [08 §8.6](../design/08-flutter-app.md) |
+| Epic    | Scope                                                     | Design                                 |
+| ------- | --------------------------------------------------------- | -------------------------------------- |
+| **A9**  | Dashboard, probe tiles, session controls                  | [08 §8.6](../design/08-flutter-app.md) |
+| **A10** | Chart — LTTB, gaps, min/max envelope, overlays, pan/zoom  | [08 §8.7](../design/08-flutter-app.md) |
+| **A11** | Sessions list, detail, stats, export                      | [08 §8.6](../design/08-flutter-app.md) |
 | **A12** | Settings — probes, alarms, network, device, advanced, OTA | [08 §8.6](../design/08-flutter-app.md) |
-| **A15** | Golden tests + `integration_test` against `tools/sim` | [08 §8.9](../design/08-flutter-app.md) |
+| **A15** | Golden tests + `integration_test` against `tools/sim`     | [08 §8.9](../design/08-flutter-app.md) |
 
 **Exit gate — this is the MVP.** Start to finish on real hardware: install the APK, onboard over BLE,
 choose a mode, watch a live cook, scroll 15 hours of history, export a CSV.
@@ -113,12 +113,12 @@ the OLED's single bit of ink, with roles carrying semantic weight.
 
 ## M5 — Alarms, display, insights
 
-| Epic | Scope | Design |
-| --- | --- | --- |
-| **F13** | `app_alarm` — rules, latching, hysteresis, lid-open grace | [09 §9.2](../design/09-alarms-and-insights.md) |
-| **F11b** | `app_ui` **remainder** — five pages, button gesture machine, sparkline, LED | [07](../design/07-display-and-controls.md) |
-| **F12** | `app_power` — battery ADC, calibration, SoC curve, saver profile | [01 §1.3, §1.6](../design/01-hardware.md) |
-| **A13** | Foreground service, notification channels, quiet hours | [09 §9.5–9.6](../design/09-alarms-and-insights.md) |
+| Epic     | Scope                                                                       | Design                                             |
+| -------- | --------------------------------------------------------------------------- | -------------------------------------------------- |
+| **F13**  | `app_alarm` — rules, latching, hysteresis, lid-open grace                   | [09 §9.2](../design/09-alarms-and-insights.md)     |
+| **F11b** | `app_ui` **remainder** — five pages, button gesture machine, sparkline, LED | [07](../design/07-display-and-controls.md)         |
+| **F12**  | `app_power` — battery ADC, calibration, SoC curve, saver profile            | [01 §1.3, §1.6](../design/01-hardware.md)          |
+| **A13**  | Foreground service, notification channels, quiet hours                      | [09 §9.5–9.6](../design/09-alarms-and-insights.md) |
 
 **Exit gate:** an unattended overnight cook wakes the user for `target_reached`; the bridge alarms
 correctly **with the phone powered off**; a lid-open does not fire a false pit alarm.
@@ -145,12 +145,12 @@ mirrored in `domain/analysis/`, already built in A2.
 
 ## M6 — Hardening and release
 
-| Epic | Scope | Design |
-| --- | --- | --- |
-| **F14** | OTA + rollback health gate | [03 §3.7](../design/03-firmware-architecture.md), [06 §6.2](../design/06-device-api.md) |
-| **T5** | `tools/flash`, merged-binary build, esp-web-tools installer | [10 §10.8](../design/10-repo-tooling-and-testing.md) |
-| **V3** | 24-hour soak: heap, stacks, counters, reconnects | [10 §10.5](../design/10-repo-tooling-and-testing.md) |
-| **V4** | On-target release checklist | [10 §10.5](../design/10-repo-tooling-and-testing.md) |
+| Epic    | Scope                                                       | Design                                                                                  |
+| ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **F14** | OTA + rollback health gate                                  | [03 §3.7](../design/03-firmware-architecture.md), [06 §6.2](../design/06-device-api.md) |
+| **T5**  | `tools/flash`, merged-binary build, esp-web-tools installer | [10 §10.8](../design/10-repo-tooling-and-testing.md)                                    |
+| **V3**  | 24-hour soak: heap, stacks, counters, reconnects            | [10 §10.5](../design/10-repo-tooling-and-testing.md)                                    |
+| **V4**  | On-target release checklist                                 | [10 §10.5](../design/10-repo-tooling-and-testing.md)                                    |
 
 **Exit gate:** v1.0.0 tagged with a merged binary, an APK, and a working web installer.
 

@@ -16,26 +16,27 @@ extern "C" {
 #endif
 
 typedef enum {
-    BRIDGE_EVT_SAMPLE,    /* bridge_evt_sample_t  — a decoded state message   */
-    BRIDGE_EVT_PAIRING,   /* bridge_evt_pairing_t — paired / unpaired / synced */
+    BRIDGE_EVT_SAMPLE,  /* bridge_evt_sample_t  — a decoded state message   */
+    BRIDGE_EVT_PAIRING, /* bridge_evt_pairing_t — paired / unpaired / synced */
     BRIDGE_EVT_BASE_LOST, /* uint32_t seconds_since_last_packet               */
-    BRIDGE_EVT_BASE_FOUND,/* no payload                                       */
-    BRIDGE_EVT_NET,       /* bridge_evt_net_t     — mode / ip / rssi changed  */
-    BRIDGE_EVT_SESSION,   /* bridge_evt_session_t — started / ended / renamed */
-    BRIDGE_EVT_ALARM,     /* bridge_evt_alarm_t   — raised / cleared / acked  */
-    BRIDGE_EVT_BUTTON,    /* bridge_evt_button_t  — tap / double / hold / …   */
-    BRIDGE_EVT_STORAGE,   /* bridge_evt_storage_t — usage, low-space, purged  */
-    BRIDGE_EVT_POWER,     /* bridge_evt_power_t   — mV, SoC, charging, saver  */
-    BRIDGE_EVT_TIME,      /* bridge_evt_time_t    — clock source acquired     */
-    BRIDGE_EVT_OTA,       /* bridge_evt_ota_t     — progress / result         */
+    BRIDGE_EVT_BASE_FOUND, /* no payload */
+    BRIDGE_EVT_NET,     /* bridge_evt_net_t     — mode / ip / rssi changed  */
+    BRIDGE_EVT_SESSION, /* bridge_evt_session_t — started / ended / renamed */
+    BRIDGE_EVT_ALARM,   /* bridge_evt_alarm_t   — raised / cleared / acked  */
+    BRIDGE_EVT_BUTTON, /* bridge_evt_button_t  — tap / double / hold / …   */
+    BRIDGE_EVT_STORAGE, /* bridge_evt_storage_t — usage, low-space, purged  */
+    BRIDGE_EVT_POWER,   /* bridge_evt_power_t   — mV, SoC, charging, saver  */
+    BRIDGE_EVT_TIME,    /* bridge_evt_time_t    — clock source acquired     */
+    BRIDGE_EVT_OTA,     /* bridge_evt_ota_t     — progress / result         */
     BRIDGE_EVT_MAX,
 } bridge_event_id_t;
 
 typedef struct {
-    uint32_t t_rel_s;     /* seconds since session start */
-    int16_t temp_f10[4];  /* canonical tenths °F; BRIDGE_TEMP_DETACHED sentinel */
-    uint8_t flags;        /* sample_rec flags byte (see record_gen.h) */
-    uint8_t num_probes;   /* 2 or 4 */
+    uint32_t t_rel_s; /* seconds since session start */
+    int16_t
+        temp_f10[4]; /* canonical tenths °F; BRIDGE_TEMP_DETACHED sentinel */
+    uint8_t flags;   /* sample_rec flags byte (see record_gen.h) */
+    uint8_t num_probes; /* 2 or 4 */
     int8_t rssi;
     int8_t snr;
 } bridge_evt_sample_t;
@@ -47,15 +48,15 @@ typedef enum {
 } bridge_pairing_state_t;
 
 typedef struct {
-    uint8_t state;        /* bridge_pairing_state_t */
-    char device_id[8];    /* NUL-padded */
+    uint8_t state;     /* bridge_pairing_state_t */
+    char device_id[8]; /* NUL-padded */
     uint32_t frequency_hz;
     uint8_t num_probes;
 } bridge_evt_pairing_t;
 
 typedef struct {
-    uint8_t mode;         /* bridge_net_mode_t (record_gen.h wire values) */
-    uint8_t state;        /* bridge_net_state_t */
+    uint8_t mode;  /* bridge_net_mode_t (record_gen.h wire values) */
+    uint8_t state; /* bridge_net_state_t */
     uint8_t ip[4];
     int8_t rssi;
 } bridge_evt_net_t;
@@ -67,7 +68,7 @@ typedef enum {
 } bridge_session_action_t;
 
 typedef struct {
-    uint8_t action;       /* bridge_session_action_t */
+    uint8_t action; /* bridge_session_action_t */
     uint32_t session_id;
 } bridge_evt_session_t;
 
@@ -78,10 +79,10 @@ typedef enum {
 } bridge_alarm_action_t;
 
 typedef struct {
-    uint8_t action;       /* bridge_alarm_action_t */
+    uint8_t action; /* bridge_alarm_action_t */
     uint8_t alarm_id;
     uint8_t rule;
-    uint8_t probe;        /* 0 = whole cook, 1..4 */
+    uint8_t probe; /* 0 = whole cook, 1..4 */
     int16_t value_f10;
 } bridge_evt_alarm_t;
 
@@ -93,7 +94,7 @@ typedef enum {
 } bridge_gesture_t;
 
 typedef struct {
-    uint8_t gesture;      /* bridge_gesture_t */
+    uint8_t gesture; /* bridge_gesture_t */
 } bridge_evt_button_t;
 
 typedef enum {
@@ -104,7 +105,7 @@ typedef enum {
 } bridge_storage_kind_t;
 
 typedef struct {
-    uint8_t kind;         /* bridge_storage_kind_t */
+    uint8_t kind; /* bridge_storage_kind_t */
     uint32_t used_b;
     uint32_t total_b;
     uint8_t free_pct;
@@ -125,7 +126,7 @@ typedef enum {
 } bridge_time_source_t;
 
 typedef struct {
-    uint8_t source;       /* bridge_time_source_t */
+    uint8_t source; /* bridge_time_source_t */
     uint64_t unix_ms;
 } bridge_evt_time_t;
 
@@ -137,7 +138,7 @@ typedef enum {
 } bridge_ota_phase_t;
 
 typedef struct {
-    uint8_t phase;        /* bridge_ota_phase_t */
+    uint8_t phase; /* bridge_ota_phase_t */
     uint8_t pct;
     int32_t err;
 } bridge_evt_ota_t;

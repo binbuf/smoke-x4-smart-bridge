@@ -5,8 +5,7 @@
 #include "tasks.h"
 #include "test_util.h"
 
-int main(void)
-{
+int main(void) {
     /* The compile-time sum — checkable without running anything. */
     CHECK_EQ_INT(BRIDGE_TASK_STACK_TOTAL,
                  4096 + 3072 + 4096 + 4096 + 3072 + 3072 + 2560 + 3072);

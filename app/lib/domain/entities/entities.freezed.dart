@@ -213,7 +213,7 @@ return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled
 
 class _Probe implements Probe {
   const _Probe({required this.n, this.name = '', this.role = ProbeRole.unused, this.targetF10, this.alarmEnabled = false});
-  
+
 
 /// 1..4 — the physical jack on the base station.
 @override final  int n;
@@ -488,7 +488,7 @@ return $default(_that.t,_that.tempsF10,_that.billows,_that.newAlarm,_that.source
 
 class _Sample implements Sample {
   const _Sample({required this.t, required final  List<int?> tempsF10, this.billows = false, this.newAlarm = false, this.sourceCelsius = false, this.rssi = 0}): _tempsF10 = tempsF10;
-  
+
 
 /// Seconds since session start (monotonic, never wall-clock).
 @override final  int t;
@@ -776,7 +776,7 @@ return $default(_that.id,_that.name,_that.startedUnixMs,_that.endedUnixMs,_that.
 
 class _CookSession implements CookSession {
   const _CookSession({required this.id, this.name = '', this.startedUnixMs, this.endedUnixMs, this.samplePeriodS = 30, this.sampleCount = 0, this.numProbes = 4, final  List<Probe> probes = const <Probe>[], this.closed = false, this.pinned = false}): _probes = probes;
-  
+
 
 @override final  int id;
 @override@JsonKey() final  String name;
@@ -1064,7 +1064,7 @@ return $default(_that.t,_that.kind,_that.probe,_that.text);case _:
 
 class _Mark implements Mark {
   const _Mark({required this.t, required this.kind, this.probe = 0, this.text = ''});
-  
+
 
 /// Seconds since session start.
 @override final  int t;
@@ -1336,7 +1336,7 @@ return $default(_that.id,_that.rule,_that.probe,_that.valueF10,_that.sinceUnixMs
 
 class _Alarm implements Alarm {
   const _Alarm({required this.id, required this.rule, this.probe = 0, this.valueF10, this.sinceUnixMs, this.severity = AlarmSeverity.warning, this.acked = false});
-  
+
 
 @override final  int id;
 @override final  String rule;
@@ -1613,7 +1613,7 @@ return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent);
 
 class _LiveState implements LiveState {
   const _LiveState({required this.t, this.unixMs, required final  List<int?> tempsF10, this.billows = false, final  List<Sample> recent = const <Sample>[]}): _tempsF10 = tempsF10,_recent = recent;
-  
+
 
 /// Seconds into the active session; 0 when none.
 @override final  int t;
@@ -1909,7 +1909,7 @@ return $default(_that.deviceId,_that.model,_that.fw,_that.uptimeS,_that.paired,_
 
 class _BridgeStatus implements BridgeStatus {
   const _BridgeStatus({required this.deviceId, this.model = '', this.fw = '', this.uptimeS = 0, this.paired = false, this.numProbes = 0, this.lastPacketSAgo, this.baseLost = false, this.sessionActive = false, this.activeSessionId, this.storageFreePct = 0, this.socPct, this.charging = false, final  List<Alarm> alarms = const <Alarm>[]}): _alarms = alarms;
-  
+
 
 @override final  String deviceId;
 @override@JsonKey() final  String model;

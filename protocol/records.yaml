@@ -14,15 +14,15 @@
 # The 16 B layout below follows 05 §5.6. Do not "fix" this without a design-doc change.
 
 meta:
-  endianness: little            # every multi-byte field, everywhere, no exceptions
-  version: 1                    # record-layout version (mirrored in session_header.version)
-  crc16:                        # CRC-16/CCITT-FALSE  (check("123456789") = 0x29B1)
+  endianness: little # every multi-byte field, everywhere, no exceptions
+  version: 1 # record-layout version (mirrored in session_header.version)
+  crc16: # CRC-16/CCITT-FALSE  (check("123456789") = 0x29B1)
     poly: 0x1021
     init: 0xFFFF
     refin: false
     refout: false
     xorout: 0x0000
-  crc32:                        # CRC-32/ISO-HDLC     (check("123456789") = 0xCBF43926)
+  crc32: # CRC-32/ISO-HDLC     (check("123456789") = 0xCBF43926)
     poly: 0x04C11DB7
     init: 0xFFFFFFFF
     refin: true
@@ -31,18 +31,18 @@ meta:
 
 constants:
   # temp sentinels (canonical tenths-of-°F int16). Named, never numbered, at every use site.
-  TEMP_DETACHED: -32768         # INT16_MIN  — probe detached; must surface as null/None, never 0
-  TEMP_INVALID: -32767          # INT16_MIN+1 — probe present, reading invalid (pending 02 Q4)
+  TEMP_DETACHED: -32768 # INT16_MIN  — probe detached; must surface as null/None, never 0
+  TEMP_INVALID: -32767 # INT16_MIN+1 — probe present, reading invalid (pending 02 Q4)
   SESSION_MAGIC: "SMKS"
   RECORD_VERSION: 1
 
 enums:
-  probe_role:                   # session_header.probe_role[i]
+  probe_role: # session_header.probe_role[i]
     unused: 0
     pit: 1
     food: 2
     ambient: 3
-  mark_kind:                    # mark_rec.kind
+  mark_kind: # mark_rec.kind
     note: 0
     wrapped: 1
     lid_open: 2
@@ -51,16 +51,16 @@ enums:
     alarm: 5
     phase_change: 6
     auto_detected: 7
-  net_mode:                     # net_status.mode
+  net_mode: # net_status.mode
     off: 0
     ap: 1
     sta: 2
-  net_state:                    # net_status.state
+  net_state: # net_status.state
     idle: 0
     connecting: 1
     up: 2
     failed: 3
-  control_op:                   # device_control.op
+  control_op: # device_control.op
     pair: 1
     unpair: 2
     set_time: 3
@@ -72,13 +72,13 @@ enums:
     set_units: 9
     identify: 10
     ack_alarm: 11
-  result_status:                # result.status
+  result_status: # result.status
     ok: 0
     invalid: 1
     busy: 2
     failed: 3
     unauthorized: 4
-  units:                        # device_control set_units payload
+  units: # device_control set_units payload
     celsius: 0
     fahrenheit: 1
 
@@ -88,55 +88,147 @@ enums:
 # equals the sum of the field sizes and emits a _Static_assert per record.
 
 records:
-  sample_rec:                   # one decoded state message; appended to <id>.smk
+  sample_rec: # one decoded state message; appended to <id>.smk
     size: 16
     fields:
-      - { name: t,     type: u32,           doc: "seconds since session start (monotonic, never wall-clock)" }
-      - { name: temp,  type: i16, count: 4, doc: "tenths of °F, canonical",
-          sentinel: { -32768: detached, -32767: invalid } }
-      - { name: flags, type: u8,
-          bits: [p1_alarm, p2_alarm, p3_alarm, p4_alarm, billows, new_alarm, source_celsius, _rsv] }
-      - { name: rssi,  type: i8,            doc: "dBm of the packet that produced this sample" }
+      - {
+          name: t,
+          type: u32,
+          doc: "seconds since session start (monotonic, never wall-clock)",
+        }
+      - {
+          name: temp,
+          type: i16,
+          count: 4,
+          doc: "tenths of °F, canonical",
+          sentinel: { -32768: detached, -32767: invalid },
+        }
+      - {
+          name: flags,
+          type: u8,
+          bits:
+            [
+              p1_alarm,
+              p2_alarm,
+              p3_alarm,
+              p4_alarm,
+              billows,
+              new_alarm,
+              source_celsius,
+              _rsv,
+            ],
+        }
+      - {
+          name: rssi,
+          type: i8,
+          doc: "dBm of the packet that produced this sample",
+        }
       - { name: crc16, type: u16, crc: { kind: crc16, over: "0..13" } }
 
-  session_header:               # 256 B at offset 0 of every .smk; makes the file self-describing
+  session_header: # 256 B at offset 0 of every .smk; makes the file self-describing
     size: 256
     fields:
-      - { name: magic,            type: char, count: 4,  const: "SMKS" }
-      - { name: version,          type: u16,             const: 1,
-          doc: "readers accept any version; layout growth is additive via hdr_len/rec_len" }
-      - { name: hdr_len,          type: u16,             const: 256,
-          doc: "readers must seek by this, not sizeof" }
-      - { name: rec_len,          type: u16,             const: 16,
-          doc: "readers must stride by this, not sizeof — a longer future record stays readable" }
-      - { name: num_probes,       type: u8,              doc: "2 or 4" }
-      - { name: flags,            type: u8,
-          bits: [clock_valid, closed, pinned, source_celsius, _rsv4, _rsv5, _rsv6, _rsv7] }
-      - { name: session_id,       type: u32,             doc: "monotonic, from NVS" }
-      - { name: started_unix_ms,  type: u64,             doc: "0 until the clock is known; back-patched (04 §4.4)" }
-      - { name: ended_unix_ms,    type: u64,             doc: "0 while open" }
-      - { name: started_uptime_s, type: u32,             doc: "for correlating with logs across a reboot" }
-      - { name: sample_period_s,  type: u32,             doc: "nominal 30" }
-      - { name: sample_count,     type: u32,             doc: "authoritative on close; derived from file size while open" }
-      - { name: _rsv44,           type: u8,  count: 4,   reserved: true }
-      - { name: device_id,        type: char, count: 8,  doc: "the paired base station, NUL-padded" }
-      - { name: name,             type: char, count: 40, doc: "user label, UTF-8, NUL-padded" }
-      - { name: probe_name,       type: char, count: 12, rows: 4, doc: "UTF-8, NUL-padded" }
-      - { name: probe_role,       type: u8,  count: 4,   enum: probe_role }
-      - { name: probe_target,     type: i16, count: 4,   doc: "tenths °F, 0 = no target" }
-      - { name: mark_count,       type: u32 }
-      - { name: _rsv160,          type: u8,  count: 92,  reserved: true, doc: "zeroed" }
-      - { name: crc32,            type: u32, crc: { kind: crc32, over: "0..251" } }
+      - { name: magic, type: char, count: 4, const: "SMKS" }
+      - {
+          name: version,
+          type: u16,
+          const: 1,
+          doc: "readers accept any version; layout growth is additive via hdr_len/rec_len",
+        }
+      - {
+          name: hdr_len,
+          type: u16,
+          const: 256,
+          doc: "readers must seek by this, not sizeof",
+        }
+      - {
+          name: rec_len,
+          type: u16,
+          const: 16,
+          doc: "readers must stride by this, not sizeof — a longer future record stays readable",
+        }
+      - { name: num_probes, type: u8, doc: "2 or 4" }
+      - {
+          name: flags,
+          type: u8,
+          bits:
+            [
+              clock_valid,
+              closed,
+              pinned,
+              source_celsius,
+              _rsv4,
+              _rsv5,
+              _rsv6,
+              _rsv7,
+            ],
+        }
+      - { name: session_id, type: u32, doc: "monotonic, from NVS" }
+      - {
+          name: started_unix_ms,
+          type: u64,
+          doc: "0 until the clock is known; back-patched (04 §4.4)",
+        }
+      - { name: ended_unix_ms, type: u64, doc: "0 while open" }
+      - {
+          name: started_uptime_s,
+          type: u32,
+          doc: "for correlating with logs across a reboot",
+        }
+      - { name: sample_period_s, type: u32, doc: "nominal 30" }
+      - {
+          name: sample_count,
+          type: u32,
+          doc: "authoritative on close; derived from file size while open",
+        }
+      - { name: _rsv44, type: u8, count: 4, reserved: true }
+      - {
+          name: device_id,
+          type: char,
+          count: 8,
+          doc: "the paired base station, NUL-padded",
+        }
+      - {
+          name: name,
+          type: char,
+          count: 40,
+          doc: "user label, UTF-8, NUL-padded",
+        }
+      - {
+          name: probe_name,
+          type: char,
+          count: 12,
+          rows: 4,
+          doc: "UTF-8, NUL-padded",
+        }
+      - { name: probe_role, type: u8, count: 4, enum: probe_role }
+      - {
+          name: probe_target,
+          type: i16,
+          count: 4,
+          doc: "tenths °F, 0 = no target",
+        }
+      - { name: mark_count, type: u32 }
+      - { name: _rsv160, type: u8, count: 92, reserved: true, doc: "zeroed" }
+      - { name: crc32, type: u32, crc: { kind: crc32, over: "0..251" } }
 
-  mark_rec:                     # 32 B, in a sibling .mrk
+  mark_rec: # 32 B, in a sibling .mrk
     size: 32
     fields:
-      - { name: t,     type: u32,            doc: "seconds since session start" }
-      - { name: kind,  type: u8,  enum: mark_kind }
-      - { name: probe, type: u8,             doc: "0 = whole cook, 1..4 = a specific probe" }
-      - { name: crc16, type: u16, crc: { kind: crc16, over: "0..5,8..31" },
-          doc: "over every byte except this field (it sits mid-record)" }
-      - { name: text,  type: char, count: 24, doc: "UTF-8, NUL-padded" }
+      - { name: t, type: u32, doc: "seconds since session start" }
+      - { name: kind, type: u8, enum: mark_kind }
+      - {
+          name: probe,
+          type: u8,
+          doc: "0 = whole cook, 1..4 = a specific probe",
+        }
+      - {
+          name: crc16,
+          type: u16,
+          crc: { kind: crc16, over: "0..5,8..31" },
+          doc: "over every byte except this field (it sits mid-record)",
+        }
+      - { name: text, type: char, count: 24, doc: "UTF-8, NUL-padded" }
 
 # ── BLE characteristic payloads (05 §5.6) ────────────────────────────────────
 #
@@ -146,99 +238,143 @@ records:
 # that return the actual wire length.
 
 ble_payloads:
-  live_state:                   # notify, on every decoded packet + alarm transitions
+  live_state: # notify, on every decoded packet + alarm transitions
     size: 16
     fields:
-      - { name: ver,       type: u8, const: 1 }
-      - { name: flags,     type: u8,
-          bits: [paired, session_active, billows, alarm_active, clock_valid, _rsv5, _rsv6, _rsv7] }
-      - { name: temp,      type: i16, count: 4, doc: "tenths °F",
-          sentinel: { -32768: detached, -32767: invalid } }
-      - { name: soc_pct,   type: u8,            doc: "battery state of charge, 0–100" }
-      - { name: rssi_lora, type: i8,            doc: "dBm of the last state message" }
-      - { name: session_t, type: u32,           doc: "seconds into the active session; 0 when none" }
+      - { name: ver, type: u8, const: 1 }
+      - {
+          name: flags,
+          type: u8,
+          bits:
+            [
+              paired,
+              session_active,
+              billows,
+              alarm_active,
+              clock_valid,
+              _rsv5,
+              _rsv6,
+              _rsv7,
+            ],
+        }
+      - {
+          name: temp,
+          type: i16,
+          count: 4,
+          doc: "tenths °F",
+          sentinel: { -32768: detached, -32767: invalid },
+        }
+      - { name: soc_pct, type: u8, doc: "battery state of charge, 0–100" }
+      - { name: rssi_lora, type: i8, doc: "dBm of the last state message" }
+      - {
+          name: session_t,
+          type: u32,
+          doc: "seconds into the active session; 0 when none",
+        }
 
-  net_status:                   # read/notify, variable ≤ 64 B
+  net_status: # read/notify, variable ≤ 64 B
     max_size: 64
     fields:
-      - { name: ver,       type: u8, const: 1 }
-      - { name: mode,      type: u8, enum: net_mode }
-      - { name: state,     type: u8, enum: net_state }
+      - { name: ver, type: u8, const: 1 }
+      - { name: mode, type: u8, enum: net_mode }
+      - { name: state, type: u8, enum: net_state }
       - { name: wifi_rssi, type: i8 }
-      - { name: ip,        type: u8, count: 4 }
-      - { name: ssid_len,  type: u8 }
-      - { name: host_len,  type: u8 }
-      - { name: ssid,      type: char, var_len: ssid_len, max: 32 }
-      - { name: host,      type: char, var_len: host_len, max: 22 }
+      - { name: ip, type: u8, count: 4 }
+      - { name: ssid_len, type: u8 }
+      - { name: host_len, type: u8 }
+      - { name: ssid, type: char, var_len: ssid_len, max: 32 }
+      - { name: host, type: char, var_len: host_len, max: 22 }
 
-  wifi_scan_result:             # notify, one AP per notification
+  wifi_scan_result: # notify, one AP per notification
     max_size: 40
     fields:
-      - { name: ver,      type: u8, const: 1 }
-      - { name: index,    type: u8 }
-      - { name: total,    type: u8 }
-      - { name: rssi,     type: i8 }
-      - { name: auth,     type: u8 }
-      - { name: channel,  type: u8 }
+      - { name: ver, type: u8, const: 1 }
+      - { name: index, type: u8 }
+      - { name: total, type: u8 }
+      - { name: rssi, type: i8 }
+      - { name: auth, type: u8 }
+      - { name: channel, type: u8 }
       - { name: ssid_len, type: u8 }
-      - { name: ssid,     type: char, var_len: ssid_len, max: 32 }
+      - { name: ssid, type: char, var_len: ssid_len, max: 32 }
 
-  wifi_config:                  # write (encrypted + authenticated)
+  wifi_config: # write (encrypted + authenticated)
     max_size: 134
     fields:
-      - { name: ver,      type: u8, const: 1 }
-      - { name: mode,     type: u8, enum: net_mode }
-      - { name: auth,     type: u8 }
+      - { name: ver, type: u8, const: 1 }
+      - { name: mode, type: u8, enum: net_mode }
+      - { name: auth, type: u8 }
       - { name: ssid_len, type: u8 }
-      - { name: psk_len,  type: u8 }
+      - { name: psk_len, type: u8 }
       - { name: user_len, type: u8 }
-      - { name: ssid,     type: char, var_len: ssid_len, max: 32 }
-      - { name: psk,      type: char, var_len: psk_len,  max: 64 }
-      - { name: user,     type: char, var_len: user_len, max: 32, doc: "WPA2-Enterprise identity" }
+      - { name: ssid, type: char, var_len: ssid_len, max: 32 }
+      - { name: psk, type: char, var_len: psk_len, max: 64 }
+      - {
+          name: user,
+          type: char,
+          var_len: user_len,
+          max: 32,
+          doc: "WPA2-Enterprise identity",
+        }
 
-  device_control:               # write (encrypted + authenticated): u8 ver, u8 op, op-specific body
+  device_control: # write (encrypted + authenticated): u8 ver, u8 op, op-specific body
     max_size: 30
     fields:
       - { name: ver, type: u8, const: 1 }
-      - { name: op,  type: u8, enum: control_op }
-      - { name: body, type: u8, var_len: implicit, max: 28,
-          doc: "op-specific payload; layouts below" }
+      - { name: op, type: u8, enum: control_op }
+      - {
+          name: body,
+          type: u8,
+          var_len: implicit,
+          max: 28,
+          doc: "op-specific payload; layouts below",
+        }
 
-  result:                       # notify: outcome of the last write op
+  result: # notify: outcome of the last write op
     max_size: 68
     fields:
-      - { name: ver,     type: u8, const: 1 }
+      - { name: ver, type: u8, const: 1 }
       - { name: op_echo, type: u8, enum: control_op }
-      - { name: status,  type: u8, enum: result_status }
-      - { name: len,     type: u8 }
-      - { name: detail,  type: char, var_len: len, max: 64,
-          doc: "AP PSK after a mode change, or an error string" }
+      - { name: status, type: u8, enum: result_status }
+      - { name: len, type: u8 }
+      - {
+          name: detail,
+          type: char,
+          var_len: len,
+          max: 64,
+          doc: "AP PSK after a mode change, or an error string",
+        }
 
-  history_preview:              # read, ≤ 244 B: pit probe, 1-minute buckets, last 2 h
+  history_preview: # read, ≤ 244 B: pit probe, 1-minute buckets, last 2 h
     max_size: 244
     fields:
-      - { name: ver,         type: u8, const: 1 }
+      - { name: ver, type: u8, const: 1 }
       - { name: probe_index, type: u8 }
-      - { name: count,       type: u8, doc: "≤ 120" }
-      - { name: bucket_min,  type: u8, doc: "nominal 1" }
-      - { name: values,      type: i16, var_len: count, max: 120, doc: "tenths °F",
-          sentinel: { -32768: detached, -32767: invalid } }
+      - { name: count, type: u8, doc: "≤ 120" }
+      - { name: bucket_min, type: u8, doc: "nominal 1" }
+      - {
+          name: values,
+          type: i16,
+          var_len: count,
+          max: 120,
+          doc: "tenths °F",
+          sentinel: { -32768: detached, -32767: invalid },
+        }
 
 # device_control op-specific bodies (offset 2 onward of device_control).
 # Ops not listed carry no body. See enums.control_op for the op numbers.
 control_bodies:
-  set_time:                     # op 3
+  set_time: # op 3
     fields:
-      - { name: unix_ms,       type: u64 }
+      - { name: unix_ms, type: u64 }
       - { name: tz_offset_min, type: i16 }
-  mark:                         # op 6
+  mark: # op 6
     fields:
       - { name: kind, type: u8, enum: mark_kind }
-      - { name: len,  type: u8 }
+      - { name: len, type: u8 }
       - { name: text, type: char, var_len: len, max: 24 }
-  set_units:                    # op 9
+  set_units: # op 9
     fields:
       - { name: units, type: u8, enum: units }
-  ack_alarm:                    # op 11
+  ack_alarm: # op 11
     fields:
       - { name: alarm_id, type: u8 }

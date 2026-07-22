@@ -101,16 +101,16 @@ paths:
         One round trip to render the entire app chrome. Deliberately chunky — on a
         30-second-cadence device, chattiness costs more than payload.
       responses:
-        '200':
+        "200":
           description: Full device status.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Status'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/Status"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/live:
     get:
@@ -133,7 +133,7 @@ paths:
             enum: [json, bin]
             default: json
       responses:
-        '200':
+        "200":
           description: |
             Live state. A detached probe reports `attached: false` and
             `temp_f10: null` — never `0`. `recent.series[i]` is `null` for a probe
@@ -142,7 +142,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Live'
+                $ref: "#/components/schemas/Live"
             application/octet-stream:
               schema:
                 type: string
@@ -150,12 +150,12 @@ paths:
                 description: |
                   `format=bin` — the recent window as raw 16-byte sample records
                   (protocol/records.yaml `sample_rec`).
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/stream:
     get:
@@ -186,20 +186,20 @@ paths:
           to `WIFI_PS_NONE`, returning to `MIN_MODEM` 60 s after the last client
           leaves.
       responses:
-        '101':
+        "101":
           description: |
             Switching Protocols — the connection is now a WebSocket carrying the
             JSON text frames described by `WsServerFrame` / `WsClientFrame`.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '503':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
           description: |
             `busy` — 2 WebSocket clients are already connected and this upgrade is
             the third. The cap is 2 concurrent WebSocket upgrades, hard.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 error:
                   code: busy
@@ -212,16 +212,16 @@ paths:
       operationId: listSessions
       summary: List cook sessions
       responses:
-        '200':
+        "200":
           description: Session summaries, newest first.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/SessionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [sessions]
       operationId: startSession
@@ -231,45 +231,45 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SessionCreate'
+              $ref: "#/components/schemas/SessionCreate"
       responses:
-        '201':
+        "201":
           description: The new session.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionDetail'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/SessionDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/sessions/{id}:
     parameters:
-      - $ref: '#/components/parameters/SessionId'
+      - $ref: "#/components/parameters/SessionId"
     get:
       tags: [sessions]
       operationId: getSession
       summary: Session header + stats
       responses:
-        '200':
+        "200":
           description: Session detail.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionDetail'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/SessionDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     patch:
       tags: [sessions]
       operationId: patchSession
@@ -279,43 +279,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SessionPatch'
+              $ref: "#/components/schemas/SessionPatch"
       responses:
-        '200':
+        "200":
           description: The updated session.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionDetail'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/SessionDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
       tags: [sessions]
       operationId: deleteSession
       summary: Delete (refuses if active)
       responses:
-        '200':
+        "200":
           description: Deleted.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Ok'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/Ok"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/sessions/{id}/stop:
     post:
@@ -323,22 +323,22 @@ paths:
       operationId: stopSession
       summary: End the active session
       parameters:
-        - $ref: '#/components/parameters/SessionId'
+        - $ref: "#/components/parameters/SessionId"
       responses:
-        '200':
+        "200":
           description: The session, now closed.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionDetail'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/SessionDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/sessions/{id}/samples:
     get:
@@ -354,7 +354,7 @@ paths:
         `gaps` is computed from `t` deltas > 45 s and rendered by clients as a
         break in the line. CSV emits detached probes as **empty fields, not `0`**.
       parameters:
-        - $ref: '#/components/parameters/SessionId'
+        - $ref: "#/components/parameters/SessionId"
         - name: from
           in: query
           description: Start, seconds into the session (inclusive). Default 0.
@@ -401,10 +401,10 @@ paths:
           description: Comma-separated probe subset, e.g. `1,2`. Default all.
           schema:
             type: string
-            pattern: '^[1-4](,[1-4])*$'
-            example: '1,2'
+            pattern: "^[1-4](,[1-4])*$"
+            example: "1,2"
       responses:
-        '200':
+        "200":
           description: The sample stream, in the format selected by `format`.
           content:
             application/octet-stream:
@@ -417,7 +417,7 @@ paths:
                   full-fidelity data is ~46 KB.
             application/json:
               schema:
-                $ref: '#/components/schemas/SamplesJson'
+                $ref: "#/components/schemas/SamplesJson"
             application/x-ndjson:
               schema:
                 type: string
@@ -433,35 +433,35 @@ paths:
                   `t_s,iso8601,p1_f,p2_f,p3_f,p4_f,billows,rssi`; detached probes
                   are empty fields, not `0`. `iso8601` is empty when the session
                   clock was never valid.
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/sessions/{id}/marks:
     parameters:
-      - $ref: '#/components/parameters/SessionId'
+      - $ref: "#/components/parameters/SessionId"
     get:
       tags: [sessions]
       operationId: getMarks
       summary: Marks
       responses:
-        '200':
+        "200":
           description: The session's marks, in time order.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MarkList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/MarkList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [sessions]
       operationId: addMark
@@ -471,24 +471,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MarkCreate'
+              $ref: "#/components/schemas/MarkCreate"
       responses:
-        '201':
+        "201":
           description: The stored mark.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Mark'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/Mark"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/pairing:
     get:
@@ -496,16 +496,16 @@ paths:
       operationId: getPairing
       summary: Pairing state
       responses:
-        '200':
+        "200":
           description: Current pairing state.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PairingState'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/PairingState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/pairing/sync:
     post:
@@ -516,20 +516,20 @@ paths:
         Puts the bridge into sync listen mode. Put the base station into sync mode;
         progress is pushed as `pairing` WebSocket frames.
       responses:
-        '200':
+        "200":
           description: Sync mode entered.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PairingState'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+                $ref: "#/components/schemas/PairingState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /api/v1/pairing/unpair:
     post:
@@ -537,18 +537,18 @@ paths:
       operationId: pairingUnpair
       summary: Unpair
       responses:
-        '200':
+        "200":
           description: Unpaired.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PairingState'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/PairingState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/config/wifi:
     get:
@@ -560,16 +560,16 @@ paths:
         GET response. The **AP PSK is returned**: it is not a secret from anyone
         already on the AP, and the user needs to read it back.
       responses:
-        '200':
+        "200":
           description: Current network configuration (STA password omitted; AP PSK included).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WifiSettings'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/WifiSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [config]
       operationId: setWifiConfig
@@ -586,20 +586,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WifiConfigSet'
+              $ref: "#/components/schemas/WifiConfigSet"
             example:
               mode: sta
               auth: wpa2_psk
               ssid: Backyard
-              psk: 'correct horse battery staple'
+              psk: "correct horse battery staple"
               username: null
       responses:
-        '200':
+        "200":
           description: Accepted; the device reconfigures after `applying_in_ms`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WifiAccept'
+                $ref: "#/components/schemas/WifiAccept"
               examples:
                 sta:
                   summary: Switching to STA
@@ -617,14 +617,14 @@ paths:
                       ssid: SmokeBridge-A4F2
                       psk: Gk7mR2xQpT
                       ip: 192.168.4.1
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/config/device:
     get:
@@ -632,16 +632,16 @@ paths:
       operationId: getDeviceConfig
       summary: Units, display, retention, probes, calibration
       responses:
-        '200':
+        "200":
           description: Current device configuration.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceConfig'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/DeviceConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [config]
       operationId: setDeviceConfig
@@ -656,22 +656,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeviceConfig'
+              $ref: "#/components/schemas/DeviceConfig"
       responses:
-        '200':
+        "200":
           description: The applied configuration.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceConfig'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/DeviceConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/config/alarms:
     get:
@@ -679,16 +679,16 @@ paths:
       operationId: getAlarmConfig
       summary: Alarm rules
       responses:
-        '200':
+        "200":
           description: Configured alarm rules.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlarmConfig'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/AlarmConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [config]
       operationId: setAlarmConfig
@@ -698,22 +698,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AlarmConfig'
+              $ref: "#/components/schemas/AlarmConfig"
       responses:
-        '200':
+        "200":
           description: The applied rules.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlarmConfig'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/AlarmConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/time:
     post:
@@ -728,20 +728,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TimeSet'
+              $ref: "#/components/schemas/TimeSet"
       responses:
-        '200':
+        "200":
           description: The device's time state after the set.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TimeInfo'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/TimeInfo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/radio:
     get:
@@ -749,18 +749,18 @@ paths:
       operationId: getRadio
       summary: LoRa parameters + link stats
       responses:
-        '200':
+        "200":
           description: Radio parameters and link statistics.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RadioInfo'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+                $ref: "#/components/schemas/RadioInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       tags: [system]
       operationId: setRadio
@@ -770,24 +770,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RadioSet'
+              $ref: "#/components/schemas/RadioSet"
       responses:
-        '200':
+        "200":
           description: The applied parameters + current stats.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RadioInfo'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+                $ref: "#/components/schemas/RadioInfo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /api/v1/ota:
     post:
@@ -820,22 +820,22 @@ paths:
               type: string
               format: binary
       responses:
-        '200':
+        "200":
           description: Image accepted and verified; the device reboots after replying.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OtaAccepted'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+                $ref: "#/components/schemas/OtaAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /api/v1/debug/packets:
     get:
@@ -853,16 +853,16 @@ paths:
             maximum: 64
             default: 64
       responses:
-        '200':
+        "200":
           description: The most recent raw payloads, newest last.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DebugPackets'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/DebugPackets"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/debug/coredump:
     get:
@@ -870,19 +870,19 @@ paths:
       operationId: getCoredump
       summary: Stored panic dump, if any
       responses:
-        '200':
+        "200":
           description: The stored core dump, raw.
           content:
             application/octet-stream:
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ── Outside /api/v1: captive-portal shims (05 §5.8.1) and the static fallback ──
 
@@ -897,7 +897,7 @@ paths:
         pointing at the app. With the captive-portal flag enabled, probe URLs 302
         here instead of answering success.
       responses:
-        '200':
+        "200":
           description: The built-in stub page.
           content:
             text/html:
@@ -914,7 +914,7 @@ paths:
         default route on Wi-Fi and suppresses the "sign in to network" nag
         (05 §5.8.1).
       responses:
-        '204':
+        "204":
           description: No Content.
 
   /gen_204:
@@ -923,7 +923,7 @@ paths:
       operationId: gen204
       summary: Android connectivity probe shim, alternate path (AP mode)
       responses:
-        '204':
+        "204":
           description: No Content.
 
   /hotspot-detect.html:
@@ -932,13 +932,13 @@ paths:
       operationId: hotspotDetect
       summary: Apple captive-portal probe shim (AP mode)
       responses:
-        '200':
+        "200":
           description: Apple's success page.
           content:
             text/html:
               schema:
                 type: string
-                example: '<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>'
+                example: "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
 
   /library/test/success.html:
     get:
@@ -946,13 +946,13 @@ paths:
       operationId: librarySuccess
       summary: Apple captive-portal probe shim, alternate path (AP mode)
       responses:
-        '200':
+        "200":
           description: Apple's success page.
           content:
             text/html:
               schema:
                 type: string
-                example: '<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>'
+                example: "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
 
   /ncsi.txt:
     get:
@@ -960,7 +960,7 @@ paths:
       operationId: ncsi
       summary: Windows NCSI probe shim (AP mode)
       responses:
-        '200':
+        "200":
           description: NCSI body.
           content:
             text/plain:
@@ -974,7 +974,7 @@ paths:
       operationId: connectTest
       summary: Windows connect-test probe shim (AP mode)
       responses:
-        '200':
+        "200":
           description: Connect-test body.
           content:
             text/plain:
@@ -1007,19 +1007,19 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
     Unauthorized:
       description: A bearer token is configured and the request lacks a valid one. `code` = `unauthorized`.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
     NotFound:
-      description: '`code` ∈ `session_not_found`, `not_found`.'
+      description: "`code` ∈ `session_not_found`, `not_found`."
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
     Conflict:
       description: |
         The request conflicts with device state. `code` ∈ `session_active`
@@ -1027,19 +1027,19 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
     PayloadTooLarge:
       description: Request body exceeds 8 KB (OTA excepted). `code` = `body_too_large`.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
     InternalError:
-      description: '`code` ∈ `storage_error`, `internal`.'
+      description: "`code` ∈ `storage_error`, `internal`."
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
     ServiceUnavailable:
       description: |
         Temporarily unable. `code` ∈ `radio_unavailable`, `ota_in_progress` —
@@ -1047,7 +1047,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
 
   schemas:
     # ── Error model (06 §6.1) ────────────────────────────────────────────────
@@ -1085,7 +1085,7 @@ components:
           required: [code, message]
           properties:
             code:
-              $ref: '#/components/schemas/ErrorCode'
+              $ref: "#/components/schemas/ErrorCode"
             message:
               type: string
               description: Human-readable, one line.
@@ -1111,35 +1111,57 @@ components:
     Status:
       type: object
       description: One call, the whole dashboard header.
-      required: [device, time, net, ble, pairing, radio, storage, power, session, alarms]
+      required:
+        [
+          device,
+          time,
+          net,
+          ble,
+          pairing,
+          radio,
+          storage,
+          power,
+          session,
+          alarms,
+        ]
       properties:
         device:
-          $ref: '#/components/schemas/DeviceInfo'
+          $ref: "#/components/schemas/DeviceInfo"
         time:
-          $ref: '#/components/schemas/TimeInfo'
+          $ref: "#/components/schemas/TimeInfo"
         net:
-          $ref: '#/components/schemas/NetInfo'
+          $ref: "#/components/schemas/NetInfo"
         ble:
-          $ref: '#/components/schemas/BleInfo'
+          $ref: "#/components/schemas/BleInfo"
         pairing:
-          $ref: '#/components/schemas/PairingInfo'
+          $ref: "#/components/schemas/PairingInfo"
         radio:
-          $ref: '#/components/schemas/RadioStats'
+          $ref: "#/components/schemas/RadioStats"
         storage:
-          $ref: '#/components/schemas/StorageInfo'
+          $ref: "#/components/schemas/StorageInfo"
         power:
-          $ref: '#/components/schemas/PowerInfo'
+          $ref: "#/components/schemas/PowerInfo"
         session:
-          $ref: '#/components/schemas/SessionInfo'
+          $ref: "#/components/schemas/SessionInfo"
         alarms:
           type: array
           description: Currently active alarms; empty when none.
           items:
-            $ref: '#/components/schemas/ActiveAlarm'
+            $ref: "#/components/schemas/ActiveAlarm"
 
     DeviceInfo:
       type: object
-      required: [id, model, fw, uptime_s, free_heap, min_free_heap, reset_reason, coredump_available]
+      required:
+        [
+          id,
+          model,
+          fw,
+          uptime_s,
+          free_heap,
+          min_free_heap,
+          reset_reason,
+          coredump_available,
+        ]
       properties:
         id:
           type: string
@@ -1247,7 +1269,7 @@ components:
           type: string
           nullable: true
           description: The paired base station's id; null when unpaired.
-          example: '|abCDe'
+          example: "|abCDe"
         model:
           type: string
           nullable: true
@@ -1339,7 +1361,7 @@ components:
 
     SessionInfo:
       type: object
-      description: "The active session, or `{ \"active\": false }`."
+      description: 'The active session, or `{ "active": false }`.'
       required: [active]
       properties:
         active:
@@ -1405,15 +1427,15 @@ components:
           enum: [F, C]
           example: F
         billows:
-          $ref: '#/components/schemas/Billows'
+          $ref: "#/components/schemas/Billows"
         probes:
           type: array
           maxItems: 4
           description: One entry per probe channel, in probe order.
           items:
-            $ref: '#/components/schemas/LiveProbe'
+            $ref: "#/components/schemas/LiveProbe"
         recent:
-          $ref: '#/components/schemas/RecentWindow'
+          $ref: "#/components/schemas/RecentWindow"
 
     Billows:
       type: object
@@ -1570,7 +1592,7 @@ components:
           type: array
           description: Newest first.
           items:
-            $ref: '#/components/schemas/SessionSummary'
+            $ref: "#/components/schemas/SessionSummary"
 
     SessionProbe:
       type: object
@@ -1605,7 +1627,7 @@ components:
           type: array
           maxItems: 4
           items:
-            $ref: '#/components/schemas/SessionProbe'
+            $ref: "#/components/schemas/SessionProbe"
 
     SessionPatch:
       type: object
@@ -1621,11 +1643,11 @@ components:
           type: array
           maxItems: 4
           items:
-            $ref: '#/components/schemas/SessionProbe'
+            $ref: "#/components/schemas/SessionProbe"
 
     SessionDetail:
       allOf:
-        - $ref: '#/components/schemas/SessionSummary'
+        - $ref: "#/components/schemas/SessionSummary"
         - type: object
           required: [sample_period_s, probes, mark_count]
           properties:
@@ -1635,7 +1657,7 @@ components:
             device_id:
               type: string
               description: The base station this session was recorded from.
-              example: '|abCDe'
+              example: "|abCDe"
             num_probes:
               type: integer
               enum: [2, 4]
@@ -1644,7 +1666,7 @@ components:
               type: array
               maxItems: 4
               items:
-                $ref: '#/components/schemas/SessionProbe'
+                $ref: "#/components/schemas/SessionProbe"
             mark_count:
               type: integer
               example: 3
@@ -1692,14 +1714,14 @@ components:
         series:
           type: array
           items:
-            $ref: '#/components/schemas/SampleSeries'
+            $ref: "#/components/schemas/SampleSeries"
         gaps:
           type: array
           description: |
             Computed from `t` deltas > 45 s; rendered as a break in the line.
             Empty when the record is continuous.
           items:
-            $ref: '#/components/schemas/Gap'
+            $ref: "#/components/schemas/Gap"
 
     SampleSeries:
       type: object
@@ -1710,30 +1732,30 @@ components:
           example: 1
         t:
           type: array
-          description: '`agg=none` only: session time per record, seconds.'
+          description: "`agg=none` only: session time per record, seconds."
           items:
             type: integer
         temps_f10:
           type: array
-          description: '`agg=none` only. Null = detached.'
+          description: "`agg=none` only. Null = detached."
           items:
             type: integer
             nullable: true
         min:
           type: array
-          description: '`agg=minmax`: per-bucket minimum, tenths °F. Null = bucket in a gap.'
+          description: "`agg=minmax`: per-bucket minimum, tenths °F. Null = bucket in a gap."
           items:
             type: integer
             nullable: true
         mean:
           type: array
-          description: '`agg=mean` and `agg=minmax`. Null = bucket in a gap.'
+          description: "`agg=mean` and `agg=minmax`. Null = bucket in a gap."
           items:
             type: integer
             nullable: true
         max:
           type: array
-          description: '`agg=minmax`. Null = bucket in a gap.'
+          description: "`agg=minmax`. Null = bucket in a gap."
           items:
             type: integer
             nullable: true
@@ -1762,7 +1784,17 @@ components:
           example: 21600
         kind:
           type: string
-          enum: [note, wrapped, lid_open, fuel, probe_moved, alarm, phase_change, auto_detected]
+          enum:
+            [
+              note,
+              wrapped,
+              lid_open,
+              fuel,
+              probe_moved,
+              alarm,
+              phase_change,
+              auto_detected,
+            ]
           example: wrapped
         probe:
           type: integer
@@ -1783,7 +1815,7 @@ components:
         marks:
           type: array
           items:
-            $ref: '#/components/schemas/Mark'
+            $ref: "#/components/schemas/Mark"
 
     MarkCreate:
       type: object
@@ -1794,7 +1826,17 @@ components:
           description: Seconds since session start; defaults to now.
         kind:
           type: string
-          enum: [note, wrapped, lid_open, fuel, probe_moved, alarm, phase_change, auto_detected]
+          enum:
+            [
+              note,
+              wrapped,
+              lid_open,
+              fuel,
+              probe_moved,
+              alarm,
+              phase_change,
+              auto_detected,
+            ]
         probe:
           type: integer
           minimum: 0
@@ -1819,7 +1861,7 @@ components:
         device_id:
           type: string
           nullable: true
-          example: '|abCDe'
+          example: "|abCDe"
         model:
           type: string
           nullable: true
@@ -1933,13 +1975,13 @@ components:
         expect:
           description: Where to find the device after it applies the change.
           oneOf:
-            - $ref: '#/components/schemas/WifiExpectSta'
-            - $ref: '#/components/schemas/WifiExpectAp'
+            - $ref: "#/components/schemas/WifiExpectSta"
+            - $ref: "#/components/schemas/WifiExpectAp"
           discriminator:
             propertyName: mode
             mapping:
-              sta: '#/components/schemas/WifiExpectSta'
-              ap: '#/components/schemas/WifiExpectAp'
+              sta: "#/components/schemas/WifiExpectSta"
+              ap: "#/components/schemas/WifiExpectAp"
 
     WifiExpectSta:
       type: object
@@ -2004,7 +2046,7 @@ components:
           maxItems: 4
           description: Defaults for new sessions.
           items:
-            $ref: '#/components/schemas/SessionProbe'
+            $ref: "#/components/schemas/SessionProbe"
         vbat_actual_mv:
           type: integer
           description: |
@@ -2055,7 +2097,7 @@ components:
         rules:
           type: array
           items:
-            $ref: '#/components/schemas/AlarmRule'
+            $ref: "#/components/schemas/AlarmRule"
 
     # ── Time / radio / OTA / debug ───────────────────────────────────────────
     TimeSet:
@@ -2158,7 +2200,7 @@ components:
         hex:
           type: string
           description: The raw payload, lowercase hex.
-          example: '302c333030312c...'
+          example: "302c333030312c..."
 
     DebugPackets:
       type: object
@@ -2171,7 +2213,7 @@ components:
           type: array
           description: Newest last.
           items:
-            $ref: '#/components/schemas/DebugPacket'
+            $ref: "#/components/schemas/DebugPacket"
 
     # ── WebSocket frames (06 §6.3) ───────────────────────────────────────────
     # The /api/v1/stream WebSocket carries JSON text frames. Server → client:
@@ -2181,38 +2223,38 @@ components:
     WsServerFrame:
       description: Any server → client frame, discriminated by `type`.
       oneOf:
-        - $ref: '#/components/schemas/WsHelloFrame'
-        - $ref: '#/components/schemas/WsSampleFrame'
-        - $ref: '#/components/schemas/WsAlarmFrame'
-        - $ref: '#/components/schemas/WsSessionFrame'
-        - $ref: '#/components/schemas/WsNetFrame'
-        - $ref: '#/components/schemas/WsPairingFrame'
-        - $ref: '#/components/schemas/WsPowerFrame'
-        - $ref: '#/components/schemas/WsOtaFrame'
+        - $ref: "#/components/schemas/WsHelloFrame"
+        - $ref: "#/components/schemas/WsSampleFrame"
+        - $ref: "#/components/schemas/WsAlarmFrame"
+        - $ref: "#/components/schemas/WsSessionFrame"
+        - $ref: "#/components/schemas/WsNetFrame"
+        - $ref: "#/components/schemas/WsPairingFrame"
+        - $ref: "#/components/schemas/WsPowerFrame"
+        - $ref: "#/components/schemas/WsOtaFrame"
       discriminator:
         propertyName: type
         mapping:
-          hello: '#/components/schemas/WsHelloFrame'
-          sample: '#/components/schemas/WsSampleFrame'
-          alarm: '#/components/schemas/WsAlarmFrame'
-          session: '#/components/schemas/WsSessionFrame'
-          net: '#/components/schemas/WsNetFrame'
-          pairing: '#/components/schemas/WsPairingFrame'
-          power: '#/components/schemas/WsPowerFrame'
-          ota: '#/components/schemas/WsOtaFrame'
+          hello: "#/components/schemas/WsHelloFrame"
+          sample: "#/components/schemas/WsSampleFrame"
+          alarm: "#/components/schemas/WsAlarmFrame"
+          session: "#/components/schemas/WsSessionFrame"
+          net: "#/components/schemas/WsNetFrame"
+          pairing: "#/components/schemas/WsPairingFrame"
+          power: "#/components/schemas/WsPowerFrame"
+          ota: "#/components/schemas/WsOtaFrame"
 
     WsClientFrame:
       description: Any client → server frame, discriminated by `type`.
       oneOf:
-        - $ref: '#/components/schemas/WsSubscribeFrame'
-        - $ref: '#/components/schemas/WsPingFrame'
-        - $ref: '#/components/schemas/WsAckAlarmFrame'
+        - $ref: "#/components/schemas/WsSubscribeFrame"
+        - $ref: "#/components/schemas/WsPingFrame"
+        - $ref: "#/components/schemas/WsAckAlarmFrame"
       discriminator:
         propertyName: type
         mapping:
-          subscribe: '#/components/schemas/WsSubscribeFrame'
-          ping: '#/components/schemas/WsPingFrame'
-          ack_alarm: '#/components/schemas/WsAckAlarmFrame'
+          subscribe: "#/components/schemas/WsSubscribeFrame"
+          ping: "#/components/schemas/WsPingFrame"
+          ack_alarm: "#/components/schemas/WsAckAlarmFrame"
 
     WsHelloFrame:
       type: object
@@ -2312,7 +2354,7 @@ components:
           example: 28
         name:
           type: string
-          example: 'Cook #28'
+          example: "Cook #28"
 
     WsNetFrame:
       type: object
@@ -2346,7 +2388,7 @@ components:
         device_id:
           type: string
           nullable: true
-          example: '|abCDe'
+          example: "|abCDe"
         num_probes:
           type: integer
           example: 4

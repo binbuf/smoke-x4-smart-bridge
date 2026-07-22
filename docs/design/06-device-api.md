@@ -5,17 +5,17 @@ definition lives at `protocol/openapi.yaml`; this document explains the shape an
 
 ## 6.1 Conventions
 
-| | |
-| --- | --- |
-| Base path | `/api/v1` |
-| Transport | HTTP/1.1, cleartext, port 80 |
-| Request bodies | `application/json`, ≤ 8 KB (OTA excepted) |
-| Response bodies | `application/json` unless a `format` parameter says otherwise |
-| Auth | none by default; optional `Authorization: Bearer <token>` ([05 §5.9](05-connectivity-and-provisioning.md)) |
-| CORS | `Access-Control-Allow-Origin: *` — the device holds no secrets an attacker on the LAN couldn't read anyway, and it makes browser-based tooling painless |
-| Time fields | Unix ms (`_ms` suffix) or seconds-into-session (`t`), never local time |
-| Temperatures | tenths of °F as integers on the wire (`_f10`), matching the storage format. Clients convert for display |
-| Concurrency | `max_open_sockets = 7`; at most **2** concurrent WebSocket upgrades |
+|                 |                                                                                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base path       | `/api/v1`                                                                                                                                               |
+| Transport       | HTTP/1.1, cleartext, port 80                                                                                                                            |
+| Request bodies  | `application/json`, ≤ 8 KB (OTA excepted)                                                                                                               |
+| Response bodies | `application/json` unless a `format` parameter says otherwise                                                                                           |
+| Auth            | none by default; optional `Authorization: Bearer <token>` ([05 §5.9](05-connectivity-and-provisioning.md))                                              |
+| CORS            | `Access-Control-Allow-Origin: *` — the device holds no secrets an attacker on the LAN couldn't read anyway, and it makes browser-based tooling painless |
+| Time fields     | Unix ms (`_ms` suffix) or seconds-into-session (`t`), never local time                                                                                  |
+| Temperatures    | tenths of °F as integers on the wire (`_f10`), matching the storage format. Clients convert for display                                                 |
+| Concurrency     | `max_open_sockets = 7`; at most **2** concurrent WebSocket upgrades                                                                                     |
 
 Every response — success or failure — is JSON. The reference replies to `POST`s with plain-text
 `"Post control value successfully"`, which forces clients to special-case content types; we don't.
@@ -23,18 +23,24 @@ Every response — success or failure — is JSON. The reference replies to `POS
 ### Errors
 
 ```json
-{ "error": { "code": "session_not_found", "message": "no session 42", "detail": { "id": 42 } } }
+{
+  "error": {
+    "code": "session_not_found",
+    "message": "no session 42",
+    "detail": { "id": 42 }
+  }
+}
 ```
 
-| Status | `code` examples |
-| --- | --- |
-| 400 | `invalid_body`, `invalid_field`, `unsupported_mode` |
-| 401 | `unauthorized` |
-| 404 | `session_not_found`, `not_found` |
-| 409 | `session_active`, `not_paired`, `busy` |
-| 413 | `body_too_large` |
-| 500 | `storage_error`, `internal` |
-| 503 | `radio_unavailable`, `ota_in_progress` |
+| Status | `code` examples                                     |
+| ------ | --------------------------------------------------- |
+| 400    | `invalid_body`, `invalid_field`, `unsupported_mode` |
+| 401    | `unauthorized`                                      |
+| 404    | `session_not_found`, `not_found`                    |
+| 409    | `session_active`, `not_paired`, `busy`              |
+| 413    | `body_too_large`                                    |
+| 500    | `storage_error`, `internal`                         |
+| 503    | `radio_unavailable`, `ota_in_progress`              |
 
 ### Streaming discipline
 
@@ -44,34 +50,34 @@ Every response — success or failure — is JSON. The reference replies to `POS
 
 ## 6.2 Endpoints
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/v1/status` | Everything a dashboard header needs, in one call |
-| GET | `/api/v1/live` | Current probe state + the in-RAM recent window |
-| GET | `/api/v1/stream` | **WebSocket** upgrade — push |
-| GET | `/api/v1/sessions` | List cook sessions |
-| POST | `/api/v1/sessions` | Start a session |
-| GET | `/api/v1/sessions/{id}` | Session header + stats |
-| PATCH | `/api/v1/sessions/{id}` | Rename, set probe names/roles/targets, pin |
-| DELETE | `/api/v1/sessions/{id}` | Delete (refuses if active) |
-| POST | `/api/v1/sessions/{id}/stop` | End the active session |
-| GET | `/api/v1/sessions/{id}/samples` | **Streamed** history — the workhorse |
-| GET | `/api/v1/sessions/{id}/marks` | Marks |
-| POST | `/api/v1/sessions/{id}/marks` | Add a mark |
-| GET | `/api/v1/pairing` | Pairing state |
-| POST | `/api/v1/pairing/sync` | Enter pairing mode |
-| POST | `/api/v1/pairing/unpair` | Unpair |
-| GET/POST | `/api/v1/config/wifi` | Network mode + credentials |
-| GET/POST | `/api/v1/config/device` | Units, display, retention, probes, calibration |
-| GET/POST | `/api/v1/config/alarms` | Alarm rules |
-| POST | `/api/v1/time` | Set the clock |
-| GET | `/api/v1/radio` | LoRa parameters + link stats |
-| POST | `/api/v1/radio` | Set LoRa parameters (advanced) |
-| POST | `/api/v1/ota` | Upload firmware |
-| GET | `/api/v1/debug/packets` | Last N raw LoRa payloads |
-| GET | `/api/v1/debug/coredump` | Stored panic dump, if any |
-| GET | `/*` | Static fallback web UI — **post-MVP** (§6.4); serves a built-in stub until then |
-| GET | `/generate_204` etc. | Captive-portal shims (AP mode) — [05 §5.8.1](05-connectivity-and-provisioning.md) |
+| Method   | Path                            | Purpose                                                                           |
+| -------- | ------------------------------- | --------------------------------------------------------------------------------- |
+| GET      | `/api/v1/status`                | Everything a dashboard header needs, in one call                                  |
+| GET      | `/api/v1/live`                  | Current probe state + the in-RAM recent window                                    |
+| GET      | `/api/v1/stream`                | **WebSocket** upgrade — push                                                      |
+| GET      | `/api/v1/sessions`              | List cook sessions                                                                |
+| POST     | `/api/v1/sessions`              | Start a session                                                                   |
+| GET      | `/api/v1/sessions/{id}`         | Session header + stats                                                            |
+| PATCH    | `/api/v1/sessions/{id}`         | Rename, set probe names/roles/targets, pin                                        |
+| DELETE   | `/api/v1/sessions/{id}`         | Delete (refuses if active)                                                        |
+| POST     | `/api/v1/sessions/{id}/stop`    | End the active session                                                            |
+| GET      | `/api/v1/sessions/{id}/samples` | **Streamed** history — the workhorse                                              |
+| GET      | `/api/v1/sessions/{id}/marks`   | Marks                                                                             |
+| POST     | `/api/v1/sessions/{id}/marks`   | Add a mark                                                                        |
+| GET      | `/api/v1/pairing`               | Pairing state                                                                     |
+| POST     | `/api/v1/pairing/sync`          | Enter pairing mode                                                                |
+| POST     | `/api/v1/pairing/unpair`        | Unpair                                                                            |
+| GET/POST | `/api/v1/config/wifi`           | Network mode + credentials                                                        |
+| GET/POST | `/api/v1/config/device`         | Units, display, retention, probes, calibration                                    |
+| GET/POST | `/api/v1/config/alarms`         | Alarm rules                                                                       |
+| POST     | `/api/v1/time`                  | Set the clock                                                                     |
+| GET      | `/api/v1/radio`                 | LoRa parameters + link stats                                                      |
+| POST     | `/api/v1/radio`                 | Set LoRa parameters (advanced)                                                    |
+| POST     | `/api/v1/ota`                   | Upload firmware                                                                   |
+| GET      | `/api/v1/debug/packets`         | Last N raw LoRa payloads                                                          |
+| GET      | `/api/v1/debug/coredump`        | Stored panic dump, if any                                                         |
+| GET      | `/*`                            | Static fallback web UI — **post-MVP** (§6.4); serves a built-in stub until then   |
+| GET      | `/generate_204` etc.            | Captive-portal shims (AP mode) — [05 §5.8.1](05-connectivity-and-provisioning.md) |
 
 ### `GET /api/v1/status`
 
@@ -81,32 +87,72 @@ chattiness costs more than payload.
 ```json
 {
   "device": {
-    "id": "A4F2", "model": "heltec-v3", "fw": "1.0.0",
-    "uptime_s": 51230, "free_heap": 168432, "min_free_heap": 141008,
-    "reset_reason": "poweron", "coredump_available": false
+    "id": "A4F2",
+    "model": "heltec-v3",
+    "fw": "1.0.0",
+    "uptime_s": 51230,
+    "free_heap": 168432,
+    "min_free_heap": 141008,
+    "reset_reason": "poweron",
+    "coredump_available": false
   },
-  "time": { "unix_ms": 1774094400000, "source": "phone", "tz_offset_min": -300, "valid": true },
+  "time": {
+    "unix_ms": 1774094400000,
+    "source": "phone",
+    "tz_offset_min": -300,
+    "valid": true
+  },
   "net": {
-    "mode": "sta", "state": "up", "ssid": "Backyard", "rssi": -54,
-    "ip": "192.168.1.42", "host": "smokebridge.local", "ap_clients": 0
+    "mode": "sta",
+    "state": "up",
+    "ssid": "Backyard",
+    "rssi": -54,
+    "ip": "192.168.1.42",
+    "host": "smokebridge.local",
+    "ap_clients": 0
   },
   "ble": { "advertising": true, "connections": 1, "bonded": 2 },
   "pairing": {
-    "paired": true, "device_id": "|abCDe", "model": "X4",
-    "num_probes": 4, "frequency_hz": 910500000,
-    "last_packet_s_ago": 12, "base_lost": false
+    "paired": true,
+    "device_id": "|abCDe",
+    "model": "X4",
+    "num_probes": 4,
+    "frequency_hz": 910500000,
+    "last_packet_s_ago": 12,
+    "base_lost": false
   },
-  "radio": { "rssi": -71, "snr": 9, "packets_ok": 4102, "packets_bad": 3, "id_mismatch": 0 },
+  "radio": {
+    "rssi": -71,
+    "snr": 9,
+    "packets_ok": 4102,
+    "packets_bad": 3,
+    "id_mismatch": 0
+  },
   "storage": {
-    "total_b": 2490368, "used_b": 214016, "free_pct": 91,
-    "sessions": 12, "oldest_session_id": 16
+    "total_b": 2490368,
+    "used_b": 214016,
+    "free_pct": 91,
+    "sessions": 12,
+    "oldest_session_id": 16
   },
   "power": { "mv": 3894, "soc_pct": 71, "charging": true, "saver": false },
   "session": {
-    "active": true, "id": 27, "name": "Brisket",
-    "started_unix_ms": 1774051200000, "elapsed_s": 43200, "samples": 1440
+    "active": true,
+    "id": 27,
+    "name": "Brisket",
+    "started_unix_ms": 1774051200000,
+    "elapsed_s": 43200,
+    "samples": 1440
   },
-  "alarms": [ { "id": 3, "rule": "target_reached", "probe": 1, "since_unix_ms": 1774094100000, "acked": false } ]
+  "alarms": [
+    {
+      "id": 3,
+      "rule": "target_reached",
+      "probe": 1,
+      "since_unix_ms": 1774094100000,
+      "acked": false
+    }
+  ]
 }
 ```
 
@@ -124,17 +170,41 @@ chattiness costs more than payload.
   "units_source": "F",
   "billows": { "attached": true, "target_f10": 2250 },
   "probes": [
-    { "n": 1, "name": "Pit",     "role": "pit",  "attached": true,  "temp_f10": 2431,
-      "alarm_enabled": true, "min_f10": 2000, "max_f10": 2500, "target_f10": 2250,
-      "rate_f_per_hr": -2.4 },
-    { "n": 2, "name": "Brisket", "role": "food", "attached": true,  "temp_f10": 1632,
-      "alarm_enabled": true, "min_f10": 0, "max_f10": 2030, "target_f10": 2030,
-      "rate_f_per_hr": 4.1, "eta_s": 22800, "state": "stall" },
+    {
+      "n": 1,
+      "name": "Pit",
+      "role": "pit",
+      "attached": true,
+      "temp_f10": 2431,
+      "alarm_enabled": true,
+      "min_f10": 2000,
+      "max_f10": 2500,
+      "target_f10": 2250,
+      "rate_f_per_hr": -2.4
+    },
+    {
+      "n": 2,
+      "name": "Brisket",
+      "role": "food",
+      "attached": true,
+      "temp_f10": 1632,
+      "alarm_enabled": true,
+      "min_f10": 0,
+      "max_f10": 2030,
+      "target_f10": 2030,
+      "rate_f_per_hr": 4.1,
+      "eta_s": 22800,
+      "state": "stall"
+    },
     { "n": 3, "attached": false },
     { "n": 4, "attached": false }
   ],
-  "recent": { "t0": 36000, "step_s": 30, "count": 240,
-              "series": [[2431, 2428, "…"], [1632, 1631, "…"], null, null] }
+  "recent": {
+    "t0": 36000,
+    "step_s": 30,
+    "count": 240,
+    "series": [[2431, 2428, "…"], [1632, 1631, "…"], null, null]
+  }
 }
 ```
 
@@ -162,13 +232,18 @@ of full-fidelity data is 46 KB and parses in a few milliseconds in Dart.
 
 ```json
 {
-  "session_id": 27, "from": 0, "to": 86400, "bucket_s": 90, "agg": "minmax", "count": 960,
+  "session_id": 27,
+  "from": 0,
+  "to": 86400,
+  "bucket_s": 90,
+  "agg": "minmax",
+  "count": 960,
   "probes": [1, 2],
   "series": [
     { "probe": 1, "min": [2400, "…"], "mean": [2431, "…"], "max": [2460, "…"] },
     { "probe": 2, "min": [1620, "…"], "mean": [1632, "…"], "max": [1640, "…"] }
   ],
-  "gaps": [ { "from": 21600, "to": 23400 } ]
+  "gaps": [{ "from": 21600, "to": 23400 }]
 }
 ```
 
@@ -180,22 +255,39 @@ because samples carry time — the single most important schema decision in the 
 ### `POST /api/v1/config/wifi`
 
 ```json
-{ "mode": "sta", "auth": "wpa2_psk", "ssid": "Backyard", "psk": "…", "username": null }
+{
+  "mode": "sta",
+  "auth": "wpa2_psk",
+  "ssid": "Backyard",
+  "psk": "…",
+  "username": null
+}
 ```
 
 `mode` ∈ `ap` | `sta`. Responds **before** reconfiguring, then defers ~500 ms so the reply flushes
 before the interface is torn down:
 
 ```json
-{ "accepted": true, "applying_in_ms": 500,
-  "expect": { "mode": "sta", "host": "smokebridge.local" } }
+{
+  "accepted": true,
+  "applying_in_ms": 500,
+  "expect": { "mode": "sta", "host": "smokebridge.local" }
+}
 ```
 
 For `mode: "ap"` the response carries the generated credentials so the client can display them:
 
 ```json
-{ "accepted": true, "applying_in_ms": 500,
-  "expect": { "mode": "ap", "ssid": "SmokeBridge-A4F2", "psk": "Gk7mR2xQpT", "ip": "192.168.4.1" } }
+{
+  "accepted": true,
+  "applying_in_ms": 500,
+  "expect": {
+    "mode": "ap",
+    "ssid": "SmokeBridge-A4F2",
+    "psk": "Gk7mR2xQpT",
+    "ip": "192.168.4.1"
+  }
+}
 ```
 
 `GET` never returns a stored password (matching the reference — a good instinct worth keeping),
@@ -212,7 +304,7 @@ read back.
   "battery_saver": "auto",
   "retention": { "max_sessions": 64, "min_free_pct": 10 },
   "probes": [
-    { "n": 1, "name": "Pit",     "role": "pit",  "target_f10": 2250 },
+    { "n": 1, "name": "Pit", "role": "pit", "target_f10": 2250 },
     { "n": 2, "name": "Brisket", "role": "food", "target_f10": 2030 }
   ],
   "vbat_actual_mv": 4020
@@ -226,7 +318,7 @@ reading and the firmware solves for the divider ratio and persists it.
 
 `Content-Type: application/octet-stream`, the raw `.bin`. Streams into the inactive OTA slot,
 verifies the image header and SHA-256, sets the boot partition, replies, and reboots. Progress is
-pushed on the WebSocket. The new image is *pending verify* until the health gate in
+pushed on the WebSocket. The new image is _pending verify_ until the health gate in
 [03 §3.7](03-firmware-architecture.md) passes; otherwise the next reset rolls back.
 
 Refused with `409` while a cook session is active unless `?force=1` — nobody should discover a bad
@@ -288,7 +380,7 @@ Serving would follow the reference's approach, which is well judged: pre-gzipped
 `Content-Encoding: gzip`, `Cache-Control: max-age=604800` for hashed filenames and `no-cache` for
 stable-named ones (`manifest`, `sw.js`, icons).
 
-Deciding this early costs nothing; deciding it *late* is why the partition exists now.
+Deciding this early costs nothing; deciding it _late_ is why the partition exists now.
 
 ## 6.5 Versioning
 
@@ -299,4 +391,4 @@ Deciding this early costs nothing; deciding it *late* is why the partition exist
   prompting for OTA rather than failing in an obscure way.
 - The binary sample format versions independently through the session header's `version` /
   `rec_len` ([04 §4.10](04-storage-and-history.md)).
-</content>
+  </content>

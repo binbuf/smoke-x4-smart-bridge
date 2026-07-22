@@ -224,7 +224,7 @@ an X4 (26-comma) confirming different probe counts from the same sync.
 
 `BASE_LOST` after N × 30 s with no valid state message (default N = 20, i.e. 10 min), `BASE_FOUND` on
 recovery. Counters for valid messages, CRC failures, unknown comma counts, and device-ID mismatches,
-plus an inter-packet interval histogram — cheap, and it turns *"it seems flaky"* into a number.
+plus an inter-packet interval histogram — cheap, and it turns _"it seems flaky"_ into a number.
 
 The optional re-scan after 60 min with no packets **and** no active cook stays config-gated and
 **default off**: silently re-pairing to a different base station would be worse than staying put.
@@ -263,7 +263,7 @@ the PR. **This is half of M1's exit gate.**
 **Land this early in M1, not late** ([§12.6 rule 2](../design/12-task-planning-notes.md)). Every cook
 before it exists is evidence thrown away, and six of the eight open protocol questions close by
 themselves once it is running. With one board there is no dedicated capture rig — the bridge under
-test *is* the bridge collecting evidence, so capture has to be permanent background behaviour rather
+test _is_ the bridge collecting evidence, so capture has to be permanent background behaviour rather
 than a deliberate session.
 
 ### F4.1 smoke_x: implement the RAM packet ring
@@ -271,7 +271,7 @@ than a deliberate session.
 - **blocked-by:** F3.1 · **verify:** H · **board:** no
 - **design:** [02 §2.7](../design/02-smoke-x-protocol.md), [10 §10.4](../design/10-repo-tooling-and-testing.md)
 
-Last 64 raw payloads with RSSI, SNR, and uptime. Free, and it answers *"what did it just receive?"*
+Last 64 raw payloads with RSSI, SNR, and uptime. Free, and it answers _"what did it just receive?"_
 without a second SDR.
 
 **Done when:** the ring wraps correctly and survives 1,000 synthetic packets without leaking.
@@ -301,7 +301,7 @@ read directly. **The first instance of each distinct `reason`+value pair is pinn
 can never evict the evidence that mattered.
 
 Add a serial console command to dump it. The HTTP endpoints (`/api/v1/debug/novelty` and
-`/debug/packets`) arrive with F9 in M2 — but the *capture* must be running now, because that is the
+`/debug/packets`) arrive with F9 in M2 — but the _capture_ must be running now, because that is the
 half that cannot be backfilled.
 
 **Done when:** the ring wraps without evicting a pinned entry, and the file survives a remount.
@@ -440,7 +440,7 @@ automatically by the lid-open detector, the alarm engine, and power-restore reco
 - **design:** [04 §4.8](../design/04-storage-and-history.md), [06 §6.1](../design/06-device-api.md)
 
 `cook_store_read(session_id, from_t, to_t, stride, bucket_s, agg, sink, ctx)` — **never allocates
-more than `buf_len`.** Because records are fixed-width, a time range is a *seek*, not a scan:
+more than `buf_len`.** Because records are fixed-width, a time range is a _seek_, not a scan:
 `offset = 256 + index × 16`, with binary search over ≤ 18 reads for a 54-day file.
 
 `agg=minmax` emits per-bucket min/mean/max per probe. This is display honesty, not compression: a
@@ -479,7 +479,7 @@ SNTP > phone > none, with the active `source` recorded. The board has no battery
 
 **Samples always store `t` = seconds since session start**, from `esp_timer` — monotonic, never
 adjusted, never wrong. Wall clock is a session-level property, not a per-sample one. The graph's
-x-axis is always correct *relative to the cook*, which is the axis that actually matters for barbecue.
+x-axis is always correct _relative to the cook_, which is the axis that actually matters for barbecue.
 
 **Done when:** source precedence is table-tested and a source change never rewrites a sample's `t`.
 
@@ -611,13 +611,13 @@ full 18-hour cook with the transport disconnected.
 
 ---
 
-## What is deliberately *not* in M1
+## What is deliberately _not_ in M1
 
-| | Why |
-| --- | --- |
-| Wi-Fi, HTTP, WebSocket, mDNS | M2. F5.10's streaming read is built now so F9 has nothing to invent |
-| `/api/v1/debug/*` endpoints | M2 with F9. F4 captures the evidence now; reading it over HTTP can wait |
-| BLE / NimBLE | M3 |
-| Any Flutter screen | M4. A2–A4 are logic and data only — no UI work before `tools/sim` and the transports are solid ([§12.6 rule 1](../design/12-task-planning-notes.md)) |
-| Alarm engine, OLED pages, button gestures | M5 |
-| OTA, battery ADC | M6 / M5. F12 additionally gates on V1.3's divider ratio ([§12.6 rule 6](../design/12-task-planning-notes.md)) |
+|                                           | Why                                                                                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wi-Fi, HTTP, WebSocket, mDNS              | M2. F5.10's streaming read is built now so F9 has nothing to invent                                                                                  |
+| `/api/v1/debug/*` endpoints               | M2 with F9. F4 captures the evidence now; reading it over HTTP can wait                                                                              |
+| BLE / NimBLE                              | M3                                                                                                                                                   |
+| Any Flutter screen                        | M4. A2–A4 are logic and data only — no UI work before `tools/sim` and the transports are solid ([§12.6 rule 1](../design/12-task-planning-notes.md)) |
+| Alarm engine, OLED pages, button gestures | M5                                                                                                                                                   |
+| OTA, battery ADC                          | M6 / M5. F12 additionally gates on V1.3's divider ratio ([§12.6 rule 6](../design/12-task-planning-notes.md))                                        |

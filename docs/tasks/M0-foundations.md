@@ -35,7 +35,7 @@ wrong. Confirm the LoRa antenna is fitted before applying power.
 - **design:** [10 §10.4](../design/10-repo-tooling-and-testing.md)
 
 Install ESP-IDF v5.4, build `docs/reference/smoke-x-receiver` for `heltec-v3`, and flash it. This is
-a known-good baseline: OLED, LoRa RX, and Wi-Fi are all proven working *before* our code exists to
+a known-good baseline: OLED, LoRa RX, and Wi-Fi are all proven working _before_ our code exists to
 be blamed. It is also the instrument for V2.1 — its serial log already prints every decoded payload,
 so the first real capture needs no new code.
 
@@ -66,7 +66,7 @@ Four checks: GPIO0 reads reliably as a user button after boot with a debounce wi
 the boot strapping; GPIO35 LED is active-HIGH and dims under LEDC PWM; GPIO36 must be driven **LOW**
 for the OLED rail to come up; OLED I²C at 400 kHz is stable while Wi-Fi is active.
 
-**Done when:** all four are recorded. Note that the *BLE* half of the I²C stability check cannot be
+**Done when:** all four are recorded. Note that the _BLE_ half of the I²C stability check cannot be
 done yet — the reference uses Improv over serial, not BLE — and is carried forward to V3 in M3.
 
 ### V1.5 bench: measure current draw and brownout behaviour
@@ -89,13 +89,13 @@ measuring is to make the app's honest copy about AP-mode battery cost accurate r
 - **design:** [01 §1.8](../design/01-hardware.md)
 
 Every box in the §1.8 checklist gets a measured number or an explicit **unresolved**. Three boxes
-*cannot* close at M0 and must be marked deferred with their target milestone:
+_cannot_ close at M0 and must be marked deferred with their target milestone:
 
-| Deferred check | Why | Closes at |
-| --- | --- | --- |
+| Deferred check                                                     | Why                         | Closes at        |
+| ------------------------------------------------------------------ | --------------------------- | ---------------- |
 | Free heap ≥ 150 KB with AP + NimBLE + httpd + both LittleFS mounts | Our stack doesn't exist yet | F9 / F10 (M2–M3) |
-| LoRa RX with BLE advertising **and** a WebSocket client streaming | Same | V3 (M3) |
-| OLED I²C stable with BLE active | Reference has no BLE | M3 |
+| LoRa RX with BLE advertising **and** a WebSocket client streaming  | Same                        | V3 (M3)          |
+| OLED I²C stable with BLE active                                    | Reference has no BLE        | M3               |
 
 **Done when:** the file exists and no box is silently blank.
 
@@ -105,7 +105,7 @@ Every box in the §1.8 checklist gets a measured number or an explicit **unresol
 - **design:** [02 §2.3, §2.8](../design/02-smoke-x-protocol.md), [10 §10.4](../design/10-repo-tooling-and-testing.md)
 
 **The single highest-value hour in the project.** Every X4 test vector in the reference is
-*synthetic*, extrapolated from the X2 format. Cook anything with all four probes attached, let it run
+_synthetic_, extrapolated from the X2 format. Cook anything with all four probes attached, let it run
 overnight if possible, and keep the serial log.
 
 Closes **Q1** (does header field 1 ever leave `30`?), **Q6** (does an X4 emit the same values as an
@@ -292,7 +292,7 @@ Both generated files are committed. CI regenerates and fails on any diff.
 °C-sourced sample; alarm flags set; a header with `clock_valid` clear; **a header at a future
 `version` with a larger `rec_len`**; a mark carrying multibyte UTF-8.
 
-The C host tests and the Dart tests read the *same files*. This is the drift guard — a C struct and a
+The C host tests and the Dart tests read the _same files_. This is the drift guard — a C struct and a
 Dart class diverging shows up as a red test, not as a field returning null in the field.
 
 **Done when:** both test suites parse every fixture and assert identical values.
@@ -520,7 +520,7 @@ Linear early; Newton cooling once the food is within ~60 °F of pit, with `k` fi
 the back half of every cook because meat approaches pit temperature asymptotically.
 
 All five guard rails: ≥ 30 min of history; `|slope| ≥ 1 °F/hr`; suppressed entirely during a stall;
-refused when `target ≥ T_pit` (*"not at this pit temperature"* is the correct answer); and presented
+refused when `target ≥ T_pit` (_"not at this pit temperature"_ is the correct answer); and presented
 as a **range** from the slope's standard error, rounded to 15 minutes.
 
 Never `6h 23m`. The physics does not support that precision, and the false confidence is what makes
@@ -546,7 +546,7 @@ Exit: `slope > 4 °F/hr` sustained ≥ 15 min.
 Detect: pit drops ≥ 25 °F within any 3-minute window. Confirm: recovers ≥ 50 % of the drop within
 20 min → it was a lid open; does not recover → escalate to `pit_crash`.
 
-Firing on *detection* is what starts the alarm grace window immediately; confirming afterwards is
+Firing on _detection_ is what starts the alarm grace window immediately; confirming afterwards is
 what lets a genuine fire failure still escalate 20 minutes later. **Both branches must be tested** —
 suppressing a real `pit_crash` is the expensive failure.
 
@@ -587,7 +587,7 @@ the reference, whose samples carry no time at all.
 
 The interface from §8.1. **The UI never knows how it is talking to the bridge** — the dashboard, the
 chart, and the session list are written once, and a capability flag drives the two places where the
-difference is visible (the chart says *"connected over Bluetooth — full history needs Wi-Fi"*, and
+difference is visible (the chart says _"connected over Bluetooth — full history needs Wi-Fi"_, and
 the session list reads from cache).
 
 `BridgeEvent` as a `freezed` union so `switch` over variants is exhaustive.
@@ -627,7 +627,7 @@ tests run against both.
 - **design:** [10 §10.3](../design/10-repo-tooling-and-testing.md)
 
 Newton cooling toward a pit temperature that itself wanders, per probe. Scenarios can then be
-*generated* rather than recorded — which matters enormously when reality costs a brisket.
+_generated_ rather than recorded — which matters enormously when reality costs a brisket.
 
 **Done when:** a generated pit trace has plausible variance and food probes converge asymptotically.
 

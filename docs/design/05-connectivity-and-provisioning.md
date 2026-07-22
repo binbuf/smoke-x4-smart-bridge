@@ -5,15 +5,15 @@ choreography between them, and the Android-specific traps that will otherwise ea
 
 ## 5.1 The two modes
 
-| | **Hosted** (`AP`) | **Joined** (`STA`) |
-| --- | --- | --- |
-| The bridge | runs its own Wi-Fi network | joins your existing network |
-| Reach it at | `http://192.168.4.1` | `http://smokebridge.local` or its DHCP address |
-| Phone must | leave your home network to join the bridge's | stay on your home network |
-| Range | ~30 m to the bridge | anywhere on your LAN |
-| Internet on the phone | none while joined (see §5.7) | normal |
-| Bridge power draw | **high** — an AP cannot sleep (~145 mA) | modem sleep (~70 mA) |
-| Good for | tailgating, a remote smoker, no Wi-Fi in range, first-time setup | home use, the default once set up |
+|                       | **Hosted** (`AP`)                                                | **Joined** (`STA`)                             |
+| --------------------- | ---------------------------------------------------------------- | ---------------------------------------------- |
+| The bridge            | runs its own Wi-Fi network                                       | joins your existing network                    |
+| Reach it at           | `http://192.168.4.1`                                             | `http://smokebridge.local` or its DHCP address |
+| Phone must            | leave your home network to join the bridge's                     | stay on your home network                      |
+| Range                 | ~30 m to the bridge                                              | anywhere on your LAN                           |
+| Internet on the phone | none while joined (see §5.7)                                     | normal                                         |
+| Bridge power draw     | **high** — an AP cannot sleep (~145 mA)                          | modem sleep (~70 mA)                           |
+| Good for              | tailgating, a remote smoker, no Wi-Fi in range, first-time setup | home use, the default once set up              |
 
 Both modes serve the identical HTTP + WebSocket API ([06](06-device-api.md)) and advertise the same
 mDNS service. Nothing above the transport layer knows or cares which is active.
@@ -22,13 +22,13 @@ mDNS service. Nothing above the transport layer knows or cares which is active.
 
 Five paths, in precedence order:
 
-| # | Path | When |
-| --- | --- | --- |
-| 1 | **Post-boot recovery window** — hold PRG for 3 s while the splash counts down | Forces `AP` for this boot only; stored config untouched |
-| 2 | **Double reset** — press reset twice within 10 s | Same effect. Works with a dead OLED |
-| 3 | **BLE** — `wifi_config` write | The normal path, from the app |
-| 4 | **HTTP** — `POST /api/v1/config/wifi` | From a browser or a script already on the network |
-| 5 | **Button** — 2 s hold on the Network page | Toggles AP ↔ STA on the device itself |
+| #   | Path                                                                          | When                                                    |
+| --- | ----------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 1   | **Post-boot recovery window** — hold PRG for 3 s while the splash counts down | Forces `AP` for this boot only; stored config untouched |
+| 2   | **Double reset** — press reset twice within 10 s                              | Same effect. Works with a dead OLED                     |
+| 3   | **BLE** — `wifi_config` write                                                 | The normal path, from the app                           |
+| 4   | **HTTP** — `POST /api/v1/config/wifi`                                         | From a browser or a script already on the network       |
+| 5   | **Button** — 2 s hold on the Network page                                     | Toggles AP ↔ STA on the device itself                   |
 
 Otherwise the stored `net/mode` applies.
 
@@ -95,12 +95,12 @@ reply dies with the network it was sent over. The reference discovered this the 
 
 Registered in both modes as soon as an interface has an address.
 
-| | |
-| --- | --- |
-| Hostname | `smokebridge.local` |
-| Primary service | `_smokebridge._tcp`, port 80 |
-| Also advertised | `_http._tcp`, port 80 — so browsers and generic tools find it |
-| TXT records | `id=A4F2` `model=heltec-v3` `fw=1.0.0` `api=v1` `probes=4` `paired=1` `session=27` `mode=sta` |
+|                 |                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| Hostname        | `smokebridge.local`                                                                           |
+| Primary service | `_smokebridge._tcp`, port 80                                                                  |
+| Also advertised | `_http._tcp`, port 80 — so browsers and generic tools find it                                 |
+| TXT records     | `id=A4F2` `model=heltec-v3` `fw=1.0.0` `api=v1` `probes=4` `paired=1` `session=27` `mode=sta` |
 
 The TXT records let the app render a useful picker ("Smoke Bridge · 4 probes · cooking") **before**
 opening a connection. Discovery is never the only path — the app also caches the last known address
@@ -117,32 +117,32 @@ Stack: **NimBLE** (D6, ~100 KB less RAM than Bluedroid).
 
 ### Advertising
 
-| | |
-| --- | --- |
-| Local name | `SmokeBridge-A4F2` |
-| Adv payload | Flags + the 128-bit service UUID (that alone is 16 of the 31 legacy bytes) |
+|               |                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| Local name    | `SmokeBridge-A4F2`                                                                             |
+| Adv payload   | Flags + the 128-bit service UUID (that alone is 16 of the 31 legacy bytes)                     |
 | Scan response | Manufacturer-specific status blob — `ver, flags, pit_temp(i16), soc(u8), session_minutes(u16)` |
-| Interval | 500 ms idle, 250 ms for 60 s after a button press (`identify`) or a fresh boot |
+| Interval      | 500 ms idle, 250 ms for 60 s after a button press (`identify`) or a fresh boot                 |
 
-The scan-response blob lets the app's device list show *"Smoke Bridge · pit 243 °F · 4 h 12 m"*
+The scan-response blob lets the app's device list show _"Smoke Bridge · pit 243 °F · 4 h 12 m"_
 without connecting — a genuinely nice touch when you have two bridges.
 
 ### UUIDs
 
 Base `7f9aXXXX-4c5b-4b0f-9a3d-1c2e3f405162`.
 
-| `XXXX` | Characteristic | Props | Security |
-| --- | --- | --- | --- |
-| `0000` | **Bridge Control Service** | — | — |
-| `0001` | `device_info` | Read | open |
-| `0002` | `net_status` | Read, Notify | encrypted |
-| `0003` | `wifi_scan_ctrl` | Write | encrypted |
-| `0004` | `wifi_scan_result` | Notify | encrypted |
-| `0005` | `wifi_config` | Write | **encrypted + authenticated** |
-| `0006` | `device_control` | Write | **encrypted + authenticated** |
-| `0007` | `live_state` | Read, Notify | encrypted |
-| `0008` | `history_preview` | Read | encrypted |
-| `0009` | `result` | Notify | encrypted |
+| `XXXX` | Characteristic             | Props        | Security                      |
+| ------ | -------------------------- | ------------ | ----------------------------- |
+| `0000` | **Bridge Control Service** | —            | —                             |
+| `0001` | `device_info`              | Read         | open                          |
+| `0002` | `net_status`               | Read, Notify | encrypted                     |
+| `0003` | `wifi_scan_ctrl`           | Write        | encrypted                     |
+| `0004` | `wifi_scan_result`         | Notify       | encrypted                     |
+| `0005` | `wifi_config`              | Write        | **encrypted + authenticated** |
+| `0006` | `device_control`           | Write        | **encrypted + authenticated** |
+| `0007` | `live_state`               | Read, Notify | encrypted                     |
+| `0008` | `history_preview`          | Read         | encrypted                     |
+| `0009` | `result`                   | Notify       | encrypted                     |
 
 ### Security
 
@@ -197,19 +197,19 @@ u8 ver, u8 mode, u8 auth, u8 ssid_len, u8 psk_len, u8 user_len, char ssid[], psk
 
 **`device_control` (write)** — `u8 ver, u8 op, …op-specific`
 
-| op | Action |
-| --- | --- |
-| 1 | `pair` — enter sync/scan mode |
-| 2 | `unpair` |
-| 3 | `set_time` — `u64 unix_ms, i16 tz_offset_min` |
-| 4 | `session_start` |
-| 5 | `session_stop` |
-| 6 | `mark` — `u8 kind, u8 len, char text[]` |
-| 7 | `reboot` |
-| 8 | `factory_reset` |
-| 9 | `set_units` — `u8 (0 °C, 1 °F)` (display preference) |
-| 10 | `identify` — flash the LED and screen for 5 s |
-| 11 | `ack_alarm` — `u8 alarm_id` |
+| op  | Action                                               |
+| --- | ---------------------------------------------------- |
+| 1   | `pair` — enter sync/scan mode                        |
+| 2   | `unpair`                                             |
+| 3   | `set_time` — `u64 unix_ms, i16 tz_offset_min`        |
+| 4   | `session_start`                                      |
+| 5   | `session_stop`                                       |
+| 6   | `mark` — `u8 kind, u8 len, char text[]`              |
+| 7   | `reboot`                                             |
+| 8   | `factory_reset`                                      |
+| 9   | `set_units` — `u8 (0 °C, 1 °F)` (display preference) |
+| 10  | `identify` — flash the LED and screen for 5 s        |
+| 11  | `ack_alarm` — `u8 alarm_id`                          |
 
 **`result` (notify)** — `u8 ver, u8 op_echo, u8 status, u8 len, char detail[]`. Status: `0` ok,
 `1` invalid, `2` busy, `3` failed, `4` unauthorized. `detail` carries the AP PSK after a mode
@@ -291,12 +291,12 @@ Two mitigations, both required:
 **Firmware side — the captive-portal shim.** In AP mode the bridge runs a tiny UDP/53 responder
 that answers every A query with `192.168.4.1`, and the HTTP server answers the probe URLs:
 
-| Path | Response |
-| --- | --- |
-| `/generate_204`, `/gen_204` | `204 No Content` |
-| `/hotspot-detect.html`, `/library/test/success.html` | Apple's success page |
-| `/ncsi.txt` | `Microsoft NCSI` |
-| `/connecttest.txt` | `Microsoft Connect Test` |
+| Path                                                 | Response                 |
+| ---------------------------------------------------- | ------------------------ |
+| `/generate_204`, `/gen_204`                          | `204 No Content`         |
+| `/hotspot-detect.html`, `/library/test/success.html` | Apple's success page     |
+| `/ncsi.txt`                                          | `Microsoft NCSI`         |
+| `/connecttest.txt`                                   | `Microsoft Connect Test` |
 
 Answering `204` makes Android consider the network validated, which both routes traffic correctly
 and suppresses the "sign in to Wi-Fi network" nag. A config flag switches to true captive-portal
@@ -332,17 +332,17 @@ because OEM behaviour varies.
 
 ### 5.8.3 Permissions by API level
 
-| Permission | Needed for | Levels |
-| --- | --- | --- |
-| `INTERNET`, `ACCESS_NETWORK_STATE` | everything | all |
-| `ACCESS_WIFI_STATE`, `CHANGE_WIFI_STATE` | scan, join AP | all |
-| `CHANGE_WIFI_MULTICAST_STATE` | **mDNS** — without it discovery silently finds nothing | all |
-| `ACCESS_FINE_LOCATION` | Wi-Fi scan results | ≤ 12 |
-| `NEARBY_WIFI_DEVICES` (`neverForLocation`) | Wi-Fi scan / local network | 13+ |
-| `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_CONNECT` | BLE | 12+ |
-| `BLUETOOTH`, `BLUETOOTH_ADMIN`, `ACCESS_FINE_LOCATION` | BLE | ≤ 11 |
-| `POST_NOTIFICATIONS` | alarms | 13+ |
-| `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_CONNECTED_DEVICE` | cook monitoring | 14+ needs the typed variant |
+| Permission                                                   | Needed for                                             | Levels                      |
+| ------------------------------------------------------------ | ------------------------------------------------------ | --------------------------- |
+| `INTERNET`, `ACCESS_NETWORK_STATE`                           | everything                                             | all                         |
+| `ACCESS_WIFI_STATE`, `CHANGE_WIFI_STATE`                     | scan, join AP                                          | all                         |
+| `CHANGE_WIFI_MULTICAST_STATE`                                | **mDNS** — without it discovery silently finds nothing | all                         |
+| `ACCESS_FINE_LOCATION`                                       | Wi-Fi scan results                                     | ≤ 12                        |
+| `NEARBY_WIFI_DEVICES` (`neverForLocation`)                   | Wi-Fi scan / local network                             | 13+                         |
+| `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_CONNECT`   | BLE                                                    | 12+                         |
+| `BLUETOOTH`, `BLUETOOTH_ADMIN`, `ACCESS_FINE_LOCATION`       | BLE                                                    | ≤ 11                        |
+| `POST_NOTIFICATIONS`                                         | alarms                                                 | 13+                         |
+| `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_CONNECTED_DEVICE` | cook monitoring                                        | 14+ needs the typed variant |
 
 Declaring `neverForLocation` on the BLE and Wi-Fi scan permissions avoids the location-permission
 prompt on modern Android, which is a meaningful drop-off point in onboarding.
@@ -397,4 +397,4 @@ gated off in release builds ([02 §2.5](02-smoke-x-protocol.md)).
 - [`nsd` Flutter package](https://pub.dev/packages/nsd)
 - [flutter/flutter#155499 — multicast_dns not discovering on Android](https://github.com/flutter/flutter/issues/155499)
 - [Android `WifiNetworkSpecifier`](https://learn.microsoft.com/en-us/dotnet/api/android.net.wifi.wifinetworkspecifier)
-</content>
+  </content>

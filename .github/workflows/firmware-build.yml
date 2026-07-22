@@ -8,14 +8,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'firmware/**'
-      - 'protocol/gen/**'
-      - '.github/workflows/firmware-build.yml'
+      - "firmware/**"
+      - "protocol/gen/**"
+      - ".github/workflows/firmware-build.yml"
   pull_request:
     paths:
-      - 'firmware/**'
-      - 'protocol/gen/**'
-      - '.github/workflows/firmware-build.yml'
+      - "firmware/**"
+      - "protocol/gen/**"
+      - ".github/workflows/firmware-build.yml"
 
 permissions:
   contents: read

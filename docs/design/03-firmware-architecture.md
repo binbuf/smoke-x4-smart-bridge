@@ -83,34 +83,34 @@ garbage-collection pass or an OTA write can never stall the decoder.
 
 ### Producer/consumer matrix
 
-| Event | Producer | Consumers |
-| --- | --- | --- |
-| `SAMPLE` | `smoke_x_ctrl` | `cook_store`, `app_alarm`, `app_api` (WS), `app_ble` (notify), `app_ui` |
-| `PAIRING` | `smoke_x_ctrl` | `app_ui`, `app_api`, `app_ble`, `cook_store` (ends session on unpair) |
-| `BASE_LOST` / `BASE_FOUND` | `smoke_x_ctrl` watchdog | `app_alarm`, `app_ui`, `app_api`, `app_ble` |
-| `NET` | `app_net` | `app_ui`, `app_ble`, `app_api` |
-| `SESSION` | `cook_store` | `app_ui`, `app_api`, `app_ble` |
-| `ALARM` | `app_alarm` | `app_ui` (banner), `app_power` (LED), `app_api`, `app_ble` |
-| `BUTTON` | `app_ui` | `app_net` (mode toggle), `cook_store` (start/stop, mark), `app_api` |
-| `POWER` | `app_power` | `app_ui`, `app_alarm`, `app_net` (saver profile) |
+| Event                      | Producer                | Consumers                                                               |
+| -------------------------- | ----------------------- | ----------------------------------------------------------------------- |
+| `SAMPLE`                   | `smoke_x_ctrl`          | `cook_store`, `app_alarm`, `app_api` (WS), `app_ble` (notify), `app_ui` |
+| `PAIRING`                  | `smoke_x_ctrl`          | `app_ui`, `app_api`, `app_ble`, `cook_store` (ends session on unpair)   |
+| `BASE_LOST` / `BASE_FOUND` | `smoke_x_ctrl` watchdog | `app_alarm`, `app_ui`, `app_api`, `app_ble`                             |
+| `NET`                      | `app_net`               | `app_ui`, `app_ble`, `app_api`                                          |
+| `SESSION`                  | `cook_store`            | `app_ui`, `app_api`, `app_ble`                                          |
+| `ALARM`                    | `app_alarm`             | `app_ui` (banner), `app_power` (LED), `app_api`, `app_ble`              |
+| `BUTTON`                   | `app_ui`                | `app_net` (mode toggle), `cook_store` (start/stop, mark), `app_api`     |
+| `POWER`                    | `app_power`             | `app_ui`, `app_alarm`, `app_net` (saver profile)                        |
 
 ## 3.3 Tasks
 
 Single source of truth in `main/tasks.h` so the RAM budget in [01 §1.4](01-hardware.md) is auditable.
 
-| Task | Stack | Prio | Core | Role |
-| --- | --- | --- | --- | --- |
-| `lora_rx` | 4096 | 6 | 1 | Poll the SX1262, hand payloads to `smoke_x_ctrl`. Pinned to core 1, away from the Wi-Fi/BLE stacks on core 0 |
-| `smoke_x` | 3072 | 5 | 0 | Decode, run the pairing state machine, publish `SAMPLE` |
-| `cook_store` | 4096 | 4 | 0 | Drain its queue → append to LittleFS, manage sessions and retention |
-| `app_ui` | 4096 | 3 | 0 | 4 Hz button sampling, 1 Hz OLED render (paused when the display sleeps) |
-| `app_alarm` | 3072 | 4 | 0 | Evaluate rules on each sample and on a 10 s tick |
-| `app_net` | 3072 | 4 | 0 | Wi-Fi state machine, STA retry backoff, mDNS lifecycle |
-| `app_power` | 2560 | 2 | 0 | Battery ADC every 30 s, SoC filter, saver-profile transitions |
-| `ws_push` | 3072 | 4 | 0 | Serialize and fan out frames to WebSocket clients |
-| *NimBLE host* | (NimBLE) | 5 | 0 | Created by the stack |
-| *httpd* | (IDF) | 5 | 0 | Created by `esp_http_server` |
-| *event loop* | 4096 | 5 | 0 | `esp_event` default loop |
+| Task          | Stack    | Prio | Core | Role                                                                                                         |
+| ------------- | -------- | ---- | ---- | ------------------------------------------------------------------------------------------------------------ |
+| `lora_rx`     | 4096     | 6    | 1    | Poll the SX1262, hand payloads to `smoke_x_ctrl`. Pinned to core 1, away from the Wi-Fi/BLE stacks on core 0 |
+| `smoke_x`     | 3072     | 5    | 0    | Decode, run the pairing state machine, publish `SAMPLE`                                                      |
+| `cook_store`  | 4096     | 4    | 0    | Drain its queue → append to LittleFS, manage sessions and retention                                          |
+| `app_ui`      | 4096     | 3    | 0    | 4 Hz button sampling, 1 Hz OLED render (paused when the display sleeps)                                      |
+| `app_alarm`   | 3072     | 4    | 0    | Evaluate rules on each sample and on a 10 s tick                                                             |
+| `app_net`     | 3072     | 4    | 0    | Wi-Fi state machine, STA retry backoff, mDNS lifecycle                                                       |
+| `app_power`   | 2560     | 2    | 0    | Battery ADC every 30 s, SoC filter, saver-profile transitions                                                |
+| `ws_push`     | 3072     | 4    | 0    | Serialize and fan out frames to WebSocket clients                                                            |
+| _NimBLE host_ | (NimBLE) | 5    | 0    | Created by the stack                                                                                         |
+| _httpd_       | (IDF)    | 5    | 0    | Created by `esp_http_server`                                                                                 |
+| _event loop_  | 4096     | 5    | 0    | `esp_event` default loop                                                                                     |
 
 `lora_rx` is pinned to **core 1** and everything else to core 0. The vendored driver polls with
 `vTaskDelay(1)` inside a semaphore (see [01 §1.5](01-hardware.md)); keeping it off the core that
@@ -150,7 +150,7 @@ failure-tolerant and logged; only NVS and the event loop are fatal.
 ### 3.4.1 Boot-mode selection — and why "hold PRG at reset" cannot work
 
 **GPIO0 is the ESP32-S3 boot strapping pin.** Holding PRG through a reset pulls it LOW, which puts
-the ROM into *download boot* — our firmware never runs. The obvious design ("hold the button while
+the ROM into _download boot_ — our firmware never runs. The obvious design ("hold the button while
 powering on to force AP mode") is therefore not implementable on this board.
 
 Two mechanisms replace it:
@@ -158,7 +158,7 @@ Two mechanisms replace it:
 **Primary — the post-boot recovery window (step 7).** After the OLED comes up, the splash screen
 shows a 3-second countdown and the prompt `hold PRG for AP mode`. Holding PRG through the countdown
 forces AP mode for this boot only (config is untouched, so a normal reboot returns to STA). This is
-*more* discoverable than the reset-hold idiom because the screen tells you it's happening.
+_more_ discoverable than the reset-hold idiom because the screen tells you it's happening.
 
 **Backup — double-reset detection.** A token in RTC SRAM (which survives a reset but not a power
 cycle) plus a persisted timestamp: on boot, if the token is present and less than 10 s old, treat it
@@ -212,15 +212,15 @@ lives in. Pulled in via the component manager (`joltwallet/littlefs`).
 `app_config` owns all persistent settings behind a typed API with change notifications, so no other
 component opens NVS directly (the reference scatters `nvs_open` across four files).
 
-| Namespace | Keys | Notes |
-| --- | --- | --- |
-| `sx_pair` | `device_id`, `frequency`, `num_probes` | Blob, format-compatible with the reference so an upgrade keeps its pairing |
-| `net` | `mode`, `sta_ssid`, `sta_psk`, `sta_auth`, `sta_user`, `ap_ssid`, `ap_psk`, `hostname` | AP PSK is generated at first boot, not hard-coded |
-| `device` | `units`, `display_timeout_s`, `led_enabled`, `buzzer_enabled`, `battery_saver`, `vbat_cal_num/den`, `api_token`, `retention_max_sessions`, `retention_min_free_pct` | |
-| `probes` | `p{1..4}_name`, `p{1..4}_role`, `p{1..4}_target` | `role` ∈ {`pit`, `food`, `ambient`, `unused`} — the Smoke X does not distinguish; the user does |
-| `session` | `next_id`, `active_id` | `active_id` lets a session resume across an unexpected reboot |
-| `time` | `last_epoch_ms`, `tz_offset_min`, `source` | Persisted ~every 10 min; acts as a monotonic floor after a reboot |
-| `alarms` | rule enable/threshold set | See [09](09-alarms-and-insights.md) |
+| Namespace | Keys                                                                                                                                                                | Notes                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `sx_pair` | `device_id`, `frequency`, `num_probes`                                                                                                                              | Blob, format-compatible with the reference so an upgrade keeps its pairing                      |
+| `net`     | `mode`, `sta_ssid`, `sta_psk`, `sta_auth`, `sta_user`, `ap_ssid`, `ap_psk`, `hostname`                                                                              | AP PSK is generated at first boot, not hard-coded                                               |
+| `device`  | `units`, `display_timeout_s`, `led_enabled`, `buzzer_enabled`, `battery_saver`, `vbat_cal_num/den`, `api_token`, `retention_max_sessions`, `retention_min_free_pct` |                                                                                                 |
+| `probes`  | `p{1..4}_name`, `p{1..4}_role`, `p{1..4}_target`                                                                                                                    | `role` ∈ {`pit`, `food`, `ambient`, `unused`} — the Smoke X does not distinguish; the user does |
+| `session` | `next_id`, `active_id`                                                                                                                                              | `active_id` lets a session resume across an unexpected reboot                                   |
+| `time`    | `last_epoch_ms`, `tz_offset_min`, `source`                                                                                                                          | Persisted ~every 10 min; acts as a monotonic floor after a reboot                               |
+| `alarms`  | rule enable/threshold set                                                                                                                                           | See [09](09-alarms-and-insights.md)                                                             |
 
 Every writable key is exposed through `GET|POST /api/v1/config/*` and, for the network subset, the
 BLE control characteristic. A single `config_version` key drives forward migrations.
@@ -237,8 +237,8 @@ alarm-info event so the app can surface "the bridge restarted unexpectedly", and
 `GET /api/v1/debug/coredump`. Crucially: **an active session survives a panic** — `session.active_id`
 is in NVS and `cook_store` reopens and appends to the existing file (§4.5).
 
-**OTA rollback.** `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`. A freshly flashed image is *pending
-verify*; step 16 only calls `esp_ota_mark_app_valid_cancel_rollback()` after a health gate passes:
+**OTA rollback.** `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`. A freshly flashed image is _pending
+verify_; step 16 only calls `esp_ota_mark_app_valid_cancel_rollback()` after a health gate passes:
 
 - LittleFS mounted, both partitions
 - Wi-Fi reached its configured state (AP started, or STA got an IP)

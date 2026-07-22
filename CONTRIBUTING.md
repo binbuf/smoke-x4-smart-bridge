@@ -35,7 +35,7 @@ carried file (decision D9).
    diff; `dart run protogen --check` does the same locally.
 4. If the wire shape changed, regenerate the golden vectors
    (`dart run protogen:gen_record_fixtures`) and update both test suites' expectations — the C
-   and Dart tests parse the *same* fixture files by design, so drift shows up as a red test.
+   and Dart tests parse the _same_ fixture files by design, so drift shows up as a red test.
 
 HTTP contract changes go through `protocol/openapi.yaml` + the fixtures in
 `protocol/fixtures/http/` (the sim and the app tests both read them). BLE changes go through
@@ -43,14 +43,14 @@ HTTP contract changes go through `protocol/openapi.yaml` + the fixtures in
 
 ## Running the suites
 
-| Suite | Command | Needs |
-| --- | --- | --- |
-| C host tests | `make test-host` | gcc, cmake, ninja — no ESP-IDF |
-| Record parity + contract lint | `dart test` in `tools/bridge_protocol`, `tools/protogen` | Dart |
-| cookgen / sim | `dart test` in `tools/cookgen`, `tools/sim` | Dart |
-| App | `cd app && flutter analyze && flutter test` | Flutter |
-| Generated-code freshness | `dart run protogen --check` | Dart |
-| Firmware build | `make build` | ESP-IDF v5.4 |
+| Suite                         | Command                                                  | Needs                          |
+| ----------------------------- | -------------------------------------------------------- | ------------------------------ |
+| C host tests                  | `make test-host`                                         | gcc, cmake, ninja — no ESP-IDF |
+| Record parity + contract lint | `dart test` in `tools/bridge_protocol`, `tools/protogen` | Dart                           |
+| cookgen / sim                 | `dart test` in `tools/cookgen`, `tools/sim`              | Dart                           |
+| App                           | `cd app && flutter analyze && flutter test`              | Flutter                        |
+| Generated-code freshness      | `dart run protogen --check`                              | Dart                           |
+| Firmware build                | `make build`                                             | ESP-IDF v5.4                   |
 
 ## Hardware discipline
 

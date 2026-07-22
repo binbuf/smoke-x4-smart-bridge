@@ -211,7 +211,7 @@ return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.con
 
 class _BridgeCapabilities implements BridgeCapabilities {
   const _BridgeCapabilities({this.liveState = true, this.fullHistory = false, this.historyPreview = false, this.config = false, this.ota = false});
-  
+
 
 @override@JsonKey() final  bool liveState;
 @override@JsonKey() final  bool fullHistory;
@@ -463,7 +463,7 @@ return power(_that.socPct,_that.charging,_that.saver);case _:
 
 class BridgeSampleEvent implements BridgeEvent {
   const BridgeSampleEvent(this.sample);
-  
+
 
  final  Sample sample;
 
@@ -526,7 +526,7 @@ as Sample,
 @override
 @pragma('vm:prefer-inline')
 $SampleCopyWith<$Res> get sample {
-  
+
   return $SampleCopyWith<$Res>(_self.sample, (value) {
     return _then(_self.copyWith(sample: value));
   });
@@ -538,7 +538,7 @@ $SampleCopyWith<$Res> get sample {
 
 class BridgeAlarmEvent implements BridgeEvent {
   const BridgeAlarmEvent({required this.alarm, required this.action});
-  
+
 
  final  Alarm alarm;
  final  AlarmAction action;
@@ -603,7 +603,7 @@ as AlarmAction,
 @override
 @pragma('vm:prefer-inline')
 $AlarmCopyWith<$Res> get alarm {
-  
+
   return $AlarmCopyWith<$Res>(_self.alarm, (value) {
     return _then(_self.copyWith(alarm: value));
   });
@@ -615,7 +615,7 @@ $AlarmCopyWith<$Res> get alarm {
 
 class BridgeSessionEvent implements BridgeEvent {
   const BridgeSessionEvent({required this.action, required this.sessionId, this.name});
-  
+
 
  final  SessionAction action;
  final  int sessionId;
@@ -685,7 +685,7 @@ as String?,
 
 class BridgeNetEvent implements BridgeEvent {
   const BridgeNetEvent({required this.mode, required this.state, this.ip});
-  
+
 
  final  String mode;
  final  String state;
@@ -755,7 +755,7 @@ as String?,
 
 class BridgePowerEvent implements BridgeEvent {
   const BridgePowerEvent({required this.socPct, required this.charging, this.saver = false});
-  
+
 
  final  int socPct;
  final  bool charging;
@@ -1015,7 +1015,7 @@ return ackAlarm(_that.alarmId);case _:
 
 class StartSessionCommand implements ControlCommand {
   const StartSessionCommand();
-  
+
 
 
 
@@ -1047,7 +1047,7 @@ String toString() {
 
 class StopSessionCommand implements ControlCommand {
   const StopSessionCommand();
-  
+
 
 
 
@@ -1079,7 +1079,7 @@ String toString() {
 
 class MarkCommand implements ControlCommand {
   const MarkCommand({required this.kind, this.probe = 0, this.text = ''});
-  
+
 
  final  MarkKind kind;
 @JsonKey() final  int probe;
@@ -1149,7 +1149,7 @@ as String,
 
 class PairCommand implements ControlCommand {
   const PairCommand();
-  
+
 
 
 
@@ -1181,7 +1181,7 @@ String toString() {
 
 class UnpairCommand implements ControlCommand {
   const UnpairCommand();
-  
+
 
 
 
@@ -1213,7 +1213,7 @@ String toString() {
 
 class SetTimeCommand implements ControlCommand {
   const SetTimeCommand({required this.unixMs});
-  
+
 
  final  int unixMs;
 
@@ -1279,7 +1279,7 @@ as int,
 
 class AckAlarmCommand implements ControlCommand {
   const AckAlarmCommand({required this.alarmId});
-  
+
 
  final  int alarmId;
 
@@ -1537,7 +1537,7 @@ return $default(_that.displayUnits,_that.probes);case _:
 
 class _BridgeConfig implements BridgeConfig {
   const _BridgeConfig({this.displayUnits, final  List<Probe>? probes}): _probes = probes;
-  
+
 
 @override final  String? displayUnits;
  final  List<Probe>? _probes;

@@ -1,5 +1,5 @@
-/* app_power.h — declared in the design 03 §3.1 component map; implemented in M1+.
- * The M0 skeleton keeps the component compiled and linked so the build
+/* app_power.h — declared in the design 03 §3.1 component map; implemented in
+ * M1+. The M0 skeleton keeps the component compiled and linked so the build
  * shape is real from the first commit. */
 #ifndef APP_POWER_H
 #define APP_POWER_H

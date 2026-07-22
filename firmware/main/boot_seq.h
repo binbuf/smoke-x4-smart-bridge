@@ -31,7 +31,7 @@ typedef enum {
     BRIDGE_BOOT_RECOVERY_WINDOW = 7, /* 3 s PRG hold — stub until F11 */
     BRIDGE_BOOT_COOK_STORE = 8,
     BRIDGE_BOOT_SMOKE_X_INIT = 9,
-    BRIDGE_BOOT_SMOKE_X_START = 10,  /* LoRa RX begins — before net/BLE */
+    BRIDGE_BOOT_SMOKE_X_START = 10, /* LoRa RX begins — before net/BLE */
     BRIDGE_BOOT_TIME = 11,
     BRIDGE_BOOT_NET = 12,
     BRIDGE_BOOT_API = 13,

@@ -3,19 +3,19 @@
 Execution plan derived from [`docs/design`](../design/README.md), following the conventions in
 [12 — Task Planning Notes](../design/12-task-planning-notes.md).
 
-| Doc | Contents |
-| --- | --- |
-| [M0 — Foundations](M0-foundations.md) | 52 tasks. Repo, protocol contract, simulator, firmware + app skeletons, the bench sitting |
+| Doc                                                   | Contents                                                                                      |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [M0 — Foundations](M0-foundations.md)                 | 52 tasks. Repo, protocol contract, simulator, firmware + app skeletons, the bench sitting     |
 | [M1 — Receive and Persist](M1-receive-and-persist.md) | 41 tasks. LoRa, parser, pairing, novelty log, `cook_store`, time, replay tooling, drift cache |
-| [M2–M6 — Outline](M2-M6-outline.md) | Epic-level placeholders. **Deliberately not detailed** — see §12.1 |
-| [Standing work](standing-work.md) | The V2 capture campaign and other recurring obligations |
+| [M2–M6 — Outline](M2-M6-outline.md)                   | Epic-level placeholders. **Deliberately not detailed** — see §12.1                            |
+| [Standing work](standing-work.md)                     | The V2 capture campaign and other recurring obligations                                       |
 
 ## Why M2+ is not planned in detail
 
-[§12.1](../design/12-task-planning-notes.md) is explicit: *"Do not try to write the whole backlog at
+[§12.1](../design/12-task-planning-notes.md) is explicit: _"Do not try to write the whole backlog at
 once. M0 and M1 are well understood and can be planned in detail today; M4–M6 depend on facts that
 don't exist yet (real packet formats, measured RAM headroom, how Android behaves on the actual
-phone). Planning them now produces fiction that later gets rewritten."*
+phone). Planning them now produces fiction that later gets rewritten."_
 
 Plan M2 when M1 exits — by then the parser is validated against real captures and the RAM picture is
 no longer a guess.
@@ -24,12 +24,12 @@ no longer a guess.
 
 `<Epic>.<n> <component>: <imperative>` — every task carries four fields:
 
-| Field | Values |
-| --- | --- |
-| `blocked-by` | task ids, or `—` |
-| `verify` | **H** host test · **S** sim/integration · **B** bench, board required · **C** real cook required |
-| `board` | yes / no — the board is a serialized resource ([11 §11.6](../design/11-roadmap-and-risks.md)) |
-| `design` | doc + section, so the implementer doesn't re-derive decisions |
+| Field        | Values                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| `blocked-by` | task ids, or `—`                                                                                 |
+| `verify`     | **H** host test · **S** sim/integration · **B** bench, board required · **C** real cook required |
+| `board`      | yes / no — the board is a serialized resource ([11 §11.6](../design/11-roadmap-and-risks.md))    |
+| `design`     | doc + section, so the implementer doesn't re-derive decisions                                    |
 
 **Definition of done** by tier:
 
@@ -99,22 +99,22 @@ away, and six of the eight open protocol questions close by themselves once it i
 
 ### Sequencing rules honoured here
 
-| Rule | Where it shows up |
-| --- | --- |
-| 1 — T3 before A-track UI | No A9–A12 task exists before M4; A3/A4 target `MockTransport` and the sim |
-| 2 — F4 early in M1 | F4.1–F4.3 sit in Wave 8 alongside F3, not after F5 |
-| 3 — A2 can start day one | A2.1 is in Wave 1 with no `blocked-by` |
-| 4 — F11 before F10 | F11 **splits**: framebuffer + passkey overlay in M3, pages and gestures in M5 (see [M2–M6](M2-M6-outline.md)) |
-| 5 — P1 before F5 and A3 | P1.2/P1.3 gate F5.1 and A3.2 |
-| 6 — V1 before F12 | V1.3 resolves the divider ratio; F12 is M5 |
-| 7 — Batch `board: yes` | All of V1 is one sitting; V2.1 is one cook |
-| 8 — Never OTA the only board un-USB-flashed | Stated in [M2–M6](M2-M6-outline.md) under F14, and in the release checklist |
+| Rule                                        | Where it shows up                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 1 — T3 before A-track UI                    | No A9–A12 task exists before M4; A3/A4 target `MockTransport` and the sim                                     |
+| 2 — F4 early in M1                          | F4.1–F4.3 sit in Wave 8 alongside F3, not after F5                                                            |
+| 3 — A2 can start day one                    | A2.1 is in Wave 1 with no `blocked-by`                                                                        |
+| 4 — F11 before F10                          | F11 **splits**: framebuffer + passkey overlay in M3, pages and gestures in M5 (see [M2–M6](M2-M6-outline.md)) |
+| 5 — P1 before F5 and A3                     | P1.2/P1.3 gate F5.1 and A3.2                                                                                  |
+| 6 — V1 before F12                           | V1.3 resolves the divider ratio; F12 is M5                                                                    |
+| 7 — Batch `board: yes`                      | All of V1 is one sitting; V2.1 is one cook                                                                    |
+| 8 — Never OTA the only board un-USB-flashed | Stated in [M2–M6](M2-M6-outline.md) under F14, and in the release checklist                                   |
 
 ## Milestone exit gates
 
-| | Gate |
-| --- | --- |
-| **M0** | CI green, and `dart run tools/sim --cook fixtures/brisket-18h.smk` serves a fake 18-hour cook over the real API. The Flutter app can now be built against it before any firmware exists |
+|        | Gate                                                                                                                                                                                                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M0** | CI green, and `dart run tools/sim --cook fixtures/brisket-18h.smk` serves a fake 18-hour cook over the real API. The Flutter app can now be built against it before any firmware exists                                                                                      |
 | **M1** | A real Smoke X4 pairs **and the stock ThermoWorks receiver keeps working**; a cook survives a mid-cook power cut and resumes into the same session; real X4 packets are committed to `protocol/fixtures/`; host tests pass against real captures, not just synthetic vectors |
 
 **M1 is the load-bearing milestone and the F track gates on it.** Do not start M2 firmware work until
@@ -123,8 +123,8 @@ has no such gate; it runs against `tools/sim` until M2.
 
 ## Open decisions
 
-| # | Question | Blocks | Needed by |
-| --- | --- | --- | --- |
+| #       | Question                | Blocks                                                      | Needed by |
+| ------- | ----------------------- | ----------------------------------------------------------- | --------- |
 | **Q-F** | Public repo or private? | T5 — whether the browser installer can live on GitHub Pages | before M6 |
 
 Everything else in the decision log is settled. **Do not relitigate D1–D14**

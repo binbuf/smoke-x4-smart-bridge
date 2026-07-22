@@ -28,6 +28,7 @@ repos:
       - id: trailing-whitespace # trims trailing whitespace.
         exclude: ^protocol/gen/|\.g\.dart$
       - id: check-yaml # validates yaml syntax.
+        exclude: ^\.clang-format$ # multi-document YAML (clang's own format)
       - id: check-json # validates json syntax.
 
   - repo: https://github.com/pre-commit/mirrors-prettier
