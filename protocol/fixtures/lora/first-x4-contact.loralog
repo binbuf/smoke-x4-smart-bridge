@@ -1,0 +1,4 @@
+# loralog v1
+# source: C:\Users\dan\.claude\jobs\11ee5c24\tmp\verify-listen.txt → first-x4-contact
+# fields: boot t_ms rssi snr dir class payload
+0 15725 -38 10 rx state26 LMXC[\,30,1,1,0,794,0,160,32,0,782,0,160,32,0,787,0,160,32,0,803,0,160,32,0,0,
