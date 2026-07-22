@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "storage_error",
+    "message": "write to /cooks/27.smk failed",
+    "detail": { "errno": "ENOSPC" }
+  }
+}

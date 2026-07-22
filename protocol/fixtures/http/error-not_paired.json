@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "not_paired",
+    "message": "no base station is paired",
+    "detail": null
+  }
+}

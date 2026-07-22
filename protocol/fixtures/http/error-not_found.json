@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "not_found",
+    "message": "no core dump is stored",
+    "detail": { "path": "/api/v1/debug/coredump" }
+  }
+}

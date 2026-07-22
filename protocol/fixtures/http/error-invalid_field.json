@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "invalid_field",
+    "message": "unknown value for 'agg'",
+    "detail": { "field": "agg", "value": "median", "allowed": ["none", "mean", "minmax"] }
+  }
+}

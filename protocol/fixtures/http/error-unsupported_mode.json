@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "unsupported_mode",
+    "message": "mode 'eth' is not supported",
+    "detail": { "field": "mode", "value": "eth", "allowed": ["ap", "sta"] }
+  }
+}

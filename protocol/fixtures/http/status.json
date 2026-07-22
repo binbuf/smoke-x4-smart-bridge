@@ -1,0 +1,52 @@
+{
+  "device": {
+    "id": "A4F2",
+    "model": "heltec-v3",
+    "fw": "1.0.0",
+    "uptime_s": 51230,
+    "free_heap": 168432,
+    "min_free_heap": 141008,
+    "reset_reason": "poweron",
+    "coredump_available": false
+  },
+  "time": { "unix_ms": 1774094400000, "source": "phone", "tz_offset_min": -300, "valid": true },
+  "net": {
+    "mode": "sta",
+    "state": "up",
+    "ssid": "Backyard",
+    "rssi": -54,
+    "ip": "192.168.1.42",
+    "host": "smokebridge.local",
+    "ap_clients": 0
+  },
+  "ble": { "advertising": true, "connections": 1, "bonded": 2 },
+  "pairing": {
+    "paired": true,
+    "device_id": "|abCDe",
+    "model": "X4",
+    "num_probes": 4,
+    "frequency_hz": 910500000,
+    "last_packet_s_ago": 12,
+    "base_lost": false
+  },
+  "radio": { "rssi": -71, "snr": 9, "packets_ok": 4102, "packets_bad": 3, "id_mismatch": 0 },
+  "storage": {
+    "total_b": 2490368,
+    "used_b": 214016,
+    "free_pct": 91,
+    "sessions": 12,
+    "oldest_session_id": 16
+  },
+  "power": { "mv": 3894, "soc_pct": 71, "charging": true, "saver": false },
+  "session": {
+    "active": true,
+    "id": 27,
+    "name": "Brisket",
+    "started_unix_ms": 1774051200000,
+    "elapsed_s": 43200,
+    "samples": 1440
+  },
+  "alarms": [
+    { "id": 3, "rule": "target_reached", "probe": 1, "since_unix_ms": 1774094100000, "acked": false }
+  ]
+}

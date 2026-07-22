@@ -1,0 +1,10 @@
+{
+  "accepted": true,
+  "applying_in_ms": 500,
+  "expect": {
+    "mode": "ap",
+    "ssid": "SmokeBridge-A4F2",
+    "psk": "Gk7mR2xQpT",
+    "ip": "192.168.4.1"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "invalid_body",
+    "message": "request body is not valid JSON",
+    "detail": { "offset": 17 }
+  }
+}

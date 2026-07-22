@@ -1,0 +1,2421 @@
+# protocol/openapi.yaml — the canonical HTTP + WebSocket contract (06 §6.1–6.3).
+# Hand-written, golden-tested: every request/response shape has a fixture in
+# protocol/fixtures/http/, parsed by both tools/sim and the app's tests (10 §10.2).
+openapi: 3.0.3
+
+info:
+  title: Smoke Bridge Device API
+  version: 1.0.0
+  description: |
+    The bridge's network interface. Identical in AP and STA mode.
+
+    ## Conventions (06 §6.1)
+
+    - Base path `/api/v1`; HTTP/1.1, cleartext, port 80.
+    - Request bodies are `application/json` and limited to **8 KB** (OTA excepted);
+      larger bodies are refused with `413 body_too_large`.
+    - **Every response — success or failure — is JSON** unless a `format` parameter
+      says otherwise (`bin`/`csv`/`ndjson` on history endpoints, the OTA upload, the
+      captive-portal shims, and the static fallback page).
+    - Auth: none by default; optional `Authorization: Bearer <token>` (05 §5.9).
+      When a token is configured, requests without it get `401 unauthorized`.
+    - CORS: `Access-Control-Allow-Origin: *`.
+    - Time fields are Unix milliseconds (`_ms` suffix) or seconds-into-session (`t`),
+      never local time.
+    - Temperatures are **tenths of °F as integers** on the wire (`_f10` suffix),
+      matching the storage format. Clients convert for display. A detached probe's
+      temperature is `null` — never `0`.
+
+    ## Concurrency — hard caps, part of the contract
+
+    - `max_open_sockets = 7` — the total HTTP socket pool.
+    - At most **2 concurrent WebSocket upgrades**. A third upgrade attempt is
+      refused with `503` and error code `busy` (see `GET /api/v1/stream`).
+
+    These limits fall straight out of the RAM budget (01 §1.4) and are stated here
+    rather than discovered as flakiness.
+
+    ## Errors (06 §6.1)
+
+    Every 4xx/5xx body is the envelope `{ "error": { "code", "message", "detail" } }`
+    (schema `ErrorEnvelope`). The full status → code table:
+
+    | Status | Codes |
+    | --- | --- |
+    | 400 | `invalid_body`, `invalid_field`, `unsupported_mode` |
+    | 401 | `unauthorized` |
+    | 404 | `session_not_found`, `not_found` |
+    | 409 | `session_active`, `not_paired`, `busy` |
+    | 413 | `body_too_large` |
+    | 500 | `storage_error`, `internal` |
+    | 503 | `radio_unavailable`, `ota_in_progress`, `busy` (WebSocket cap) |
+
+    ## Streaming discipline
+
+    No handler ever materializes a full response in RAM. History endpoints stream
+    from flash in chunks; clients must not assume a `Content-Length` on streamed
+    responses.
+
+    ## Versioning (06 §6.5)
+
+    The path carries the major version. Additive fields are not breaking; clients
+    must ignore unknown keys.
+  license:
+    name: MIT
+
+servers:
+  - url: http://smokebridge.local
+    description: STA mode (mDNS name)
+  - url: http://192.168.4.1
+    description: AP mode
+
+security:
+  - {}
+  - bearerAuth: []
+
+tags:
+  - name: status
+    description: Snapshot state
+  - name: stream
+    description: WebSocket push
+  - name: sessions
+    description: Cook sessions and their history
+  - name: pairing
+    description: Smoke X base-station pairing
+  - name: config
+    description: Network, device, and alarm configuration
+  - name: system
+    description: Time, radio, OTA
+  - name: debug
+    description: Raw captures and panic dumps
+  - name: portal
+    description: Captive-portal shims and the static fallback page (not under /api/v1)
+
+paths:
+  /api/v1/status:
+    get:
+      tags: [status]
+      operationId: getStatus
+      summary: Everything a dashboard header needs, in one call
+      description: |
+        One round trip to render the entire app chrome. Deliberately chunky — on a
+        30-second-cadence device, chattiness costs more than payload.
+      responses:
+        '200':
+          description: Full device status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/live:
+    get:
+      tags: [status]
+      operationId: getLive
+      summary: Current probe state + the in-RAM recent window
+      parameters:
+        - name: window
+          in: query
+          description: Seconds of recent history to include (the RAM ring).
+          schema:
+            type: integer
+            default: 3600
+            minimum: 0
+            maximum: 7200
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, bin]
+            default: json
+      responses:
+        '200':
+          description: |
+            Live state. A detached probe reports `attached: false` and
+            `temp_f10: null` — never `0`. `recent.series[i]` is `null` for a probe
+            detached for the whole window; individual detached samples are `null`
+            within a series.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Live'
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+                description: |
+                  `format=bin` — the recent window as raw 16-byte sample records
+                  (protocol/records.yaml `sample_rec`).
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/stream:
+    get:
+      tags: [stream]
+      operationId: stream
+      summary: WebSocket upgrade — push
+      description: |
+        **WebSocket upgrade.** This is not a plain GET: the client sends
+        `Connection: Upgrade` / `Upgrade: websocket` and, on success, the server
+        answers `101 Switching Protocols` and speaks JSON text frames.
+
+        **Hard cap, stated in the contract:** the device allows
+        `max_open_sockets = 7` and at most **2 concurrent WebSocket upgrades**.
+        A third concurrent upgrade attempt is refused with **`503`** and error code
+        **`busy`** (`{ "error": { "code": "busy", … } }`) — a hard limit from the
+        RAM budget, not a transient condition to retry aggressively.
+
+        Protocol (06 §6.3):
+        - The server sends `hello` immediately on connect, then the current
+          `sample`, so the client has state without a separate GET.
+        - Server → client frames: `sample`, `alarm`, `session`, `net`, `pairing`,
+          `power`, `ota`, `hello` — see the `Ws*Frame` component schemas and the
+          `WsServerFrame` union.
+        - Client → server frames: `subscribe`, `ping`, `ack_alarm` — see
+          `WsClientFrame`.
+        - Keepalive: server `ping` every 30 s; a client that misses two is dropped.
+        - While a WebSocket client is connected in STA mode, Wi-Fi power save drops
+          to `WIFI_PS_NONE`, returning to `MIN_MODEM` 60 s after the last client
+          leaves.
+      responses:
+        '101':
+          description: |
+            Switching Protocols — the connection is now a WebSocket carrying the
+            JSON text frames described by `WsServerFrame` / `WsClientFrame`.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: |
+            `busy` — 2 WebSocket clients are already connected and this upgrade is
+            the third. The cap is 2 concurrent WebSocket upgrades, hard.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                error:
+                  code: busy
+                  message: 2 WebSocket clients already connected
+                  detail: { max_ws_clients: 2 }
+
+  /api/v1/sessions:
+    get:
+      tags: [sessions]
+      operationId: listSessions
+      summary: List cook sessions
+      responses:
+        '200':
+          description: Session summaries, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [sessions]
+      operationId: startSession
+      summary: Start a session
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionCreate'
+      responses:
+        '201':
+          description: The new session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/sessions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [sessions]
+      operationId: getSession
+      summary: Session header + stats
+      responses:
+        '200':
+          description: Session detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [sessions]
+      operationId: patchSession
+      summary: Rename, set probe names/roles/targets, pin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionPatch'
+      responses:
+        '200':
+          description: The updated session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [sessions]
+      operationId: deleteSession
+      summary: Delete (refuses if active)
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/sessions/{id}/stop:
+    post:
+      tags: [sessions]
+      operationId: stopSession
+      summary: End the active session
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: The session, now closed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/sessions/{id}/samples:
+    get:
+      tags: [sessions]
+      operationId: getSamples
+      summary: Streamed history — the workhorse
+      description: |
+        Streams the session's samples from flash. The response content type follows
+        the `format` parameter: `bin` → `application/octet-stream` (raw 16-byte
+        records, 04 §4.2), `json` → `application/json`, `ndjson` →
+        `application/x-ndjson`, `csv` → `text/csv`.
+
+        `gaps` is computed from `t` deltas > 45 s and rendered by clients as a
+        break in the line. CSV emits detached probes as **empty fields, not `0`**.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: from
+          in: query
+          description: Start, seconds into the session (inclusive). Default 0.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: to
+          in: query
+          description: End, seconds into the session (exclusive). Default whole session.
+          schema:
+            type: integer
+            minimum: 0
+        - name: stride
+          in: query
+          description: Take every Nth record.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: bucket
+          in: query
+          description: Bucket width in seconds. Requires `agg` other than `none` to aggregate.
+          schema:
+            type: integer
+            minimum: 1
+        - name: agg
+          in: query
+          description: |
+            Aggregation per bucket: `none` (raw records), `mean`, or `minmax`
+            (per-bucket min/mean/max, so a lid-open excursion survives decimation).
+          schema:
+            type: string
+            enum: [none, mean, minmax]
+            default: none
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [bin, json, ndjson, csv]
+            default: bin
+        - name: probes
+          in: query
+          description: Comma-separated probe subset, e.g. `1,2`. Default all.
+          schema:
+            type: string
+            pattern: '^[1-4](,[1-4])*$'
+            example: '1,2'
+      responses:
+        '200':
+          description: The sample stream, in the format selected by `format`.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+                description: |
+                  `format=bin` — raw 16-byte `sample_rec` records
+                  (protocol/records.yaml), optionally strided. 24 h of
+                  full-fidelity data is ~46 KB.
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamplesJson'
+            application/x-ndjson:
+              schema:
+                type: string
+                description: |
+                  `format=ndjson` — one JSON object per line:
+                  `{ "t": 43200, "temps_f10": [2431, 1632, null, null],
+                  "billows": false, "rssi": -71 }`. Detached probes are `null`.
+            text/csv:
+              schema:
+                type: string
+                description: |
+                  `format=csv` — header
+                  `t_s,iso8601,p1_f,p2_f,p3_f,p4_f,billows,rssi`; detached probes
+                  are empty fields, not `0`. `iso8601` is empty when the session
+                  clock was never valid.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/sessions/{id}/marks:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [sessions]
+      operationId: getMarks
+      summary: Marks
+      responses:
+        '200':
+          description: The session's marks, in time order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [sessions]
+      operationId: addMark
+      summary: Add a mark
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkCreate'
+      responses:
+        '201':
+          description: The stored mark.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mark'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/pairing:
+    get:
+      tags: [pairing]
+      operationId: getPairing
+      summary: Pairing state
+      responses:
+        '200':
+          description: Current pairing state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/pairing/sync:
+    post:
+      tags: [pairing]
+      operationId: pairingSync
+      summary: Enter pairing mode
+      description: |
+        Puts the bridge into sync listen mode. Put the base station into sync mode;
+        progress is pushed as `pairing` WebSocket frames.
+      responses:
+        '200':
+          description: Sync mode entered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/pairing/unpair:
+    post:
+      tags: [pairing]
+      operationId: pairingUnpair
+      summary: Unpair
+      responses:
+        '200':
+          description: Unpaired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/config/wifi:
+    get:
+      tags: [config]
+      operationId: getWifiConfig
+      summary: Network mode + credentials
+      description: |
+        **Never returns a stored STA password** — `sta.psk` is absent from every
+        GET response. The **AP PSK is returned**: it is not a secret from anyone
+        already on the AP, and the user needs to read it back.
+      responses:
+        '200':
+          description: Current network configuration (STA password omitted; AP PSK included).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WifiSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [config]
+      operationId: setWifiConfig
+      summary: Set network mode + credentials
+      description: |
+        Deferred reconfiguration: the device responds **first** with
+        `{ accepted, applying_in_ms, expect }`, then defers ~500 ms so the reply
+        flushes before the interface is torn down. `expect` tells the client where
+        to find the device afterwards — the STA shape carries `mode` + `host`; the
+        AP shape carries the generated credentials (`ssid`, `psk`, `ip`) so the
+        client can display them.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WifiConfigSet'
+            example:
+              mode: sta
+              auth: wpa2_psk
+              ssid: Backyard
+              psk: 'correct horse battery staple'
+              username: null
+      responses:
+        '200':
+          description: Accepted; the device reconfigures after `applying_in_ms`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WifiAccept'
+              examples:
+                sta:
+                  summary: Switching to STA
+                  value:
+                    accepted: true
+                    applying_in_ms: 500
+                    expect: { mode: sta, host: smokebridge.local }
+                ap:
+                  summary: Switching to AP — generated credentials returned
+                  value:
+                    accepted: true
+                    applying_in_ms: 500
+                    expect:
+                      mode: ap
+                      ssid: SmokeBridge-A4F2
+                      psk: Gk7mR2xQpT
+                      ip: 192.168.4.1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/config/device:
+    get:
+      tags: [config]
+      operationId: getDeviceConfig
+      summary: Units, display, retention, probes, calibration
+      responses:
+        '200':
+          description: Current device configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [config]
+      operationId: setDeviceConfig
+      summary: Set device configuration
+      description: |
+        Partial updates are allowed — omitted keys keep their value.
+        `vbat_actual_mv` is the one-point battery calibration (01 §1.3): send a DMM
+        reading and the firmware solves for the divider ratio and persists it; it
+        is write-only and never appears in GET responses.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceConfig'
+      responses:
+        '200':
+          description: The applied configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/config/alarms:
+    get:
+      tags: [config]
+      operationId: getAlarmConfig
+      summary: Alarm rules
+      responses:
+        '200':
+          description: Configured alarm rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlarmConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [config]
+      operationId: setAlarmConfig
+      summary: Set alarm rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmConfig'
+      responses:
+        '200':
+          description: The applied rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlarmConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/time:
+    post:
+      tags: [system]
+      operationId: setTime
+      summary: Set the clock
+      description: |
+        Sets the device clock (typically from the phone). Open sessions started
+        without a valid clock are back-patched (04 §4.4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimeSet'
+      responses:
+        '200':
+          description: The device's time state after the set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeInfo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/radio:
+    get:
+      tags: [system]
+      operationId: getRadio
+      summary: LoRa parameters + link stats
+      responses:
+        '200':
+          description: Radio parameters and link statistics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RadioInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    post:
+      tags: [system]
+      operationId: setRadio
+      summary: Set LoRa parameters (advanced)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RadioSet'
+      responses:
+        '200':
+          description: The applied parameters + current stats.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RadioInfo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/ota:
+    post:
+      tags: [system]
+      operationId: uploadOta
+      summary: Upload firmware
+      description: |
+        `Content-Type: application/octet-stream`, the raw `.bin` (the 8 KB body cap
+        does not apply). Streams into the inactive OTA slot, verifies the image
+        header and SHA-256, sets the boot partition, replies, and reboots. Progress
+        is pushed as `ota` WebSocket frames. The new image is *pending verify*
+        until the health gate (03 §3.7) passes; otherwise the next reset rolls
+        back.
+
+        Refused with `409 session_active` while a cook session is active unless
+        `?force=1`. A concurrent upload is refused with `503 ota_in_progress`.
+      parameters:
+        - name: force
+          in: query
+          description: Set to `1` to allow OTA while a session is active.
+          schema:
+            type: integer
+            enum: [0, 1]
+            default: 0
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Image accepted and verified; the device reboots after replying.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtaAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/debug/packets:
+    get:
+      tags: [debug]
+      operationId: getDebugPackets
+      summary: Last N raw LoRa payloads
+      description: RAM ring of the most recent raw payloads (10 §10.4). Free to read.
+      parameters:
+        - name: n
+          in: query
+          description: How many of the most recent payloads to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 64
+            default: 64
+      responses:
+        '200':
+          description: The most recent raw payloads, newest last.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebugPackets'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/debug/coredump:
+    get:
+      tags: [debug]
+      operationId: getCoredump
+      summary: Stored panic dump, if any
+      responses:
+        '200':
+          description: The stored core dump, raw.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Outside /api/v1: captive-portal shims (05 §5.8.1) and the static fallback ──
+
+  /:
+    get:
+      tags: [portal]
+      operationId: getRoot
+      summary: Static fallback web UI — post-MVP (06 §6.4)
+      description: |
+        The `www` partition is reserved and left empty (D13). Until a web UI
+        exists, `/` — and every unmatched GET path — serves a small built-in page
+        pointing at the app. With the captive-portal flag enabled, probe URLs 302
+        here instead of answering success.
+      responses:
+        '200':
+          description: The built-in stub page.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /generate_204:
+    get:
+      tags: [portal]
+      operationId: generate204
+      summary: Android connectivity probe shim (AP mode)
+      description: |
+        Answering `204` makes Android consider the AP validated, which keeps the
+        default route on Wi-Fi and suppresses the "sign in to network" nag
+        (05 §5.8.1).
+      responses:
+        '204':
+          description: No Content.
+
+  /gen_204:
+    get:
+      tags: [portal]
+      operationId: gen204
+      summary: Android connectivity probe shim, alternate path (AP mode)
+      responses:
+        '204':
+          description: No Content.
+
+  /hotspot-detect.html:
+    get:
+      tags: [portal]
+      operationId: hotspotDetect
+      summary: Apple captive-portal probe shim (AP mode)
+      responses:
+        '200':
+          description: Apple's success page.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: '<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>'
+
+  /library/test/success.html:
+    get:
+      tags: [portal]
+      operationId: librarySuccess
+      summary: Apple captive-portal probe shim, alternate path (AP mode)
+      responses:
+        '200':
+          description: Apple's success page.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: '<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>'
+
+  /ncsi.txt:
+    get:
+      tags: [portal]
+      operationId: ncsi
+      summary: Windows NCSI probe shim (AP mode)
+      responses:
+        '200':
+          description: NCSI body.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Microsoft NCSI
+
+  /connecttest.txt:
+    get:
+      tags: [portal]
+      operationId: connectTest
+      summary: Windows connect-test probe shim (AP mode)
+      responses:
+        '200':
+          description: Connect-test body.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Microsoft Connect Test
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Optional; only enforced when a token is configured (05 §5.9).
+
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: Session id (monotonic, from NVS).
+      schema:
+        type: integer
+        minimum: 0
+
+  responses:
+    BadRequest:
+      description: |
+        Malformed request. `code` ∈ `invalid_body` (unparseable JSON),
+        `invalid_field` (bad value), `unsupported_mode`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: A bearer token is configured and the request lacks a valid one. `code` = `unauthorized`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: '`code` ∈ `session_not_found`, `not_found`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Conflict:
+      description: |
+        The request conflicts with device state. `code` ∈ `session_active`
+        (delete/OTA refused during an active cook), `not_paired`, `busy`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    PayloadTooLarge:
+      description: Request body exceeds 8 KB (OTA excepted). `code` = `body_too_large`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: '`code` ∈ `storage_error`, `internal`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ServiceUnavailable:
+      description: |
+        Temporarily unable. `code` ∈ `radio_unavailable`, `ota_in_progress` —
+        and `busy` on the WebSocket upgrade cap (see `GET /api/v1/stream`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    # ── Error model (06 §6.1) ────────────────────────────────────────────────
+    ErrorCode:
+      type: string
+      description: |
+        Machine-readable error code. Status → code:
+        400 `invalid_body`/`invalid_field`/`unsupported_mode`; 401 `unauthorized`;
+        404 `session_not_found`/`not_found`; 409 `session_active`/`not_paired`/`busy`;
+        413 `body_too_large`; 500 `storage_error`/`internal`;
+        503 `radio_unavailable`/`ota_in_progress` (and `busy` on the WebSocket cap).
+      enum:
+        - invalid_body
+        - invalid_field
+        - unsupported_mode
+        - unauthorized
+        - session_not_found
+        - not_found
+        - session_active
+        - not_paired
+        - busy
+        - body_too_large
+        - storage_error
+        - internal
+        - radio_unavailable
+        - ota_in_progress
+
+    ErrorEnvelope:
+      type: object
+      description: Every 4xx/5xx response body, without exception.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+              description: Human-readable, one line.
+              example: no session 42
+            detail:
+              description: Optional structured context; shape depends on `code`. May be null.
+              nullable: true
+      example:
+        error:
+          code: session_not_found
+          message: no session 42
+          detail: { id: 42 }
+
+    Ok:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    # ── GET /status (06 §6.2) ────────────────────────────────────────────────
+    Status:
+      type: object
+      description: One call, the whole dashboard header.
+      required: [device, time, net, ble, pairing, radio, storage, power, session, alarms]
+      properties:
+        device:
+          $ref: '#/components/schemas/DeviceInfo'
+        time:
+          $ref: '#/components/schemas/TimeInfo'
+        net:
+          $ref: '#/components/schemas/NetInfo'
+        ble:
+          $ref: '#/components/schemas/BleInfo'
+        pairing:
+          $ref: '#/components/schemas/PairingInfo'
+        radio:
+          $ref: '#/components/schemas/RadioStats'
+        storage:
+          $ref: '#/components/schemas/StorageInfo'
+        power:
+          $ref: '#/components/schemas/PowerInfo'
+        session:
+          $ref: '#/components/schemas/SessionInfo'
+        alarms:
+          type: array
+          description: Currently active alarms; empty when none.
+          items:
+            $ref: '#/components/schemas/ActiveAlarm'
+
+    DeviceInfo:
+      type: object
+      required: [id, model, fw, uptime_s, free_heap, min_free_heap, reset_reason, coredump_available]
+      properties:
+        id:
+          type: string
+          description: Short unique device id (from the MAC).
+          example: A4F2
+        model:
+          type: string
+          example: heltec-v3
+        fw:
+          type: string
+          description: Firmware semver.
+          example: 1.0.0
+        uptime_s:
+          type: integer
+          example: 51230
+        free_heap:
+          type: integer
+          description: Current free heap, bytes.
+          example: 168432
+        min_free_heap:
+          type: integer
+          description: Low-water mark since boot, bytes.
+          example: 141008
+        reset_reason:
+          type: string
+          example: poweron
+        coredump_available:
+          type: boolean
+          description: True when `GET /api/v1/debug/coredump` has something to serve.
+          example: false
+
+    TimeInfo:
+      type: object
+      required: [unix_ms, source, tz_offset_min, valid]
+      properties:
+        unix_ms:
+          type: integer
+          format: int64
+          description: 0 until the clock is known.
+          example: 1774094400000
+        source:
+          type: string
+          enum: [none, phone, ntp, manual]
+          example: phone
+        tz_offset_min:
+          type: integer
+          example: -300
+        valid:
+          type: boolean
+          example: true
+
+    NetInfo:
+      type: object
+      required: [mode, state]
+      properties:
+        mode:
+          type: string
+          enum: [off, ap, sta]
+          example: sta
+        state:
+          type: string
+          enum: [idle, connecting, up, failed]
+          example: up
+        ssid:
+          type: string
+          example: Backyard
+        rssi:
+          type: integer
+          description: Wi-Fi RSSI, dBm (STA mode).
+          example: -54
+        ip:
+          type: string
+          example: 192.168.1.42
+        host:
+          type: string
+          example: smokebridge.local
+        ap_clients:
+          type: integer
+          description: Stations joined to our AP (AP mode).
+          example: 0
+
+    BleInfo:
+      type: object
+      required: [advertising, connections, bonded]
+      properties:
+        advertising:
+          type: boolean
+          example: true
+        connections:
+          type: integer
+          example: 1
+        bonded:
+          type: integer
+          description: Bonded peers stored.
+          example: 2
+
+    PairingInfo:
+      type: object
+      required: [paired]
+      properties:
+        paired:
+          type: boolean
+          example: true
+        device_id:
+          type: string
+          nullable: true
+          description: The paired base station's id; null when unpaired.
+          example: '|abCDe'
+        model:
+          type: string
+          nullable: true
+          enum: [X2, X4, null]
+          example: X4
+        num_probes:
+          type: integer
+          enum: [2, 4]
+          example: 4
+        frequency_hz:
+          type: integer
+          example: 910500000
+        last_packet_s_ago:
+          type: integer
+          nullable: true
+          description: Null before the first packet.
+          example: 12
+        base_lost:
+          type: boolean
+          description: True when no packet has arrived for the watchdog window.
+          example: false
+
+    RadioStats:
+      type: object
+      required: [rssi, snr, packets_ok, packets_bad, id_mismatch]
+      properties:
+        rssi:
+          type: integer
+          description: dBm of the last received packet.
+          example: -71
+        snr:
+          type: integer
+          description: dB of the last received packet.
+          example: 9
+        packets_ok:
+          type: integer
+          example: 4102
+        packets_bad:
+          type: integer
+          example: 3
+        id_mismatch:
+          type: integer
+          description: Valid packets addressed to a different base station.
+          example: 0
+
+    StorageInfo:
+      type: object
+      required: [total_b, used_b, free_pct, sessions]
+      properties:
+        total_b:
+          type: integer
+          example: 2490368
+        used_b:
+          type: integer
+          example: 214016
+        free_pct:
+          type: integer
+          example: 91
+        sessions:
+          type: integer
+          description: Stored session count.
+          example: 12
+        oldest_session_id:
+          type: integer
+          nullable: true
+          description: Null when no sessions are stored.
+          example: 16
+
+    PowerInfo:
+      type: object
+      required: [mv, soc_pct, charging, saver]
+      properties:
+        mv:
+          type: integer
+          description: Battery voltage, millivolts.
+          example: 3894
+        soc_pct:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 71
+        charging:
+          type: boolean
+          example: true
+        saver:
+          type: boolean
+          description: Battery-saver currently engaged.
+          example: false
+
+    SessionInfo:
+      type: object
+      description: "The active session, or `{ \"active\": false }`."
+      required: [active]
+      properties:
+        active:
+          type: boolean
+          example: true
+        id:
+          type: integer
+          example: 27
+        name:
+          type: string
+          example: Brisket
+        started_unix_ms:
+          type: integer
+          format: int64
+          description: 0 until the clock is known (back-patched, 04 §4.4).
+          example: 1774051200000
+        elapsed_s:
+          type: integer
+          example: 43200
+        samples:
+          type: integer
+          example: 1440
+
+    ActiveAlarm:
+      type: object
+      required: [id, rule, probe, since_unix_ms, acked]
+      properties:
+        id:
+          type: integer
+          example: 3
+        rule:
+          type: string
+          description: Rule identifier, e.g. `target_reached`, `band_low`, `band_high`, `pit_crash`, `base_lost`.
+          example: target_reached
+        probe:
+          type: integer
+          description: 0 = whole cook, 1..4 = a specific probe.
+          example: 1
+        since_unix_ms:
+          type: integer
+          format: int64
+          example: 1774094100000
+        acked:
+          type: boolean
+          example: false
+
+    # ── GET /live (06 §6.2) ──────────────────────────────────────────────────
+    Live:
+      type: object
+      required: [t, unix_ms, units_source, billows, probes, recent]
+      properties:
+        t:
+          type: integer
+          description: Seconds into the active session; 0 when none.
+          example: 43200
+        unix_ms:
+          type: integer
+          format: int64
+          example: 1774094400000
+        units_source:
+          type: string
+          description: Units the base station is transmitting in. Wire temps stay canonical tenths-°F either way.
+          enum: [F, C]
+          example: F
+        billows:
+          $ref: '#/components/schemas/Billows'
+        probes:
+          type: array
+          maxItems: 4
+          description: One entry per probe channel, in probe order.
+          items:
+            $ref: '#/components/schemas/LiveProbe'
+        recent:
+          $ref: '#/components/schemas/RecentWindow'
+
+    Billows:
+      type: object
+      description: Recorded because decoding it is free; per D11 the v1 app ignores it.
+      required: [attached]
+      properties:
+        attached:
+          type: boolean
+          example: true
+        target_f10:
+          type: integer
+          nullable: true
+          example: 2250
+
+    LiveProbe:
+      type: object
+      description: |
+        A probe channel. `attached` is always present. A detached probe's
+        `temp_f10` is **`null` — never `0`, and never an optional field with a
+        default**; name/role/alarm fields may be omitted for channels that have
+        never been configured.
+      required: [n, attached]
+      properties:
+        n:
+          type: integer
+          minimum: 1
+          maximum: 4
+          example: 1
+        name:
+          type: string
+          example: Pit
+        role:
+          type: string
+          enum: [pit, food, ambient]
+          example: pit
+        attached:
+          type: boolean
+          description: Physical probe presence. Boolean, always present.
+          example: true
+        temp_f10:
+          type: integer
+          nullable: true
+          description: |
+            Tenths of °F. **`null` when the probe is detached or the reading is
+            invalid.** Clients must treat null as "no reading", never as 0.
+          example: 2431
+        alarm_enabled:
+          type: boolean
+          example: true
+        min_f10:
+          type: integer
+          description: Alarm band low edge, tenths °F.
+          example: 2000
+        max_f10:
+          type: integer
+          description: Alarm band high edge, tenths °F.
+          example: 2500
+        target_f10:
+          type: integer
+          nullable: true
+          description: Target temperature, tenths °F; null when unset.
+          example: 2250
+        rate_f_per_hr:
+          type: number
+          nullable: true
+          description: OLS slope over the last 10 min; null when insufficient data (09 §9.4).
+          example: -2.4
+        eta_s:
+          type: integer
+          nullable: true
+          description: Seconds to target; null when no estimate is defensible (09 §9.4).
+          example: 22800
+        state:
+          type: string
+          description: Analysis state, when notable.
+          enum: [rising, falling, stall, lid_open]
+          example: stall
+
+    RecentWindow:
+      type: object
+      description: The in-RAM recent window, one series per probe.
+      required: [t0, step_s, count, series]
+      properties:
+        t0:
+          type: integer
+          description: Session time of the first entry, seconds.
+          example: 36000
+        step_s:
+          type: integer
+          example: 30
+        count:
+          type: integer
+          description: Entries per (non-null) series.
+          example: 240
+        series:
+          type: array
+          maxItems: 4
+          description: |
+            One entry per probe, in probe order. **`null`** (not `[]`, not zeros)
+            for a probe detached for the whole window; individual detached samples
+            are `null` within a series.
+          items:
+            type: array
+            nullable: true
+            items:
+              type: integer
+              nullable: true
+              description: Tenths °F; null for a detached sample.
+
+    # ── Sessions ─────────────────────────────────────────────────────────────
+    SessionSummary:
+      type: object
+      required: [id, active, started_unix_ms, samples]
+      properties:
+        id:
+          type: integer
+          example: 27
+        name:
+          type: string
+          example: Brisket
+        active:
+          type: boolean
+          example: true
+        pinned:
+          type: boolean
+          description: Pinned sessions are exempt from retention.
+          example: false
+        started_unix_ms:
+          type: integer
+          format: int64
+          description: 0 when the session never had a valid clock.
+          example: 1774051200000
+        ended_unix_ms:
+          type: integer
+          format: int64
+          nullable: true
+          description: Null while the session is open.
+          example: null
+        duration_s:
+          type: integer
+          example: 43200
+        samples:
+          type: integer
+          example: 1440
+        clock_valid:
+          type: boolean
+          example: true
+
+    SessionList:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          description: Newest first.
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+
+    SessionProbe:
+      type: object
+      required: [n]
+      properties:
+        n:
+          type: integer
+          minimum: 1
+          maximum: 4
+        name:
+          type: string
+          description: UTF-8, ≤ 12 bytes stored.
+          example: Brisket
+        role:
+          type: string
+          enum: [unused, pit, food, ambient]
+          example: food
+        target_f10:
+          type: integer
+          nullable: true
+          description: Null / 0 = no target.
+          example: 2030
+
+    SessionCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: UTF-8, ≤ 40 bytes stored. Defaults to "Cook #<id>".
+          example: Brisket
+        probes:
+          type: array
+          maxItems: 4
+          items:
+            $ref: '#/components/schemas/SessionProbe'
+
+    SessionPatch:
+      type: object
+      description: Any subset of the mutable fields.
+      properties:
+        name:
+          type: string
+          example: Brisket (wrapped)
+        pinned:
+          type: boolean
+          example: true
+        probes:
+          type: array
+          maxItems: 4
+          items:
+            $ref: '#/components/schemas/SessionProbe'
+
+    SessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/SessionSummary'
+        - type: object
+          required: [sample_period_s, probes, mark_count]
+          properties:
+            sample_period_s:
+              type: integer
+              example: 30
+            device_id:
+              type: string
+              description: The base station this session was recorded from.
+              example: '|abCDe'
+            num_probes:
+              type: integer
+              enum: [2, 4]
+              example: 4
+            probes:
+              type: array
+              maxItems: 4
+              items:
+                $ref: '#/components/schemas/SessionProbe'
+            mark_count:
+              type: integer
+              example: 3
+            size_b:
+              type: integer
+              description: Bytes on flash (.smk + .mrk).
+              example: 23296
+
+    # ── Samples (json form) ──────────────────────────────────────────────────
+    SamplesJson:
+      type: object
+      description: |
+        `format=json`. With `agg=minmax`, each series carries per-bucket
+        `min`/`mean`/`max`; with `agg=mean`, only `mean`; with `agg=none`, `t` and
+        `temps_f10` carry raw samples. Array entries are `null` for buckets that
+        fall entirely inside a gap and for detached samples.
+      required: [session_id, from, to, agg, count, probes, series, gaps]
+      properties:
+        session_id:
+          type: integer
+          example: 27
+        from:
+          type: integer
+          example: 0
+        to:
+          type: integer
+          example: 86400
+        bucket_s:
+          type: integer
+          description: Present when bucketed.
+          example: 90
+        agg:
+          type: string
+          enum: [none, mean, minmax]
+          example: minmax
+        count:
+          type: integer
+          description: Buckets (bucketed) or records (raw) per series.
+          example: 960
+        probes:
+          type: array
+          items:
+            type: integer
+          example: [1, 2]
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/SampleSeries'
+        gaps:
+          type: array
+          description: |
+            Computed from `t` deltas > 45 s; rendered as a break in the line.
+            Empty when the record is continuous.
+          items:
+            $ref: '#/components/schemas/Gap'
+
+    SampleSeries:
+      type: object
+      required: [probe]
+      properties:
+        probe:
+          type: integer
+          example: 1
+        t:
+          type: array
+          description: '`agg=none` only: session time per record, seconds.'
+          items:
+            type: integer
+        temps_f10:
+          type: array
+          description: '`agg=none` only. Null = detached.'
+          items:
+            type: integer
+            nullable: true
+        min:
+          type: array
+          description: '`agg=minmax`: per-bucket minimum, tenths °F. Null = bucket in a gap.'
+          items:
+            type: integer
+            nullable: true
+        mean:
+          type: array
+          description: '`agg=mean` and `agg=minmax`. Null = bucket in a gap.'
+          items:
+            type: integer
+            nullable: true
+        max:
+          type: array
+          description: '`agg=minmax`. Null = bucket in a gap.'
+          items:
+            type: integer
+            nullable: true
+
+    Gap:
+      type: object
+      required: [from, to]
+      properties:
+        from:
+          type: integer
+          description: Session time of the last sample before the gap, seconds.
+          example: 21600
+        to:
+          type: integer
+          description: Session time of the first sample after the gap, seconds.
+          example: 23400
+
+    # ── Marks ────────────────────────────────────────────────────────────────
+    Mark:
+      type: object
+      required: [t, kind, probe, text]
+      properties:
+        t:
+          type: integer
+          description: Seconds since session start.
+          example: 21600
+        kind:
+          type: string
+          enum: [note, wrapped, lid_open, fuel, probe_moved, alarm, phase_change, auto_detected]
+          example: wrapped
+        probe:
+          type: integer
+          description: 0 = whole cook, 1..4 = a specific probe.
+          example: 0
+        text:
+          type: string
+          description: UTF-8, ≤ 24 bytes stored.
+          example: wrapped in butcher paper
+
+    MarkList:
+      type: object
+      required: [session_id, marks]
+      properties:
+        session_id:
+          type: integer
+          example: 27
+        marks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mark'
+
+    MarkCreate:
+      type: object
+      required: [kind]
+      properties:
+        t:
+          type: integer
+          description: Seconds since session start; defaults to now.
+        kind:
+          type: string
+          enum: [note, wrapped, lid_open, fuel, probe_moved, alarm, phase_change, auto_detected]
+        probe:
+          type: integer
+          minimum: 0
+          maximum: 4
+          default: 0
+        text:
+          type: string
+          description: UTF-8; truncated to 24 bytes at a character boundary.
+
+    # ── Pairing ──────────────────────────────────────────────────────────────
+    PairingState:
+      type: object
+      required: [paired, state]
+      properties:
+        paired:
+          type: boolean
+          example: true
+        state:
+          type: string
+          enum: [unpaired, sync, paired]
+          example: paired
+        device_id:
+          type: string
+          nullable: true
+          example: '|abCDe'
+        model:
+          type: string
+          nullable: true
+          enum: [X2, X4, null]
+          example: X4
+        num_probes:
+          type: integer
+          nullable: true
+          enum: [2, 4, null]
+          example: 4
+        frequency_hz:
+          type: integer
+          nullable: true
+          example: 910500000
+        last_packet_s_ago:
+          type: integer
+          nullable: true
+          example: 12
+        base_lost:
+          type: boolean
+          example: false
+
+    # ── Wi-Fi config ─────────────────────────────────────────────────────────
+    WifiSettings:
+      type: object
+      description: |
+        GET shape. `sta.psk` is **never** present — stored STA passwords are not
+        returned. `ap.psk` **is** returned: the user needs to read it back, and it
+        is no secret from anyone already on the AP.
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [ap, sta]
+          example: sta
+        ap:
+          type: object
+          description: Present in both modes; the AP credentials that apply / would apply.
+          required: [ssid, psk]
+          properties:
+            ssid:
+              type: string
+              example: SmokeBridge-A4F2
+            psk:
+              type: string
+              description: The generated AP PSK — returned deliberately.
+              example: Gk7mR2xQpT
+            ip:
+              type: string
+              example: 192.168.4.1
+        sta:
+          type: object
+          description: Present when STA credentials are stored. No `psk`, ever.
+          required: [ssid]
+          properties:
+            ssid:
+              type: string
+              example: Backyard
+            auth:
+              type: string
+              enum: [open, wpa2_psk, wpa2_enterprise, wpa3_psk]
+              example: wpa2_psk
+            username:
+              type: string
+              nullable: true
+              description: WPA2-Enterprise identity; null otherwise.
+              example: null
+            host:
+              type: string
+              example: smokebridge.local
+
+    WifiConfigSet:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [ap, sta]
+          description: Any other value is refused with `400 unsupported_mode`.
+        auth:
+          type: string
+          enum: [open, wpa2_psk, wpa2_enterprise, wpa3_psk]
+          default: wpa2_psk
+        ssid:
+          type: string
+          maxLength: 32
+          description: Required for `sta`. Ignored for `ap` (the AP SSID is generated).
+        psk:
+          type: string
+          maxLength: 64
+          description: Required for `sta` unless `auth=open`. Ignored for `ap` (the AP PSK is generated).
+        username:
+          type: string
+          nullable: true
+          maxLength: 32
+          description: WPA2-Enterprise identity; null otherwise.
+
+    WifiAccept:
+      type: object
+      description: |
+        Sent **before** reconfiguring; the device then defers `applying_in_ms`
+        (~500 ms) so this reply flushes before the interface is torn down.
+      required: [accepted, applying_in_ms, expect]
+      properties:
+        accepted:
+          type: boolean
+          example: true
+        applying_in_ms:
+          type: integer
+          example: 500
+        expect:
+          description: Where to find the device after it applies the change.
+          oneOf:
+            - $ref: '#/components/schemas/WifiExpectSta'
+            - $ref: '#/components/schemas/WifiExpectAp'
+          discriminator:
+            propertyName: mode
+            mapping:
+              sta: '#/components/schemas/WifiExpectSta'
+              ap: '#/components/schemas/WifiExpectAp'
+
+    WifiExpectSta:
+      type: object
+      required: [mode, host]
+      properties:
+        mode:
+          type: string
+          enum: [sta]
+        host:
+          type: string
+          example: smokebridge.local
+
+    WifiExpectAp:
+      type: object
+      description: Carries the generated credentials so the client can display them.
+      required: [mode, ssid, psk, ip]
+      properties:
+        mode:
+          type: string
+          enum: [ap]
+        ssid:
+          type: string
+          example: SmokeBridge-A4F2
+        psk:
+          type: string
+          example: Gk7mR2xQpT
+        ip:
+          type: string
+          example: 192.168.4.1
+
+    # ── Device config ────────────────────────────────────────────────────────
+    DeviceConfig:
+      type: object
+      description: POST accepts any subset; GET returns everything except `vbat_actual_mv`.
+      properties:
+        display_units:
+          type: string
+          enum: [F, C]
+          example: F
+        display_timeout_s:
+          type: integer
+          description: 0 = always on.
+          example: 60
+        led_enabled:
+          type: boolean
+          example: true
+        battery_saver:
+          type: string
+          enum: [auto, "on", "off"]
+          example: auto
+        retention:
+          type: object
+          properties:
+            max_sessions:
+              type: integer
+              example: 64
+            min_free_pct:
+              type: integer
+              example: 10
+        probes:
+          type: array
+          maxItems: 4
+          description: Defaults for new sessions.
+          items:
+            $ref: '#/components/schemas/SessionProbe'
+        vbat_actual_mv:
+          type: integer
+          description: |
+            Write-only, one-point battery calibration (01 §1.3): a DMM reading of
+            the pack; the firmware solves for the divider ratio and persists it.
+          example: 4020
+
+    # ── Alarm config ─────────────────────────────────────────────────────────
+    AlarmRule:
+      type: object
+      required: [id, rule, enabled]
+      properties:
+        id:
+          type: integer
+          example: 3
+        rule:
+          type: string
+          description: e.g. `target_reached`, `band_low`, `band_high`, `pit_crash`, `base_lost`, `stall`.
+          example: target_reached
+        probe:
+          type: integer
+          description: 0 = whole cook, 1..4 = a specific probe.
+          example: 1
+        enabled:
+          type: boolean
+          example: true
+        min_f10:
+          type: integer
+          nullable: true
+          example: 2000
+        max_f10:
+          type: integer
+          nullable: true
+          example: 2500
+        target_f10:
+          type: integer
+          nullable: true
+          example: 2250
+        grace_s:
+          type: integer
+          description: Suppression window after a lid-open detection (09 §9.4).
+          example: 900
+
+    AlarmConfig:
+      type: object
+      required: [rules]
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlarmRule'
+
+    # ── Time / radio / OTA / debug ───────────────────────────────────────────
+    TimeSet:
+      type: object
+      required: [unix_ms]
+      properties:
+        unix_ms:
+          type: integer
+          format: int64
+          example: 1774094400000
+        tz_offset_min:
+          type: integer
+          example: -300
+        source:
+          type: string
+          enum: [phone, ntp, manual]
+          default: phone
+
+    RadioInfo:
+      type: object
+      required: [frequency_hz, rssi, snr, packets_ok, packets_bad, id_mismatch]
+      properties:
+        frequency_hz:
+          type: integer
+          example: 910500000
+        spreading_factor:
+          type: integer
+          example: 7
+        bandwidth_hz:
+          type: integer
+          example: 500000
+        coding_rate:
+          type: string
+          example: 4/5
+        rssi:
+          type: integer
+          example: -71
+        snr:
+          type: integer
+          example: 9
+        packets_ok:
+          type: integer
+          example: 4102
+        packets_bad:
+          type: integer
+          example: 3
+        id_mismatch:
+          type: integer
+          example: 0
+
+    RadioSet:
+      type: object
+      description: Advanced — normally set by pairing, not by hand.
+      properties:
+        frequency_hz:
+          type: integer
+        spreading_factor:
+          type: integer
+        bandwidth_hz:
+          type: integer
+        coding_rate:
+          type: string
+
+    OtaAccepted:
+      type: object
+      description: Sent after verification, before the reboot.
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+          example: true
+        image_size_b:
+          type: integer
+          example: 1834496
+        slot:
+          type: string
+          description: The OTA slot the image was written to.
+          example: ota_1
+        rebooting_in_ms:
+          type: integer
+          example: 500
+
+    DebugPacket:
+      type: object
+      required: [unix_ms, rssi, len, hex]
+      properties:
+        unix_ms:
+          type: integer
+          format: int64
+          example: 1774094400000
+        rssi:
+          type: integer
+          example: -71
+        snr:
+          type: integer
+          example: 9
+        len:
+          type: integer
+          example: 43
+        hex:
+          type: string
+          description: The raw payload, lowercase hex.
+          example: '302c333030312c...'
+
+    DebugPackets:
+      type: object
+      required: [count, packets]
+      properties:
+        count:
+          type: integer
+          example: 64
+        packets:
+          type: array
+          description: Newest last.
+          items:
+            $ref: '#/components/schemas/DebugPacket'
+
+    # ── WebSocket frames (06 §6.3) ───────────────────────────────────────────
+    # The /api/v1/stream WebSocket carries JSON text frames. Server → client:
+    # sample, alarm, session, net, pairing, power, ota, hello. Client → server:
+    # subscribe, ping, ack_alarm.
+
+    WsServerFrame:
+      description: Any server → client frame, discriminated by `type`.
+      oneOf:
+        - $ref: '#/components/schemas/WsHelloFrame'
+        - $ref: '#/components/schemas/WsSampleFrame'
+        - $ref: '#/components/schemas/WsAlarmFrame'
+        - $ref: '#/components/schemas/WsSessionFrame'
+        - $ref: '#/components/schemas/WsNetFrame'
+        - $ref: '#/components/schemas/WsPairingFrame'
+        - $ref: '#/components/schemas/WsPowerFrame'
+        - $ref: '#/components/schemas/WsOtaFrame'
+      discriminator:
+        propertyName: type
+        mapping:
+          hello: '#/components/schemas/WsHelloFrame'
+          sample: '#/components/schemas/WsSampleFrame'
+          alarm: '#/components/schemas/WsAlarmFrame'
+          session: '#/components/schemas/WsSessionFrame'
+          net: '#/components/schemas/WsNetFrame'
+          pairing: '#/components/schemas/WsPairingFrame'
+          power: '#/components/schemas/WsPowerFrame'
+          ota: '#/components/schemas/WsOtaFrame'
+
+    WsClientFrame:
+      description: Any client → server frame, discriminated by `type`.
+      oneOf:
+        - $ref: '#/components/schemas/WsSubscribeFrame'
+        - $ref: '#/components/schemas/WsPingFrame'
+        - $ref: '#/components/schemas/WsAckAlarmFrame'
+      discriminator:
+        propertyName: type
+        mapping:
+          subscribe: '#/components/schemas/WsSubscribeFrame'
+          ping: '#/components/schemas/WsPingFrame'
+          ack_alarm: '#/components/schemas/WsAckAlarmFrame'
+
+    WsHelloFrame:
+      type: object
+      description: Sent immediately on connect, before anything else.
+      required: [type, fw, api, server_time_ms]
+      properties:
+        type:
+          type: string
+          enum: [hello]
+        fw:
+          type: string
+          example: 1.0.0
+        api:
+          type: string
+          example: v1
+        server_time_ms:
+          type: integer
+          format: int64
+          description: 0 when the clock is not yet valid.
+          example: 1774094430000
+
+    WsSampleFrame:
+      type: object
+      description: One decoded state message. Follows `hello` immediately with the current state.
+      required: [type, t, unix_ms, temps_f10, flags, rssi]
+      properties:
+        type:
+          type: string
+          enum: [sample]
+        t:
+          type: integer
+          description: Seconds into the session; 0 when none active.
+          example: 43230
+        unix_ms:
+          type: integer
+          format: int64
+          example: 1774094430000
+        temps_f10:
+          type: array
+          maxItems: 4
+          description: Tenths °F per probe; **`null` for a detached probe, never `0`.**
+          items:
+            type: integer
+            nullable: true
+          example: [2429, 1634, null, null]
+        flags:
+          type: object
+          properties:
+            billows:
+              type: boolean
+              example: true
+        rssi:
+          type: integer
+          example: -70
+
+    WsAlarmFrame:
+      type: object
+      required: [type, action, id, rule]
+      properties:
+        type:
+          type: string
+          enum: [alarm]
+        action:
+          type: string
+          enum: [raised, cleared, acked]
+          example: raised
+        id:
+          type: integer
+          example: 4
+        rule:
+          type: string
+          example: target_reached
+        probe:
+          type: integer
+          example: 2
+        value_f10:
+          type: integer
+          nullable: true
+          example: 2031
+        message:
+          type: string
+          example: Brisket reached 203.1°F
+
+    WsSessionFrame:
+      type: object
+      required: [type, action, id]
+      properties:
+        type:
+          type: string
+          enum: [session]
+        action:
+          type: string
+          enum: [started, stopped, updated]
+          example: started
+        id:
+          type: integer
+          example: 28
+        name:
+          type: string
+          example: 'Cook #28'
+
+    WsNetFrame:
+      type: object
+      required: [type, mode, state]
+      properties:
+        type:
+          type: string
+          enum: [net]
+        mode:
+          type: string
+          enum: [off, ap, sta]
+          example: sta
+        state:
+          type: string
+          enum: [idle, connecting, up, failed]
+          example: up
+        ip:
+          type: string
+          example: 192.168.1.42
+
+    WsPairingFrame:
+      type: object
+      required: [type, paired]
+      properties:
+        type:
+          type: string
+          enum: [pairing]
+        paired:
+          type: boolean
+          example: true
+        device_id:
+          type: string
+          nullable: true
+          example: '|abCDe'
+        num_probes:
+          type: integer
+          example: 4
+
+    WsPowerFrame:
+      type: object
+      required: [type, soc_pct, charging, saver]
+      properties:
+        type:
+          type: string
+          enum: [power]
+        soc_pct:
+          type: integer
+          example: 68
+        charging:
+          type: boolean
+          example: false
+        saver:
+          type: boolean
+          example: true
+
+    WsOtaFrame:
+      type: object
+      required: [type, phase]
+      properties:
+        type:
+          type: string
+          enum: [ota]
+        phase:
+          type: string
+          enum: [receiving, writing, verifying, rebooting, failed]
+          example: writing
+        pct:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 42
+
+    WsSubscribeFrame:
+      type: object
+      description: Without one, the server pushes every topic.
+      required: [type, topics]
+      properties:
+        type:
+          type: string
+          enum: [subscribe]
+        topics:
+          type: array
+          items:
+            type: string
+            enum: [sample, alarm, session, net, pairing, power, ota]
+          example: [sample, alarm, session, net, power]
+
+    WsPingFrame:
+      type: object
+      description: Optional client keepalive; the server's own ping runs every 30 s regardless.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [ping]
+
+    WsAckAlarmFrame:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          enum: [ack_alarm]
+        id:
+          type: integer
+          example: 4

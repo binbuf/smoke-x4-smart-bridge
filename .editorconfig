@@ -1,0 +1,36 @@
+# EditorConfig — https://editorconfig.org
+# Style per docs/design/10-repo-tooling-and-testing.md §10.7:
+# C/C++ is 4-space (matching .clang-format), Dart/YAML/JSON/Markdown are 2-space.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.{c,h,cc,cpp,hpp}]
+indent_size = 4
+
+[{CMakeLists.txt,*.cmake}]
+indent_size = 4
+
+[{Makefile,*.mk}]
+indent_style = tab
+
+[*.dart]
+indent_size = 2
+
+[*.{yaml,yml}]
+indent_size = 2
+
+[*.json]
+indent_size = 2
+
+[*.md]
+indent_size = 2
+
+[*.{bat,ps1}]
+end_of_line = crlf

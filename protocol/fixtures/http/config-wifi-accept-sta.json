@@ -1,0 +1,5 @@
+{
+  "accepted": true,
+  "applying_in_ms": 500,
+  "expect": { "mode": "sta", "host": "smokebridge.local" }
+}

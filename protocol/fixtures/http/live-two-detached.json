@@ -1,0 +1,47 @@
+{
+  "t": 43200,
+  "unix_ms": 1774094400000,
+  "units_source": "F",
+  "billows": { "attached": true, "target_f10": 2250 },
+  "probes": [
+    {
+      "n": 1,
+      "name": "Pit",
+      "role": "pit",
+      "attached": true,
+      "temp_f10": 2431,
+      "alarm_enabled": true,
+      "min_f10": 2000,
+      "max_f10": 2500,
+      "target_f10": 2250,
+      "rate_f_per_hr": -2.4
+    },
+    {
+      "n": 2,
+      "name": "Brisket",
+      "role": "food",
+      "attached": true,
+      "temp_f10": 1632,
+      "alarm_enabled": true,
+      "min_f10": 0,
+      "max_f10": 2030,
+      "target_f10": 2030,
+      "rate_f_per_hr": 4.1,
+      "eta_s": 22800,
+      "state": "stall"
+    },
+    { "n": 3, "attached": false, "temp_f10": null },
+    { "n": 4, "attached": false, "temp_f10": null }
+  ],
+  "recent": {
+    "t0": 43050,
+    "step_s": 30,
+    "count": 5,
+    "series": [
+      [2437, 2435, 2433, 2431, 2431],
+      [1630, 1631, 1631, 1632, 1632],
+      null,
+      null
+    ]
+  }
+}

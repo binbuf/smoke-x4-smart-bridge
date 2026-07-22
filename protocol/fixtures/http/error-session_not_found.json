@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "session_not_found",
+    "message": "no session 42",
+    "detail": { "id": 42 }
+  }
+}

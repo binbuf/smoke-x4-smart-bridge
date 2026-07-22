@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "session_active",
+    "message": "session 27 is active; stop it first",
+    "detail": { "id": 27 }
+  }
+}

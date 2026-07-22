@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "radio_unavailable",
+    "message": "LoRa radio failed to initialise; capture is disabled",
+    "detail": null
+  }
+}

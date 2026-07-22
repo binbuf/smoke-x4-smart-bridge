@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "missing or invalid bearer token",
+    "detail": null
+  }
+}

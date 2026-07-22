@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "busy",
+    "message": "2 WebSocket clients already connected",
+    "detail": { "max_ws_clients": 2 }
+  }
+}
