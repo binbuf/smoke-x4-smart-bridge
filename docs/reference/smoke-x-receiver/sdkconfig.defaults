@@ -1,0 +1,38 @@
+#################################################################
+#
+# Project-wide Kconfig baseline. ESP-IDF's "defaults" terminology is a
+# misnomer in this project: the Makefile applies these values to every
+# board build via SDKCONFIG_DEFAULTS, layered like so:
+#
+#   sdkconfig.defaults                <- this file (shared baseline)
+#   sdkconfig.defaults.heltec-v2      <- V2-specific overlay (ESP32 + SX1276)
+#   sdkconfig.defaults.heltec-v3      <- V3-specific overlay (ESP32-S3 + SX1262)
+#
+# At build time these get merged and written to the per-board sdkconfig
+# (sdkconfig.heltec-v2 or sdkconfig.heltec-v3). To customize, run
+# `make menuconfig-heltec-v2` (or v3); user changes land in those generated
+# sdkconfig files, not in this baseline.
+#
+# Kconfig reference:
+# https://docs.espressif.com/projects/esp-idf/en/release-v5.4/esp32/api-reference/kconfig.html
+#
+#################################################################
+
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+#################################################################
+# CAUTION: Modifying these values may break the Smoke X application
+#################################################################
+CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096
+CONFIG_ESP_TIMER_TASK_STACK_SIZE=2048
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+CONFIG_SPIFFS_OBJ_NAME_LEN=32
+CONFIG_FATFS_LONG_FILENAME=y
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_MQTT_PROTOCOL_311=y
+CONFIG_MQTT_TRANSPORT_SSL=y
+CONFIG_MQTT_TRANSPORT_WEBSOCKET=n
+CONFIG_MQTT_TRANSPORT_WEBSOCKET_SECURE=n
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"

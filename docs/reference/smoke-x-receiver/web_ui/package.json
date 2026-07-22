@@ -1,0 +1,43 @@
+{
+  "name": "smoke_x_ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint --ext .js,.vue --ignore-path .gitignore --fix src",
+    "format": "prettier .  --write",
+    "icons": "node icons/generate.mjs"
+  },
+  "dependencies": {
+    "@formkit/addons": "^2.1.0",
+    "@formkit/icons": "^2.1.0",
+    "@formkit/themes": "^2.1.0",
+    "@formkit/vue": "^2.1.0",
+    "chart.js": "^4.3.0",
+    "msw": "^1.2.1",
+    "vue": "^3.4.0",
+    "vue-chartjs": "^5.2.0",
+    "vue-loading-overlay": "^6.0.3",
+    "vue-router": "^4.1.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.1.0",
+    "eslint": "^8.40.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-vue": "^9.12.0",
+    "prettier": "^2.8.8",
+    "sharp": "^0.33.5",
+    "terser": "^5.17.3",
+    "vite": "^4.3.2",
+    "vite-plugin-compression": "^0.5.1"
+  },
+  "msw": {
+    "workerDirectory": "public"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

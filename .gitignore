@@ -1,0 +1,39 @@
+# Build output
+build/
+firmware/build/
+*.bin
+!docs/reference/**/*.bin
+
+# ESP-IDF: the generated root sdkconfig is per-checkout; per-board defaults ARE committed
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/dependencies.lock
+firmware/managed_components/
+
+# Dart / Flutter
+.dart_tool/
+.packages
+pubspec.lock
+!app/pubspec.lock
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/local.properties
+app/android/key.properties
+app/.metadata
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Host test build trees
+firmware/test/build*/
