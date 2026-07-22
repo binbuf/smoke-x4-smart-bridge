@@ -1,0 +1,21 @@
+menu "Smoke Bridge"
+
+    config SMOKEBRIDGE_BENCH_MODE
+        bool "Bench diagnostic mode (V1.3/V1.4) instead of the bridge app"
+        default n
+        help
+            Builds the one-sitting bench instrument from the M0 checklist
+            instead of the bridge application. It exercises, continuously
+            and with transcription-friendly log lines:
+
+            - GPIO37-gated battery ADC on GPIO1, printing millivolts with
+              the divider enabled and disabled plus the pack voltage under
+              both disputed ratios (x4.9 vs x2.0) — V1.3
+            - the PRG button (GPIO0) with debounce, the GPIO35 LED under
+              LEDC PWM fades, the GPIO36 Vext gate, and the SSD1306 OLED
+              on I2C @ 400 kHz while a Wi-Fi soft-AP is active — V1.4
+
+            Build with:  idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;
+            sdkconfig.defaults.heltec-v3;sdkconfig.bench" build
+
+endmenu

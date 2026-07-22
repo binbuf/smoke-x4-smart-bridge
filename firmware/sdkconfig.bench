@@ -1,0 +1,4 @@
+# Appended to the defaults to build the V1.3/V1.4 bench diagnostic:
+#   idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.heltec-v3;sdkconfig.bench" build
+# or: make bench-flash
+CONFIG_SMOKEBRIDGE_BENCH_MODE=y

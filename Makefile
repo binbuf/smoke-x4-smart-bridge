@@ -203,6 +203,30 @@ monitor: check-idf
 menuconfig: check-idf
 	$(call idf_v3,menuconfig)
 
+# The V1.3/V1.4 bench diagnostic: own build dir + sdkconfig so it never
+# clobbers the normal firmware configuration.
+BENCH_BUILD := build/heltec-v3-bench
+SDKCONFIG_DEFAULTS_BENCH := $(SDKCONFIG_DEFAULTS_V3);sdkconfig.bench
+SDKCONFIG_BENCH := sdkconfig.heltec-v3-bench
+
+define idf_bench
+	$(IDF_PYTHON_PATH) . "$(IDF_EXPORT)" && cd $(FW_DIR) && { \
+		if [ ! -f $(BENCH_BUILD)/CMakeCache.txt ]; then \
+			rm -rf $(BENCH_BUILD) && \
+			SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS_BENCH)" $(IDF_PY) -B $(BENCH_BUILD) -DSDKCONFIG=$(SDKCONFIG_BENCH) set-target $(CHIP); \
+		fi && \
+		SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS_BENCH)" $(IDF_PY) -B $(BENCH_BUILD) -DSDKCONFIG=$(SDKCONFIG_BENCH) $(1); \
+	}
+endef
+
+# bench: Build the V1.3/V1.4 bench diagnostic firmware
+bench: check-idf
+	$(call idf_bench,build)
+
+# bench-flash: Build, flash, and monitor the bench diagnostic (PORT=... to pick)
+bench-flash: check-idf
+	$(call idf_bench,build flash monitor $(PORT_ARG))
+
 # --- Tests ---
 
 # test-host: Build and run host unit tests (plain gcc + cmake, no ESP-IDF, no hardware)

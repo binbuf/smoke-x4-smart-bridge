@@ -15,3 +15,4 @@ workspace:
   - tools/bridge_protocol
   - tools/cookgen
   - tools/sim
+  - tools/lora

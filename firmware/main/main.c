@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
+#include "bench.h"
 #include "boot_seq.h"
 #include "double_reset.h"
 #include "tasks.h"
@@ -88,6 +89,11 @@ static void disarm_timer_cb(void *arg) {
 }
 
 void app_main(void) {
+#if CONFIG_SMOKEBRIDGE_BENCH_MODE
+    /* The V1.3/V1.4 bench instrument replaces the app entirely. */
+    bench_run();
+    return;
+#endif
     ESP_LOGI(TAG, "Smoke X4 Smart Bridge — M0 skeleton");
     ESP_LOGI(TAG, "task stack budget: %d B declared across %u tasks",
              (int)BRIDGE_TASK_STACK_TOTAL, (unsigned)BRIDGE_TASK_COUNT);
