@@ -22,6 +22,14 @@ target_compile_definitions(test_record_gen PRIVATE
 )
 add_test(NAME record_gen COMMAND test_record_gen)
 
+# The committed cookgen fixture, validated through the generated codec (T2.3).
+add_executable(test_smk_fixture test_smk_fixture.c)
+target_include_directories(test_smk_fixture PRIVATE ${REPO_ROOT}/protocol/gen)
+target_compile_definitions(test_smk_fixture PRIVATE
+    SMK_FIXTURE="${REPO_ROOT}/protocol/fixtures/brisket-18h.smk"
+)
+add_test(NAME smk_fixture COMMAND test_smk_fixture)
+
 # Event-bus handler duration guard (F1.3).
 add_executable(test_bridge_event_guard
     test_bridge_event_guard.c
