@@ -64,6 +64,17 @@ battery reporting is possible.
 | F5.11 session resumes across a real power cut | ✅ USB pulled mid-cook; on replug the §4.5 ladder reopened **the same session** (`store event RESUMED, session 00000001`, 416 ms into boot), wrote the `power restored` auto-mark, and continued appending. Evidence dumped off the flash via esptool+littlefs: [`protocol/fixtures/board/f511-power-cut.smk`](../protocol/fixtures/board/f511-power-cut.smk) — t monotonic `0..61 → 91..241` across the cut, marks at the seam, zero >45 s gaps. |
 | Board-found bug (the reason F5.11 exists) | The first power-cut run exposed a uint32 underflow: post-resume `t` was computed as `uptime − started_uptime`, but uptime restarts with the boot → `t ≈ 4.29e9`. Fixed with an anchored resume base (`cook_session_resume_base_t`), host-tested, re-verified on the board in the committed evidence above. |
 
+## M2 exit gate (F8.8, F9.12, F9.13, A14.4) — bench sitting 2026-07-22
+
+| Check | Result |
+| --- | --- |
+| F8.8 AP mode on the board | ✅ `SmokeBridge-8274` (MAC-derived), channel auto-picked (6), generated PSK, DHCP served; this PC joined and held the AP through the whole sitting |
+| F8.8 STA + supervision on the board | ✅ mechanically, via the credential-free drill: `POST /config/wifi` (bogus SSID) answered `accepted/applying_in_ms:500` and the reply survived its own teardown; STA attempt failed fast; **fallback AP back on air in ~5 s** (never unreachable); retry ladder observed at the 1/2-minute marks; restore `POST {"mode":"ap"}` echoed the PSK and returned to AP. **Real-credential STA join deferred to M3's BLE onboarding by owner decision** — credentials belong to the provisioning flow, not a bench file. mDNS-from-LAN verification rides on that same deferral. |
+| F9.12 exit-gate curls | ✅ over the AP from this PC: `/status` (full contract JSON), `/sessions`, 766 samples as CSV (767 lines) **and** raw records (12,256 B = 766×16), WebSocket delivering `hello` + current sample + a live 30 s push (`OK: live push verified`, twice) |
+| F9.13 heap with everything running | ✅ `free_heap 190,468 / min_free_heap 180,716` at first measure; 189,064/183,852 on a later boot — comfortably above the 150 KB gate. **Provisional per the plan caveat**: NimBLE does not exist until M3; V3a re-measures with BLE live. |
+| A14.4 Android AP-routing proof | ⏳ **partial by design**: the binder-alone/shim-alone matrix needs app UI that arrives in M4 (recorded in the plan); the shim-half phone-browser check was pending user observation at sitting close. |
+| Board-found defects (all fixed + committed, `5864bb8` + follow-ups) | sys_evt stack 2304→4096; httpd stack 4 KB→8 KB (TLS-trample LoadProhibited); WS fan-out moved off the event loop onto the ws_push task (3072→4096 — the lwip send path runs there); **IDF v6 never calls the ws URI handler on the handshake GET** — open path moved to `ws_post_handshake_cb`; ghost WS clients purged via the httpd `close_fn`. |
+
 ## V2 — capture campaign results
 
 | Capture | Status |
