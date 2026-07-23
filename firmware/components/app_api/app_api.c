@@ -20,6 +20,9 @@
 #include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 
 static const char *TAG = "app_api";
 
@@ -126,7 +129,7 @@ static const app_api_ops_t k_ops = {
 
 typedef struct {
     httpd_req_t *req;
-    const app_api_out_t *out; /* status/ctype read at FIRST flush � they
+    const app_api_out_t *out; /* status/ctype read at FIRST flush � they
                                  are set by out_begin before any emit */
     bool headers_sent;
 } sink_ctx_t;
@@ -254,7 +257,26 @@ static void ws_send_text(int fd, const char *text, size_t len) {
         .payload = (uint8_t *)text,
         .len = len,
     };
-    (void)httpd_ws_send_frame_async(s_server, fd, &frame);
+    const esp_err_t err = httpd_ws_send_frame_async(s_server, fd, &frame);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "ws async send to fd %d failed: %s", fd,
+                 esp_err_to_name(err));
+    }
+}
+
+/* In-handler send: the documented path while `req` exists. */
+static void ws_send_text_req(httpd_req_t *req, const char *text,
+                             size_t len) {
+    httpd_ws_frame_t frame = {
+        .final = true,
+        .type = HTTPD_WS_TYPE_TEXT,
+        .payload = (uint8_t *)text,
+        .len = len,
+    };
+    const esp_err_t err = httpd_ws_send_frame(req, &frame);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "ws send failed: %s", esp_err_to_name(err));
+    }
 }
 
 typedef struct {
@@ -274,7 +296,10 @@ static int frame_sink(void *ctx, const char *data, size_t len) {
 static void ws_broadcast(uint32_t topic_bit_mask,
                          void (*build)(app_api_out_t *out, void *arg),
                          void *arg) {
-    frame_buf_t fb = {0};
+    /* Runs ONLY on the ws_push task (single consumer): the frame buffer
+     * lives in static storage, not on anyone's stack. */
+    static frame_buf_t fb;
+    fb.len = 0;
     app_api_out_t out;
     app_api_out_init(&out, frame_sink, &fb);
     build(&out, arg);
@@ -287,19 +312,28 @@ static void ws_broadcast(uint32_t topic_bit_mask,
     }
 }
 
+/* ── The ws_push task (03 §3.2 rule 2, tasks.h) ─────────────────────────
+ * Event handlers run on the shared event-loop task and may not build
+ * frames there — the first board sitting proved it the hard way (sys_evt
+ * stack overflow, then TLS corruption crashing inside lwip). Handlers
+ * copy the POD payload onto this queue and return; serialization and
+ * fan-out happen HERE. */
+
+typedef struct {
+    uint8_t kind; /* 0 sample, 1 session */
+    union {
+        bridge_evt_sample_t sample;
+        bridge_evt_session_t session;
+    } u;
+} push_msg_t;
+
+static QueueHandle_t s_push_queue;
+
 static void build_sample_frame(app_api_out_t *out, void *arg) {
     const bridge_evt_sample_t *s = arg;
     uint64_t unix_ms = 0;
     const bool have = app_time_core_now(uptime_ms(), &unix_ms);
     app_api_ws_sample(out, s, have, unix_ms);
-}
-
-static void on_sample_evt(void *arg, esp_event_base_t base, int32_t id,
-                          void *data) {
-    (void)arg;
-    (void)base;
-    (void)id;
-    ws_broadcast(WS_TOPIC_SAMPLE, build_sample_frame, data);
 }
 
 static void build_session_frame(app_api_out_t *out, void *arg) {
@@ -310,18 +344,57 @@ static void build_session_frame(app_api_out_t *out, void *arg) {
                        e->session_id, NULL);
 }
 
+static void ws_push_task(void *arg) {
+    (void)arg;
+    push_msg_t msg;
+    while (true) {
+        if (xQueueReceive(s_push_queue, &msg, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        if (msg.kind == 0) {
+            ws_broadcast(WS_TOPIC_SAMPLE, build_sample_frame, &msg.u.sample);
+        } else {
+            ws_broadcast(WS_TOPIC_SESSION, build_session_frame,
+                         &msg.u.session);
+        }
+    }
+}
+
+static void on_sample_evt(void *arg, esp_event_base_t base, int32_t id,
+                          void *data) {
+    (void)arg;
+    (void)base;
+    (void)id;
+    if (app_api_ws_count() == 0) {
+        return; /* nobody listening: zero cost on the event loop */
+    }
+    push_msg_t msg = {.kind = 0};
+    memcpy(&msg.u.sample, data, sizeof msg.u.sample);
+    (void)xQueueSend(s_push_queue, &msg, 0);
+}
+
 static void on_session_evt(void *arg, esp_event_base_t base, int32_t id,
                            void *data) {
     (void)arg;
     (void)base;
     (void)id;
-    ws_broadcast(WS_TOPIC_SESSION, build_session_frame, data);
+    if (app_api_ws_count() == 0) {
+        return;
+    }
+    push_msg_t msg = {.kind = 1};
+    memcpy(&msg.u.session, data, sizeof msg.u.session);
+    (void)xQueueSend(s_push_queue, &msg, 0);
 }
 
-static esp_err_t ws_handler(httpd_req_t *req) {
-    if (req->method == HTTP_GET) {
-        /* Handshake already done by httpd (the F9.9 spike): enforce the
-         * cap by closing 1013 if the registry is full. */
+/* The open path. Board-found (M2 sitting): IDF v6 NEVER invokes the ws
+ * URI handler on the handshake GET — it completes the handshake and
+ * returns ("do not call the uri->handler", httpd_uri.c). This runs as
+ * the post-handshake callback instead, where `req` is live and the 101
+ * is already on the wire. */
+static esp_err_t ws_open_cb(httpd_req_t *req) {
+    {
+        /* Enforce the cap by closing 1013 if the registry is full (the
+         * F9.9 spike resolution). */
         const int slot = app_api_ws_add(uptime_ms());
         const int fd = httpd_req_to_sockfd(req);
         if (slot < 0) {
@@ -351,7 +424,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
         const bool have = app_time_core_now(uptime_ms(), &now_unix);
         app_api_ws_hello(&out, "1.0.0", have, now_unix);
         (void)app_api_out_finish(&out);
-        ws_send_text(fd, fb.buf, fb.len);
+        ws_send_text_req(req, fb.buf, fb.len);
 
         const cook_ring_sample_t *newest = cook_ring_get(0);
         if (newest) {
@@ -364,11 +437,15 @@ static esp_err_t ws_handler(httpd_req_t *req) {
             app_api_out_init(&out, frame_sink, &fb);
             build_sample_frame(&out, &s);
             (void)app_api_out_finish(&out);
-            ws_send_text(fd, fb.buf, fb.len);
+            ws_send_text_req(req, fb.buf, fb.len);
         }
         return ESP_OK;
     }
+}
 
+/* Data frames only — the open path lives in ws_open_cb (IDF v6 never
+ * calls this for the handshake GET). */
+static esp_err_t ws_handler(httpd_req_t *req) {
     /* Incoming frame. */
     httpd_ws_frame_t frame = {0};
     if (httpd_ws_recv_frame(req, &frame, 0) != ESP_OK) {
@@ -429,6 +506,10 @@ int app_api_init(void) {
     cfg.max_open_sockets = 7; /* the 06 §6.1 cap, stated and enforced */
     cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.lru_purge_enable = true;
+    /* Board-found (M2 sitting): the default 4 KB drowns under the ≤2 KB
+     * streaming chunk plus JSON scratch — the overflow trampled pthread
+     * TLS and crashed inside lwip send. Watermarks land in F9.13. */
+    cfg.stack_size = 8192;
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
         return -1;
     }
@@ -436,8 +517,9 @@ int app_api_init(void) {
     static const httpd_uri_t ws_uri = {
         .uri = "/api/v1/stream",
         .method = HTTP_GET,
-        .handler = ws_handler,
+        .handler = ws_handler, /* data frames only on IDF v6 */
         .is_websocket = true,
+        .ws_post_handshake_cb = ws_open_cb, /* the real open path */
     };
     (void)httpd_register_uri_handler(s_server, &ws_uri);
 
@@ -457,6 +539,16 @@ int app_api_init(void) {
     (void)httpd_register_uri_handler(s_server, &post_uri);
     (void)httpd_register_uri_handler(s_server, &patch_uri);
     (void)httpd_register_uri_handler(s_server, &delete_uri);
+
+    /* The fan-out task (tasks.h ws_push row) MUST exist before the
+     * handlers that feed it are registered. */
+    s_push_queue = xQueueCreate(8, sizeof(push_msg_t));
+    /* 4096 per tasks.h: the lwip send path runs on this stack. */
+    if (!s_push_queue ||
+        xTaskCreatePinnedToCore(ws_push_task, "ws_push", 4096, NULL, 4,
+                                NULL, 0) != pdPASS) {
+        return -1;
+    }
 
     (void)bridge_event_handler_register(BRIDGE_EVT_SAMPLE, on_sample_evt,
                                         NULL, "api_ws_sample");
