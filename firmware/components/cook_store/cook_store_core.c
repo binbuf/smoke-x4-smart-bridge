@@ -201,6 +201,15 @@ uint32_t cook_session_active_id(void) {
 
 uint32_t cook_session_sample_count(void) { return s_sess.sample_count; }
 
+bool cook_session_clock_valid(void) {
+    return s_sess.open &&
+           bridge_session_header_clock_valid(s_sess.hdr.flags);
+}
+
+uint32_t cook_session_started_uptime_s(void) {
+    return s_sess.open ? s_sess.hdr.started_uptime_s : 0;
+}
+
 int cook_session_open(const cook_session_params_t *p) {
     if (!s_vfs || s_sess.open || !p) {
         return COOK_STORE_ERR_STATE;

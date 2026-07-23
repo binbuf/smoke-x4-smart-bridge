@@ -5,6 +5,7 @@
 #define TEST_COOK_DOUBLES_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -145,7 +146,9 @@ static mem_file_t *memfs_create(const char *path) {
 }
 
 /* Direct fixture injection for tests that hand-craft files. */
-static mem_file_t *memfs_put(const char *path, const void *data, size_t len) {
+static __attribute__((unused)) mem_file_t *memfs_put(const char *path,
+                                                     const void *data,
+                                                     size_t len) {
     mem_file_t *f = memfs_create(path);
     if (!f) {
         return NULL;

@@ -1,6 +1,7 @@
 idf_component_register(
-    SRCS "app_time.c"
+    SRCS "app_time.c" "app_time_core.c"
     INCLUDE_DIRS "include"
+    PRIV_REQUIRES app_config cook_store esp_timer
 )
 
 # Our code builds warning-clean; IDF components are not our battle.

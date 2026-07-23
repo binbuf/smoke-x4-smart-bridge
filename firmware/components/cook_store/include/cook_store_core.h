@@ -83,6 +83,9 @@ int cook_session_open(const cook_session_params_t *p);
 bool cook_session_is_open(void);
 uint32_t cook_session_active_id(void);
 uint32_t cook_session_sample_count(void);
+/* For the F6.2 back-patch glue. */
+bool cook_session_clock_valid(void);
+uint32_t cook_session_started_uptime_s(void);
 
 /* Appends one sample (CRC computed here). Applies the fsync cadence. */
 int cook_session_append(uint32_t t, const int16_t temp[4], uint8_t flags,
