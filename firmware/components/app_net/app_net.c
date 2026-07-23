@@ -79,7 +79,11 @@ static int op_start_ap(void *ctx) {
     cfg.ap.authmode = WIFI_AUTH_WPA2_PSK;
     cfg.ap.channel = channel;
     cfg.ap.max_connection = 4;
-    ESP_LOGI(TAG, "AP '%s' on channel %u", s_ap_ssid, channel);
+    /* The PSK's display surface is the OLED Network page (F11, M5);
+     * until that exists the serial console is the device's only screen.
+     * Same exposure model either way: physical access reads it. */
+    ESP_LOGI(TAG, "AP '%s' on channel %u, PSK '%s'", s_ap_ssid, channel,
+             psk);
     if (esp_wifi_set_config(WIFI_IF_AP, &cfg) != ESP_OK) {
         return -1;
     }
