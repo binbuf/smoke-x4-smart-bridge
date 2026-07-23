@@ -62,6 +62,46 @@ target_include_directories(test_smoke_x_parser PRIVATE
 )
 add_test(NAME smoke_x_parser COMMAND test_smoke_x_parser)
 
+# cook_store write path + crash safety: torn-append recovery at every
+# offset, retention, marks, fsync cadence (F5.1–F5.5, F5.7–F5.9).
+add_executable(test_cook_store
+    test_cook_store.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_cook_store PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME cook_store COMMAND test_cook_store)
+
+# cook_store streaming read: buckets, spike survival, binary-search bound
+# (F5.10).
+add_executable(test_cook_read
+    test_cook_read.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_cook_read PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME cook_read COMMAND test_cook_read)
+
+# Live ring + slope, and the session lifecycle table (F5.4, F5.6).
+add_executable(test_cook_ring_lifecycle
+    test_cook_ring_lifecycle.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_ring.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_lifecycle.c
+)
+target_include_directories(test_cook_ring_lifecycle PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
+
 # Raw packet ring and novelty seen-set (F4.1/F4.2).
 add_executable(test_smoke_x_novelty
     test_smoke_x_novelty.c

@@ -16,6 +16,7 @@
 #include "app_config.h"
 #include "bench.h"
 #include "boot_seq.h"
+#include "cook_store.h"
 #include "double_reset.h"
 #include "tasks.h"
 
@@ -79,6 +80,11 @@ static int step_stub(void *ctx) {
     return 0;
 }
 
+static int step_cook_store(void *ctx) {
+    (void)ctx;
+    return cook_store_init();
+}
+
 static int step_recovery_window(void *ctx) {
     (void)ctx;
     /* 3 s PRG hold on the splash — stubbed until F11 (app_ui). */
@@ -121,7 +127,7 @@ void app_main(void) {
                 [BRIDGE_BOOT_POWER - 1] = step_stub, /* F12 */
                 [BRIDGE_BOOT_UI - 1] = step_stub,    /* F11 */
                 [BRIDGE_BOOT_RECOVERY_WINDOW - 1] = step_recovery_window,
-                [BRIDGE_BOOT_COOK_STORE - 1] = step_stub,    /* F5 */
+                [BRIDGE_BOOT_COOK_STORE - 1] = step_cook_store,
                 [BRIDGE_BOOT_SMOKE_X_INIT - 1] = step_stub,  /* F3 */
                 [BRIDGE_BOOT_SMOKE_X_START - 1] = step_stub, /* F2/F3 */
                 [BRIDGE_BOOT_TIME - 1] = step_stub,          /* F6 */
