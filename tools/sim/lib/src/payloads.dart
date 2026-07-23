@@ -291,6 +291,28 @@ Map<String, Object?> plainSamplesJson(
   'gaps': gapsJson(records),
 };
 
+/// The novelty-log lines the sim's replay state implies (F4.4): the sync
+/// beacon and the first state packet of each class, in the on-device
+/// plain-text format `<t_ms> <reason> <value> <payload>`.
+String noveltyText(SimState s, int vT) {
+  final visible = s.liveVisible(vT);
+  final b = StringBuffer();
+  if (s.paired) {
+    b.writeln(
+      '0 sync 020001@910500000 020001,${s.header.deviceId},160,32,69,54,',
+    );
+  }
+  if (visible.isNotEmpty) {
+    final first = visible.first;
+    final cls = s.header.numProbes == 4 ? 'state26' : 'state16';
+    b.writeln(
+      '${first.t * 1000} first $cls '
+      '${s.header.deviceId},30,1,${first.newAlarm ? 1 : 0},...',
+    );
+  }
+  return b.toString();
+}
+
 /// CSV per 04 §4.10: detached probes are EMPTY fields, never 0.
 String csvLine(SimState s, SampleRec r) {
   final iso = s.clockValid

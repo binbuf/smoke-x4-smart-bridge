@@ -3,4 +3,5 @@ library;
 
 export 'src/capture.dart';
 export 'src/loralog.dart';
+export 'src/pull.dart';
 export 'src/report.dart';

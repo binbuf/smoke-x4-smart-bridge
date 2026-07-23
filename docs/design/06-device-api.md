@@ -75,6 +75,7 @@ Every response — success or failure — is JSON. The reference replies to `POS
 | POST     | `/api/v1/radio`                 | Set LoRa parameters (advanced)                                                    |
 | POST     | `/api/v1/ota`                   | Upload firmware                                                                   |
 | GET      | `/api/v1/debug/packets`         | Last N raw LoRa payloads                                                          |
+| GET      | `/api/v1/debug/novelty`         | The pinned novelty log, verbatim `text/plain` ([02 §2.7](02-smoke-x-protocol.md)) |
 | GET      | `/api/v1/debug/coredump`        | Stored panic dump, if any                                                         |
 | GET      | `/*`                            | Static fallback web UI — **post-MVP** (§6.4); serves a built-in stub until then   |
 | GET      | `/generate_204` etc.            | Captive-portal shims (AP mode) — [05 §5.8.1](05-connectivity-and-provisioning.md) |

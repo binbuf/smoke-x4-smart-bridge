@@ -864,6 +864,33 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/debug/novelty:
+    get:
+      tags: [debug]
+      operationId: getDebugNovelty
+      summary: The pinned novelty log, verbatim
+      description: |
+        The plain-text novelty ring from `/cooks/novelty.log` (02 §2.7,
+        F4.3): one line per structurally new packet —
+        `<t_ms> <reason> <value> <payload>` — pullable and readable with
+        no tooling. The capture half runs since M1; this is the read half
+        (10 §10.4). WebSocket-free, auth-gated like every API route.
+      responses:
+        "200":
+          description: The novelty log lines, verbatim. Empty when nothing
+            novel has ever been seen.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  102170 sync 000000@918500000 000000,LMXC[\,160,50,191,54,
+                  103180 first state26 LMXC[\,30,1,1,0,803,1,99,47,0,0,
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/debug/coredump:
     get:
       tags: [debug]

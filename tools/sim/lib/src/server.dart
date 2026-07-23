@@ -272,6 +272,14 @@ class SimServer {
           ],
         });
 
+      case ('GET', '/debug/novelty'):
+        // The F4.3 pinned log, verbatim text — the read half of M1's
+        // capture work (F4.4). The sim synthesises the lines its replay
+        // state implies.
+        req.response.headers.contentType = ContentType('text', 'plain', charset: 'utf-8');
+        req.response.write(noveltyText(state, vT));
+        return req.response.close();
+
       case ('GET', '/debug/coredump'):
         return _json(req, 404, errorBody('not_found', 'no coredump stored'));
     }

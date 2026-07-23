@@ -28,6 +28,18 @@ void main() {
     server = await startServer(SimState(cook: cook, nowMs: pastEndClock(endT)));
   });
 
+  test('GET /debug/novelty serves plain text novelty lines (F4.4)', () async {
+    final (code, text) = await getText(server, '/api/v1/debug/novelty');
+    expect(code, 200);
+    // The on-device line format: <t_ms> <reason> <value> <payload>.
+    expect(text, contains(' sync '));
+    expect(text, contains(' first state26 '));
+    final lines = text.trim().split('\n');
+    for (final line in lines) {
+      expect(RegExp(r'^\d+ \w+ ').hasMatch(line), isTrue, reason: line);
+    }
+  });
+
   test('GET /status matches the status.json fixture shape', () async {
     final (code, body) = await getJson(server, '/api/v1/status');
     expect(code, 200);
