@@ -87,6 +87,13 @@ uint32_t cook_session_sample_count(void);
 bool cook_session_clock_valid(void);
 uint32_t cook_session_started_uptime_s(void);
 
+/* After a §4.5 resume: the session-relative t the next append should
+ * continue from (last valid record's t + sample_period). 0 for sessions
+ * opened this boot. The caller anchors this against ITS current uptime —
+ * uptime restarts across the reboot, so `uptime - started_uptime` is
+ * meaningless for a resumed session (found on the board, F5.11). */
+uint32_t cook_session_resume_base_t(void);
+
 /* Appends one sample (CRC computed here). Applies the fsync cadence. */
 int cook_session_append(uint32_t t, const int16_t temp[4], uint8_t flags,
                         int8_t rssi);

@@ -44,6 +44,23 @@ typedef struct {
 static QueueHandle_t s_queue;
 static cook_lifecycle_t s_lc;
 
+/* Session-relative time is anchored, not derived from started_uptime:
+ * uptime restarts across a reboot, so a resumed session must continue
+ * from the recovery base instead (F5.11's board-found underflow). */
+static bool s_anchor_set;
+static uint32_t s_t_base;      /* session-relative t at the anchor */
+static uint32_t s_uptime_base; /* uptime seconds at the anchor */
+
+static uint32_t session_rel_t(uint32_t now_s) {
+    if (!s_anchor_set) {
+        /* First sample after a boot that resumed an open session. */
+        s_anchor_set = true;
+        s_t_base = cook_session_resume_base_t();
+        s_uptime_base = now_s;
+    }
+    return s_t_base + (now_s - s_uptime_base);
+}
+
 static void enqueue(const cook_msg_t *msg) {
     if (s_queue && xQueueSend(s_queue, msg, 0) != pdTRUE) {
         ESP_LOGW(TAG, "queue full, message dropped");
@@ -94,6 +111,9 @@ static void open_session(const bridge_evt_sample_t *s) {
     };
     if (cook_session_open(&params) == COOK_STORE_OK) {
         cook_lifecycle_note_started(&s_lc, s->t_rel_s);
+        s_anchor_set = true;
+        s_t_base = 0;
+        s_uptime_base = s->t_rel_s;
         cook_ring_reset();
         bridge_evt_session_t evt = {.action = BRIDGE_SESSION_STARTED,
                                     .session_id = cook_session_active_id()};
@@ -109,6 +129,7 @@ static void close_session(void) {
     (void)app_time_core_now(now_up, &ended_unix);
     if (cook_session_close(ended_unix) == COOK_STORE_OK) {
         cook_lifecycle_note_ended(&s_lc);
+        s_anchor_set = false;
         bridge_evt_session_t evt = {.action = BRIDGE_SESSION_ENDED,
                                     .session_id = id};
         (void)bridge_event_post(BRIDGE_EVT_SESSION, &evt, sizeof evt);
@@ -157,7 +178,7 @@ static void handle_sample(const bridge_evt_sample_t *s, bool explicit_start,
     }
 
     if (cook_session_is_open()) {
-        const uint32_t t = s->t_rel_s - cook_session_started_uptime_s();
+        const uint32_t t = session_rel_t(s->t_rel_s);
         const int rc = cook_session_append(t, s->temp_f10, s->flags, s->rssi);
         if (rc == COOK_STORE_OK) {
             const cook_ring_sample_t rs = {
@@ -178,17 +199,22 @@ static void handle_sample(const bridge_evt_sample_t *s, bool explicit_start,
 }
 
 static void handle_time(void) {
-    /* F6.2: a real clock landed; date a clockless open session. */
+    /* F6.2: a real clock landed; date a clockless open session. The
+     * session's age comes from the anchor, never from started_uptime —
+     * a resumed session's start predates this boot. */
     if (!cook_session_is_open() || cook_session_clock_valid()) {
         return;
     }
-    const uint64_t now_up = (uint64_t)esp_timer_get_time() / 1000u;
-    uint64_t started = 0;
-    if (app_time_core_unix_at(
-            (uint64_t)cook_session_started_uptime_s() * 1000u, now_up,
-            &started) &&
-        started != 0) {
-        (void)cook_session_set_clock(started);
+    const uint64_t now_up_s = (uint64_t)esp_timer_get_time() / 1000000u;
+    const uint32_t rel_now = s_anchor_set
+                                 ? s_t_base + ((uint32_t)now_up_s -
+                                               s_uptime_base)
+                                 : cook_session_resume_base_t();
+    uint64_t now_unix = 0;
+    const uint64_t now_up_ms = now_up_s * 1000u;
+    if (app_time_core_now(now_up_ms, &now_unix) &&
+        now_unix > (uint64_t)rel_now * 1000u) {
+        (void)cook_session_set_clock(now_unix - (uint64_t)rel_now * 1000u);
     }
 }
 

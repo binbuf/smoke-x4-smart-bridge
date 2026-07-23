@@ -23,6 +23,7 @@ static struct {
     uint32_t sample_count;
     uint32_t mark_count;
     uint32_t appends_since_sync;
+    uint32_t resume_base_t; /* §4.5 resume: continue t from here */
     bool storage_full;
 } s_sess;
 
@@ -208,6 +209,10 @@ bool cook_session_clock_valid(void) {
 
 uint32_t cook_session_started_uptime_s(void) {
     return s_sess.open ? s_sess.hdr.started_uptime_s : 0;
+}
+
+uint32_t cook_session_resume_base_t(void) {
+    return s_sess.open ? s_sess.resume_base_t : 0;
 }
 
 int cook_session_open(const cook_session_params_t *p) {
@@ -529,6 +534,11 @@ static void recover_active(uint32_t id) {
             last_t = rec.t;
         }
     }
+    /* The outage duration is unknowable without a wall clock, so t resumes
+     * one nominal period after the last record — the chart shows a gap of
+     * at least one period, never time running backwards (04 §4.4). */
+    const uint32_t period = h.sample_period_s != 0 ? h.sample_period_s : 30;
+    s_sess.resume_base_t = count > 0 ? last_t + period : 0;
     (void)cook_session_mark(last_t, BRIDGE_MARK_KIND_AUTO_DETECTED, 0,
                             "power restored");
     cook_index_entry_t e;

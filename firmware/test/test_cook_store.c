@@ -60,6 +60,7 @@ static void test_open_append_close_reopens_identically(void) {
     fresh_store();
     CHECK_EQ_INT(cook_session_open(&k_params), COOK_STORE_OK);
     CHECK(cook_session_is_open());
+    CHECK_EQ_INT((int)cook_session_resume_base_t(), 0); /* fresh session */
     const uint32_t id = cook_session_active_id();
     CHECK_EQ_INT(g_evt_counts[COOK_STORE_EVT_SESSION_STARTED], 1);
 
@@ -125,6 +126,11 @@ static void test_recovery_truncated_at_every_offset(void) {
         CHECK_EQ_INT((int)cook_session_active_id(), (int)id); /* SAME one */
         CHECK_EQ_INT((int)cook_session_sample_count(), 4);
         CHECK_EQ_INT(g_evt_counts[COOK_STORE_EVT_SESSION_RESUMED], 1);
+
+        /* t resumes one period after the last record — uptime restarted
+         * with the reboot, so the caller anchors on this, never on
+         * started_uptime (the F5.11 board-found underflow). */
+        CHECK_EQ_INT((int)cook_session_resume_base_t(), 90 + 30);
 
         /* Appending continues where the cook left off. */
         append_n(150, 1);
