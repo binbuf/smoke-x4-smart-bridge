@@ -7,6 +7,7 @@ firmware/build/
 # ESP-IDF: the generated root sdkconfig is per-checkout; per-board defaults ARE committed
 firmware/sdkconfig
 firmware/sdkconfig.old
+firmware/sdkconfig.heltec-v3.old
 firmware/sdkconfig.heltec-v3-bench
 firmware/sdkconfig.heltec-v3-bench.old
 firmware/dependencies.lock

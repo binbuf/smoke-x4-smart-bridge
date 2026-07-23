@@ -14,6 +14,25 @@ CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=2
 
+# F10.4/F10.5 — the Bridge Control Service (protocol/ble-gatt.md).
+# Peripheral only: we advertise and serve, we never scan or connect out.
+# Dropping the central/observer roles is the cheapest RAM in the build.
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+# LE Secure Connections with passkey entry, IO capability DisplayOnly:
+# the OLED shows the code, so the LTK is MITM-authenticated. Legacy
+# pairing is OFF — it cannot produce an authenticated key, and
+# wifi_config/device_control require one (ble-gatt §3).
+CONFIG_BT_NIMBLE_SM_SC=y
+CONFIG_BT_NIMBLE_SM_LEGACY=n
+# Bonds persist in NVS, capped at 3 phones (§3). The store is NimBLE's
+# own namespace — the one documented exception to 03 §3.6, see §3.6.1.
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+CONFIG_BT_NIMBLE_MAX_BONDS=3
+# 247 so history_preview's 244 B + 3 fits a single ATT PDU (§4). A peer
+# that refuses still gets live_state, which is 16 B by design (R7).
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
+
 # Wi-Fi + BLE share the 2.4 GHz radio
 CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 

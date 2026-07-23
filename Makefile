@@ -84,7 +84,7 @@ TEST_BUILD := firmware/test/build
 PORT_ARG := $(if $(PORT),-p $(PORT),)
 
 .PHONY: help check-python check-idf setup build flash flash-monitor monitor \
-	menuconfig test-host sim clean clean-test
+	menuconfig test-host oled-preview sim clean clean-test
 
 # help: Show available targets and usage
 help:
@@ -234,6 +234,10 @@ test-host:
 	cmake -G Ninja -B $(TEST_BUILD) $(TEST_DIR)
 	cmake --build $(TEST_BUILD)
 	ctest --test-dir $(TEST_BUILD) --output-on-failure
+
+# oled-preview: Render the golden OLED framebuffers to PNGs for review (F11a.2)
+oled-preview:
+	python tools/oled/render_oled_preview.py
 
 # --- Simulator ---
 

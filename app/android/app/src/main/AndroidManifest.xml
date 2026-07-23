@@ -13,10 +13,23 @@
          quietly turn scanning into a location permission. -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"/>
-    <!-- API <= 32 needed location for Wi-Fi scans; gated to those levels
-         only. -->
+    <!-- API <= 32 needed location for Wi-Fi scans (and API <= 30 needed it
+         for BLE scans too); gated to those levels only. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="32"/>
+    <!-- A6.6 — the BLE rows of the same §5.8.3 matrix, which A14.3 left
+         for M3. API 31+ (Android 12): the modern split, with
+         neverForLocation on the scan half so onboarding never triggers a
+         location prompt — a meaningful drop-off point. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <!-- API <= 30: the legacy pair. ACCESS_FINE_LOCATION above covers the
+         third leg of the legacy trio on those levels. -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30"/>
     <application
         android:label="smoke_bridge"
         android:name="${applicationName}"

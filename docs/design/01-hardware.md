@@ -106,10 +106,19 @@ Free heap at boot on a bare ESP32-S3FN8 app is ~380 KB. Planned allocation:
 | `esp_http_server`             | 8 KB + ~6 KB per open connection | Cap at 4 concurrent, 2 of them WebSocket                                                           |
 | LittleFS (2 mounts)           | 8–16 KB                          | Cache/lookahead sizes are tunable; larger cache = faster, more RAM                                 |
 | mDNS                          | ~4 KB                            |                                                                                                    |
-| Application task stacks       | ~26 KB                           | lora_rx 4K, smoke_x 4K, cook_store 4K, ui 4K, alarm 3K, ble_app 4K, net 3K                         |
+| Application task stacks       | 31.5 KB (was est. ~26 KB)        | lora_rx 4K, smoke_x 3K, cook_store 4K, ui 4K, alarm 3K, net 3K, power 2.5K, ws_push 4K, ble_push 4K |
 | Live sample ring (2 h @ 30 s) | 3.9 KB                           | 240 × 16 B                                                                                         |
 | Scratch buffers               | ≤ 6 KB                           | Streaming keeps these small by construction                                                        |
 | **Total**                     | **~160–210 KB**                  | Leaves ~170–220 KB headroom                                                                        |
+
+The task-stack row moved twice against its original estimate, both times
+deliberately and both times recorded in `firmware/main/tasks.h`: **ws_push**
+(M2, board-found — the lwIP send path runs on the pushing task's stack, and
+3 KB overflowed) and **ble_push** (M3/F10.4, drawing the `ble_app` allowance
+this table always carried). The compile-time budget assert moved 28 KB →
+32 KB with it. The M2 bench measured `min_free_heap` ≈ 180.7 KB with AP +
+httpd + both LittleFS mounts live, so +5.5 KB of stacks is affordable — but
+that measurement predates NimBLE, which is why V3a re-measures.
 
 Headroom is real but not generous. Rules that follow from it:
 

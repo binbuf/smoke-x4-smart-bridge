@@ -225,6 +225,29 @@ component opens NVS directly (the reference scatters `nvs_open` across four file
 Every writable key is exposed through `GET|POST /api/v1/config/*` and, for the network subset, the
 BLE control characteristic. A single `config_version` key drives forward migrations.
 
+### 3.6.1 The one documented exception: NimBLE's bond store (M3/F10.5)
+
+NimBLE's stock `ble_store_config` opens NVS directly, in its own namespace, which is exactly what
+the rule above forbids. **The exception is granted, deliberately, and it is the only one.**
+
+Why, rather than routing bonds through `app_config`'s typed layer: bond material is not
+configuration. It is opaque security state (LTK, IRK, CSRK, peer address type) whose struct layout
+belongs to the BLE stack, not to us. Persisting it as blobs through our schema would mean owning the
+forward-compatibility of a type we do not define — an IDF upgrade could silently invalidate every
+bond, and the user-visible symptom is "my phone just won't connect", the bug report A6.4 exists to
+prevent. `ble_store_config` already versions its own records.
+
+The exception comes with obligations, because "wipe NVS including all bonds" is a promise the
+factory reset makes ([ble-gatt §3](../../protocol/ble-gatt.md)):
+
+- `app_config_store_factory_reset()` alone does **not** clear bonds — it only erases the namespaces
+  in the table above. Every factory-reset path (`device_control` op 8, the 10 s PRG hold, the
+  settings UI) must also call `app_ble_forget_bonds()`, which drives `ble_store_clear()`.
+- The 3-bond cap ([§3](../../protocol/ble-gatt.md)) is enforced in `app_ble_core`, not by the store,
+  so it is host-testable.
+- No other component may take this exception by citing it. If a second one is ever needed, it is a
+  design conversation, not a precedent.
+
 ## 3.7 Reliability
 
 **Watchdogs.** Task WDT enabled and subscribed by every application task (5 s). Interrupt WDT at
