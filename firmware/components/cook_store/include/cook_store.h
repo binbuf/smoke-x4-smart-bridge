@@ -26,6 +26,9 @@ int cook_store_init(void);
  * and the F6.2 back-patch on BRIDGE_EVT_TIME. Requires the event loop. */
 int cook_store_task_start(void);
 
+/* Filesystem numbers for /status (device-side; host tests use ops). */
+int cook_store_fs_info(uint32_t *total_b, uint32_t *used_b);
+
 #ifdef __cplusplus
 }
 #endif

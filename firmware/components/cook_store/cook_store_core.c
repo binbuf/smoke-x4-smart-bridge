@@ -596,6 +596,139 @@ int cook_store_core_init(const cook_vfs_t *vfs, cook_store_evt_cb_t cb,
     return COOK_STORE_OK;
 }
 
+/* ── API surface additions (F9.4) ──────────────────────────────────────── */
+
+int cook_store_read_header(uint32_t session_id, bridge_session_header_t *h) {
+    if (s_sess.open && session_id == s_sess.hdr.session_id) {
+        *h = s_sess.hdr;
+        return COOK_STORE_OK;
+    }
+    char path[48];
+    smk_path(path, sizeof path, session_id);
+    const int fd = s_vfs->open(s_vfs->ctx, path, COOK_VFS_RDONLY);
+    if (fd < 0) {
+        return COOK_STORE_ERR_NOT_FOUND;
+    }
+    const bool ok = header_read(fd, h);
+    s_vfs->close(s_vfs->ctx, fd);
+    return ok ? COOK_STORE_OK : COOK_STORE_ERR;
+}
+
+int cook_session_patch(uint32_t session_id, const cook_session_patch_t *p) {
+    const bool active = s_sess.open && session_id == s_sess.hdr.session_id;
+    char path[48];
+    smk_path(path, sizeof path, session_id);
+    const int fd = active ? s_sess.fd
+                          : s_vfs->open(s_vfs->ctx, path, COOK_VFS_RDWR);
+    if (fd < 0) {
+        return COOK_STORE_ERR_NOT_FOUND;
+    }
+    bridge_session_header_t h;
+    int rc = COOK_STORE_ERR;
+    if (header_read(fd, &h)) {
+        if (p->name) {
+            memset(h.name, 0, sizeof h.name);
+            snprintf(h.name, sizeof h.name, "%s", p->name);
+        }
+        for (int i = 0; i < 4; i++) {
+            if (p->probe_name[i]) {
+                memset(h.probe_name[i], 0, sizeof h.probe_name[i]);
+                snprintf(h.probe_name[i], sizeof h.probe_name[i], "%s",
+                         p->probe_name[i]);
+            }
+            if (p->probe_role && p->probe_role[i] >= 0) {
+                h.probe_role[i] = (uint8_t)p->probe_role[i];
+            }
+            if (p->probe_target) {
+                h.probe_target[i] = p->probe_target[i];
+            }
+        }
+        if (p->pinned == 0) {
+            h.flags &= (uint8_t)~BRIDGE_SESSION_HEADER_FLAGS_PINNED;
+        } else if (p->pinned == 1) {
+            h.flags |= BRIDGE_SESSION_HEADER_FLAGS_PINNED;
+        }
+        if (header_write(fd, &h) == COOK_STORE_OK &&
+            s_vfs->fsync(s_vfs->ctx, fd) == 0) {
+            if (active) {
+                s_sess.hdr = h;
+            }
+            cook_index_entry_t e;
+            index_entry_from_header(&e, &h,
+                                    active ? s_sess.sample_count
+                                           : h.sample_count);
+            index_upsert(&e);
+            rc = COOK_STORE_OK;
+        }
+    }
+    if (!active) {
+        s_vfs->close(s_vfs->ctx, fd);
+    }
+    return rc;
+}
+
+int cook_store_delete(uint32_t session_id) {
+    if (s_sess.open && session_id == s_sess.hdr.session_id) {
+        return COOK_STORE_ERR_STATE; /* never the active session */
+    }
+    if (!cook_store_index_find(session_id)) {
+        return COOK_STORE_ERR_NOT_FOUND;
+    }
+    char path[48];
+    smk_path(path, sizeof path, session_id);
+    s_vfs->remove(s_vfs->ctx, path);
+    mrk_path(path, sizeof path, session_id);
+    s_vfs->remove(s_vfs->ctx, path);
+    index_remove(session_id);
+    return COOK_STORE_OK;
+}
+
+int cook_store_read_marks(uint32_t session_id,
+                          int (*cb)(void *ctx, const bridge_mark_rec_t *m),
+                          void *ctx) {
+    char path[48];
+    mrk_path(path, sizeof path, session_id);
+    const int fd = s_vfs->open(s_vfs->ctx, path, COOK_VFS_RDONLY);
+    if (fd < 0) {
+        return COOK_STORE_OK; /* no marks file: zero marks */
+    }
+    uint8_t buf[BRIDGE_MARK_REC_SIZE];
+    while (s_vfs->read(s_vfs->ctx, fd, buf, sizeof buf) ==
+           (long)sizeof buf) {
+        bridge_mark_rec_t m;
+        if (!bridge_mark_rec_decode(buf, &m)) {
+            continue; /* torn mark: skip, never invent */
+        }
+        if (cb(ctx, &m) != 0) {
+            break;
+        }
+    }
+    s_vfs->close(s_vfs->ctx, fd);
+    return COOK_STORE_OK;
+}
+
+/* Host default: direct execution. The device drain task overrides. */
+static int default_start(void) {
+    return COOK_STORE_ERR_STATE; /* auto-start needs a sample; see F5.4 */
+}
+
+static int default_stop(void) {
+    return cook_session_is_open() ? cook_session_close(0)
+                                  : COOK_STORE_ERR_STATE;
+}
+
+static int (*s_start_hook)(void) = default_start;
+static int (*s_stop_hook)(void) = default_stop;
+
+void cook_store_set_request_hooks(int (*start)(void), int (*stop)(void)) {
+    s_start_hook = start ? start : default_start;
+    s_stop_hook = stop ? stop : default_stop;
+}
+
+int cook_store_request_start(void) { return s_start_hook(); }
+
+int cook_store_request_stop(void) { return s_stop_hook(); }
+
 /* ── Streaming read (F5.10) ────────────────────────────────────────────── */
 
 static void bucket_reset(cook_bucket_t *b, uint32_t t0, int32_t sums[4],

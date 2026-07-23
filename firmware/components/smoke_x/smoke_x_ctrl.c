@@ -116,6 +116,8 @@ static int handle_state(const char *payload, unsigned int num_probes,
     }
 
     s_stats.valid++;
+    s_stats.last_rssi = rssi;
+    s_stats.last_snr = snr;
     record_interval(now_ms);
     s_last_valid_ms = now_ms;
     if (s_base_lost) {
@@ -196,6 +198,12 @@ int smoke_x_ctrl_unpair(void) {
 smoke_x_pair_state_t smoke_x_ctrl_state(void) { return s_state; }
 
 const smoke_x_stats_t *smoke_x_ctrl_stats(void) { return &s_stats; }
+
+uint64_t smoke_x_ctrl_last_valid_ms(void) { return s_last_valid_ms; }
+
+bool smoke_x_ctrl_base_lost(void) { return s_base_lost; }
+
+uint32_t smoke_x_ctrl_frequency_hz(void) { return s_frequency; }
 
 int smoke_x_ctrl_init(const smoke_x_ops_t *ops, void *ctx,
                       bool rescan_enabled, uint64_t now_ms) {

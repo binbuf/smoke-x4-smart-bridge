@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
+#include "app_api.h"
 #include "app_config.h"
 #include "app_net.h"
 #include "app_time.h"
@@ -111,6 +112,11 @@ static int step_net(void *ctx) {
     return app_net_start(boot->force_ap);
 }
 
+static int step_api(void *ctx) {
+    (void)ctx;
+    return app_api_init();
+}
+
 static int step_recovery_window(void *ctx) {
     (void)ctx;
     /* 3 s PRG hold on the splash — stubbed until F11 (app_ui). */
@@ -158,7 +164,7 @@ void app_main(void) {
                 [BRIDGE_BOOT_SMOKE_X_START - 1] = step_smoke_x_start,
                 [BRIDGE_BOOT_TIME - 1] = step_time,
                 [BRIDGE_BOOT_NET - 1] = step_net,
-                [BRIDGE_BOOT_API - 1] = step_stub,           /* F9 */
+                [BRIDGE_BOOT_API - 1] = step_api,
                 [BRIDGE_BOOT_BLE - 1] = step_stub,           /* F10 */
                 [BRIDGE_BOOT_ALARM - 1] = step_stub,         /* F13 */
                 [BRIDGE_BOOT_OTA_HEALTH_GATE - 1] = step_ota_health_gate,

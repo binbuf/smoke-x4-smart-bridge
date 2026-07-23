@@ -1,0 +1,1028 @@
+/* app_api_core — router, auth, error envelope, and the non-session
+ * handlers (F9.1, F9.3, F9.6–F9.8, F9.10, F8.7, F4.5, F4.6). */
+#include "app_api_core.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "app_api_internal.h"
+#include "app_config_store.h"
+#include "app_time_core.h"
+#include "cook_novelty_log.h"
+#include "cook_ring.h"
+#include "cook_store_core.h"
+#include "smoke_x_ctrl.h"
+#include "smoke_x_pktring.h"
+
+static const app_api_ops_t *s_ops;
+
+const app_api_ops_t *app_api_ops(void) { return s_ops; }
+
+int app_api_core_init(const app_api_ops_t *ops) {
+    if (!ops || !ops->sysinfo || !ops->net_status || !ops->uptime_ms) {
+        return -1;
+    }
+    s_ops = ops;
+    return 0;
+}
+
+/* ── error envelope (F9.1) ─────────────────────────────────────────────── */
+
+void app_api_error(app_api_out_t *out, int status, const char *code,
+                   const char *message) {
+    app_api_out_begin(out, status, "application/json");
+    app_api_emit_fmt(out, "{\"error\":{\"code\":\"%s\",\"message\":", code);
+    app_api_emit_json_str(out, message);
+    app_api_emit_str(out, ",\"detail\":null}}");
+}
+
+void app_api_error_detail_int(app_api_out_t *out, int status,
+                              const char *code, const char *message,
+                              const char *detail_key, int detail_value) {
+    app_api_out_begin(out, status, "application/json");
+    app_api_emit_fmt(out, "{\"error\":{\"code\":\"%s\",\"message\":", code);
+    app_api_emit_json_str(out, message);
+    app_api_emit_fmt(out, ",\"detail\":{\"%s\":%d}}}", detail_key,
+                     detail_value);
+}
+
+/* ── query + JSON helpers ──────────────────────────────────────────────── */
+
+const char *app_api_query_get(const app_api_req_t *req, const char *key) {
+    for (int i = 0; i < req->query_count; i++) {
+        if (strcmp(req->query[i].key, key) == 0) {
+            return req->query[i].value;
+        }
+    }
+    return NULL;
+}
+
+int app_api_query_int(const app_api_req_t *req, const char *key,
+                      long fallback, long *out) {
+    const char *v = app_api_query_get(req, key);
+    if (!v) {
+        *out = fallback;
+        return 0;
+    }
+    char *end;
+    const long n = strtol(v, &end, 10);
+    if (end == v || *end != '\0') {
+        return -1;
+    }
+    *out = n;
+    return 0;
+}
+
+/* Finds `"key"` at object level (naive: first occurrence of the quoted
+ * key followed by ':'); returns a pointer to its value or NULL. Good
+ * enough for the small, flat bodies this API accepts. */
+const char *app_api_json_find(const char *body, const char *key) {
+    if (!body) {
+        return NULL;
+    }
+    char pat[48];
+    snprintf(pat, sizeof pat, "\"%s\"", key);
+    const char *p = body;
+    while ((p = strstr(p, pat)) != NULL) {
+        const char *q = p + strlen(pat);
+        while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') {
+            q++;
+        }
+        if (*q == ':') {
+            q++;
+            while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') {
+                q++;
+            }
+            return q;
+        }
+        p = q;
+    }
+    return NULL;
+}
+
+int app_api_json_str(const char *body, const char *key, char *out,
+                     size_t cap) {
+    const char *v = app_api_json_find(body, key);
+    if (!v || *v != '"') {
+        return -1;
+    }
+    v++;
+    size_t n = 0;
+    while (*v && *v != '"' && n + 1 < cap) {
+        if (*v == '\\' && v[1]) {
+            v++;
+            switch (*v) {
+                case 'n':
+                    out[n++] = '\n';
+                    break;
+                case 't':
+                    out[n++] = '\t';
+                    break;
+                default:
+                    out[n++] = *v;
+            }
+            v++;
+        } else {
+            out[n++] = *v++;
+        }
+    }
+    out[n] = '\0';
+    return *v == '"' ? 0 : -1;
+}
+
+int app_api_json_int(const char *body, const char *key, long *out) {
+    const char *v = app_api_json_find(body, key);
+    if (!v) {
+        return -1;
+    }
+    char *end;
+    const long n = strtol(v, &end, 10);
+    if (end == v) {
+        return -1;
+    }
+    *out = n;
+    return 0;
+}
+
+int app_api_json_bool(const char *body, const char *key, bool *out) {
+    const char *v = app_api_json_find(body, key);
+    if (!v) {
+        return -1;
+    }
+    if (strncmp(v, "true", 4) == 0) {
+        *out = true;
+        return 0;
+    }
+    if (strncmp(v, "false", 5) == 0) {
+        *out = false;
+        return 0;
+    }
+    return -1;
+}
+
+/* ── captive probes (F8.7) — bodies shared verbatim with tools/sim ─────── */
+
+static const char k_apple_success[] =
+    "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>";
+static const char k_builtin_page[] =
+    "<html><body><h1>Smoke Bridge</h1><p>Use the Smoke Bridge app, or GET "
+    "/api/v1/status.</p></body></html>";
+
+bool app_api_path_is_open(const char *path) {
+    return strncmp(path, "/api/v1", 7) != 0;
+}
+
+static bool handle_captive(const app_api_req_t *req, app_api_out_t *out) {
+    const char *p = req->path;
+    if (strcmp(p, "/generate_204") == 0 || strcmp(p, "/gen_204") == 0) {
+        app_api_out_begin(out, 204, NULL);
+        return true;
+    }
+    if (strcmp(p, "/hotspot-detect.html") == 0 ||
+        strcmp(p, "/library/test/success.html") == 0) {
+        app_api_out_begin(out, 200, "text/html");
+        app_api_emit_str(out, k_apple_success);
+        return true;
+    }
+    if (strcmp(p, "/ncsi.txt") == 0) {
+        app_api_out_begin(out, 200, "text/plain");
+        app_api_emit_str(out, "Microsoft NCSI");
+        return true;
+    }
+    if (strcmp(p, "/connecttest.txt") == 0) {
+        app_api_out_begin(out, 200, "text/plain");
+        app_api_emit_str(out, "Microsoft Connect Test");
+        return true;
+    }
+    return false;
+}
+
+/* ── GET /status (F9.3) ────────────────────────────────────────────────── */
+
+static const char *time_source_name(void) {
+    switch (app_time_core_source()) {
+        case APP_TIME_SNTP:
+            return "sntp";
+        case APP_TIME_PHONE:
+            return "phone";
+        case APP_TIME_STALE:
+            return "stale";
+        default:
+            return "none";
+    }
+}
+
+static void emit_unix_ms_or_null(app_api_out_t *out) {
+    uint64_t ms;
+    if (app_time_core_now(s_ops->uptime_ms(), &ms)) {
+        app_api_emit_fmt(out, "%llu", (unsigned long long)ms);
+    } else {
+        app_api_emit_str(out, "null");
+    }
+}
+
+static void handle_status(app_api_out_t *out) {
+    app_api_sysinfo_t sys;
+    s_ops->sysinfo(&sys);
+    app_api_net_snapshot_t net;
+    s_ops->net_status(&net);
+    const smoke_x_stats_t *st = smoke_x_ctrl_stats();
+
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(
+        out,
+        "{\"device\":{\"id\":\"%s\",\"model\":\"%s\",\"fw\":\"%s\","
+        "\"uptime_s\":%u,\"free_heap\":%u,\"min_free_heap\":%u,"
+        "\"reset_reason\":\"%s\",\"coredump_available\":%s}",
+        sys.id, sys.model, sys.fw, (unsigned)sys.uptime_s,
+        (unsigned)sys.free_heap, (unsigned)sys.min_free_heap,
+        sys.reset_reason, sys.coredump_available ? "true" : "false");
+
+    int32_t tz = 0;
+    (void)app_config_store_get_i32(APP_CONFIG_TIME_TZ_OFFSET_MIN, &tz);
+    const app_time_source_t src = app_time_core_source();
+    app_api_emit_str(out, ",\"time\":{\"unix_ms\":");
+    emit_unix_ms_or_null(out);
+    app_api_emit_fmt(out,
+                     ",\"source\":\"%s\",\"tz_offset_min\":%d,\"valid\":%s}",
+                     time_source_name(), (int)tz,
+                     (src == APP_TIME_SNTP || src == APP_TIME_PHONE)
+                         ? "true"
+                         : "false");
+
+    app_api_emit_fmt(out,
+                     ",\"net\":{\"mode\":\"%s\",\"state\":\"%s\",\"ssid\":",
+                     net.mode, net.state);
+    app_api_emit_json_str(out, net.ssid);
+    app_api_emit_fmt(out,
+                     ",\"rssi\":%d,\"ip\":\"%s\",\"host\":\"%s\","
+                     "\"ap_clients\":%d}",
+                     (int)net.rssi, net.ip, net.host, net.ap_clients);
+
+    /* Honest degenerate values until M3/M5 — shape-complete, not invented. */
+    app_api_emit_str(
+        out, ",\"ble\":{\"advertising\":false,\"connections\":0,\"bonded\":0}");
+
+    app_config_pairing_t pair;
+    const bool paired = app_config_store_get_pairing(&pair) == APP_CONFIG_OK;
+    app_api_emit_fmt(out, ",\"pairing\":{\"paired\":%s,\"device_id\":",
+                     paired ? "true" : "false");
+    if (paired) {
+        app_api_emit_json_str(out, pair.device_id);
+    } else {
+        app_api_emit_str(out, "null");
+    }
+    if (paired) {
+        const uint64_t last = smoke_x_ctrl_last_valid_ms();
+        const uint64_t now = s_ops->uptime_ms();
+        app_api_emit_fmt(out,
+                         ",\"model\":\"%s\",\"num_probes\":%u,"
+                         "\"frequency_hz\":%u,\"last_packet_s_ago\":%u,"
+                         "\"base_lost\":%s}",
+                         pair.num_probes == 2 ? "X2" : "X4",
+                         (unsigned)pair.num_probes, (unsigned)pair.frequency,
+                         (unsigned)((now - last) / 1000u),
+                         smoke_x_ctrl_base_lost() ? "true" : "false");
+    } else {
+        app_api_emit_str(out,
+                         ",\"model\":null,\"num_probes\":0,"
+                         "\"frequency_hz\":null,\"last_packet_s_ago\":null,"
+                         "\"base_lost\":false}");
+    }
+
+    app_api_emit_fmt(out,
+                     ",\"radio\":{\"rssi\":%d,\"snr\":%d,\"packets_ok\":%u,"
+                     "\"packets_bad\":%u,\"id_mismatch\":%u}",
+                     (int)st->last_rssi, (int)st->last_snr,
+                     (unsigned)st->valid,
+                     (unsigned)(st->parse_fail + st->crc_fail +
+                                st->unknown_commas),
+                     (unsigned)st->id_mismatch);
+
+    const cook_index_entry_t *oldest = cook_store_index_get(0);
+    app_api_emit_fmt(out,
+                     ",\"storage\":{\"total_b\":%u,\"used_b\":%u,"
+                     "\"free_pct\":%u,\"sessions\":%d,"
+                     "\"oldest_session_id\":%u}",
+                     (unsigned)sys.storage_total_b,
+                     (unsigned)sys.storage_used_b,
+                     (unsigned)sys.storage_free_pct, cook_store_index_count(),
+                     oldest ? (unsigned)oldest->session_id : 0u);
+
+    app_api_emit_str(out,
+                     ",\"power\":{\"mv\":null,\"soc_pct\":null,"
+                     "\"charging\":false,\"saver\":false}");
+
+    const bool active = cook_session_is_open();
+    app_api_emit_fmt(out, ",\"session\":{\"active\":%s",
+                     active ? "true" : "false");
+    if (active) {
+        bridge_session_header_t h;
+        (void)cook_store_read_header(cook_session_active_id(), &h);
+        const cook_ring_sample_t *newest = cook_ring_get(0);
+        app_api_emit_fmt(out, ",\"id\":%u,\"name\":",
+                         (unsigned)h.session_id);
+        app_api_emit_json_str(out, h.name);
+        app_api_emit_str(out, ",\"started_unix_ms\":");
+        if (bridge_session_header_clock_valid(h.flags)) {
+            app_api_emit_fmt(out, "%llu",
+                             (unsigned long long)h.started_unix_ms);
+        } else {
+            app_api_emit_str(out, "null");
+        }
+        app_api_emit_fmt(out, ",\"elapsed_s\":%u,\"samples\":%u}",
+                         newest ? (unsigned)newest->t : 0u,
+                         (unsigned)cook_session_sample_count());
+    } else {
+        app_api_emit_str(out,
+                         ",\"id\":null,\"name\":null,"
+                         "\"started_unix_ms\":null,\"elapsed_s\":0,"
+                         "\"samples\":0}");
+    }
+
+    app_api_emit_str(out, ",\"alarms\":[]}");
+}
+
+/* ── GET /live (F9.3) ──────────────────────────────────────────────────── */
+
+static const char *role_name(uint8_t role) {
+    static const char *const names[] = {"pit", "food", "ambient", "unused"};
+    /* app_config roles: 0 pit, 1 food, 2 ambient, 3 unused. */
+    return names[role < 4 ? role : 3];
+}
+
+static void handle_live(const app_api_req_t *req, app_api_out_t *out) {
+    long window = 3600;
+    if (app_api_query_int(req, "window", 3600, &window) != 0 || window < 1) {
+        return app_api_error(out, 400, "invalid_field", "bad window");
+    }
+    if (window > 7200) {
+        window = 7200;
+    }
+    const int count = cook_ring_count();
+    const cook_ring_sample_t *newest = cook_ring_get(0);
+    const uint32_t newest_t = newest ? newest->t : 0;
+    const uint32_t from_t =
+        newest_t > (uint32_t)window ? newest_t - (uint32_t)window : 0;
+
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(out, "{\"t\":%u,\"unix_ms\":", (unsigned)newest_t);
+    emit_unix_ms_or_null(out);
+    const bool celsius =
+        newest && (newest->flags & 0x40); /* SOURCE_CELSIUS */
+    app_api_emit_fmt(out,
+                     ",\"units_source\":\"%s\",\"billows\":{\"attached\":%s,"
+                     "\"target_f10\":null},\"probes\":[",
+                     celsius ? "C" : "F",
+                     newest && (newest->flags & 0x10) ? "true" : "false");
+
+    static const app_config_key_t name_keys[4] = {
+        APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME, APP_CONFIG_PROBE3_NAME,
+        APP_CONFIG_PROBE4_NAME};
+    static const app_config_key_t role_keys[4] = {
+        APP_CONFIG_PROBE1_ROLE, APP_CONFIG_PROBE2_ROLE, APP_CONFIG_PROBE3_ROLE,
+        APP_CONFIG_PROBE4_ROLE};
+    static const app_config_key_t target_keys[4] = {
+        APP_CONFIG_PROBE1_TARGET, APP_CONFIG_PROBE2_TARGET,
+        APP_CONFIG_PROBE3_TARGET, APP_CONFIG_PROBE4_TARGET};
+
+    for (int i = 0; i < 4; i++) {
+        const bool attached =
+            newest && newest->temp[i] != BRIDGE_TEMP_DETACHED &&
+            newest->temp[i] != BRIDGE_TEMP_INVALID;
+        if (i > 0) {
+            app_api_emit_str(out, ",");
+        }
+        if (!attached) {
+            app_api_emit_fmt(out,
+                             "{\"n\":%d,\"attached\":false,\"temp_f10\":null}",
+                             i + 1);
+            continue;
+        }
+        char name[17] = "";
+        uint8_t role = 3;
+        int32_t target = 0;
+        (void)app_config_store_get_str(name_keys[i], name, sizeof name);
+        (void)app_config_store_get_u8(role_keys[i], &role);
+        (void)app_config_store_get_i32(target_keys[i], &target);
+        app_api_emit_fmt(out, "{\"n\":%d,\"name\":", i + 1);
+        app_api_emit_json_str(out, name);
+        app_api_emit_fmt(out,
+                         ",\"role\":\"%s\",\"attached\":true,\"temp_f10\":%d,"
+                         "\"alarm_enabled\":%s,\"target_f10\":",
+                         role_name(role), (int)newest->temp[i],
+                         (newest->flags & (1u << i)) ? "true" : "false");
+        if (target == 0) {
+            app_api_emit_str(out, "null");
+        } else {
+            app_api_emit_fmt(out, "%d", (int)target);
+        }
+        float rate;
+        if (cook_ring_slope_f_per_hr(i, &rate)) {
+            app_api_emit_fmt(out, ",\"rate_f_per_hr\":%.1f}", (double)rate);
+        } else {
+            app_api_emit_str(out, ",\"rate_f_per_hr\":null}");
+        }
+    }
+
+    /* recent: oldest→newest inside the window, straight from the ring. */
+    int first_idx = -1;
+    for (int idx = count - 1; idx >= 0; idx--) {
+        if (cook_ring_get(idx)->t >= from_t) {
+            first_idx = idx;
+            break;
+        }
+    }
+    int included = first_idx >= 0 ? first_idx + 1 : 0;
+    app_api_emit_fmt(out,
+                     "],\"recent\":{\"t0\":%u,\"step_s\":30,\"count\":%d,"
+                     "\"series\":[",
+                     first_idx >= 0 ? (unsigned)cook_ring_get(first_idx)->t
+                                    : 0u,
+                     included);
+    for (int i = 0; i < 4; i++) {
+        bool any = false;
+        for (int idx = first_idx; idx >= 0; idx--) {
+            const int16_t v = cook_ring_get(idx)->temp[i];
+            if (v != BRIDGE_TEMP_DETACHED && v != BRIDGE_TEMP_INVALID) {
+                any = true;
+                break;
+            }
+        }
+        if (i > 0) {
+            app_api_emit_str(out, ",");
+        }
+        if (!any) {
+            app_api_emit_str(out, "null");
+            continue;
+        }
+        app_api_emit_str(out, "[");
+        for (int idx = first_idx; idx >= 0; idx--) {
+            const int16_t v = cook_ring_get(idx)->temp[i];
+            if (idx != first_idx) {
+                app_api_emit_str(out, ",");
+            }
+            if (v == BRIDGE_TEMP_DETACHED || v == BRIDGE_TEMP_INVALID) {
+                app_api_emit_str(out, "null");
+            } else {
+                app_api_emit_fmt(out, "%d", (int)v);
+            }
+        }
+        app_api_emit_str(out, "]");
+    }
+    app_api_emit_str(out, "]}}");
+}
+
+/* ── pairing (F9.6) ────────────────────────────────────────────────────── */
+
+static void handle_pairing_get(app_api_out_t *out) {
+    const smoke_x_pair_state_t st = smoke_x_ctrl_state();
+    const char *state_name = st == SMOKE_X_CONFIRMED       ? "confirmed"
+                             : st == SMOKE_X_SYNC_RECEIVED ? "sync_received"
+                                                           : "scanning";
+    app_config_pairing_t p;
+    const bool paired = st == SMOKE_X_CONFIRMED &&
+                        app_config_store_get_pairing(&p) == APP_CONFIG_OK;
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(out,
+                     "{\"paired\":%s,\"sync_active\":%s,\"state\":\"%s\","
+                     "\"device_id\":",
+                     paired ? "true" : "false",
+                     st == SMOKE_X_UNPAIRED ? "true" : "false", state_name);
+    if (paired) {
+        app_api_emit_json_str(out, p.device_id);
+        app_api_emit_fmt(out,
+                         ",\"model\":\"%s\",\"num_probes\":%u,"
+                         "\"frequency_hz\":%u}",
+                         p.num_probes == 2 ? "X2" : "X4",
+                         (unsigned)p.num_probes, (unsigned)p.frequency);
+    } else {
+        app_api_emit_str(out,
+                         "null,\"model\":null,\"num_probes\":0,"
+                         "\"frequency_hz\":null}");
+    }
+}
+
+/* ── config groups + time (F9.7) ───────────────────────────────────────── */
+
+static void handle_config_wifi_get(app_api_out_t *out) {
+    app_api_net_snapshot_t net;
+    s_ops->net_status(&net);
+    char sta_ssid[33] = "";
+    (void)app_config_store_get_str(APP_CONFIG_NET_STA_SSID, sta_ssid,
+                                   sizeof sta_ssid);
+    char ap_psk[APP_CONFIG_PSK_LEN + 1] = "";
+    (void)app_config_store_get_str(APP_CONFIG_NET_AP_PSK, ap_psk,
+                                   sizeof ap_psk);
+    app_api_sysinfo_t sys;
+    s_ops->sysinfo(&sys);
+    uint8_t mode = APP_CONFIG_NET_MODE_AP;
+    (void)app_config_store_get_u8(APP_CONFIG_NET_MODE, &mode);
+
+    /* NEVER the stored STA password — only the AP PSK, which anyone on
+     * the AP already typed (06 §6.2). */
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(out, "{\"mode\":\"%s\",\"sta\":{\"ssid\":",
+                     mode == APP_CONFIG_NET_MODE_STA ? "sta" : "ap");
+    app_api_emit_json_str(out, sta_ssid);
+    app_api_emit_fmt(out,
+                     ",\"auth\":\"wpa2_psk\"},\"ap\":{\"ssid\":"
+                     "\"SmokeBridge-%s\",\"psk\":\"%s\","
+                     "\"ip\":\"192.168.4.1\"}}",
+                     sys.id, ap_psk);
+}
+
+static void handle_config_wifi_post(const app_api_req_t *req,
+                                    app_api_out_t *out) {
+    char mode[8] = "";
+    if (app_api_json_str(req->body, "mode", mode, sizeof mode) != 0 ||
+        (strcmp(mode, "ap") != 0 && strcmp(mode, "sta") != 0)) {
+        return app_api_error(out, 400, "unsupported_mode",
+                             "mode must be ap|sta");
+    }
+    app_net_pending_cfg_t cfg = {0};
+    cfg.mode = strcmp(mode, "sta") == 0 ? APP_CONFIG_NET_MODE_STA
+                                        : APP_CONFIG_NET_MODE_AP;
+    if (cfg.mode == APP_CONFIG_NET_MODE_STA) {
+        if (app_api_json_str(req->body, "ssid", cfg.sta_ssid,
+                             sizeof cfg.sta_ssid) != 0 ||
+            cfg.sta_ssid[0] == '\0') {
+            return app_api_error(out, 400, "invalid_field",
+                                 "sta mode needs ssid");
+        }
+        (void)app_api_json_str(req->body, "psk", cfg.sta_psk,
+                               sizeof cfg.sta_psk);
+        (void)app_api_json_str(req->body, "username", cfg.sta_user,
+                               sizeof cfg.sta_user);
+        cfg.sta_auth = 1;
+    }
+
+    /* Reply FIRST; the deferred apply tears the interface down after the
+     * response has flushed (F8.4, 05 §5.4). */
+    app_api_out_begin(out, 200, "application/json");
+    if (cfg.mode == APP_CONFIG_NET_MODE_AP) {
+        app_api_sysinfo_t sys;
+        s_ops->sysinfo(&sys);
+        char ap_psk[APP_CONFIG_PSK_LEN + 1] = "";
+        (void)app_config_store_get_str(APP_CONFIG_NET_AP_PSK, ap_psk,
+                                       sizeof ap_psk);
+        app_api_emit_fmt(out,
+                         "{\"accepted\":true,\"applying_in_ms\":500,"
+                         "\"expect\":{\"mode\":\"ap\",\"ssid\":"
+                         "\"SmokeBridge-%s\",\"psk\":\"%s\","
+                         "\"ip\":\"192.168.4.1\"}}",
+                         sys.id, ap_psk);
+    } else {
+        app_api_emit_str(out,
+                         "{\"accepted\":true,\"applying_in_ms\":500,"
+                         "\"expect\":{\"mode\":\"sta\",\"host\":"
+                         "\"smokebridge.local\"}}");
+    }
+    if (s_ops->net_request_config) {
+        (void)s_ops->net_request_config(&cfg);
+    }
+}
+
+static void handle_config_device_get(app_api_out_t *out) {
+    uint8_t units = 0, timeout_hi = 0, led = 1, saver = 0;
+    uint16_t timeout_s = 60;
+    uint8_t max_sessions = 64, min_free = 10;
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_UNITS, &units);
+    (void)app_config_store_get_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S,
+                                   &timeout_s);
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_LED_ENABLED, &led);
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_BATTERY_SAVER, &saver);
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_RETENTION_MAX_SESSIONS,
+                                  &max_sessions);
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_RETENTION_MIN_FREE_PCT,
+                                  &min_free);
+    (void)timeout_hi;
+    static const char *const saver_names[] = {"off", "on", "auto"};
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(out,
+                     "{\"display_units\":\"%s\",\"display_timeout_s\":%u,"
+                     "\"led_enabled\":%s,\"battery_saver\":\"%s\","
+                     "\"retention\":{\"max_sessions\":%u,"
+                     "\"min_free_pct\":%u},\"probes\":[",
+                     units == 1 ? "C" : "F", (unsigned)timeout_s,
+                     led ? "true" : "false",
+                     saver_names[saver < 3 ? saver : 2],
+                     (unsigned)max_sessions, (unsigned)min_free);
+    static const app_config_key_t name_keys[4] = {
+        APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME, APP_CONFIG_PROBE3_NAME,
+        APP_CONFIG_PROBE4_NAME};
+    static const app_config_key_t role_keys[4] = {
+        APP_CONFIG_PROBE1_ROLE, APP_CONFIG_PROBE2_ROLE, APP_CONFIG_PROBE3_ROLE,
+        APP_CONFIG_PROBE4_ROLE};
+    static const app_config_key_t target_keys[4] = {
+        APP_CONFIG_PROBE1_TARGET, APP_CONFIG_PROBE2_TARGET,
+        APP_CONFIG_PROBE3_TARGET, APP_CONFIG_PROBE4_TARGET};
+    for (int i = 0; i < 4; i++) {
+        char name[17] = "";
+        uint8_t role = 3;
+        int32_t target = 0;
+        (void)app_config_store_get_str(name_keys[i], name, sizeof name);
+        (void)app_config_store_get_u8(role_keys[i], &role);
+        (void)app_config_store_get_i32(target_keys[i], &target);
+        app_api_emit_fmt(out, "%s{\"n\":%d,\"name\":", i ? "," : "", i + 1);
+        app_api_emit_json_str(out, name);
+        app_api_emit_fmt(out, ",\"role\":\"%s\",\"target_f10\":",
+                         role_name(role));
+        if (target == 0) {
+            app_api_emit_str(out, "null}");
+        } else {
+            app_api_emit_fmt(out, "%d}", (int)target);
+        }
+    }
+    app_api_emit_str(out, "]}");
+}
+
+static int role_from_name(const char *s) {
+    if (strcmp(s, "pit") == 0) {
+        return APP_CONFIG_ROLE_PIT;
+    }
+    if (strcmp(s, "food") == 0) {
+        return APP_CONFIG_ROLE_FOOD;
+    }
+    if (strcmp(s, "ambient") == 0) {
+        return APP_CONFIG_ROLE_AMBIENT;
+    }
+    if (strcmp(s, "unused") == 0) {
+        return APP_CONFIG_ROLE_UNUSED;
+    }
+    return -1;
+}
+
+static void handle_config_device_post(const app_api_req_t *req,
+                                      app_api_out_t *out) {
+    const char *body = req->body;
+    char sval[17];
+    long ival;
+    bool bval;
+    if (app_api_json_str(body, "display_units", sval, sizeof sval) == 0) {
+        (void)app_config_store_set_u8(APP_CONFIG_DEV_UNITS,
+                                      strcmp(sval, "C") == 0 ? 1 : 0);
+    }
+    if (app_api_json_int(body, "display_timeout_s", &ival) == 0) {
+        (void)app_config_store_set_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S,
+                                       (uint16_t)ival);
+    }
+    if (app_api_json_bool(body, "led_enabled", &bval) == 0) {
+        (void)app_config_store_set_u8(APP_CONFIG_DEV_LED_ENABLED,
+                                      bval ? 1 : 0);
+    }
+    if (app_api_json_str(body, "battery_saver", sval, sizeof sval) == 0) {
+        const uint8_t v = strcmp(sval, "on") == 0    ? 1
+                          : strcmp(sval, "auto") == 0 ? 2
+                                                      : 0;
+        (void)app_config_store_set_u8(APP_CONFIG_DEV_BATTERY_SAVER, v);
+    }
+    if (app_api_json_int(body, "max_sessions", &ival) == 0) {
+        (void)app_config_store_set_u8(APP_CONFIG_DEV_RETENTION_MAX_SESSIONS,
+                                      (uint8_t)ival);
+    }
+    if (app_api_json_int(body, "min_free_pct", &ival) == 0) {
+        (void)app_config_store_set_u8(APP_CONFIG_DEV_RETENTION_MIN_FREE_PCT,
+                                      (uint8_t)ival);
+    }
+    if (app_api_json_int(body, "vbat_actual_mv", &ival) == 0) {
+        /* Persisted only: the divider solve is F12's (M5). den 0 marks
+         * "recorded, not yet solved". */
+        (void)app_config_store_set_u16(APP_CONFIG_DEV_VBAT_CAL_NUM,
+                                       (uint16_t)ival);
+        (void)app_config_store_set_u16(APP_CONFIG_DEV_VBAT_CAL_DEN, 0);
+    }
+    /* probes: [{"n":1,"name":...,"role":...,"target_f10":...}, ...] */
+    const char *probes = app_api_json_find(body, "probes");
+    if (probes && *probes == '[') {
+        const char *p = probes;
+        while ((p = strstr(p, "{\"n\"")) != NULL ||
+               (p = strstr(probes, "{ \"n\"")) != NULL) {
+            const char *obj_end = strchr(p, '}');
+            if (!obj_end) {
+                break;
+            }
+            char obj[192];
+            const size_t n = (size_t)(obj_end - p + 1) < sizeof obj
+                                 ? (size_t)(obj_end - p + 1)
+                                 : sizeof obj - 1;
+            memcpy(obj, p, n);
+            obj[n] = '\0';
+            long pn;
+            if (app_api_json_int(obj, "n", &pn) == 0 && pn >= 1 && pn <= 4) {
+                static const app_config_key_t nk[4] = {
+                    APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME,
+                    APP_CONFIG_PROBE3_NAME, APP_CONFIG_PROBE4_NAME};
+                static const app_config_key_t rk[4] = {
+                    APP_CONFIG_PROBE1_ROLE, APP_CONFIG_PROBE2_ROLE,
+                    APP_CONFIG_PROBE3_ROLE, APP_CONFIG_PROBE4_ROLE};
+                static const app_config_key_t tk[4] = {
+                    APP_CONFIG_PROBE1_TARGET, APP_CONFIG_PROBE2_TARGET,
+                    APP_CONFIG_PROBE3_TARGET, APP_CONFIG_PROBE4_TARGET};
+                char pname[17];
+                if (app_api_json_str(obj, "name", pname, sizeof pname) == 0) {
+                    (void)app_config_store_set_str(nk[pn - 1], pname);
+                }
+                char prole[12];
+                if (app_api_json_str(obj, "role", prole, sizeof prole) == 0) {
+                    const int r = role_from_name(prole);
+                    if (r >= 0) {
+                        (void)app_config_store_set_u8(rk[pn - 1],
+                                                      (uint8_t)r);
+                    }
+                }
+                long pt;
+                if (app_api_json_int(obj, "target_f10", &pt) == 0) {
+                    (void)app_config_store_set_i32(tk[pn - 1], (int32_t)pt);
+                }
+            }
+            p = obj_end + 1;
+            if (*p == ']') {
+                break;
+            }
+        }
+    }
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_str(out, "{\"ok\":true}");
+}
+
+static void handle_config_alarms(const app_api_req_t *req,
+                                 app_api_out_t *out, bool post) {
+    if (post) {
+        const size_t n = req->body ? req->body_len : 0;
+        /* The rules blob is 64 B until M5's F13 defines the real encoding
+         * (recorded as provisional in the M2 plan). */
+        if (n > 64) {
+            return app_api_error(out, 400, "invalid_body",
+                                 "rules too large (64 B cap until M5)");
+        }
+        if (n > 0) {
+            (void)app_config_store_set_blob(APP_CONFIG_ALARM_RULES,
+                                            req->body, n);
+        }
+        app_api_out_begin(out, 200, "application/json");
+        app_api_emit_str(out, "{\"ok\":true}");
+        return;
+    }
+    uint8_t blob[65];
+    size_t len = sizeof blob - 1;
+    if (app_config_store_get_blob(APP_CONFIG_ALARM_RULES, blob, &len) !=
+            APP_CONFIG_OK ||
+        len == 0) {
+        app_api_out_begin(out, 200, "application/json");
+        app_api_emit_str(out, "{\"rules\":[]}");
+        return;
+    }
+    blob[len] = '\0';
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_raw(out, blob, len); /* stored verbatim, echoed verbatim */
+}
+
+static void handle_time_post(const app_api_req_t *req, app_api_out_t *out) {
+    long unix_ms;
+    if (app_api_json_int(req->body, "unix_ms", &unix_ms) != 0 ||
+        unix_ms <= 0) {
+        return app_api_error(out, 400, "invalid_field",
+                             "unix_ms must be int");
+    }
+    long tz;
+    if (app_api_json_int(req->body, "tz_offset_min", &tz) == 0) {
+        (void)app_config_store_set_i32(APP_CONFIG_TIME_TZ_OFFSET_MIN,
+                                       (int32_t)tz);
+    }
+    /* The phone source: F6.1 arbitration decides; F6.2's back-patch rides
+     * the acquisition event, already built and tested. */
+    (void)app_time_core_set(APP_TIME_PHONE, (uint64_t)unix_ms,
+                            s_ops->uptime_ms());
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_str(out, "{\"ok\":true}");
+}
+
+/* ── radio (F9.8) ──────────────────────────────────────────────────────── */
+
+static void handle_radio_get(app_api_out_t *out) {
+    const smoke_x_stats_t *st = smoke_x_ctrl_stats();
+    const uint32_t freq = smoke_x_ctrl_frequency_hz();
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_str(out, "{\"frequency_hz\":");
+    if (freq != 0) {
+        app_api_emit_fmt(out, "%u", (unsigned)freq);
+    } else {
+        app_api_emit_str(out, "null");
+    }
+    app_api_emit_fmt(out,
+                     ",\"spreading_factor\":9,\"bandwidth_khz\":125,"
+                     "\"rssi\":%d,\"snr\":%d,\"packets_ok\":%u,"
+                     "\"packets_bad\":%u,\"id_mismatch\":%u,"
+                     "\"intervals\":[%u,%u,%u,%u,%u]}",
+                     (int)st->last_rssi, (int)st->last_snr,
+                     (unsigned)st->valid,
+                     (unsigned)(st->parse_fail + st->crc_fail +
+                                st->unknown_commas),
+                     (unsigned)st->id_mismatch, (unsigned)st->interval_hist[0],
+                     (unsigned)st->interval_hist[1],
+                     (unsigned)st->interval_hist[2],
+                     (unsigned)st->interval_hist[3],
+                     (unsigned)st->interval_hist[4]);
+}
+
+static void handle_radio_post(const app_api_req_t *req, app_api_out_t *out) {
+    /* The conservative reading (the F9.8 flag): the protocol fixes
+     * SF/BW/CR and frequency is pairing state — every mutation attempt is
+     * refused WITHOUT touching the radio seam. An empty body is a no-op. */
+    long v;
+    if (app_api_json_int(req->body, "frequency_hz", &v) == 0 ||
+        app_api_json_int(req->body, "spreading_factor", &v) == 0 ||
+        app_api_json_int(req->body, "bandwidth_khz", &v) == 0 ||
+        app_api_json_int(req->body, "coding_rate", &v) == 0) {
+        return app_api_error(out, 400, "invalid_field",
+                             "radio parameters are pairing state on this "
+                             "bridge; see design 06");
+    }
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_str(out, "{\"ok\":true}");
+}
+
+/* ── debug (F4.5, F4.6) ────────────────────────────────────────────────── */
+
+static void handle_debug_packets(app_api_out_t *out) {
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_str(out, "{\"packets\":[");
+    const int count = (int)smoke_x_pktring_count();
+    /* Newest LAST, capped at 64 — the sim's order. */
+    for (int i = count - 1; i >= 0; i--) {
+        const smoke_x_pkt_t *p = smoke_x_pktring_get((size_t)i);
+        if (i != count - 1) {
+            app_api_emit_str(out, ",");
+        }
+        app_api_emit_fmt(out, "{\"uptime_s\":%u,\"rssi\":%d,\"snr\":%d,"
+                              "\"payload\":",
+                         (unsigned)(p->t_ms / 1000u), (int)p->rssi,
+                         (int)p->snr);
+        app_api_emit_json_str(out, p->payload);
+        app_api_emit_str(out, "}");
+    }
+    app_api_emit_str(out, "]}");
+}
+
+static int novelty_sink(void *ctx, const char *data, size_t len) {
+    app_api_emit_raw(ctx, data, len);
+    return 0;
+}
+
+static void handle_debug_novelty(app_api_out_t *out) {
+    app_api_out_begin(out, 200, "text/plain");
+    (void)cook_novelty_log_stream(novelty_sink, out);
+}
+
+static void handle_debug_coredump(app_api_out_t *out) {
+    const size_t size = s_ops->coredump_size ? s_ops->coredump_size() : 0;
+    if (size == 0) {
+        return app_api_error(out, 404, "not_found", "no coredump stored");
+    }
+    app_api_out_begin(out, 200, "application/octet-stream");
+    uint8_t buf[512];
+    size_t off = 0;
+    while (off < size) {
+        const size_t n = size - off < sizeof buf ? size - off : sizeof buf;
+        if (s_ops->coredump_read(off, buf, n) < 0) {
+            break;
+        }
+        app_api_emit_raw(out, buf, n);
+        off += n;
+    }
+}
+
+/* ── router (F9.1) ─────────────────────────────────────────────────────── */
+
+int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
+    const char *path = req->path;
+    const bool is_get = strcmp(req->method, "GET") == 0;
+
+    if (handle_captive(req, out)) {
+        return 0; /* probes answer regardless of anything else (F8.7) */
+    }
+
+    if (strncmp(path, "/api/v1", 7) != 0) {
+        /* F9.10: the glue serves static only when the www mount rule
+         * passes; everything else gets the built-in page. */
+        if (is_get) {
+            app_api_out_begin(out, 200, "text/html");
+            app_api_emit_str(out, k_builtin_page);
+        } else {
+            app_api_error(out, 404, "not_found", "no such route");
+        }
+        return 0;
+    }
+
+    /* The optional bearer gate (05 §5.9): set → required on all of
+     * API routes, JSON like every other response. */
+    char token[33] = "";
+    (void)app_config_store_get_str(APP_CONFIG_DEV_API_TOKEN, token,
+                                   sizeof token);
+    if (token[0] != '\0' &&
+        (!req->bearer || strcmp(req->bearer, token) != 0)) {
+        app_api_error(out, 401, "unauthorized",
+                      "missing or invalid bearer token");
+        return 0;
+    }
+
+    const char *api = path + 7;
+
+    if (is_get && strcmp(api, "/status") == 0) {
+        handle_status(out);
+        return 0;
+    }
+    if (is_get && strcmp(api, "/live") == 0) {
+        handle_live(req, out);
+        return 0;
+    }
+    if (is_get && strcmp(api, "/sessions") == 0) {
+        app_api_handle_sessions_list(req, out);
+        return 0;
+    }
+    if (!is_get && strcmp(api, "/sessions") == 0 &&
+        strcmp(req->method, "POST") == 0) {
+        app_api_handle_sessions_post(req, out);
+        return 0;
+    }
+    if (strncmp(api, "/sessions/", 10) == 0) {
+        const char *idp = api + 10;
+        char *end;
+        const unsigned long id = strtoul(idp, &end, 10);
+        if (end == idp) {
+            app_api_error(out, 404, "not_found", "bad session id");
+            return 0;
+        }
+        app_api_handle_session(req, out, (uint32_t)id, end);
+        return 0;
+    }
+    if (is_get && strcmp(api, "/pairing") == 0) {
+        handle_pairing_get(out);
+        return 0;
+    }
+    if (strcmp(req->method, "POST") == 0 &&
+        strcmp(api, "/pairing/sync") == 0) {
+        (void)smoke_x_ctrl_unpair(); /* restarts the scan; M1 proved it
+                                        touches nothing external */
+        app_api_out_begin(out, 200, "application/json");
+        app_api_emit_str(out, "{\"ok\":true,\"sync_active\":true}");
+        return 0;
+    }
+    if (strcmp(req->method, "POST") == 0 &&
+        strcmp(api, "/pairing/unpair") == 0) {
+        (void)smoke_x_ctrl_unpair();
+        app_api_out_begin(out, 200, "application/json");
+        app_api_emit_str(out, "{\"ok\":true}");
+        return 0;
+    }
+    if (strcmp(api, "/config/wifi") == 0) {
+        if (is_get) {
+            handle_config_wifi_get(out);
+        } else {
+            handle_config_wifi_post(req, out);
+        }
+        return 0;
+    }
+    if (strcmp(api, "/config/device") == 0) {
+        if (is_get) {
+            handle_config_device_get(out);
+        } else {
+            handle_config_device_post(req, out);
+        }
+        return 0;
+    }
+    if (strcmp(api, "/config/alarms") == 0) {
+        handle_config_alarms(req, out, !is_get);
+        return 0;
+    }
+    if (strcmp(req->method, "POST") == 0 && strcmp(api, "/time") == 0) {
+        handle_time_post(req, out);
+        return 0;
+    }
+    if (strcmp(api, "/radio") == 0) {
+        if (is_get) {
+            handle_radio_get(out);
+        } else {
+            handle_radio_post(req, out);
+        }
+        return 0;
+    }
+    if (is_get && strcmp(api, "/debug/packets") == 0) {
+        handle_debug_packets(out);
+        return 0;
+    }
+    if (is_get && strcmp(api, "/debug/novelty") == 0) {
+        handle_debug_novelty(out);
+        return 0;
+    }
+    if (is_get && strcmp(api, "/debug/coredump") == 0) {
+        handle_debug_coredump(out);
+        return 0;
+    }
+    /* POST /ota deliberately unregistered until F14 (M6): an honest 404
+     * rather than a lying 503 stub. */
+    app_api_error(out, 404, "not_found", "no such route");
+    return 0;
+}

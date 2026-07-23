@@ -60,6 +60,9 @@ typedef struct {
     uint32_t crc_fail;       /* radio-reported, via note_crc_error */
     /* Inter-packet intervals: <15 s, <45 s, <90 s, <300 s, ≥300 s. */
     uint32_t interval_hist[SMOKE_X_INTERVAL_BUCKETS];
+    /* Link quality of the newest accepted packet (F2.4 → /status). */
+    int8_t last_rssi;
+    int8_t last_snr;
 } smoke_x_stats_t;
 
 typedef struct {
@@ -96,6 +99,11 @@ void smoke_x_ctrl_tick(uint64_t now_ms);
 int smoke_x_ctrl_unpair(void);
 
 const smoke_x_stats_t *smoke_x_ctrl_stats(void);
+
+/* For the API's /status pairing section. */
+uint64_t smoke_x_ctrl_last_valid_ms(void);
+bool smoke_x_ctrl_base_lost(void);
+uint32_t smoke_x_ctrl_frequency_hz(void);
 
 #ifdef __cplusplus
 }

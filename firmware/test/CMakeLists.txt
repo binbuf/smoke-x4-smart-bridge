@@ -102,6 +102,39 @@ target_include_directories(test_cook_ring_lifecycle PRIVATE
 )
 add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
 
+# The HTTP contract over the real host-tested modules: router, auth,
+# fixtures, streaming bound, WS registry (F9, F8.7, F4.5, F4.6).
+add_executable(test_app_api
+    test_app_api.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_sessions.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_emit.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_ws.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_pktring.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_ring.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_novelty_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/app_time_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_app_api PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/bridge_event/include
+    ${REPO_ROOT}/protocol/gen
+)
+target_compile_definitions(test_app_api PRIVATE
+    FIXTURES_HTTP_DIR="${REPO_ROOT}/protocol/fixtures/http"
+)
+add_test(NAME app_api COMMAND test_app_api)
+
 # Wi-Fi mode selection and STA supervision (F8.1–F8.3).
 add_executable(test_app_net
     test_app_net.c

@@ -29,6 +29,12 @@ int cook_novelty_log_init(const cook_vfs_t *vfs);
 int cook_novelty_log_append(uint64_t t_ms, const char *reason,
                             const char *value, const char *payload);
 
+/* Streams the file in chunks to cb (F4.5's /debug/novelty); cb returns 0
+ * to continue. A missing file streams nothing and returns OK. */
+int cook_novelty_log_stream(int (*cb)(void *ctx, const char *data,
+                                      size_t len),
+                            void *ctx);
+
 #ifdef __cplusplus
 }
 #endif

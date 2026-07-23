@@ -119,6 +119,37 @@ int cook_session_set_pinned(uint32_t session_id, bool pinned);
 /* ── Retention (F5.8) — called internally; exposed for tests. ── */
 int cook_retention_enforce(void);
 
+/* ── API surface additions (F9.4) ── */
+
+/* Reads any session's 256 B header (active or closed). */
+int cook_store_read_header(uint32_t session_id, bridge_session_header_t *h);
+
+/* Rename / probe metadata / pin, applied to the header in place. NULL
+ * fields are left untouched. Works on closed sessions and the active one. */
+typedef struct {
+    const char *name;              /* NULL = keep */
+    const char *probe_name[4];     /* NULL entries = keep */
+    const int8_t *probe_role;      /* NULL = keep (array of 4, -1 = keep) */
+    const int16_t *probe_target;   /* NULL = keep (array of 4) */
+    int pinned;                    /* -1 keep, 0 clear, 1 set */
+} cook_session_patch_t;
+int cook_session_patch(uint32_t session_id, const cook_session_patch_t *p);
+
+/* Deletes a CLOSED session (refuses the active one: ERR_STATE). */
+int cook_store_delete(uint32_t session_id);
+
+/* Streams a session's marks; cb returns 0 to continue. */
+int cook_store_read_marks(uint32_t session_id,
+                          int (*cb)(void *ctx, const bridge_mark_rec_t *m),
+                          void *ctx);
+
+/* Request hooks: on the device these enqueue onto the drain task (the
+ * httpd task must never touch flash-owning state directly); on the host
+ * they default to direct execution. */
+void cook_store_set_request_hooks(int (*start)(void), int (*stop)(void));
+int cook_store_request_start(void);
+int cook_store_request_stop(void);
+
 /* ── Streaming read (F5.10) ── */
 
 typedef enum {

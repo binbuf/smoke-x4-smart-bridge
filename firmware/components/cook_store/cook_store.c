@@ -126,6 +126,16 @@ static void on_store_evt(cook_store_evt_t evt, uint32_t id, void *ctx) {
     ESP_LOGI(TAG, "store event %d, session %08X", (int)evt, (unsigned)id);
 }
 
+int cook_store_fs_info(uint32_t *total_b, uint32_t *used_b) {
+    size_t total = 0, used = 0;
+    if (esp_littlefs_info(COOKS_PARTITION, &total, &used) != ESP_OK) {
+        return -1;
+    }
+    *total_b = (uint32_t)total;
+    *used_b = (uint32_t)used;
+    return 0;
+}
+
 int cook_store_init(void) {
     const esp_vfs_littlefs_conf_t conf = {
         .base_path = COOK_STORE_DIR,

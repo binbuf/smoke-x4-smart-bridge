@@ -122,6 +122,27 @@ static int compact(void) {
     return rc;
 }
 
+int cook_novelty_log_stream(int (*cb)(void *ctx, const char *data,
+                                      size_t len),
+                            void *ctx) {
+    if (!s_vfs || !cb) {
+        return COOK_STORE_ERR;
+    }
+    const int fd = s_vfs->open(s_vfs->ctx, LOG_PATH, COOK_VFS_RDONLY);
+    if (fd < 0) {
+        return COOK_STORE_OK; /* nothing captured yet */
+    }
+    char buf[512];
+    long n;
+    while ((n = s_vfs->read(s_vfs->ctx, fd, buf, sizeof buf)) > 0) {
+        if (cb(ctx, buf, (size_t)n) != 0) {
+            break;
+        }
+    }
+    s_vfs->close(s_vfs->ctx, fd);
+    return COOK_STORE_OK;
+}
+
 int cook_novelty_log_append(uint64_t t_ms, const char *reason,
                             const char *value, const char *payload) {
     if (!s_vfs || !reason || !value) {
