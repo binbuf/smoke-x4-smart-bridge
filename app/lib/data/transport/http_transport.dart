@@ -159,8 +159,7 @@ class HttpTransport implements BridgeTransport {
 
   @override
   Future<LiveState> live({Duration window = const Duration(hours: 1)}) async {
-    final j =
-        await _getJson('/api/v1/live?window=${window.inSeconds}') as Map;
+    final j = await _getJson('/api/v1/live?window=${window.inSeconds}') as Map;
     final probes = (j['probes'] as List?) ?? [];
     final temps = List<int?>.filled(4, null);
     for (final p in probes) {
@@ -182,7 +181,8 @@ class HttpTransport implements BridgeTransport {
           t: t0 + i * stepS,
           tempsF10: [
             for (var p = 0; p < 4; p++)
-              p < series.length && series[p] is List &&
+              p < series.length &&
+                      series[p] is List &&
                       i < (series[p] as List).length
                   ? ((series[p] as List)[i] as num?)?.toInt()
                   : null,
@@ -246,8 +246,10 @@ class HttpTransport implements BridgeTransport {
       ),
     );
     if ((res.statusCode ?? 0) != 200) {
-      final bytes = await res.data!.stream
-          .fold<BytesBuilder>(BytesBuilder(), (b, c) => b..add(c));
+      final bytes = await res.data!.stream.fold<BytesBuilder>(
+        BytesBuilder(),
+        (b, c) => b..add(c),
+      );
       Object? body;
       try {
         body = jsonDecode(utf8.decode(bytes.takeBytes()));
@@ -264,9 +266,7 @@ class HttpTransport implements BridgeTransport {
       final bytes = carry.takeBytes();
       final whole = bytes.length - (bytes.length % SampleRec.size);
       if (whole > 0) {
-        batch.addAll(
-          samplesFromBin(Uint8List.sublistView(bytes, 0, whole)),
-        );
+        batch.addAll(samplesFromBin(Uint8List.sublistView(bytes, 0, whole)));
         carry.add(Uint8List.sublistView(bytes, whole));
       } else {
         carry.add(bytes);
