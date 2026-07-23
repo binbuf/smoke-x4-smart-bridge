@@ -102,6 +102,53 @@ target_include_directories(test_cook_ring_lifecycle PRIVATE
 )
 add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
 
+# The parser against the whole committed capture corpus, real and
+# adversarial (F3.8, T4.3).
+add_executable(test_lora_corpus
+    test_lora_corpus.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+)
+target_include_directories(test_lora_corpus PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+)
+target_compile_definitions(test_lora_corpus PRIVATE
+    FIXTURES_LORA_DIR="${REPO_ROOT}/protocol/fixtures/lora"
+)
+add_test(NAME lora_corpus COMMAND test_lora_corpus)
+
+# Deterministic full-stack replay of a real capture (T4.2).
+add_executable(test_replay
+    test_replay.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_lifecycle.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_replay PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${REPO_ROOT}/protocol/gen
+)
+target_compile_definitions(test_replay PRIVATE
+    FIXTURES_LORA_DIR="${REPO_ROOT}/protocol/fixtures/lora"
+)
+add_test(NAME replay COMMAND test_replay)
+
+# The persisted novelty ring: pinned evidence survives wrap + remount
+# (F4.3).
+add_executable(test_novelty_log
+    test_novelty_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_novelty_log.c
+)
+target_include_directories(test_novelty_log PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME novelty_log COMMAND test_novelty_log)
+
 # Radio params, scanner dwell, and the TX guard invariant (F2).
 add_executable(test_app_lora
     test_app_lora.c
