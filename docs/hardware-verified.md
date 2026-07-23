@@ -13,40 +13,40 @@ runbook lives at [`tools/lora/README.md`](../tools/lora/README.md).
 
 | Check | Result |
 | --- | --- |
-| SH1.25-2 pack polarity vs board silkscreen (meter BEFORE connecting) | ⏳ |
-| LoRa antenna fitted before first power | ⏳ |
-| Board boots on battery | ⏳ |
+| SH1.25-2 pack polarity vs board silkscreen (meter BEFORE connecting) | ⚠ 2026-07-22 — **visually verified only** (red wire aligned with the `+` silkscreen; owner decision to skip metering, no DMM used). The pack works, but this row is downgraded, not green: meter any *replacement* pack before its first connection. |
+| LoRa antenna fitted before first power | ✅ fitted before the first power-up and never removed |
+| Board boots on battery | ✅ 2026-07-22 — USB pulled with the pack connected; OLED and LED stayed alive; recovered cleanly on replug |
 
 ## V1.3 — GPIO37 gate and battery divider (retires R6, gates F12)
 
 | Check | Result |
 | --- | --- |
-| GPIO37 LOW gates the VBAT divider (ADC divider_ON vs divider_OFF differ) | ⏳ |
-| Divider ratio at pack voltage #1 (DMM ÷ `adc_divider_ON`) | ⏳ V= adc= ratio= |
-| Divider ratio at pack voltage #2 | ⏳ V= adc= ratio= |
-| Verdict: ×4.9 (Heltec forum) or ×2.0 (ESPHome) or other | ⏳ |
+| GPIO37 LOW gates the VBAT divider (ADC divider_ON vs divider_OFF differ) | ✅ 2026-07-22 — the gate works, **but the sense is inverted vs the bench's assumption: GPIO37 HIGH enables the divider**, LOW disconnects (reads 0 mV). F12 must drive it HIGH to sample. |
+| Divider ratio at pack voltage #1 (DMM ÷ `adc_divider_ON`) | ✅ adc=788 mV with the pack connected → pack ≈ 3.86 V at ×4.9. No DMM used: the verdict comes from Li-ion range arithmetic (×2.0 would put the pack at 1.58 V, impossible; ×4.9 lands mid-charge). |
+| Divider ratio at pack voltage #2 | ⏳ unresolved — no second charge state measured. F12 self-calibrates against the 4.2 V full-charge plateau instead; a DMM point can refine later. |
+| Verdict: ×4.9 (Heltec forum) or ×2.0 (ESPHome) or other | ✅ **×4.9** |
 
-If GPIO37 turns out unusable: record that outcome here explicitly — battery
-reporting degrades to unavailable and nothing else breaks.
+R6 is retired: GPIO37 is usable (with the HIGH-enable sense above) and
+battery reporting is possible.
 
 ## V1.4 — button, LED, Vext, OLED I²C
 
 | Check | Result |
 | --- | --- |
-| GPIO0 PRG reads reliably after boot; debounce survives boot strapping | ⏳ |
-| GPIO35 LED is active-HIGH and dims under LEDC PWM | ⏳ |
-| GPIO36 LOW required for the OLED rail (`vext-gate` line: off=NO_ACK, on=ACK) | ⏳ |
-| OLED I²C @ 400 kHz stable with Wi-Fi AP active (`i2c` line: err count after ≥10 min) | ⏳ |
+| GPIO0 PRG reads reliably after boot; debounce survives boot strapping | ✅ 2026-07-22 — three presses logged cleanly (held 319/210/180 ms), no bounce artifacts, no phantom events |
+| GPIO35 LED is active-HIGH and dims under LEDC PWM | ✅ visually confirmed fading both directions on the 5 s bench cycle |
+| GPIO36 LOW required for the OLED rail (`vext-gate` line: off=NO_ACK, on=ACK) | ✅ off=NO_ACK, on=ACK + full SSD1306 init. **Gotcha for F11:** the I²C pull-ups hang off the switched rail — probing with the rail off wedges the `i2c_master` controller; recreate the bus after powering Vext (fixed in bench.c, applies to app_ui). |
+| OLED I²C @ 400 kHz stable with Wi-Fi AP active (`i2c` line: err count after ≥10 min) | ✅ 1,160 transfers / **0 errors** over >10 min with the soft-AP up |
 | OLED I²C stable with **BLE** active | **deferred → M3** (no BLE stack yet) |
 
 ## V1.5 — current draw and brownout
 
 | Check | Result |
 | --- | --- |
-| AP mode, OLED on (est. ~145 mA) | ⏳ measured / unresolved (needs a current meter) |
-| STA mode, modem sleep (est. ~70 mA) | ⏳ measured / unresolved |
-| Real runtime on the 3000 mAh pack | ⏳ |
-| Brownout when Wi-Fi AP starts on a depleted pack? | ⏳ |
+| AP mode, OLED on (est. ~145 mA) | **unresolved** — no current meter available; estimates stand |
+| STA mode, modem sleep (est. ~70 mA) | **unresolved** — same |
+| Real runtime on the 3000 mAh pack | ⏳ deferred — pack verified working; a full runtime soak is a future unattended run (pairs naturally with M6's V3 24 h soak) |
+| Brownout when Wi-Fi AP starts on a depleted pack? | **unresolved** — needs a deliberately depleted pack; retest at M6 hardening |
 
 ## Deferred to later milestones (V1.6 table — do not close here)
 

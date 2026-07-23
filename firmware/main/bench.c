@@ -200,6 +200,12 @@ static void oled_and_vext_init(void)
     vTaskDelay(pdMS_TO_TICKS(100));
     const esp_err_t off_probe = i2c_master_probe(s_i2c_bus, OLED_ADDR, 100);
 
+    /* The board's I²C pull-ups hang off the SWITCHED rail: the dead-rail
+     * probe ran on floating lines and can leave the controller flagged
+     * bus-busy. Recreate the bus once the rail is up, or the rail-on
+     * probe fails for a reason that has nothing to do with the gate. */
+    ESP_ERROR_CHECK(i2c_del_master_bus(s_i2c_bus));
+
     gpio_set_level(PIN_VEXT, 0);
     vTaskDelay(pdMS_TO_TICKS(100));
     /* Reset pulse after the rail is up. */
@@ -207,27 +213,41 @@ static void oled_and_vext_init(void)
     vTaskDelay(pdMS_TO_TICKS(10));
     gpio_set_level(PIN_OLED_RST, 1);
     vTaskDelay(pdMS_TO_TICKS(50));
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &s_i2c_bus));
     const esp_err_t on_probe = i2c_master_probe(s_i2c_bus, OLED_ADDR, 100);
+    if (on_probe != ESP_OK) {
+        /* Probe quirks must not condemn the gate: scan for anything that
+         * ACKs before believing the rail is dead. */
+        for (uint8_t a = 0x08; a <= 0x77; a++) {
+            if (i2c_master_probe(s_i2c_bus, a, 20) == ESP_OK) {
+                ESP_LOGI(TAG, "BENCH V1.4 i2c-scan: ACK at 0x%02X", a);
+            }
+        }
+    }
+
+    /* The authoritative rail-on check is the panel INIT, not the probe —
+     * the reference proved this exact panel on these pins by simply
+     * initialising it. */
+    const i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = OLED_ADDR,
+        .scl_speed_hz = 400000, /* the V1.4 rate under test */
+    };
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(s_i2c_bus, &dev_cfg, &s_oled));
+    const esp_err_t init_res = oled_init_display();
 
     ESP_LOGI(TAG,
-             "BENCH V1.4 vext-gate: rail_off_probe=%s%s rail_on_probe=%s%s",
+             "BENCH V1.4 vext-gate: rail_off_probe=%s%s rail_on_probe=%s "
+             "rail_on_init=%s%s",
              off_probe == ESP_OK ? "ACK" : "NO_ACK",
              off_probe == ESP_OK ? "(UNEXPECTED!)" : "(expected)",
              on_probe == ESP_OK ? "ACK" : "NO_ACK",
-             on_probe == ESP_OK ? "(good)" : "(FAIL — check Vext/GPIO36)");
+             init_res == ESP_OK ? "OK" : "FAIL",
+             init_res == ESP_OK ? "(good)" : "(check Vext/GPIO36)");
 
-    if (on_probe == ESP_OK) {
-        const i2c_device_config_t dev_cfg = {
-            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = OLED_ADDR,
-            .scl_speed_hz = 400000, /* the V1.4 rate under test */
-        };
-        ESP_ERROR_CHECK(
-            i2c_master_bus_add_device(s_i2c_bus, &dev_cfg, &s_oled));
-        if (oled_init_display() == ESP_OK) {
-            ESP_LOGI(TAG, "BENCH V1.4 oled: init OK @400kHz — expect a "
-                          "checkerboard with a moving stripe");
-        }
+    if (init_res == ESP_OK) {
+        ESP_LOGI(TAG, "BENCH V1.4 oled: init OK @400kHz — expect a "
+                      "checkerboard with a moving stripe");
     }
 }
 
