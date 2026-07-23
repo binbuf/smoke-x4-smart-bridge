@@ -26,7 +26,9 @@ extern "C" {
     X(app_alarm, 3072, 4, 0) /* rules on each sample + 10 s tick           */    \
     X(app_net, 3072, 4, 0)   /* Wi-Fi state machine, retry backoff, mDNS   */    \
     X(app_power, 2560, 2, 0) /* battery ADC every 30 s, SoC filter         */    \
-    X(ws_push, 3072, 4, 0)   /* serialize + fan out WebSocket frames       */
+    X(ws_push, 4096, 4, 0)   /* serialize + fan out WebSocket frames; the \
+                                 lwip send path runs on THIS stack (board- \
+                                 found: 3072 overflowed)                   */
 
 typedef struct {
     const char *name;
