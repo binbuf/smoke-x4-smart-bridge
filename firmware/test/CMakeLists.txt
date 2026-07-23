@@ -102,6 +102,21 @@ target_include_directories(test_cook_ring_lifecycle PRIVATE
 )
 add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
 
+# Radio params, scanner dwell, and the TX guard invariant (F2).
+add_executable(test_app_lora
+    test_app_lora.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_lora/app_lora_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_app_lora PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_lora/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+)
+add_test(NAME app_lora COMMAND test_app_lora)
+
 # Clock arbitration, the named back-patch case, monotonic floor (F6).
 add_executable(test_app_time
     test_app_time.c

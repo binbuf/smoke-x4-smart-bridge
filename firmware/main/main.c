@@ -19,6 +19,7 @@
 #include "boot_seq.h"
 #include "cook_store.h"
 #include "double_reset.h"
+#include "smoke_x.h"
 #include "tasks.h"
 
 static const char *TAG = "smoke_bridge";
@@ -83,7 +84,20 @@ static int step_stub(void *ctx) {
 
 static int step_cook_store(void *ctx) {
     (void)ctx;
-    return cook_store_init();
+    if (cook_store_init() != 0) {
+        return -1;
+    }
+    return cook_store_task_start();
+}
+
+static int step_smoke_x_init(void *ctx) {
+    (void)ctx;
+    return smoke_x_init();
+}
+
+static int step_smoke_x_start(void *ctx) {
+    (void)ctx;
+    return smoke_x_start();
 }
 
 static int step_time(void *ctx) {
@@ -134,8 +148,8 @@ void app_main(void) {
                 [BRIDGE_BOOT_UI - 1] = step_stub,    /* F11 */
                 [BRIDGE_BOOT_RECOVERY_WINDOW - 1] = step_recovery_window,
                 [BRIDGE_BOOT_COOK_STORE - 1] = step_cook_store,
-                [BRIDGE_BOOT_SMOKE_X_INIT - 1] = step_stub,  /* F3 */
-                [BRIDGE_BOOT_SMOKE_X_START - 1] = step_stub, /* F2/F3 */
+                [BRIDGE_BOOT_SMOKE_X_INIT - 1] = step_smoke_x_init,
+                [BRIDGE_BOOT_SMOKE_X_START - 1] = step_smoke_x_start,
                 [BRIDGE_BOOT_TIME - 1] = step_time,
                 [BRIDGE_BOOT_NET - 1] = step_stub,           /* F8 */
                 [BRIDGE_BOOT_API - 1] = step_stub,           /* F9 */
