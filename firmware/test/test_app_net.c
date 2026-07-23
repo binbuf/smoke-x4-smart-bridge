@@ -1,11 +1,81 @@
-/* Host tests for app_net_core (F8.1–F8.3): every §5.2 selection path,
- * the §5.4 30 s budget → fallback-AP → 1/2/5/10 min retry ladder, and
- * the switch-back guard that never yanks the network from a client. */
+/* Host tests for app_net (F8.1–F8.6): every §5.2 selection path, the §5.4
+ * budget → fallback-AP → retry ladder, the switch-back guard, deferred
+ * reconfiguration, channel pick, the DNS shim codec, and the live TXT
+ * builder. */
 #include <string.h>
 
 #include "app_config_store.h"
 #include "app_net_core.h"
+#include "app_net_txt.h"
+#include "dns_shim.h"
 #include "test_util.h"
+
+/* In-memory config backend (the F8.4 apply persists through it). */
+typedef struct {
+    char ns[16];
+    char key[16];
+    size_t len;
+    uint8_t val[80];
+} cfg_entry_t;
+
+static struct {
+    cfg_entry_t entries[64];
+    int count;
+} g_cfg;
+
+static cfg_entry_t *cfg_find(const char *ns, const char *key) {
+    for (int i = 0; i < g_cfg.count; i++) {
+        if (strcmp(g_cfg.entries[i].ns, ns) == 0 &&
+            strcmp(g_cfg.entries[i].key, key) == 0) {
+            return &g_cfg.entries[i];
+        }
+    }
+    return NULL;
+}
+
+static int cfg_get(void *ctx, const char *ns, const char *key, void *out,
+                   size_t *len) {
+    (void)ctx;
+    const cfg_entry_t *e = cfg_find(ns, key);
+    if (!e) {
+        return APP_CONFIG_ERR_NOT_FOUND;
+    }
+    if (!out) {
+        *len = e->len;
+        return APP_CONFIG_OK;
+    }
+    if (*len < e->len) {
+        return APP_CONFIG_ERR;
+    }
+    memcpy(out, e->val, e->len);
+    *len = e->len;
+    return APP_CONFIG_OK;
+}
+
+static int cfg_set(void *ctx, const char *ns, const char *key,
+                   const void *val, size_t len) {
+    (void)ctx;
+    cfg_entry_t *e = cfg_find(ns, key);
+    if (!e) {
+        e = &g_cfg.entries[g_cfg.count++];
+        snprintf(e->ns, sizeof e->ns, "%s", ns);
+        snprintf(e->key, sizeof e->key, "%s", key);
+    }
+    memcpy(e->val, val, len);
+    e->len = len;
+    return APP_CONFIG_OK;
+}
+
+static int cfg_erase(void *ctx) {
+    (void)ctx;
+    g_cfg.count = 0;
+    return APP_CONFIG_OK;
+}
+
+static const app_config_backend_t g_cfg_backend = {
+    .get = cfg_get, .set = cfg_set, .erase_all = cfg_erase, .ctx = NULL};
+
+static uint32_t cfg_rng(void) { return 5u; }
 
 static int g_start_ap, g_stop_ap, g_sta_connect, g_sta_disconnect;
 static int g_evt_counts[8];
@@ -177,11 +247,171 @@ static void test_ap_ssid_from_mac(void) {
     CHECK(strcmp(ssid, "SmokeBridge-A4F2") == 0);
 }
 
+static void test_channel_pick(void) {
+    /* Least congested of 1/6/11; ties to the lower channel. */
+    uint8_t counts[13] = {0};
+    CHECK_EQ_INT(app_net_pick_channel(counts), 1); /* all clear: tie → 1 */
+    counts[0] = 5; /* ch 1 busy */
+    CHECK_EQ_INT(app_net_pick_channel(counts), 6);
+    counts[5] = 3; /* ch 6 some */
+    counts[10] = 2;
+    CHECK_EQ_INT(app_net_pick_channel(counts), 11);
+    counts[3] = 9; /* ch 4 irrelevant: only 1/6/11 are candidates */
+    CHECK_EQ_INT(app_net_pick_channel(counts), 11);
+}
+
+static void test_deferred_apply(void) {
+    cfg_erase(NULL);
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+                 APP_CONFIG_OK);
+    reset_doubles();
+    CHECK_EQ_INT(
+        app_net_core_init(&g_ops, NULL, APP_CONFIG_NET_MODE_AP, false, 0), 0);
+    app_net_core_on_ap_started(100);
+
+    app_net_pending_cfg_t cfg = {.mode = APP_CONFIG_NET_MODE_STA,
+                                 .sta_auth = 1};
+    snprintf(cfg.sta_ssid, sizeof cfg.sta_ssid, "Backyard");
+    snprintf(cfg.sta_psk, sizeof cfg.sta_psk, "hunter22");
+    CHECK_EQ_INT(app_net_core_apply_later(&cfg, 1000), 0);
+    CHECK(app_net_core_apply_pending());
+
+    /* Not yet: the HTTP reply is still flushing. */
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS - 1);
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_AP_UP);
+    uint8_t mode = 99;
+    CHECK_EQ_INT(app_config_store_get_u8(APP_CONFIG_NET_MODE, &mode),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(mode, APP_CONFIG_NET_MODE_AP); /* nothing persisted yet */
+
+    /* A second config inside the window supersedes the first. */
+    app_net_pending_cfg_t cfg2 = cfg;
+    snprintf(cfg2.sta_ssid, sizeof cfg2.sta_ssid, "Garage");
+    CHECK_EQ_INT(app_net_core_apply_later(&cfg2, 1200), 0);
+
+    /* The first deadline passes without firing (superseded)... */
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 1);
+    CHECK(app_net_core_apply_pending());
+    /* ...the second fires: persisted AND executed. */
+    app_net_core_tick(1200 + APP_NET_APPLY_DELAY_MS + 1);
+    CHECK(!app_net_core_apply_pending());
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_STA_CONNECTING);
+    char ssid[33] = {0};
+    CHECK_EQ_INT(
+        app_config_store_get_str(APP_CONFIG_NET_STA_SSID, ssid, sizeof ssid),
+        APP_CONFIG_OK);
+    CHECK(strcmp(ssid, "Garage") == 0);
+}
+
+/* A minimal query for "abc.io", type/class parameterised. */
+static size_t make_query(uint8_t *buf, uint16_t qtype, uint16_t qclass) {
+    static const uint8_t head[12] = {0x12, 0x34, 0x01, 0x00,
+                                     0x00, 0x01, 0, 0, 0, 0, 0, 0};
+    memcpy(buf, head, 12);
+    size_t p = 12;
+    buf[p++] = 3;
+    memcpy(buf + p, "abc", 3);
+    p += 3;
+    buf[p++] = 2;
+    memcpy(buf + p, "io", 2);
+    p += 2;
+    buf[p++] = 0;
+    buf[p++] = (uint8_t)(qtype >> 8);
+    buf[p++] = (uint8_t)qtype;
+    buf[p++] = (uint8_t)(qclass >> 8);
+    buf[p++] = (uint8_t)qclass;
+    return p;
+}
+
+static void test_dns_shim(void) {
+    const uint8_t ip[4] = {192, 168, 4, 1};
+    uint8_t q[64];
+    uint8_t out[DNS_SHIM_MAX_RESPONSE];
+
+    /* A query → one answer with our IP. */
+    size_t qlen = make_query(q, 1, 1);
+    int n = dns_shim_respond(q, qlen, ip, out, sizeof out);
+    CHECK_EQ_INT(n, (int)qlen + 16);
+    CHECK_EQ_INT(out[0], 0x12); /* ID echoed */
+    CHECK_EQ_INT(out[1], 0x34);
+    CHECK(out[2] & 0x80);            /* QR = response */
+    CHECK_EQ_INT(out[3] & 0x0F, 0);  /* RCODE 0 */
+    CHECK_EQ_INT(out[7], 1);         /* ANCOUNT 1 */
+    CHECK(memcmp(out + 12, q + 12, qlen - 12) == 0); /* question echoed */
+    CHECK_EQ_INT(out[qlen], 0xC0);   /* name pointer */
+    CHECK_EQ_INT(out[qlen + 11], 4); /* RDLENGTH */
+    CHECK(memcmp(out + qlen + 12, ip, 4) == 0);
+
+    /* AAAA → empty NOERROR, never NXDOMAIN (some resolvers would fail
+     * over to IPv6 and skip us). */
+    qlen = make_query(q, 28, 1);
+    n = dns_shim_respond(q, qlen, ip, out, sizeof out);
+    CHECK_EQ_INT(n, (int)qlen);
+    CHECK_EQ_INT(out[3] & 0x0F, 0);
+    CHECK_EQ_INT(out[7], 0); /* no answers */
+
+    /* Wrong class → empty NOERROR too. */
+    qlen = make_query(q, 1, 3);
+    n = dns_shim_respond(q, qlen, ip, out, sizeof out);
+    CHECK_EQ_INT(n, (int)qlen);
+    CHECK_EQ_INT(out[7], 0);
+
+    /* Malformed: truncated header, a response, zero questions → drop. */
+    CHECK_EQ_INT(dns_shim_respond(q, 5, ip, out, sizeof out), -1);
+    qlen = make_query(q, 1, 1);
+    q[2] |= 0x80;
+    CHECK_EQ_INT(dns_shim_respond(q, qlen, ip, out, sizeof out), -1);
+    qlen = make_query(q, 1, 1);
+    q[5] = 0;
+    CHECK_EQ_INT(dns_shim_respond(q, qlen, ip, out, sizeof out), -1);
+    /* Truncated mid-name → drop, no read past the end. */
+    qlen = make_query(q, 1, 1);
+    CHECK_EQ_INT(dns_shim_respond(q, 14, ip, out, sizeof out), -1);
+}
+
+static void test_txt_builder(void) {
+    app_net_txt_record_t recs[APP_NET_TXT_COUNT];
+    app_net_txt_state_t st = {
+        .model = "heltec-v3",
+        .fw = "1.0.0",
+        .probes = 4,
+        .paired = true,
+        .session_id = 27,
+        .sta_mode = true,
+    };
+    snprintf(st.id, sizeof st.id, "A4F2");
+    CHECK_EQ_INT(app_net_txt_build(&st, recs), APP_NET_TXT_COUNT);
+    /* The §5.5 table, byte-for-byte. */
+    const char *want[APP_NET_TXT_COUNT][2] = {
+        {"id", "A4F2"},     {"model", "heltec-v3"}, {"fw", "1.0.0"},
+        {"api", "v1"},      {"probes", "4"},        {"paired", "1"},
+        {"session", "27"},  {"mode", "sta"},
+    };
+    for (int i = 0; i < APP_NET_TXT_COUNT; i++) {
+        CHECK(strcmp(recs[i].key, want[i][0]) == 0);
+        CHECK(strcmp(recs[i].value, want[i][1]) == 0);
+    }
+
+    /* Unpaired AP-mode matrix row. */
+    st.paired = false;
+    st.probes = 0;
+    st.session_id = 0;
+    st.sta_mode = false;
+    app_net_txt_build(&st, recs);
+    CHECK(strcmp(recs[5].value, "0") == 0);
+    CHECK(strcmp(recs[6].value, "0") == 0);
+    CHECK(strcmp(recs[7].value, "ap") == 0);
+}
+
 int main(void) {
     test_mode_selection_paths();
     test_sta_success_and_loss();
     test_budget_timeout_and_retry_ladder();
     test_switch_back_guard();
     test_ap_ssid_from_mac();
+    test_channel_pick();
+    test_deferred_apply();
+    test_dns_shim();
+    test_txt_builder();
     return test_summary("test_app_net");
 }

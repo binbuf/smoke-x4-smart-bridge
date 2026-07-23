@@ -30,6 +30,55 @@ static void publish(app_net_evt_t evt, const uint8_t ip[4]) {
     }
 }
 
+static bool s_apply_pending;
+static app_net_pending_cfg_t s_pending_cfg;
+static uint64_t s_apply_at_ms;
+
+uint8_t app_net_pick_channel(const uint8_t ap_count_per_channel[13]) {
+    static const uint8_t candidates[3] = {1, 6, 11};
+    uint8_t best = 1;
+    uint8_t best_count = 255;
+    for (int i = 0; i < 3; i++) {
+        const uint8_t ch = candidates[i];
+        const uint8_t n = ap_count_per_channel[ch - 1];
+        if (n < best_count) { /* strict <: ties keep the lower channel */
+            best_count = n;
+            best = ch;
+        }
+    }
+    return best;
+}
+
+int app_net_core_apply_later(const app_net_pending_cfg_t *cfg,
+                             uint64_t now_ms) {
+    if (!cfg) {
+        return -1;
+    }
+    /* Superseding is the point: the last accepted config wins. */
+    s_pending_cfg = *cfg;
+    s_apply_at_ms = now_ms + APP_NET_APPLY_DELAY_MS;
+    s_apply_pending = true;
+    return 0;
+}
+
+bool app_net_core_apply_pending(void) { return s_apply_pending; }
+
+static void apply_pending_cfg(uint64_t now_ms) {
+    s_apply_pending = false;
+    (void)app_config_store_set_u8(APP_CONFIG_NET_MODE, s_pending_cfg.mode);
+    if (s_pending_cfg.mode == APP_CONFIG_NET_MODE_STA) {
+        (void)app_config_store_set_str(APP_CONFIG_NET_STA_SSID,
+                                       s_pending_cfg.sta_ssid);
+        (void)app_config_store_set_str(APP_CONFIG_NET_STA_PSK,
+                                       s_pending_cfg.sta_psk);
+        (void)app_config_store_set_u8(APP_CONFIG_NET_STA_AUTH,
+                                      s_pending_cfg.sta_auth);
+        (void)app_config_store_set_str(APP_CONFIG_NET_STA_USER,
+                                       s_pending_cfg.sta_user);
+    }
+    (void)app_net_core_set_mode(s_pending_cfg.mode, now_ms);
+}
+
 uint32_t app_net_retry_delay_min(int attempt) {
     static const uint32_t ladder[APP_NET_RETRY_LADDER_LEN] = {1, 2, 5, 10};
     if (attempt < 0) {
@@ -77,6 +126,7 @@ int app_net_core_init(const app_net_ops_t *ops, void *ctx, uint8_t mode,
     s_ap_clients = 0;
     s_last_activity_ms = now_ms;
     s_sta_pending_switch = false;
+    s_apply_pending = false;
 
     if (s_mode == APP_CONFIG_NET_MODE_STA) {
         s_state = APP_NET_STATE_STA_CONNECTING;
@@ -171,6 +221,9 @@ int app_net_core_set_mode(uint8_t mode, uint64_t now_ms) {
 }
 
 void app_net_core_tick(uint64_t now_ms) {
+    if (s_apply_pending && now_ms >= s_apply_at_ms) {
+        apply_pending_cfg(now_ms);
+    }
     switch (s_state) {
         case APP_NET_STATE_STA_CONNECTING:
             if (now_ms >= s_sta_deadline_ms) {

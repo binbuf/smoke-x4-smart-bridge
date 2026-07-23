@@ -106,6 +106,9 @@ add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
 add_executable(test_app_net
     test_app_net.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/dns_shim.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_txt.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
 )
 target_include_directories(test_app_net PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include

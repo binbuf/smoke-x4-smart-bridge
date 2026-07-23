@@ -1,0 +1,5 @@
+dependencies:
+  idf: ">=5.4"
+  # Pinned so the release-v5.4 CI container and the local v6.0.2 install
+  # resolve the same component (the F8 epic flag).
+  espressif/mdns: "~1.8.2"

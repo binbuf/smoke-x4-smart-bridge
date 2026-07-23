@@ -88,6 +88,30 @@ uint32_t app_net_retry_delay_min(int attempt);
 #define APP_NET_SSID_MAX 32
 void app_net_ap_ssid(const uint8_t mac[6], char out[APP_NET_SSID_MAX]);
 
+/* Channel selection (§5.3): the least congested of 1/6/11 given AP counts
+ * per channel from a startup scan (index 0 = channel 1 ... 13). Ties go to
+ * the lower channel. */
+uint8_t app_net_pick_channel(const uint8_t ap_count_per_channel[13]);
+
+/* ── Deferred reconfiguration (F8.4) ──
+ * Accept a validated config, arm ~500 ms, then persist + execute — so the
+ * HTTP reply (or a future BLE result) flushes before the network it rode
+ * dies with it. A second config inside the window supersedes the first. */
+#define APP_NET_APPLY_DELAY_MS 500u
+
+typedef struct {
+    uint8_t mode; /* APP_CONFIG_NET_MODE_* */
+    char sta_ssid[33];
+    char sta_psk[65];
+    uint8_t sta_auth;
+    char sta_user[33];
+} app_net_pending_cfg_t;
+
+int app_net_core_apply_later(const app_net_pending_cfg_t *cfg,
+                             uint64_t now_ms);
+/* Exposed for tests: is an apply armed? */
+bool app_net_core_apply_pending(void);
+
 #ifdef __cplusplus
 }
 #endif
