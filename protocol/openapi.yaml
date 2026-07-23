@@ -173,6 +173,14 @@ paths:
         **`busy`** (`{ "error": { "code": "busy", … } }`) — a hard limit from the
         RAM budget, not a transient condition to retry aggressively.
 
+        **Device-implementation caveat (F9 spike, 2026-07-22):** `esp_http_server`
+        routes `.is_websocket` handlers after completing the handshake, so the
+        real device cannot answer a pre-handshake JSON `503`. Over-cap upgrades
+        on the device are **accepted and immediately closed with WebSocket close
+        code `1013` (Try Again Later)**. `tools/sim` retains the pre-handshake
+        `503` form. Clients must treat both as the same `busy` condition — the
+        app's transports already do.
+
         Protocol (06 §6.3):
         - The server sends `hello` immediately on connect, then the current
           `sample`, so the client has state without a separate GET.

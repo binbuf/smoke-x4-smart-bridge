@@ -233,6 +233,10 @@ any OEM quirk found is captured as a follow-up task rather than a shrug.
 > **Uncertainty flag ([§12.8](../design/12-task-planning-notes.md), [§12.9](../design/12-task-planning-notes.md)):**
 > the concurrency caps (`max_open_sockets = 7`, 2 WebSocket clients) fall out of a RAM budget that
 > is still *estimates* — F9.13 is where they become measurements. And one API question is open:
+> **[RESOLVED 2026-07-22 — it cannot.** `esp_http_server` completes the handshake before routing
+> `.is_websocket` handlers, so the device accepts-then-closes with `1013 Try Again Later`; the sim
+> keeps the pre-handshake `503`; `openapi.yaml` amended; both forms are `busy` to clients.]
+> Original flag:
 > whether `esp_http_server` can refuse a WebSocket upgrade with the contract's JSON `503 busy`
 > **before** completing the handshake. If it cannot, the fallback is accept-then-close with a
 > `1013 Try Again Later` close frame, and `openapi.yaml` gets amended to say so. Spike this early
