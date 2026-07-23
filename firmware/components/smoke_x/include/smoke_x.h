@@ -1,15 +1,23 @@
-/* smoke_x.h — declared in the design 03 §3.1 component map; implemented in M1+.
- * The M0 skeleton keeps the component compiled and linked so the build
- * shape is real from the first commit. */
+/* smoke_x — device glue: wires the host-tested controller (smoke_x_ctrl),
+ * novelty layer, and packet ring onto the radio and the event bus. */
 #ifndef SMOKE_X_H
 #define SMOKE_X_H
+
+#include "smoke_x_ctrl.h"
+#include "smoke_x_novelty.h"
+#include "smoke_x_parser.h"
+#include "smoke_x_pktring.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Returns 0 on success. Stub until the component's milestone lands. */
+/* Boot step 9: radio init + controller init (loads any persisted
+ * pairing). Returns 0 on success. */
 int smoke_x_init(void);
+
+/* Boot step 10: starts the RX task and the 1 Hz watchdog tick. */
+int smoke_x_start(void);
 
 #ifdef __cplusplus
 }

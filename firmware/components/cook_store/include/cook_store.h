@@ -20,6 +20,11 @@ extern "C" {
  * success. */
 int cook_store_init(void);
 
+/* Starts the drain task (03 §3.2 rule 2): BRIDGE_EVT_SAMPLE handlers only
+ * enqueue; the task owns every flash write, lifecycle decision, ring push,
+ * and the F6.2 back-patch on BRIDGE_EVT_TIME. Requires the event loop. */
+int cook_store_task_start(void);
+
 #ifdef __cplusplus
 }
 #endif

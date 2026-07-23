@@ -1,0 +1,9 @@
+menu "Smoke Bridge — smoke_x"
+    config SMOKEBRIDGE_RESCAN_ENABLED
+        bool "Re-scan for a base after 60 min of silence with no active cook"
+        default n
+        help
+            Off by default deliberately (design 02 §2.7): silently
+            re-pairing to a different base station would be worse than
+            staying put. Never engages during an active cook either way.
+endmenu

@@ -1,0 +1,45 @@
+menu "Smoke Bridge — SX1262 wiring (ra01s)"
+    # The vendored ra01s driver reads these CONFIG_* names; the defaults are
+    # the Heltec WiFi LoRa 32 V3 wiring (design 01 §1.2), proven on the board.
+
+    config MISO_GPIO
+        int "SX1262 MISO GPIO"
+        default 11
+
+    config MOSI_GPIO
+        int "SX1262 MOSI GPIO"
+        default 10
+
+    config SCLK_GPIO
+        int "SX1262 SCLK GPIO"
+        default 9
+
+    config NSS_GPIO
+        int "SX1262 NSS GPIO"
+        default 8
+
+    config RST_GPIO
+        int "SX1262 RST GPIO"
+        default 12
+
+    config BUSY_GPIO
+        int "SX1262 BUSY GPIO"
+        default 13
+
+    config TXEN_GPIO
+        int "SX1262 TXEN GPIO (-1: unused)"
+        default -1
+
+    config RXEN_GPIO
+        int "SX1262 RXEN GPIO (-1: unused)"
+        default -1
+
+    choice
+        prompt "SPI peripheral"
+        default SPI2_HOST
+        config SPI2_HOST
+            bool "SPI2_HOST"
+        config SPI3_HOST
+            bool "SPI3_HOST"
+    endchoice
+endmenu
