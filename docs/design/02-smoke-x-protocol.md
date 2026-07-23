@@ -162,14 +162,19 @@ Carried over from the reference's host test suite; these become the seed corpus 
 | Celsius                            | `\|abCDe,30,0,0,0,250,0,125,32,0,251,0,260,195,0,0,`                                  |
 | Probe 2 detached                   | `\|abCDe,30,1,0,0,848,0,125,32,3,0,0,0,0,0,0,`                                        |
 | Billows attached                   | `\|abCDe,30,1,0,0,848,0,125,32,0,849,0,260,195,1,0,`                                  |
-| X4 (synthetic)                     | `\|abcde,30,1,0,0,700,0,200,100,0,710,0,200,100,0,720,0,200,100,0,730,0,200,100,0,0,` |
-| Sync                               | `020001,\|abCDe,160,32,69,54,`                                                        |
+| X4, **real capture**, baseline     | `LMXC[\,30,1,1,0,811,0,160,32,0,801,0,160,32,0,807,0,160,32,0,807,0,160,32,0,0,`      |
+| X4, real, alarm edge (new_alarm)   | `LMXC[\,30,1,2,0,1052,1,105,32,0,822,0,160,32,0,829,0,160,32,0,835,0,160,32,0,1,`     |
+| X4, real, probe 4 detached (frozen)| `LMXC[\,30,1,1,0,1054,0,160,32,0,797,0,160,32,0,790,0,160,32,3,809,0,160,32,0,0,`     |
+| X4, real, Celsius                  | `LMXC[\,30,0,1,0,381,1,37,8,0,285,0,71,0,0,288,0,71,0,0,273,0,71,0,0,0,`              |
+| X4, **real sync**                  | `000000,LMXC[\,160,50,191,54,`                                                        |
+| Sync (X2-era docs)                 | `020001,\|abCDe,160,32,69,54,`                                                        |
 | Sync ACK                           | `\|abCDe,SUCCESS,`                                                                    |
 
-> **Gap: no real X4 capture exists yet.** Every X4 vector above is synthetic, extrapolated from the
-> X2 format. **An X4 is in hand**, so closing this is a first-week task rather than a blocker:
-> capture and commit real traffic covering four attached probes, probes unplugged mid-cook, an alarm
-> firing, and a °C switch. That settles Q1, Q4, Q6, and Q8 below.
+> **The X4 vectors are real** (captured off the air 2026-07-21; full streams with RSSI/SNR and
+> timing live in `protocol/fixtures/lora/`, exercised by the `lora_corpus` host test). The detached
+> vector shows the X4 **freezing** the last temperature on detach rather than zeroing it — the state
+> field, not the temp field, is the truth. The remaining capture gaps: a shorted probe jack (rest of
+> Q4) and everything Billows (below).
 >
 > **Billows-dependent captures stay open.** No Billows unit is available, so Q3 and Q5 — what the
 > trailing field carries and whether `billows_target` really overloads probe 1's `max` — cannot be
@@ -328,18 +333,33 @@ novelty log is what actually closes the protocol gaps.
 
 ## 2.8 Open questions
 
-| #   | Question                                                                     | How to resolve                                                                      | Status                                     |
-| --- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------ |
-| Q1  | What is state header field 1 (`30`)? Transmit interval?                      | Capture across base-station settings changes; check whether it ever differs from 30 | **actionable** — X4 in hand                |
-| Q2  | What is sync field 0 (`020001`)?                                             | Capture sync from both an X2 and an X4; compare                                     | partial — X4 only unless an X2 is borrowed |
-| Q3  | What is the trailing state field?                                            | Capture with Billows attached and running, alarms firing, low base battery          | **blocked** — no Billows                   |
-| Q4  | What probe `state` values exist besides `0` and `3`?                         | Short the probe jack, open it, exceed range, unplug mid-read                        | **actionable**                             |
-| Q5  | Is `billows_target` really the Billows channel's `max` field? Which channel? | Attach a Billows, set a target, diff the packet                                     | **blocked** — no Billows                   |
-| Q6  | Does an X4 emit the same `30` and `020001` values?                           | First real X4 capture                                                               | **actionable**                             |
-| Q7  | Does the base ever change operating frequency without a re-sync?             | Long soak with the stale-pairing watchdog logging                                   | actionable, slow                           |
-| Q8  | Is `new_alarm` edge-triggered (one packet) or level?                         | Trigger an alarm and count how many packets carry it                                | **actionable**                             |
+Status updated 2026-07-21/22 from the real X4 captures in `protocol/fixtures/lora/`
+(`x4-events-10min`, `x4-passive-session`, `first-x4-contact`), validated continuously by the
+`lora_corpus` host test (F3.8).
 
-Each becomes a test vector once answered. Until then the parser treats unknown fields as opaque and
-**preserves the raw payload** for the most recent N packets in a debug ring buffer, retrievable via
-`GET /api/v1/debug/packets` — so field investigation does not require a second SDR.
+| #   | Question                                                                     | How to resolve                                                                      | Status                                                                                                                                                                       |
+| --- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | What is state header field 1 (`30`)? Transmit interval?                      | Capture across base-station settings changes; check whether it ever differs from 30 | **open, narrowed** — 92 real packets incl. alarm/units/detach events: never left `30`                                                                                        |
+| Q2  | What is sync field 0 (`020001`)?                                             | Capture sync from both an X2 and an X4; compare                                     | **partial — ANSWERED for X4: `000000`**, differing from the X2-era `020001`; meaning still unknown                                                                           |
+| Q3  | What is the trailing state field?                                            | ~~Billows capture~~ (resolved by the alarm choreography instead)                    | **ANSWERED** — the trailing field IS `new_alarm` (see Q8); header field **3** is the remaining mystery: rests at `1`, moves to `2` around alarm/menu activity                 |
+| Q4  | What probe `state` values exist besides `0` and `3`?                         | Short the probe jack, open it, exceed range, unplug mid-read                        | **partial** — detach/reattach captured: `state=3` freezes the last temp on the X4 (X2 zeroed it); reattach jumps straight 3→0; shorted-jack state still uncaptured            |
+| Q5  | Is `billows_target` really the Billows channel's `max` field? Which channel? | Attach a Billows, set a target, diff the packet                                     | **blocked** — no Billows                                                                                                                                                     |
+| Q6  | Does an X4 emit the same `30` and `020001` values?                           | First real X4 capture                                                               | **ANSWERED** — `30` yes; sync field0 **no** (`000000`)                                                                                                                       |
+| Q7  | Does the base ever change operating frequency without a re-sync?             | Long soak with the stale-pairing watchdog logging                                   | actionable, slow                                                                                                                                                             |
+| Q8  | Is `new_alarm` edge-triggered (one packet) or level?                         | Trigger an alarm and count how many packets carry it                                | **ANSWERED — edge-triggered**: three alarm events → three single-packet pulses, zero sustained runs; alarm bands transmit as whole degrees of the active unit (105→`105`/°C→`37`) |
+
+Bonus findings from the captures, folded into the parser and its corpus test:
+
+- **Units field confirmed live**: `1` = °F, `0` = °C; temperatures are tenths of the *active* unit
+  and are continuous across a mid-capture flip (100.8 °F → 38.1 °C → 99.9 °F).
+- **Probe group layout decoded**: `state, temp, alarm_armed, alarm_high, alarm_low` — the
+  reference's "alarm" flag is *armed*, not *ringing*, and the default band is 32–160 °F.
+- **The reference read `new_alarm` from header field 3** — which rests at `1` on a real X4, i.e. it
+  would report a permanent alarm. Our parser reads the trailing field and exposes field 3 raw.
+- Broadcast cadence wobbles during base-station menu use (observed 29–76 s against the nominal 30 s).
+
+Each remaining open question becomes a test vector once answered. Until then the parser treats
+unknown fields as opaque and **preserves the raw payload** for the most recent N packets in a debug
+ring buffer, retrievable via `GET /api/v1/debug/packets` — so field investigation does not require a
+second SDR.
 </content>
