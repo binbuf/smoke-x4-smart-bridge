@@ -324,7 +324,7 @@ extension BridgeEventPatterns on BridgeEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( BridgeSampleEvent value)?  sample,TResult Function( BridgeAlarmEvent value)?  alarm,TResult Function( BridgeSessionEvent value)?  session,TResult Function( BridgeNetEvent value)?  net,TResult Function( BridgePowerEvent value)?  power,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( BridgeSampleEvent value)?  sample,TResult Function( BridgeAlarmEvent value)?  alarm,TResult Function( BridgeSessionEvent value)?  session,TResult Function( BridgeNetEvent value)?  net,TResult Function( BridgePowerEvent value)?  power,TResult Function( BridgePairingEvent value)?  pairing,TResult Function( BridgeOtaEvent value)?  ota,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case BridgeSampleEvent() when sample != null:
@@ -332,7 +332,9 @@ return sample(_that);case BridgeAlarmEvent() when alarm != null:
 return alarm(_that);case BridgeSessionEvent() when session != null:
 return session(_that);case BridgeNetEvent() when net != null:
 return net(_that);case BridgePowerEvent() when power != null:
-return power(_that);case _:
+return power(_that);case BridgePairingEvent() when pairing != null:
+return pairing(_that);case BridgeOtaEvent() when ota != null:
+return ota(_that);case _:
   return orElse();
 
 }
@@ -350,7 +352,7 @@ return power(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( BridgeSampleEvent value)  sample,required TResult Function( BridgeAlarmEvent value)  alarm,required TResult Function( BridgeSessionEvent value)  session,required TResult Function( BridgeNetEvent value)  net,required TResult Function( BridgePowerEvent value)  power,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( BridgeSampleEvent value)  sample,required TResult Function( BridgeAlarmEvent value)  alarm,required TResult Function( BridgeSessionEvent value)  session,required TResult Function( BridgeNetEvent value)  net,required TResult Function( BridgePowerEvent value)  power,required TResult Function( BridgePairingEvent value)  pairing,required TResult Function( BridgeOtaEvent value)  ota,}){
 final _that = this;
 switch (_that) {
 case BridgeSampleEvent():
@@ -358,7 +360,9 @@ return sample(_that);case BridgeAlarmEvent():
 return alarm(_that);case BridgeSessionEvent():
 return session(_that);case BridgeNetEvent():
 return net(_that);case BridgePowerEvent():
-return power(_that);}
+return power(_that);case BridgePairingEvent():
+return pairing(_that);case BridgeOtaEvent():
+return ota(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -372,7 +376,7 @@ return power(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( BridgeSampleEvent value)?  sample,TResult? Function( BridgeAlarmEvent value)?  alarm,TResult? Function( BridgeSessionEvent value)?  session,TResult? Function( BridgeNetEvent value)?  net,TResult? Function( BridgePowerEvent value)?  power,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( BridgeSampleEvent value)?  sample,TResult? Function( BridgeAlarmEvent value)?  alarm,TResult? Function( BridgeSessionEvent value)?  session,TResult? Function( BridgeNetEvent value)?  net,TResult? Function( BridgePowerEvent value)?  power,TResult? Function( BridgePairingEvent value)?  pairing,TResult? Function( BridgeOtaEvent value)?  ota,}){
 final _that = this;
 switch (_that) {
 case BridgeSampleEvent() when sample != null:
@@ -380,7 +384,9 @@ return sample(_that);case BridgeAlarmEvent() when alarm != null:
 return alarm(_that);case BridgeSessionEvent() when session != null:
 return session(_that);case BridgeNetEvent() when net != null:
 return net(_that);case BridgePowerEvent() when power != null:
-return power(_that);case _:
+return power(_that);case BridgePairingEvent() when pairing != null:
+return pairing(_that);case BridgeOtaEvent() when ota != null:
+return ota(_that);case _:
   return null;
 
 }
@@ -397,14 +403,16 @@ return power(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Sample sample)?  sample,TResult Function( Alarm alarm,  AlarmAction action)?  alarm,TResult Function( SessionAction action,  int sessionId,  String? name)?  session,TResult Function( String mode,  String state,  String? ip)?  net,TResult Function( int socPct,  bool charging,  bool saver)?  power,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Sample sample)?  sample,TResult Function( Alarm alarm,  AlarmAction action)?  alarm,TResult Function( SessionAction action,  int sessionId,  String? name)?  session,TResult Function( String mode,  String state,  String? ip)?  net,TResult Function( int socPct,  bool charging,  bool saver)?  power,TResult Function( bool paired,  String? deviceId,  int numProbes)?  pairing,TResult Function( String phase,  int pct)?  ota,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case BridgeSampleEvent() when sample != null:
 return sample(_that.sample);case BridgeAlarmEvent() when alarm != null:
 return alarm(_that.alarm,_that.action);case BridgeSessionEvent() when session != null:
 return session(_that.action,_that.sessionId,_that.name);case BridgeNetEvent() when net != null:
 return net(_that.mode,_that.state,_that.ip);case BridgePowerEvent() when power != null:
-return power(_that.socPct,_that.charging,_that.saver);case _:
+return power(_that.socPct,_that.charging,_that.saver);case BridgePairingEvent() when pairing != null:
+return pairing(_that.paired,_that.deviceId,_that.numProbes);case BridgeOtaEvent() when ota != null:
+return ota(_that.phase,_that.pct);case _:
   return orElse();
 
 }
@@ -422,14 +430,16 @@ return power(_that.socPct,_that.charging,_that.saver);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Sample sample)  sample,required TResult Function( Alarm alarm,  AlarmAction action)  alarm,required TResult Function( SessionAction action,  int sessionId,  String? name)  session,required TResult Function( String mode,  String state,  String? ip)  net,required TResult Function( int socPct,  bool charging,  bool saver)  power,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Sample sample)  sample,required TResult Function( Alarm alarm,  AlarmAction action)  alarm,required TResult Function( SessionAction action,  int sessionId,  String? name)  session,required TResult Function( String mode,  String state,  String? ip)  net,required TResult Function( int socPct,  bool charging,  bool saver)  power,required TResult Function( bool paired,  String? deviceId,  int numProbes)  pairing,required TResult Function( String phase,  int pct)  ota,}) {final _that = this;
 switch (_that) {
 case BridgeSampleEvent():
 return sample(_that.sample);case BridgeAlarmEvent():
 return alarm(_that.alarm,_that.action);case BridgeSessionEvent():
 return session(_that.action,_that.sessionId,_that.name);case BridgeNetEvent():
 return net(_that.mode,_that.state,_that.ip);case BridgePowerEvent():
-return power(_that.socPct,_that.charging,_that.saver);}
+return power(_that.socPct,_that.charging,_that.saver);case BridgePairingEvent():
+return pairing(_that.paired,_that.deviceId,_that.numProbes);case BridgeOtaEvent():
+return ota(_that.phase,_that.pct);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -443,14 +453,16 @@ return power(_that.socPct,_that.charging,_that.saver);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Sample sample)?  sample,TResult? Function( Alarm alarm,  AlarmAction action)?  alarm,TResult? Function( SessionAction action,  int sessionId,  String? name)?  session,TResult? Function( String mode,  String state,  String? ip)?  net,TResult? Function( int socPct,  bool charging,  bool saver)?  power,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Sample sample)?  sample,TResult? Function( Alarm alarm,  AlarmAction action)?  alarm,TResult? Function( SessionAction action,  int sessionId,  String? name)?  session,TResult? Function( String mode,  String state,  String? ip)?  net,TResult? Function( int socPct,  bool charging,  bool saver)?  power,TResult? Function( bool paired,  String? deviceId,  int numProbes)?  pairing,TResult? Function( String phase,  int pct)?  ota,}) {final _that = this;
 switch (_that) {
 case BridgeSampleEvent() when sample != null:
 return sample(_that.sample);case BridgeAlarmEvent() when alarm != null:
 return alarm(_that.alarm,_that.action);case BridgeSessionEvent() when session != null:
 return session(_that.action,_that.sessionId,_that.name);case BridgeNetEvent() when net != null:
 return net(_that.mode,_that.state,_that.ip);case BridgePowerEvent() when power != null:
-return power(_that.socPct,_that.charging,_that.saver);case _:
+return power(_that.socPct,_that.charging,_that.saver);case BridgePairingEvent() when pairing != null:
+return pairing(_that.paired,_that.deviceId,_that.numProbes);case BridgeOtaEvent() when ota != null:
+return ota(_that.phase,_that.pct);case _:
   return null;
 
 }
@@ -814,6 +826,144 @@ socPct: null == socPct ? _self.socPct : socPct // ignore: cast_nullable_to_non_n
 as int,charging: null == charging ? _self.charging : charging // ignore: cast_nullable_to_non_nullable
 as bool,saver: null == saver ? _self.saver : saver // ignore: cast_nullable_to_non_nullable
 as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class BridgePairingEvent implements BridgeEvent {
+  const BridgePairingEvent({required this.paired, this.deviceId, this.numProbes = 0});
+  
+
+ final  bool paired;
+ final  String? deviceId;
+@JsonKey() final  int numProbes;
+
+/// Create a copy of BridgeEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$BridgePairingEventCopyWith<BridgePairingEvent> get copyWith => _$BridgePairingEventCopyWithImpl<BridgePairingEvent>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgePairingEvent&&(identical(other.paired, paired) || other.paired == paired)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.numProbes, numProbes) || other.numProbes == numProbes));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,paired,deviceId,numProbes);
+
+@override
+String toString() {
+  return 'BridgeEvent.pairing(paired: $paired, deviceId: $deviceId, numProbes: $numProbes)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $BridgePairingEventCopyWith<$Res> implements $BridgeEventCopyWith<$Res> {
+  factory $BridgePairingEventCopyWith(BridgePairingEvent value, $Res Function(BridgePairingEvent) _then) = _$BridgePairingEventCopyWithImpl;
+@useResult
+$Res call({
+ bool paired, String? deviceId, int numProbes
+});
+
+
+
+
+}
+/// @nodoc
+class _$BridgePairingEventCopyWithImpl<$Res>
+    implements $BridgePairingEventCopyWith<$Res> {
+  _$BridgePairingEventCopyWithImpl(this._self, this._then);
+
+  final BridgePairingEvent _self;
+  final $Res Function(BridgePairingEvent) _then;
+
+/// Create a copy of BridgeEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? paired = null,Object? deviceId = freezed,Object? numProbes = null,}) {
+  return _then(BridgePairingEvent(
+paired: null == paired ? _self.paired : paired // ignore: cast_nullable_to_non_nullable
+as bool,deviceId: freezed == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
+as String?,numProbes: null == numProbes ? _self.numProbes : numProbes // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class BridgeOtaEvent implements BridgeEvent {
+  const BridgeOtaEvent({required this.phase, this.pct = 0});
+  
+
+ final  String phase;
+@JsonKey() final  int pct;
+
+/// Create a copy of BridgeEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$BridgeOtaEventCopyWith<BridgeOtaEvent> get copyWith => _$BridgeOtaEventCopyWithImpl<BridgeOtaEvent>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgeOtaEvent&&(identical(other.phase, phase) || other.phase == phase)&&(identical(other.pct, pct) || other.pct == pct));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,phase,pct);
+
+@override
+String toString() {
+  return 'BridgeEvent.ota(phase: $phase, pct: $pct)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $BridgeOtaEventCopyWith<$Res> implements $BridgeEventCopyWith<$Res> {
+  factory $BridgeOtaEventCopyWith(BridgeOtaEvent value, $Res Function(BridgeOtaEvent) _then) = _$BridgeOtaEventCopyWithImpl;
+@useResult
+$Res call({
+ String phase, int pct
+});
+
+
+
+
+}
+/// @nodoc
+class _$BridgeOtaEventCopyWithImpl<$Res>
+    implements $BridgeOtaEventCopyWith<$Res> {
+  _$BridgeOtaEventCopyWithImpl(this._self, this._then);
+
+  final BridgeOtaEvent _self;
+  final $Res Function(BridgeOtaEvent) _then;
+
+/// Create a copy of BridgeEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? phase = null,Object? pct = null,}) {
+  return _then(BridgeOtaEvent(
+phase: null == phase ? _self.phase : phase // ignore: cast_nullable_to_non_nullable
+as String,pct: null == pct ? _self.pct : pct // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

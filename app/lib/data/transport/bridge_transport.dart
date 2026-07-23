@@ -51,6 +51,15 @@ sealed class BridgeEvent with _$BridgeEvent {
     required bool charging,
     @Default(false) bool saver,
   }) = BridgePowerEvent;
+
+  /// A5.2: the §6.3 frames the WebSocket carries beyond the original five.
+  const factory BridgeEvent.pairing({
+    required bool paired,
+    String? deviceId,
+    @Default(0) int numProbes,
+  }) = BridgePairingEvent;
+  const factory BridgeEvent.ota({required String phase, @Default(0) int pct}) =
+      BridgeOtaEvent;
 }
 
 enum AlarmAction { raised, cleared, acked }

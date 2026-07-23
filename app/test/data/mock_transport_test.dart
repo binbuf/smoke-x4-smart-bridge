@@ -102,6 +102,8 @@ void main() {
         case BridgeSessionEvent():
         case BridgeNetEvent():
         case BridgePowerEvent():
+        case BridgePairingEvent():
+        case BridgeOtaEvent():
           break;
       }
     }
