@@ -1,0 +1,7 @@
+# result: the AP PSK the phone needs to join after a mode change to AP
+kind=result
+wire_len=14
+ver=1
+op_echo=0
+status=0
+detail=Gk7mR2xQpT

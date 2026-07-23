@@ -260,6 +260,71 @@ static void test_channel_pick(void) {
     CHECK_EQ_INT(app_net_pick_channel(counts), 11);
 }
 
+/* BOARD-FOUND (M3 bench): re-provisioning a bridge that is ALREADY in
+ * STA mode used to be a silent no-op — set_mode returned early because
+ * the mode had not changed. Nothing re-associated, and because no state
+ * changed, no event was published, so the phone's wizard waited out its
+ * whole handoff budget for a transition that could never arrive. The
+ * nastier half: pointing an STA bridge at a DIFFERENT network persisted
+ * the new credentials and then kept using the old association. */
+static void test_reprovision_while_already_sta(void) {
+    cfg_erase(NULL);
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+                 APP_CONFIG_OK);
+    reset_doubles();
+    CHECK_EQ_INT(
+        app_net_core_init(&g_ops, NULL, APP_CONFIG_NET_MODE_STA, false, 0), 0);
+    const uint8_t ip[4] = {10, 50, 50, 38};
+    app_net_core_on_sta_connected(ip, 100);
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_STA_UP);
+    const int connects_before = g_sta_connect;
+
+    /* Same mode, DIFFERENT network: this is a command, not a preference. */
+    app_net_pending_cfg_t cfg = {.mode = APP_CONFIG_NET_MODE_STA,
+                                 .sta_auth = 1};
+    snprintf(cfg.sta_ssid, sizeof cfg.sta_ssid, "Garage");
+    snprintf(cfg.sta_psk, sizeof cfg.sta_psk, "second-pw");
+    CHECK_EQ_INT(app_net_core_apply_later(&cfg, 1000), 0);
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 1);
+
+    /* It must actually TEAR DOWN the old association first — connecting
+     * an already-connected station is a no-op on the chip, which is how
+     * this produced total silence on the board — and then re-associate. */
+    CHECK_EQ_INT(g_sta_disconnect, 1);
+    CHECK(g_sta_connect > connects_before);
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_STA_CONNECTING);
+    /* ...with the new credentials persisted... */
+    char ssid[33] = {0};
+    CHECK_EQ_INT(app_config_store_get_str(APP_CONFIG_NET_STA_SSID, ssid,
+                                          sizeof ssid),
+                 APP_CONFIG_OK);
+    CHECK(strcmp(ssid, "Garage") == 0);
+    /* The disconnect WE caused must not be mistaken for a failure: no
+     * fallback AP, still connecting. */
+    app_net_core_on_sta_disconnected(1600);
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_STA_CONNECTING);
+    CHECK_EQ_INT(g_evt_counts[APP_NET_EVT_FALLBACK], 0);
+
+    /* ...and the resulting transition must be observable, because that is
+     * what the app waits on. */
+    app_net_core_on_sta_connected(ip, 2000);
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_STA_UP);
+    CHECK(g_evt_counts[APP_NET_EVT_STA_UP] >= 2);
+
+    /* The flag is one-shot: a REAL disconnect after it is still a real
+     * failure, and still falls back. */
+    app_net_core_on_sta_disconnected(2500);
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_FALLBACK_AP);
+
+    /* A plain preference — "be in the mode you are already in" — still
+     * does nothing, because yanking a working network for nothing is the
+     * behaviour the early return exists to protect. */
+    const int connects_after = g_sta_connect;
+    CHECK_EQ_INT(app_net_core_set_mode(APP_CONFIG_NET_MODE_STA, 3000), 0);
+    CHECK_EQ_INT(g_sta_connect, connects_after);
+    CHECK_EQ_INT(app_net_core_state(), APP_NET_STATE_FALLBACK_AP);
+}
+
 static void test_deferred_apply(void) {
     cfg_erase(NULL);
     CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
@@ -411,6 +476,7 @@ int main(void) {
     test_ap_ssid_from_mac();
     test_channel_pick();
     test_deferred_apply();
+    test_reprovision_while_already_sta();
     test_dns_shim();
     test_txt_builder();
     return test_summary("test_app_net");

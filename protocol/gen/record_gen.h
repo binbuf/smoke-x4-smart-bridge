@@ -20,6 +20,7 @@ extern "C" {
 
 #define BRIDGE_TEMP_DETACHED ((int16_t)-32768)
 #define BRIDGE_TEMP_INVALID ((int16_t)-32767)
+#define BRIDGE_SOC_UNKNOWN (255)
 #define BRIDGE_SESSION_MAGIC "SMKS"
 #define BRIDGE_RECORD_VERSION (1)
 
@@ -82,6 +83,11 @@ typedef enum {
     BRIDGE_UNITS_CELSIUS = 0,
     BRIDGE_UNITS_FAHRENHEIT = 1,
 } bridge_units_t;
+
+typedef enum {
+    BRIDGE_SCAN_CMD_CANCEL = 0,
+    BRIDGE_SCAN_CMD_START = 1,
+} bridge_scan_cmd_t;
 
 /* ── Little-endian byte access ─────────────────────────────── */
 
@@ -377,6 +383,92 @@ static inline bool bridge_mark_rec_decode(const uint8_t *buf, bridge_mark_rec_t 
     return v->crc16 == bridge_mark_rec_crc(buf);
 }
 
+/* ── device_info (40 B) ── */
+
+#define BRIDGE_DEVICE_INFO_SIZE 40u
+
+typedef struct __attribute__((packed)) {
+    uint8_t ver;
+    uint8_t api; /* HTTP/BLE API major version */
+    uint8_t probes; /* 2 or 4 */
+    uint8_t caps; /* b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN */
+    char id[4]; /* ASCII hex, e.g. A4F2 */
+    char model[16]; /* UTF-8, NUL-padded */
+    char fw[16]; /* UTF-8, NUL-padded */
+} bridge_device_info_t;
+
+_Static_assert(sizeof(bridge_device_info_t) == BRIDGE_DEVICE_INFO_SIZE,
+               "device_info must pack to 40 bytes");
+
+#define BRIDGE_DEVICE_INFO_CAPS_WIFI_AP (1u << 0)
+#define BRIDGE_DEVICE_INFO_CAPS_WIFI_STA (1u << 1)
+#define BRIDGE_DEVICE_INFO_CAPS_WIFI_ENTERPRISE (1u << 2)
+#define BRIDGE_DEVICE_INFO_CAPS_HISTORY_PREVIEW (1u << 3)
+#define BRIDGE_DEVICE_INFO_CAPS_OTA (1u << 4)
+#define BRIDGE_DEVICE_INFO_CAPS_BATTERY (1u << 5)
+static inline bool bridge_device_info_wifi_ap(uint8_t caps) {
+    return (caps & (1u << 0)) != 0;
+}
+static inline bool bridge_device_info_wifi_sta(uint8_t caps) {
+    return (caps & (1u << 1)) != 0;
+}
+static inline bool bridge_device_info_wifi_enterprise(uint8_t caps) {
+    return (caps & (1u << 2)) != 0;
+}
+static inline bool bridge_device_info_history_preview(uint8_t caps) {
+    return (caps & (1u << 3)) != 0;
+}
+static inline bool bridge_device_info_ota(uint8_t caps) {
+    return (caps & (1u << 4)) != 0;
+}
+static inline bool bridge_device_info_battery(uint8_t caps) {
+    return (caps & (1u << 5)) != 0;
+}
+
+static inline void bridge_device_info_encode(const bridge_device_info_t *v, uint8_t out[BRIDGE_DEVICE_INFO_SIZE]) {
+    out[0] = v->ver;
+    out[1] = v->api;
+    out[2] = v->probes;
+    out[3] = v->caps;
+    memcpy(out + 4, v->id, 4);
+    memcpy(out + 8, v->model, 16);
+    memcpy(out + 24, v->fw, 16);
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_device_info_decode(const uint8_t *buf, bridge_device_info_t *v) {
+    v->ver = buf[0];
+    v->api = buf[1];
+    v->probes = buf[2];
+    v->caps = buf[3];
+    memcpy(v->id, buf + 4, 4);
+    memcpy(v->model, buf + 8, 16);
+    memcpy(v->fw, buf + 24, 16);
+}
+
+/* ── wifi_scan_ctrl (2 B) ── */
+
+#define BRIDGE_WIFI_SCAN_CTRL_SIZE 2u
+
+typedef struct __attribute__((packed)) {
+    uint8_t ver;
+    uint8_t cmd;
+} bridge_wifi_scan_ctrl_t;
+
+_Static_assert(sizeof(bridge_wifi_scan_ctrl_t) == BRIDGE_WIFI_SCAN_CTRL_SIZE,
+               "wifi_scan_ctrl must pack to 2 bytes");
+
+static inline void bridge_wifi_scan_ctrl_encode(const bridge_wifi_scan_ctrl_t *v, uint8_t out[BRIDGE_WIFI_SCAN_CTRL_SIZE]) {
+    out[0] = v->ver;
+    out[1] = v->cmd;
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_wifi_scan_ctrl_decode(const uint8_t *buf, bridge_wifi_scan_ctrl_t *v) {
+    v->ver = buf[0];
+    v->cmd = buf[1];
+}
+
 /* ── live_state (16 B) ── */
 
 #define BRIDGE_LIVE_STATE_SIZE 16u
@@ -385,7 +477,7 @@ typedef struct __attribute__((packed)) {
     uint8_t ver;
     uint8_t flags;
     int16_t temp[4]; /* tenths °F */
-    uint8_t soc_pct; /* battery state of charge, 0–100 */
+    uint8_t soc_pct; /* battery state of charge 0–100, or SOC_UNKNOWN (255) */
     int8_t rssi_lora; /* dBm of the last state message */
     uint32_t session_t; /* seconds into the active session; 0 when none */
 } bridge_live_state_t;

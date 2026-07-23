@@ -1,0 +1,15 @@
+# device_info: the open identity card; caps.battery clear until F12 (M5)
+kind=device_info
+ver=1
+api=1
+probes=4
+caps=11
+cap_wifi_ap=1
+cap_wifi_sta=1
+cap_wifi_enterprise=0
+cap_history_preview=1
+cap_ota=0
+cap_battery=0
+id=A4F2
+model=heltec-v3
+fw=1.0.0

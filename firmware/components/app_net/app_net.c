@@ -7,6 +7,7 @@
  */
 #include "app_net.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,6 +22,7 @@
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 #include "mdns.h"
+#include "record_gen.h"
 
 static const char *TAG = "app_net";
 
@@ -173,6 +175,94 @@ static const app_net_ops_t k_ops = {
 
 /* ── Wi-Fi / IP events → core inputs ───────────────────────────────────── */
 
+/* ── On-demand AP scan for BLE provisioning (F10.7 glue) ──────────────── */
+
+static app_net_scan_ap_t s_scan_results[APP_NET_SCAN_MAX];
+static int s_scan_count;
+static volatile bool s_scan_running;
+static app_net_scan_done_t s_scan_done_cb;
+static void *s_scan_done_ctx;
+
+void app_net_set_scan_done_cb(app_net_scan_done_t cb, void *ctx) {
+    s_scan_done_cb = cb;
+    s_scan_done_ctx = ctx;
+}
+
+/* Runs on the Wi-Fi event task: copy the records out and hand control
+ * straight back. The BLE notifications are somebody else's task row. */
+static void scan_collect(void) {
+    if (!s_scan_running) {
+        return; /* the channel-selection scan, or a cancelled one */
+    }
+    s_scan_count = 0;
+    uint16_t n = 0;
+    if (esp_wifi_scan_get_ap_num(&n) == ESP_OK && n > 0) {
+        if (n > APP_NET_SCAN_MAX) {
+            n = APP_NET_SCAN_MAX;
+        }
+        wifi_ap_record_t *recs = calloc(n, sizeof *recs);
+        if (recs != NULL) {
+            if (esp_wifi_scan_get_ap_records(&n, recs) == ESP_OK) {
+                for (uint16_t i = 0; i < n; i++) {
+                    app_net_scan_ap_t *ap = &s_scan_results[s_scan_count++];
+                    memset(ap, 0, sizeof *ap);
+                    snprintf(ap->ssid, sizeof ap->ssid, "%s",
+                             (const char *)recs[i].ssid);
+                    ap->rssi = recs[i].rssi;
+                    ap->auth = (uint8_t)recs[i].authmode;
+                    ap->channel = recs[i].primary;
+                }
+            }
+            free(recs);
+        }
+    }
+    s_scan_running = false;
+    if (s_scan_done_cb != NULL) {
+        s_scan_done_cb(s_scan_done_ctx);
+    }
+}
+
+int app_net_request_scan(void) {
+    if (s_scan_running) {
+        return -2; /* busy — the core answers result{busy} */
+    }
+    /* Scanning needs the STA interface. In AP mode that means a temporary
+     * APSTA arrangement; clients keep their association, but throughput
+     * dips for the scan's duration. The size of that dip is a named
+     * observation for the bench sitting (F10.7). */
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    if (esp_wifi_get_mode(&mode) == ESP_OK && mode == WIFI_MODE_AP) {
+        (void)esp_wifi_set_mode(WIFI_MODE_APSTA);
+    }
+    const wifi_scan_config_t cfg = {.show_hidden = false};
+    s_scan_running = true;
+    if (esp_wifi_scan_start(&cfg, false) != ESP_OK) {
+        s_scan_running = false;
+        return -1;
+    }
+    return 0;
+}
+
+int app_net_cancel_scan(void) {
+    if (!s_scan_running) {
+        return 0;
+    }
+    s_scan_running = false;
+    s_scan_count = 0;
+    (void)esp_wifi_scan_stop();
+    return 0;
+}
+
+int app_net_take_scan_results(app_net_scan_ap_t *out, int max) {
+    int n = s_scan_count < max ? s_scan_count : max;
+    if (n < 0) {
+        n = 0;
+    }
+    memcpy(out, s_scan_results, (size_t)n * sizeof *out);
+    s_scan_count = 0;
+    return n;
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id,
                                void *data) {
     (void)arg;
@@ -191,6 +281,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id,
             }
             case WIFI_EVENT_STA_DISCONNECTED:
                 app_net_core_on_sta_disconnected(now_ms());
+                break;
+            case WIFI_EVENT_SCAN_DONE:
+                scan_collect();
                 break;
             default:
                 break;
@@ -376,6 +469,42 @@ void app_net_get_status(app_net_status_t *out) {
     if (esp_wifi_ap_get_sta_list(&list) == ESP_OK) {
         out->ap_clients = list.num;
     }
+}
+
+/* The same facts in the BLE wire's vocabulary (ble-gatt §5.2), so app_ble
+ * never parses a string to build net_status. One source, two shapes. */
+void app_net_get_wire_status(app_net_wire_status_t *out) {
+    memset(out, 0, sizeof *out);
+    app_net_status_t s;
+    app_net_get_status(&s);
+
+    const bool sta = strcmp(s.mode, "sta") == 0;
+    out->mode = sta ? BRIDGE_NET_MODE_STA : BRIDGE_NET_MODE_AP;
+    if (strcmp(s.state, "up") == 0) {
+        out->state = BRIDGE_NET_STATE_UP;
+    } else if (strcmp(s.state, "connecting") == 0) {
+        out->state = BRIDGE_NET_STATE_CONNECTING;
+    } else if (strcmp(s.state, "fallback") == 0) {
+        /* STA could not be reached and the AP came back up. The phone must
+         * see `failed`, not `up`: it is the signal the wizard's recovery
+         * branch waits for (05 §5.7). */
+        out->mode = BRIDGE_NET_MODE_AP;
+        out->state = BRIDGE_NET_STATE_FAILED;
+    } else {
+        out->state = BRIDGE_NET_STATE_IDLE;
+    }
+    out->rssi = s.rssi;
+    unsigned a = 0, b = 0, c = 0, d = 0;
+    if (sscanf(s.ip, "%u.%u.%u.%u", &a, &b, &c, &d) == 4) {
+        out->ip[0] = (uint8_t)a;
+        out->ip[1] = (uint8_t)b;
+        out->ip[2] = (uint8_t)c;
+        out->ip[3] = (uint8_t)d;
+    }
+    snprintf(out->ssid, sizeof out->ssid, "%s", s.ssid);
+    /* The BLE field carries the bare hostname; ".local" is the client's
+     * to add, and 23 bytes is all §5.2 budgets for it. */
+    snprintf(out->host, sizeof out->host, "smokebridge");
 }
 
 static void tick_cb(void *arg) {

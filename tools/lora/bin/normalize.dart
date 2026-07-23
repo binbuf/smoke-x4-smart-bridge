@@ -46,7 +46,9 @@ void main(List<String> argv) {
     // banner, half-transmitted lines); decode leniently rather than requiring
     // a hand-sanitized log.
     packets.addAll(
-      parseMonitorLog(utf8.decode(file.readAsBytesSync(), allowMalformed: true)),
+      parseMonitorLog(
+        utf8.decode(file.readAsBytesSync(), allowMalformed: true),
+      ),
     );
   }
   if (packets.isEmpty) {

@@ -38,10 +38,12 @@ int main(void) {
     CHECK(!bridge_event_guard_check("slow_again", 0, 60000));
     CHECK_EQ_INT(g_violations, 1);
 
-    /* The twelve event IDs of 03 §3.2 exist and stay dense. */
+    /* The twelve event IDs of 03 §3.2 exist and stay dense, plus M3's
+     * additive BRIDGE_EVT_BLE (F10.5) at the end. */
     CHECK_EQ_INT(BRIDGE_EVT_SAMPLE, 0);
     CHECK_EQ_INT(BRIDGE_EVT_OTA, 11);
-    CHECK_EQ_INT(BRIDGE_EVT_MAX, 12);
+    CHECK_EQ_INT(BRIDGE_EVT_BLE, 12);
+    CHECK_EQ_INT(BRIDGE_EVT_MAX, 13);
 
     return test_summary("test_bridge_event_guard");
 }

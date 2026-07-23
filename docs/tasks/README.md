@@ -7,7 +7,9 @@ Execution plan derived from [`docs/design`](../design/README.md), following the 
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [M0 — Foundations](M0-foundations.md)                 | 52 tasks. Repo, protocol contract, simulator, firmware + app skeletons, the bench sitting     |
 | [M1 — Receive and Persist](M1-receive-and-persist.md) | 41 tasks. LoRa, parser, pairing, novelty log, `cook_store`, time, replay tooling, drift cache |
-| [M2–M6 — Outline](M2-M6-outline.md)                   | Epic-level placeholders. **Deliberately not detailed** — see §12.1                            |
+| [M2 — Network and API](M2-network-and-api.md)         | 35 tasks. `app_net`, `app_api`, debug endpoints, HttpTransport, ConnectionManager, the binder |
+| [M3 — BLE and Provisioning](M3-ble-and-provisioning.md) | 28 tasks. GATT contract, `app_ui` passkey half, `app_ble`, BleTransport, onboarding wizard   |
+| [M2–M6 — Outline](M2-M6-outline.md)                   | Epic-level placeholders for M4–M6. **Deliberately not detailed** — see §12.1                 |
 | [Standing work](standing-work.md)                     | The V2 capture campaign and other recurring obligations                                       |
 
 ## Why M2+ is not planned in detail
@@ -38,9 +40,11 @@ no longer a guess.
 - **B** — verified on the board, result written into `docs/hardware-verified.md`
 - **C** — observed across a real cook, artifact committed to `protocol/fixtures/` or the PR
 
-Counts: **M0 is 44 `board: no` / 8 `board: yes`. M1 is 39 / 2.** That ratio is the point — roughly
-60 % of the interesting firmware logic lives in ESP-IDF-free components precisely so it closes
-without the board ([03 §3.1](../design/03-firmware-architecture.md)).
+Counts: **M0 is 44 `board: no` / 8 `board: yes`. M1 is 39 / 2. M2 is 31 / 4. M3 is 24 / 4.** That
+ratio is the point — roughly 60 % of the interesting firmware logic lives in ESP-IDF-free
+components precisely so it closes without the board
+([03 §3.1](../design/03-firmware-architecture.md)), and every milestone's board work batches into a
+single sitting ([§12.6 rule 7](../design/12-task-planning-notes.md)).
 
 ## Execution order
 
@@ -116,6 +120,8 @@ away, and six of the eight open protocol questions close by themselves once it i
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **M0** | CI green, and `dart run tools/sim --cook fixtures/brisket-18h.smk` serves a fake 18-hour cook over the real API. The Flutter app can now be built against it before any firmware exists                                                                                      |
 | **M1** | A real Smoke X4 pairs **and the stock ThermoWorks receiver keeps working**; a cook survives a mid-cook power cut and resumes into the same session; real X4 packets are committed to `protocol/fixtures/`; host tests pass against real captures, not just synthetic vectors |
+| **M2** | `curl` retrieves a 24-hour cook as CSV and as raw records; a WebSocket client receives live samples; AP↔STA switching works from `curl`; free heap ≥ 150 KB with everything running |
+| **M3** | A phone provisions the bridge from factory-reset to a working STA connection **entirely over BLE**, and recovers from a deliberately wrong Wi-Fi password without touching the hardware |
 
 **M1 is the load-bearing milestone and the F track gates on it.** Do not start M2 firmware work until
 real X4 traffic decodes correctly — everything downstream assumes the parser is right. The A track

@@ -111,6 +111,18 @@ static void check_padded_str(const char *field, size_t field_len,
     CHECK(expected != NULL && strcmp(buf, expected) == 0);
 }
 
+/* Length-delimited (NOT NUL-padded) field — the BLE variable payloads. */
+static void check_len_str(const char *field, size_t len, const char *expected) {
+    char buf[80];
+    if (len >= sizeof buf) {
+        CHECK(!"length-delimited field longer than the test buffer");
+        return;
+    }
+    memcpy(buf, field, len);
+    buf[len] = '\0';
+    CHECK(expected != NULL && strcmp(buf, expected) == 0);
+}
+
 /* ── per-kind fixture checks ──────────────────────────────────────── */
 
 static void check_sample(const uint8_t *bytes, size_t len, const kv_t *kv,
@@ -213,6 +225,201 @@ static void check_mark(const uint8_t *bytes, size_t len, const kv_t *kv,
     CHECK(memcmp(out, bytes, sizeof out) == 0);
 }
 
+/* ── BLE payload fixture checks (P3.2, ble-gatt §5) ───────────────── */
+
+static void check_device_info(const uint8_t *bytes, size_t len, const kv_t *kv,
+                              size_t n) {
+    CHECK_EQ_INT(len, BRIDGE_DEVICE_INFO_SIZE);
+    bridge_device_info_t d;
+    bridge_device_info_decode(bytes, &d);
+    CHECK_EQ_INT(d.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(d.api, kv_ll(kv, n, "api"));
+    CHECK_EQ_INT(d.probes, kv_ll(kv, n, "probes"));
+    CHECK_EQ_INT(d.caps, kv_ll(kv, n, "caps"));
+    CHECK_EQ_INT(bridge_device_info_wifi_ap(d.caps), kv_ll(kv, n, "cap_wifi_ap"));
+    CHECK_EQ_INT(bridge_device_info_wifi_sta(d.caps),
+                 kv_ll(kv, n, "cap_wifi_sta"));
+    CHECK_EQ_INT(bridge_device_info_wifi_enterprise(d.caps),
+                 kv_ll(kv, n, "cap_wifi_enterprise"));
+    CHECK_EQ_INT(bridge_device_info_history_preview(d.caps),
+                 kv_ll(kv, n, "cap_history_preview"));
+    CHECK_EQ_INT(bridge_device_info_ota(d.caps), kv_ll(kv, n, "cap_ota"));
+    CHECK_EQ_INT(bridge_device_info_battery(d.caps),
+                 kv_ll(kv, n, "cap_battery"));
+    check_padded_str(d.id, sizeof d.id, kv_get(kv, n, "id"));
+    check_padded_str(d.model, sizeof d.model, kv_get(kv, n, "model"));
+    check_padded_str(d.fw, sizeof d.fw, kv_get(kv, n, "fw"));
+
+    uint8_t out[BRIDGE_DEVICE_INFO_SIZE];
+    bridge_device_info_encode(&d, out);
+    CHECK(memcmp(out, bytes, sizeof out) == 0);
+}
+
+static void check_wifi_scan_ctrl(const uint8_t *bytes, size_t len,
+                                 const kv_t *kv, size_t n) {
+    CHECK_EQ_INT(len, BRIDGE_WIFI_SCAN_CTRL_SIZE);
+    bridge_wifi_scan_ctrl_t c;
+    bridge_wifi_scan_ctrl_decode(bytes, &c);
+    CHECK_EQ_INT(c.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(c.cmd, kv_ll(kv, n, "cmd"));
+
+    uint8_t out[BRIDGE_WIFI_SCAN_CTRL_SIZE];
+    bridge_wifi_scan_ctrl_encode(&c, out);
+    CHECK(memcmp(out, bytes, sizeof out) == 0);
+}
+
+static void check_live_state(const uint8_t *bytes, size_t len, const kv_t *kv,
+                             size_t n) {
+    CHECK_EQ_INT(len, BRIDGE_LIVE_STATE_SIZE);
+    bridge_live_state_t s;
+    bridge_live_state_decode(bytes, &s);
+    CHECK_EQ_INT(s.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(s.flags, kv_ll(kv, n, "flags"));
+    CHECK_EQ_INT(bridge_live_state_paired(s.flags), kv_ll(kv, n, "flag_paired"));
+    CHECK_EQ_INT(bridge_live_state_session_active(s.flags),
+                 kv_ll(kv, n, "flag_session_active"));
+    CHECK_EQ_INT(bridge_live_state_billows(s.flags),
+                 kv_ll(kv, n, "flag_billows"));
+    CHECK_EQ_INT(bridge_live_state_alarm_active(s.flags),
+                 kv_ll(kv, n, "flag_alarm_active"));
+    CHECK_EQ_INT(bridge_live_state_clock_valid(s.flags),
+                 kv_ll(kv, n, "flag_clock_valid"));
+    char key[24];
+    for (int i = 0; i < 4; i++) {
+        snprintf(key, sizeof key, "temp%d", i);
+        CHECK_EQ_INT(s.temp[i], kv_ll(kv, n, key));
+        snprintf(key, sizeof key, "temp%d_null", i);
+        const int is_sentinel = s.temp[i] == BRIDGE_TEMP_DETACHED ||
+                                s.temp[i] == BRIDGE_TEMP_INVALID;
+        CHECK_EQ_INT(is_sentinel, kv_ll(kv, n, key));
+    }
+    CHECK_EQ_INT(s.soc_pct, kv_ll(kv, n, "soc_pct"));
+    CHECK_EQ_INT(s.soc_pct == BRIDGE_SOC_UNKNOWN, kv_ll(kv, n, "soc_unknown"));
+    CHECK_EQ_INT(s.rssi_lora, kv_ll(kv, n, "rssi_lora"));
+    CHECK_EQ_INT(s.session_t, kv_ll(kv, n, "session_t"));
+
+    uint8_t out[BRIDGE_LIVE_STATE_SIZE];
+    bridge_live_state_encode(&s, out);
+    CHECK(memcmp(out, bytes, sizeof out) == 0);
+}
+
+static void check_net_status(const uint8_t *bytes, size_t len, const kv_t *kv,
+                             size_t n) {
+    bridge_net_status_t s;
+    CHECK_EQ_INT(bridge_net_status_unpack(bytes, len, &s), (int)len);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    CHECK_EQ_INT(s.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(s.mode, kv_ll(kv, n, "mode"));
+    CHECK_EQ_INT(s.state, kv_ll(kv, n, "state"));
+    CHECK_EQ_INT(s.wifi_rssi, kv_ll(kv, n, "wifi_rssi"));
+    char ip[20];
+    snprintf(ip, sizeof ip, "%u.%u.%u.%u", s.ip[0], s.ip[1], s.ip[2], s.ip[3]);
+    const char *ip_exp = kv_get(kv, n, "ip");
+    CHECK(ip_exp != NULL && strcmp(ip, ip_exp) == 0);
+    check_len_str(s.ssid, s.ssid_len, kv_get(kv, n, "ssid"));
+    check_len_str(s.host, s.host_len, kv_get(kv, n, "host"));
+
+    uint8_t out[BRIDGE_NET_STATUS_MAX_SIZE];
+    CHECK_EQ_INT(bridge_net_status_pack(&s, out, sizeof out), (int)len);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
+static void check_wifi_scan_result(const uint8_t *bytes, size_t len,
+                                   const kv_t *kv, size_t n) {
+    bridge_wifi_scan_result_t r;
+    CHECK_EQ_INT(bridge_wifi_scan_result_unpack(bytes, len, &r), (int)len);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    CHECK_EQ_INT(r.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(r.index, kv_ll(kv, n, "index"));
+    CHECK_EQ_INT(r.total, kv_ll(kv, n, "total"));
+    CHECK_EQ_INT(r.rssi, kv_ll(kv, n, "rssi"));
+    CHECK_EQ_INT(r.auth, kv_ll(kv, n, "auth"));
+    CHECK_EQ_INT(r.channel, kv_ll(kv, n, "channel"));
+    check_len_str(r.ssid, r.ssid_len, kv_get(kv, n, "ssid"));
+
+    uint8_t out[BRIDGE_WIFI_SCAN_RESULT_MAX_SIZE];
+    CHECK_EQ_INT(bridge_wifi_scan_result_pack(&r, out, sizeof out), (int)len);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
+static void check_wifi_config(const uint8_t *bytes, size_t len, const kv_t *kv,
+                              size_t n) {
+    bridge_wifi_config_t c;
+    CHECK_EQ_INT(bridge_wifi_config_unpack(bytes, len, &c), (int)len);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    CHECK_EQ_INT(c.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(c.mode, kv_ll(kv, n, "mode"));
+    CHECK_EQ_INT(c.auth, kv_ll(kv, n, "auth"));
+    check_len_str(c.ssid, c.ssid_len, kv_get(kv, n, "ssid"));
+    check_len_str(c.psk, c.psk_len, kv_get(kv, n, "psk"));
+    check_len_str(c.user, c.user_len, kv_get(kv, n, "user"));
+
+    uint8_t out[BRIDGE_WIFI_CONFIG_MAX_SIZE];
+    CHECK_EQ_INT(bridge_wifi_config_pack(&c, out, sizeof out), (int)len);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
+static void check_device_control(const uint8_t *bytes, size_t len,
+                                 const kv_t *kv, size_t n) {
+    bridge_device_control_t c;
+    CHECK_EQ_INT(bridge_device_control_unpack(bytes, len, &c), (int)len);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    CHECK_EQ_INT(c.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(c.op, kv_ll(kv, n, "op"));
+    CHECK_EQ_INT(c.body_len, kv_ll(kv, n, "body_len"));
+    if (c.op == BRIDGE_CONTROL_OP_SET_TIME) {
+        CHECK_EQ_INT(c.body_len, BRIDGE_CTRL_SET_TIME_SIZE);
+        bridge_ctrl_set_time_t t;
+        bridge_ctrl_set_time_decode(c.body, &t);
+        CHECK(t.unix_ms == kv_ull(kv, n, "unix_ms"));
+        CHECK_EQ_INT(t.tz_offset_min, kv_ll(kv, n, "tz_offset_min"));
+    }
+
+    uint8_t out[BRIDGE_DEVICE_CONTROL_MAX_SIZE];
+    CHECK_EQ_INT(bridge_device_control_pack(&c, out, sizeof out), (int)len);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
+static void check_result(const uint8_t *bytes, size_t len, const kv_t *kv,
+                         size_t n) {
+    bridge_result_t r;
+    CHECK_EQ_INT(bridge_result_unpack(bytes, len, &r), (int)len);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    CHECK_EQ_INT(r.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(r.op_echo, kv_ll(kv, n, "op_echo"));
+    CHECK_EQ_INT(r.status, kv_ll(kv, n, "status"));
+    check_len_str(r.detail, r.len, kv_get(kv, n, "detail"));
+
+    uint8_t out[BRIDGE_RESULT_MAX_SIZE];
+    CHECK_EQ_INT(bridge_result_pack(&r, out, sizeof out), (int)len);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
+static void check_history_preview(const uint8_t *bytes, size_t len,
+                                  const kv_t *kv, size_t n) {
+    bridge_history_preview_t h;
+    CHECK_EQ_INT(bridge_history_preview_unpack(bytes, len, &h), (int)len);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    CHECK_EQ_INT(h.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(h.probe_index, kv_ll(kv, n, "probe_index"));
+    CHECK_EQ_INT(h.count, kv_ll(kv, n, "count"));
+    CHECK_EQ_INT(h.bucket_min, kv_ll(kv, n, "bucket_min"));
+    CHECK(h.count <= 120);
+    char key[24];
+    for (int i = 0; i < h.count; i++) {
+        snprintf(key, sizeof key, "v%d", i);
+        CHECK_EQ_INT(h.values[i], kv_ll(kv, n, key));
+        snprintf(key, sizeof key, "v%d_null", i);
+        const int is_sentinel = h.values[i] == BRIDGE_TEMP_DETACHED ||
+                                h.values[i] == BRIDGE_TEMP_INVALID;
+        CHECK_EQ_INT(is_sentinel, kv_ll(kv, n, key));
+    }
+
+    uint8_t out[BRIDGE_HISTORY_PREVIEW_MAX_SIZE];
+    CHECK_EQ_INT(bridge_history_preview_pack(&h, out, sizeof out), (int)len);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
 /* ── tests ────────────────────────────────────────────────────────── */
 
 static void test_crc_check_values(void) {
@@ -294,13 +501,33 @@ static void test_fixture_corpus(void) {
             check_header(bytes, len, kv, n);
         } else if (strcmp(kind, "mark") == 0) {
             check_mark(bytes, len, kv, n);
+        } else if (strcmp(kind, "device_info") == 0) {
+            check_device_info(bytes, len, kv, n);
+        } else if (strcmp(kind, "wifi_scan_ctrl") == 0) {
+            check_wifi_scan_ctrl(bytes, len, kv, n);
+        } else if (strcmp(kind, "live_state") == 0) {
+            check_live_state(bytes, len, kv, n);
+        } else if (strcmp(kind, "net_status") == 0) {
+            check_net_status(bytes, len, kv, n);
+        } else if (strcmp(kind, "wifi_scan_result") == 0) {
+            check_wifi_scan_result(bytes, len, kv, n);
+        } else if (strcmp(kind, "wifi_config") == 0) {
+            check_wifi_config(bytes, len, kv, n);
+        } else if (strcmp(kind, "device_control") == 0) {
+            check_device_control(bytes, len, kv, n);
+        } else if (strcmp(kind, "result") == 0) {
+            check_result(bytes, len, kv, n);
+        } else if (strcmp(kind, "history_preview") == 0) {
+            check_history_preview(bytes, len, kv, n);
         } else {
             CHECK(!"unknown fixture kind");
         }
     }
     closedir(dir);
-    /* The P1.5 corpus: 5 samples + 2 headers + 1 mark. */
-    CHECK_EQ_INT(fixtures_seen, 8);
+    /* The P1.5 corpus (5 samples + 2 headers + 1 mark) plus P3.2's twelve
+     * BLE payload vectors — one per characteristic, plus the states that
+     * have historically been got wrong (sentinels, AP vs STA, cancel). */
+    CHECK_EQ_INT(fixtures_seen, 20);
 }
 
 static void test_var_payload_roundtrip(void) {

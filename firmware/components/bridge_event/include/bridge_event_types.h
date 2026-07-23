@@ -28,6 +28,7 @@ typedef enum {
     BRIDGE_EVT_POWER,   /* bridge_evt_power_t   — mV, SoC, charging, saver  */
     BRIDGE_EVT_TIME,    /* bridge_evt_time_t    — clock source acquired     */
     BRIDGE_EVT_OTA,     /* bridge_evt_ota_t     — progress / result         */
+    BRIDGE_EVT_BLE,     /* bridge_evt_ble_t     — passkey / link / bonds    */
     BRIDGE_EVT_MAX,
 } bridge_event_id_t;
 
@@ -142,6 +143,24 @@ typedef struct {
     uint8_t pct;
     int32_t err;
 } bridge_evt_ota_t;
+
+/* F10.5 publishes these; app_ui subscribes so the OLED can show the
+ * passkey without app_ble ever knowing a display exists. Additive to the
+ * enum above — the guard test's density check grows with it. */
+typedef enum {
+    BRIDGE_BLE_PASSKEY_SHOW = 0, /* passkey valid; display it */
+    BRIDGE_BLE_PASSKEY_CLEAR,    /* bonded, failed, or timed out */
+    BRIDGE_BLE_CONNECTED,
+    BRIDGE_BLE_DISCONNECTED,
+    BRIDGE_BLE_BONDED,
+} bridge_ble_action_t;
+
+typedef struct {
+    uint8_t action;   /* bridge_ble_action_t */
+    uint32_t passkey; /* 0..999999; meaningful only on PASSKEY_SHOW */
+    uint8_t conns;    /* current central connections */
+    uint8_t bonds;    /* stored bonds, 0..3 */
+} bridge_evt_ble_t;
 
 #ifdef __cplusplus
 }

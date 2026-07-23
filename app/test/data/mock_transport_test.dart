@@ -13,6 +13,7 @@ import 'package:smoke_bridge/domain/analysis/analysis.dart';
 import 'package:smoke_bridge/domain/entities/entities.dart';
 
 import 'records_parity_test.dart' show repoRoot;
+import 'transport_contract.dart';
 
 void main() {
   final smk = File(
@@ -23,6 +24,14 @@ void main() {
   ).readAsBytesSync();
 
   MockTransport transport() => MockTransport.fromSmkBytes(smk, mrkBytes: mrk);
+
+  // A6.2: the same harness that runs against Http and Ble. Three
+  // implementations, one definition of "a transport".
+  runTransportContract(
+    name: 'mock',
+    create: () async => transport(),
+    sessionId: 27,
+  );
 
   test('capabilities: everything except OTA', () {
     final t = transport();

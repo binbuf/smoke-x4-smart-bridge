@@ -1,0 +1,4 @@
+# wifi_scan_ctrl: cancel a scan in progress
+kind=wifi_scan_ctrl
+ver=1
+cmd=0

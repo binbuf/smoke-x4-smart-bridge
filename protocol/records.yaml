@@ -33,6 +33,11 @@ constants:
   # temp sentinels (canonical tenths-of-°F int16). Named, never numbered, at every use site.
   TEMP_DETACHED: -32768 # INT16_MIN  — probe detached; must surface as null/None, never 0
   TEMP_INVALID: -32767 # INT16_MIN+1 — probe present, reading invalid (pending 02 Q4)
+  # battery SoC sentinel (P3.2 decision, ble-gatt §5.1.1). Valid SoC is 0–100, so 255 is
+  # unambiguous; 0 would be a lie ("flat") that drives a red empty-battery UI. Applies to
+  # live_state.soc_pct AND the advertising blob's soc. device_info.caps b5 says whether the
+  # device can ever produce a real value (app_power is M5's F12).
+  SOC_UNKNOWN: 255
   SESSION_MAGIC: "SMKS"
   RECORD_VERSION: 1
 
@@ -81,6 +86,9 @@ enums:
   units: # device_control set_units payload
     celsius: 0
     fahrenheit: 1
+  scan_cmd: # wifi_scan_ctrl.cmd
+    cancel: 0
+    start: 1
 
 # ── Storage records (04 §4.2) ────────────────────────────────────────────────
 #
@@ -232,12 +240,47 @@ records:
 
 # ── BLE characteristic payloads (05 §5.6) ────────────────────────────────────
 #
-# Packed little-endian with a leading version byte. live_state is fixed-size
-# (16 B ≤ 20 B so it survives a failed MTU negotiation — R7); the rest are
-# variable-length: protogen emits max-size structs plus pack/unpack helpers
-# that return the actual wire length.
+# Packed little-endian with a leading version byte. device_info, wifi_scan_ctrl,
+# and live_state are fixed-size (live_state at 16 B ≤ 20 B so it survives a failed
+# MTU negotiation — R7); the rest are variable-length: protogen emits max-size
+# structs plus pack/unpack helpers that return the actual wire length.
+#
+# P3.2 folded device_info and wifi_scan_ctrl in from ble-gatt.md's prose tables —
+# they were the last two payloads without a generated codec.
 
 ble_payloads:
+  device_info: # read, OPEN (unencrypted): the identity card, before any bond
+    size: 40
+    fields:
+      - { name: ver, type: u8, const: 1 }
+      - { name: api, type: u8, doc: "HTTP/BLE API major version" }
+      - { name: probes, type: u8, doc: "2 or 4" }
+      - {
+          name: caps,
+          type: u8,
+          bits:
+            [
+              wifi_ap,
+              wifi_sta,
+              wifi_enterprise,
+              history_preview,
+              ota,
+              battery,
+              _rsv6,
+              _rsv7,
+            ],
+          doc: "b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN",
+        }
+      - { name: id, type: char, count: 4, doc: "ASCII hex, e.g. A4F2" }
+      - { name: model, type: char, count: 16, doc: "UTF-8, NUL-padded" }
+      - { name: fw, type: char, count: 16, doc: "UTF-8, NUL-padded" }
+
+  wifi_scan_ctrl: # write (encrypted): start or cancel an AP scan
+    size: 2
+    fields:
+      - { name: ver, type: u8, const: 1 }
+      - { name: cmd, type: u8, enum: scan_cmd }
+
   live_state: # notify, on every decoded packet + alarm transitions
     size: 16
     fields:
@@ -264,7 +307,11 @@ ble_payloads:
           doc: "tenths °F",
           sentinel: { -32768: detached, -32767: invalid },
         }
-      - { name: soc_pct, type: u8, doc: "battery state of charge, 0–100" }
+      - {
+          name: soc_pct,
+          type: u8,
+          doc: "battery state of charge 0–100, or SOC_UNKNOWN (255)",
+        }
       - { name: rssi_lora, type: i8, doc: "dBm of the last state message" }
       - {
           name: session_t,

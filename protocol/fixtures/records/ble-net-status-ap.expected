@@ -1,0 +1,10 @@
+# net_status: hosting — the recovery destination when STA cannot be reached
+kind=net_status
+wire_len=37
+ver=1
+mode=1
+state=2
+wifi_rssi=0
+ip=192.168.4.1
+ssid=SmokeBridge-A4F2
+host=smokebridge

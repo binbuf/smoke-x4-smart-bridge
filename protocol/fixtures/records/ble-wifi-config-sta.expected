@@ -1,0 +1,9 @@
+# wifi_config: join a WPA2 network — the provisioning artery (§5.5)
+kind=wifi_config
+wire_len=24
+ver=1
+mode=2
+auth=3
+ssid=Backyard
+psk=hunter2boo
+user=

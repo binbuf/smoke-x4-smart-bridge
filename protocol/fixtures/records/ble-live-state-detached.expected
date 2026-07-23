@@ -1,0 +1,21 @@
+# live_state: detached + invalid sentinels survive to the wire, never 0
+kind=live_state
+ver=1
+flags=27
+flag_paired=1
+flag_session_active=1
+flag_billows=0
+flag_alarm_active=1
+flag_clock_valid=1
+temp0=2431
+temp1=-32768
+temp2=-32767
+temp3=887
+temp0_null=0
+temp1_null=1
+temp2_null=1
+temp3_null=0
+soc_pct=255
+soc_unknown=1
+rssi_lora=-88
+session_t=15150

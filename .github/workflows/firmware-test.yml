@@ -28,6 +28,24 @@ jobs:
       - name: Run
         run: ctest --test-dir firmware/test/build --output-on-failure
 
+      # F11a.2: the .fb goldens are the gate (byte-exact, in the C test
+      # above). These PNGs are how a human reviews a font or layout change
+      # on the PR — rendered whether the comparison passed or failed,
+      # because a failing golden is exactly when you want the picture.
+      - name: Render OLED previews
+        if: always()
+        run: |
+          python3 tools/oled/render_oled_preview.py \
+            --out-dir firmware/test/build/oled-render \
+            firmware/test/build/oled-render/*.fb || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oled-previews
+          path: firmware/test/build/oled-render/*.png
+          if-no-files-found: warn
+
       - name: Coverage summary
         run: |
           pip install --quiet gcovr

@@ -47,8 +47,20 @@ esp_err_t bridge_event_handler_register(bridge_event_id_t id,
     ctx->handler = handler;
     ctx->handler_arg = handler_arg;
     ctx->name = name;
-    esp_err_t err = esp_event_handler_register(BRIDGE_EVENT, (int32_t)id,
-                                               guarded_trampoline, ctx);
+    /* BOARD-FOUND (M3 bring-up): every handler goes through the SAME
+     * `guarded_trampoline` function pointer, and esp_event_handler_register
+     * de-duplicates by (base, id, function) — so the second component to
+     * subscribe to an event silently OVERWROTE the first, logging only
+     * "handler already registered, overwriting". With app_ble subscribing
+     * to SAMPLE/ALARM/NET, that would have displaced app_api's WebSocket
+     * fan-out — the live push M2's F9.12 verified on the board.
+     *
+     * ..._instance_register is the API that permits the same function with
+     * different args, which is precisely the trampoline pattern. We do not
+     * keep the instance handle: nothing unregisters, and NULL is explicitly
+     * allowed. */
+    esp_err_t err = esp_event_handler_instance_register(
+        BRIDGE_EVENT, (int32_t)id, guarded_trampoline, ctx, NULL);
     if (err != ESP_OK) {
         free(ctx);
     }

@@ -1,0 +1,4 @@
+# wifi_scan_ctrl: start an AP scan
+kind=wifi_scan_ctrl
+ver=1
+cmd=1

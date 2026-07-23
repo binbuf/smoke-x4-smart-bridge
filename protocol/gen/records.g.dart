@@ -13,6 +13,7 @@ import 'dart:typed_data';
 
 const int tempDetached = -32768;
 const int tempInvalid = -32767;
+const int socUnknown = 255;
 const String sessionMagic = 'SMKS';
 const int recordVersion = 1;
 
@@ -210,6 +211,23 @@ enum TempUnits {
   final int wire;
 
   static TempUnits? fromWire(int v) {
+    for (final e in values) {
+      if (e.wire == v) {
+        return e;
+      }
+    }
+    return null;
+  }
+}
+
+enum ScanCmd {
+  cancel(0),
+  start(1);
+
+  const ScanCmd(this.wire);
+  final int wire;
+
+  static ScanCmd? fromWire(int v) {
     for (final e in values) {
       if (e.wire == v) {
         return e;
@@ -560,6 +578,116 @@ class MarkRec {
   bool get crcOk => crc16 == markRecCrc(encode());
 }
 
+/// device_info — fixed 40 B.
+class DeviceInfo {
+  DeviceInfo({
+    this.ver = 1,
+    this.api = 0,
+    this.probes = 0,
+    this.caps = 0,
+    Uint8List? idRaw,
+    Uint8List? modelRaw,
+    Uint8List? fwRaw,
+  }) : idRaw = idRaw ?? Uint8List(4),
+       modelRaw = modelRaw ?? Uint8List(16),
+       fwRaw = fwRaw ?? Uint8List(16);
+
+  static const int size = 40;
+
+  final int ver;
+
+  /// HTTP/BLE API major version
+  final int api;
+
+  /// 2 or 4
+  final int probes;
+
+  /// b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN
+  final int caps;
+
+  /// ASCII hex, e.g. A4F2
+  final Uint8List idRaw;
+
+  /// UTF-8, NUL-padded
+  final Uint8List modelRaw;
+
+  /// UTF-8, NUL-padded
+  final Uint8List fwRaw;
+
+  bool get wifiAp => (caps & (1 << 0)) != 0;
+  bool get wifiSta => (caps & (1 << 1)) != 0;
+  bool get wifiEnterprise => (caps & (1 << 2)) != 0;
+  bool get historyPreview => (caps & (1 << 3)) != 0;
+  bool get ota => (caps & (1 << 4)) != 0;
+  bool get battery => (caps & (1 << 5)) != 0;
+  String get id => utf8FromPadded(idRaw);
+  String get model => utf8FromPadded(modelRaw);
+  String get fw => utf8FromPadded(fwRaw);
+
+  /// Parses 40 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory DeviceInfo.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return DeviceInfo(
+      ver: bd.getUint8(0),
+      api: bd.getUint8(1),
+      probes: bd.getUint8(2),
+      caps: bd.getUint8(3),
+      idRaw: Uint8List.fromList(
+        Uint8List.sublistView(buf, offset + 4, offset + 4 + 4),
+      ),
+      modelRaw: Uint8List.fromList(
+        Uint8List.sublistView(buf, offset + 8, offset + 8 + 16),
+      ),
+      fwRaw: Uint8List.fromList(
+        Uint8List.sublistView(buf, offset + 24, offset + 24 + 16),
+      ),
+    );
+  }
+
+  /// Serializes to 40 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, ver);
+    bd.setUint8(1, api);
+    bd.setUint8(2, probes);
+    bd.setUint8(3, caps);
+    out.setRange(4, 4 + 4, idRaw);
+    out.setRange(8, 8 + 16, modelRaw);
+    out.setRange(24, 24 + 16, fwRaw);
+    return out;
+  }
+}
+
+/// wifi_scan_ctrl — fixed 2 B.
+class WifiScanCtrl {
+  WifiScanCtrl({this.ver = 1, this.cmd = 0});
+
+  static const int size = 2;
+
+  final int ver;
+  final int cmd;
+
+  ScanCmd? get cmdEnum => ScanCmd.fromWire(cmd);
+
+  /// Parses 2 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory WifiScanCtrl.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return WifiScanCtrl(ver: bd.getUint8(0), cmd: bd.getUint8(1));
+  }
+
+  /// Serializes to 2 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, ver);
+    bd.setUint8(1, cmd);
+    return out;
+  }
+}
+
 /// live_state — fixed 16 B.
 class LiveState {
   LiveState({
@@ -579,7 +707,7 @@ class LiveState {
   /// tenths °F
   final List<int> temp;
 
-  /// battery state of charge, 0–100
+  /// battery state of charge 0–100, or SOC_UNKNOWN (255)
   final int socPct;
 
   /// dBm of the last state message

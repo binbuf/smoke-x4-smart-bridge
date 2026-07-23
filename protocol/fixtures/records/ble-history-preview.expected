@@ -1,0 +1,17 @@
+# history_preview: a ring shorter than 2 h yields count < 120, never padding
+kind=history_preview
+wire_len=14
+ver=1
+probe_index=0
+count=5
+bucket_min=1
+v0=2401
+v1=2412
+v2=-32768
+v3=2430
+v4=2431
+v0_null=0
+v1_null=0
+v2_null=1
+v3_null=0
+v4_null=0

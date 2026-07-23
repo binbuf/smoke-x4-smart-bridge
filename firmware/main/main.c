@@ -14,8 +14,10 @@
 #include "nvs_flash.h"
 
 #include "app_api.h"
+#include "app_ble.h"
 #include "app_config.h"
 #include "app_net.h"
+#include "app_ui.h"
 #include "app_time.h"
 #include "bench.h"
 #include "boot_seq.h"
@@ -117,6 +119,19 @@ static int step_api(void *ctx) {
     return app_api_init();
 }
 
+/* F11a: the display comes up BEFORE BLE, because the passkey is shown on
+ * it — §12.6 rule 4, as an ordering in the boot table rather than a note.
+ * Neither is fatal: a bridge with a dead panel or no BLE still cooks. */
+static int step_ui(void *ctx) {
+    (void)ctx;
+    return app_ui_init();
+}
+
+static int step_ble(void *ctx) {
+    (void)ctx;
+    return app_ble_init();
+}
+
 static int step_recovery_window(void *ctx) {
     (void)ctx;
     /* 3 s PRG hold on the splash — stubbed until F11 (app_ui). */
@@ -157,7 +172,7 @@ void app_main(void) {
                 [BRIDGE_BOOT_CONFIG - 1] = step_config,
                 [BRIDGE_BOOT_EVENT_LOOP - 1] = step_event_loop,
                 [BRIDGE_BOOT_POWER - 1] = step_stub, /* F12 */
-                [BRIDGE_BOOT_UI - 1] = step_stub,    /* F11 */
+                [BRIDGE_BOOT_UI - 1] = step_ui,
                 [BRIDGE_BOOT_RECOVERY_WINDOW - 1] = step_recovery_window,
                 [BRIDGE_BOOT_COOK_STORE - 1] = step_cook_store,
                 [BRIDGE_BOOT_SMOKE_X_INIT - 1] = step_smoke_x_init,
@@ -165,7 +180,7 @@ void app_main(void) {
                 [BRIDGE_BOOT_TIME - 1] = step_time,
                 [BRIDGE_BOOT_NET - 1] = step_net,
                 [BRIDGE_BOOT_API - 1] = step_api,
-                [BRIDGE_BOOT_BLE - 1] = step_stub,           /* F10 */
+                [BRIDGE_BOOT_BLE - 1] = step_ble,
                 [BRIDGE_BOOT_ALARM - 1] = step_stub,         /* F13 */
                 [BRIDGE_BOOT_OTA_HEALTH_GATE - 1] = step_ota_health_gate,
             },

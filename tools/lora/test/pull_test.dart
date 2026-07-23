@@ -25,8 +25,7 @@ void main() {
     final endT = cook.samples.last.t;
     final state = SimState(
       cook: cook,
-      nowMs: () =>
-          DateTime.now().millisecondsSinceEpoch + (endT + 10) * 1000,
+      nowMs: () => DateTime.now().millisecondsSinceEpoch + (endT + 10) * 1000,
     );
     server = SimServer(state);
     await server.start(port: 0, address: InternetAddress.loopbackIPv4);
@@ -38,41 +37,37 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  test('pull stages a loralog the corpus tooling accepts; idempotent',
-      () async {
-    final r1 = await pull(
-      host: '127.0.0.1',
-      port: server.port,
-      outDir: tmp.path,
-      name: 'sim-pull',
-      stamp: 'test',
-    );
-    expect(r1.packetCount, greaterThan(0));
-    expect(File(r1.loralogPath).existsSync(), isTrue);
-    expect(File(r1.noveltyPath!).existsSync(), isTrue);
+  test(
+    'pull stages a loralog the corpus tooling accepts; idempotent',
+    () async {
+      final r1 = await pull(
+        host: '127.0.0.1',
+        port: server.port,
+        outDir: tmp.path,
+        name: 'sim-pull',
+        stamp: 'test',
+      );
+      expect(r1.packetCount, greaterThan(0));
+      expect(File(r1.loralogPath).existsSync(), isTrue);
+      expect(File(r1.noveltyPath!).existsSync(), isTrue);
 
-    // The staged file round-trips through the corpus reader.
-    final packets = readLoralog(File(r1.loralogPath).readAsStringSync());
-    expect(packets.length, r1.packetCount);
-    expect(packets.every((p) => p.messageClass == 'state26'), isTrue);
+      // The staged file round-trips through the corpus reader.
+      final packets = readLoralog(File(r1.loralogPath).readAsStringSync());
+      expect(packets.length, r1.packetCount);
+      expect(packets.every((p) => p.messageClass == 'state26'), isTrue);
 
-    // Re-running with the same stamp overwrites, never accumulates.
-    final before = tmp
-        .listSync(recursive: true)
-        .whereType<File>()
-        .length;
-    final r2 = await pull(
-      host: '127.0.0.1',
-      port: server.port,
-      outDir: tmp.path,
-      name: 'sim-pull',
-      stamp: 'test',
-    );
-    final after = tmp
-        .listSync(recursive: true)
-        .whereType<File>()
-        .length;
-    expect(after, before);
-    expect(r2.packetCount, r1.packetCount);
-  });
+      // Re-running with the same stamp overwrites, never accumulates.
+      final before = tmp.listSync(recursive: true).whereType<File>().length;
+      final r2 = await pull(
+        host: '127.0.0.1',
+        port: server.port,
+        outDir: tmp.path,
+        name: 'sim-pull',
+        stamp: 'test',
+      );
+      final after = tmp.listSync(recursive: true).whereType<File>().length;
+      expect(after, before);
+      expect(r2.packetCount, r1.packetCount);
+    },
+  );
 }

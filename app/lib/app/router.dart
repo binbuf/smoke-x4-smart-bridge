@@ -7,9 +7,16 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/onboarding/onboarding.dart';
+
 /// Route paths, kept in one place so features never hardcode strings.
 abstract final class AppRoutes {
   static const String home = '/';
+
+  /// A8 (M3). The deliberate §12.6-rule-1 exception: the only Flutter
+  /// screen before M4, because the M3 exit gate is undemonstrable
+  /// without it.
+  static const String onboarding = '/onboarding';
 }
 
 /// Build a fresh router. Tests create one per pump; the app holds a single
@@ -21,6 +28,11 @@ GoRouter createRouter() => GoRouter(
       path: AppRoutes.home,
       name: 'home',
       builder: (context, state) => const HomePlaceholderScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.onboarding,
+      name: 'onboarding',
+      builder: (context, state) => const OnboardingRoute(),
     ),
   ],
 );
@@ -99,6 +111,16 @@ class HomePlaceholderScreen extends StatelessWidget {
                 letterSpacing: 3,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
+            ),
+            const SizedBox(height: 40),
+            // M3: the way into the onboarding wizard. M4's dashboard
+            // replaces this whole screen and routes here automatically
+            // when no bridge has been provisioned.
+            FilledButton.icon(
+              key: const Key('home-set-up-bridge'),
+              onPressed: () => context.go(AppRoutes.onboarding),
+              icon: const Icon(Icons.bluetooth_searching),
+              label: const Text('Set up a bridge'),
             ),
           ],
         ),

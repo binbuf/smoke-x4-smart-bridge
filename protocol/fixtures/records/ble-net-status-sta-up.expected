@@ -1,0 +1,10 @@
+# net_status: STA up — the frame the wizard waits for across the handoff
+kind=net_status
+wire_len=29
+ver=1
+mode=2
+state=2
+wifi_rssi=-54
+ip=192.168.1.42
+ssid=Backyard
+host=smokebridge

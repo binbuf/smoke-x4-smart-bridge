@@ -22,6 +22,9 @@ static int s_ap_clients;
 static uint64_t s_last_activity_ms;
 static bool s_sta_pending_switch;    /* STA is up behind the AP, waiting
                                         for the quiet guard */
+/* A disconnect WE caused, to re-associate. The event it raises is
+ * expected and must not be read as a failed connection (F8.4/M3). */
+static bool s_expect_disconnect;
 static uint8_t s_pending_ip[4];
 
 static void publish(app_net_evt_t evt, const uint8_t ip[4]) {
@@ -33,6 +36,8 @@ static void publish(app_net_evt_t evt, const uint8_t ip[4]) {
 static bool s_apply_pending;
 static app_net_pending_cfg_t s_pending_cfg;
 static uint64_t s_apply_at_ms;
+
+static int set_mode_internal(uint8_t mode, uint64_t now_ms, bool force);
 
 uint8_t app_net_pick_channel(const uint8_t ap_count_per_channel[13]) {
     static const uint8_t candidates[3] = {1, 6, 11};
@@ -76,7 +81,8 @@ static void apply_pending_cfg(uint64_t now_ms) {
         (void)app_config_store_set_str(APP_CONFIG_NET_STA_USER,
                                        s_pending_cfg.sta_user);
     }
-    (void)app_net_core_set_mode(s_pending_cfg.mode, now_ms);
+    /* A provisioning write is always a command — see set_mode_internal. */
+    (void)set_mode_internal(s_pending_cfg.mode, now_ms, true);
 }
 
 uint32_t app_net_retry_delay_min(int attempt) {
@@ -127,6 +133,7 @@ int app_net_core_init(const app_net_ops_t *ops, void *ctx, uint8_t mode,
     s_last_activity_ms = now_ms;
     s_sta_pending_switch = false;
     s_apply_pending = false;
+    s_expect_disconnect = false;
 
     if (s_mode == APP_CONFIG_NET_MODE_STA) {
         s_state = APP_NET_STATE_STA_CONNECTING;
@@ -136,6 +143,10 @@ int app_net_core_init(const app_net_ops_t *ops, void *ctx, uint8_t mode,
         (void)s_ops->start_ap(s_ctx);
     }
     return 0;
+}
+
+int app_net_core_set_mode(uint8_t mode, uint64_t now_ms) {
+    return set_mode_internal(mode, now_ms, false);
 }
 
 app_net_state_t app_net_core_state(void) { return s_state; }
@@ -169,6 +180,12 @@ void app_net_core_on_sta_connected(const uint8_t ip[4], uint64_t now_ms) {
 }
 
 void app_net_core_on_sta_disconnected(uint64_t now_ms) {
+    if (s_expect_disconnect) {
+        /* Ours: the teardown before a deliberate re-association. The
+         * attempt that follows it is what decides success or fallback. */
+        s_expect_disconnect = false;
+        return;
+    }
     switch (s_state) {
         case APP_NET_STATE_STA_CONNECTING:
             engage_fallback(now_ms);
@@ -200,8 +217,19 @@ void app_net_core_note_client_activity(uint64_t now_ms) {
     s_last_activity_ms = now_ms;
 }
 
-int app_net_core_set_mode(uint8_t mode, uint64_t now_ms) {
-    if (mode == s_mode && !s_forced_ap) {
+/* `force` distinguishes a preference from a command. Selecting the mode
+ * you are already in is a no-op (never yank a working network for
+ * nothing) — but an explicit provisioning write is a command, and the
+ * CREDENTIALS may have changed even when the mode has not.
+ *
+ * BOARD-FOUND (M3 bench): without this, provisioning a bridge that was
+ * already on STA did nothing at all. No re-association, and — because no
+ * state changed — no BRIDGE_EVT_NET, so the phone's wizard waited out its
+ * 20 s handoff budget for a transition that could never arrive. Worse,
+ * pointing an STA-mode bridge at a DIFFERENT network persisted the new
+ * credentials and then kept using the old association. */
+static int set_mode_internal(uint8_t mode, uint64_t now_ms, bool force) {
+    if (mode == s_mode && !s_forced_ap && !force) {
         return 0;
     }
     s_forced_ap = false; /* an explicit choice supersedes the boot force */
@@ -210,6 +238,19 @@ int app_net_core_set_mode(uint8_t mode, uint64_t now_ms) {
     s_sta_pending_switch = false;
     if (mode == APP_CONFIG_NET_MODE_STA) {
         (void)s_ops->stop_ap(s_ctx);
+        /* BOARD-FOUND (M3 bench): connecting an ALREADY-associated
+         * station does nothing — esp_wifi_connect() refuses while
+         * connected. No disconnect, no re-association, and therefore not
+         * a single Wi-Fi event, so nothing was ever published and the
+         * phone's wizard waited out its whole handoff budget in silence.
+         * Tear the old association down first, and absorb the disconnect
+         * that causes so the retry ladder does not mistake it for a
+         * failure. */
+        if (s_state == APP_NET_STATE_STA_UP ||
+            s_state == APP_NET_STATE_STA_CONNECTING) {
+            s_expect_disconnect = true;
+            (void)s_ops->sta_disconnect(s_ctx);
+        }
         s_state = APP_NET_STATE_STA_CONNECTING;
         start_sta_attempt(now_ms);
     } else {

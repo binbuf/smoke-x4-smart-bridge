@@ -262,6 +262,66 @@ target_include_directories(test_app_config PRIVATE
 )
 add_test(NAME app_config COMMAND test_app_config)
 
+# The Bridge Control Service as a pure core: registry, security table,
+# builders against the P3.2 fixtures, advertising PDUs, the MTU chunker,
+# and every device_control op through real component doubles (F10).
+add_executable(test_app_ble
+    test_app_ble.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_adv.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_ring.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/app_time_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+    # F10.5's done-when: the passkey app_ble generates must be the passkey
+    # F11a draws. The two halves meet here, against the committed golden.
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_fb.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_font.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_render.c
+)
+target_include_directories(test_app_ble PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/bridge_event/include
+    ${REPO_ROOT}/protocol/gen
+)
+target_compile_definitions(test_app_ble PRIVATE
+    FIXTURES_DIR="${REPO_ROOT}/protocol/fixtures/records"
+    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/goldens/oled"
+)
+add_test(NAME app_ble COMMAND test_app_ble)
+
+# The display layer: primitives, clipping, both fonts, the §7.3 passkey
+# overlay against golden framebuffers, and the V1.4 rail-before-bus
+# bring-up order through the injected I²C seam (F11a.1–F11a.5).
+add_executable(test_app_ui
+    test_app_ui.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_fb.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_font.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_render.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_panel.c
+)
+target_include_directories(test_app_ui PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
+)
+# Goldens are reviewed as PNGs (tools/oled); rendered copies land in the
+# build dir so CI can upload the picture even when the bytes disagree.
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/oled-render)
+target_compile_definitions(test_app_ui PRIVATE
+    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/goldens/oled"
+    RENDER_DIR="${CMAKE_CURRENT_BINARY_DIR}/oled-render"
+)
+add_test(NAME app_ui COMMAND test_app_ui)
+
 # Task table invariants (F1.4).
 add_executable(test_tasks_table test_tasks_table.c)
 target_include_directories(test_tasks_table PRIVATE

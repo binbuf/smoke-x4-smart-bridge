@@ -20,8 +20,8 @@ void main() {
           .toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
-  test('the corpus is present (5 samples + 2 headers + 1 mark)', () {
-    expect(fixtures.length, 8);
+  test('the corpus is present (8 storage + 12 BLE payload vectors)', () {
+    expect(fixtures.length, 20);
   });
 
   for (final hexFile in fixtures) {
@@ -56,6 +56,62 @@ void main() {
           expect(m.crcOk, expected['crc_ok'] == '1');
           expect(m.text, expected['text']);
           expect(m.encode(), bytes);
+        // ── BLE payloads (P3.2) — the app's half of the drift guard ──
+        case 'device_info':
+          final d = DeviceInfo.decode(bytes);
+          expect(d.caps, int.parse(expected['caps']!));
+          expect(d.battery, expected['cap_battery'] == '1');
+          expect(d.id, expected['id']);
+          expect(d.model, expected['model']);
+          expect(d.fw, expected['fw']);
+          expect(d.encode(), bytes);
+        case 'wifi_scan_ctrl':
+          final c = WifiScanCtrl.decode(bytes);
+          expect(c.cmd, int.parse(expected['cmd']!));
+          expect(c.encode(), bytes);
+        case 'live_state':
+          final s = LiveState.decode(bytes);
+          for (var i = 0; i < 4; i++) {
+            expect(s.temp[i], int.parse(expected['temp$i']!));
+            expect(s.tempOrNull(i) == null, expected['temp${i}_null'] == '1');
+          }
+          expect(s.socPct == socUnknown, expected['soc_unknown'] == '1');
+          expect(s.sessionT, int.parse(expected['session_t']!));
+          expect(s.encode(), bytes);
+        case 'net_status':
+          final s = NetStatus.unpack(bytes);
+          expect(s.ip.join('.'), expected['ip']);
+          expect(s.ssid, expected['ssid']);
+          expect(s.host, expected['host']);
+          expect(s.pack(), bytes);
+        case 'wifi_scan_result':
+          final r = WifiScanResult.unpack(bytes);
+          expect(r.index, int.parse(expected['index']!));
+          expect(r.total, int.parse(expected['total']!));
+          expect(r.ssid, expected['ssid']);
+          expect(r.pack(), bytes);
+        case 'wifi_config':
+          final c = WifiConfig.unpack(bytes);
+          expect(c.ssid, expected['ssid']);
+          expect(c.psk, expected['psk']);
+          expect(c.pack(), bytes);
+        case 'device_control':
+          final c = DeviceControl.unpack(bytes);
+          expect(c.op, int.parse(expected['op']!));
+          expect(c.bodyRaw, hasLength(int.parse(expected['body_len']!)));
+          expect(c.pack(), bytes);
+        case 'result':
+          final r = ResultFrame.unpack(bytes);
+          expect(r.status, int.parse(expected['status']!));
+          expect(r.detail, expected['detail']);
+          expect(r.pack(), bytes);
+        case 'history_preview':
+          final h = HistoryPreview.unpack(bytes);
+          expect(h.values, hasLength(int.parse(expected['count']!)));
+          for (var i = 0; i < h.values.length; i++) {
+            expect(h.valuesNullable[i] == null, expected['v${i}_null'] == '1');
+          }
+          expect(h.pack(), bytes);
         default:
           fail('unknown kind ${expected['kind']}');
       }

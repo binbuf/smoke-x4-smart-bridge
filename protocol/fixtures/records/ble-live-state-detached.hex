@@ -1,0 +1,2 @@
+# live_state: detached + invalid sentinels survive to the wire, never 0
+01 1b 7f 09 00 80 01 80 77 03 ff a8 2e 3b 00 00

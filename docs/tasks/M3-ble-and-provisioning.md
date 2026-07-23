@@ -30,6 +30,20 @@ run in parallel; the sitting is where they join. F11a lands before F10 finishes 
 ([§12.6 rule 4](../design/12-task-planning-notes.md)): the passkey is displayed on the OLED, and
 without the display a serial fallback would have to be built and then removed.
 
+> **Status 2026-07-22 — all 24 `board: no` tasks are done.** Host suite 21/21, app suite 225/225,
+> both firmware images build with NimBLE enabled (v6.0.2 locally). The four `board: yes` rows are
+> the only remainder and are the single sitting described above; their runbook is the M3 section of
+> [hardware-verified](../hardware-verified.md).
+>
+> Decisions this milestone was asked to make, and made:
+>
+> | Question | Answer | Recorded in |
+> | --- | --- | --- |
+> | Bearer token over BLE: additive op 12, or v1.1? | **v1.1.** A 32-char token is 35 B against a frozen ≤ 30 B `device_control` — it does not fit, so it is a widening, not an additive op | [ble-gatt §5.6.6](../../protocol/ble-gatt.md) |
+> | The "battery unknown" value for `soc_pct` / adv `soc` | **`SOC_UNKNOWN = 255`**, plus `device_info.caps` b5 `battery` to say whether a real value can ever arrive | [ble-gatt §5.1.1](../../protocol/ble-gatt.md) |
+> | NimBLE's bond store vs. the "only `app_config` opens NVS" rule | **Exception granted**, with the obligation that every factory-reset path also calls `ble_store_clear()` | [03 §3.6.1](../design/03-firmware-architecture.md) |
+> | The task-stack budget the `ble_push` row broke | **28 KB → 32 KB**, argued against §1.4's own `ble_app 4K` allowance and M2's measured heap | `firmware/main/tasks.h`, [01 §1.4](../design/01-hardware.md) |
+
 ---
 
 ## P3 — GATT contract completion
@@ -45,6 +59,21 @@ without the display a serial fallback would have to be built and then removed.
 > blob's `soc` have **no "battery unknown" sentinel**, and the truth-producing `app_power` is M5's
 > F12. Pick the degenerate value (and whether a `device_info.caps` reserved bit should say "no
 > battery yet") here, once, in the contract — not ad hoc in two codebases.
+>
+> **[RESOLVED 2026-07-22 in P3.2.]** The token moves to **v1.1**, and the reason is arithmetic
+> rather than preference: `device_control` is frozen at ≤ 30 B with a ≤ 28 B body, and a 32-char
+> token needs `ver + op + len + 32` = 35 B. Adding op 12 would mean *widening* a frozen payload
+> every implementation has already sized a buffer against — a version bump, not additive growth.
+> v1.0 therefore ships the bearer gate enforced-but-unsettable, which is exactly the "none by
+> default" [06](../design/06-device-api.md) already documents, and M4's settings UI hides the
+> toggle. Truncating the token to 26 chars to make it fit was rejected: silently weakening a secret
+> to fit a frame is how a security feature becomes theatre. Full argument in
+> [ble-gatt §5.6.6](../../protocol/ble-gatt.md).
+>
+> The battery question resolved to **`SOC_UNKNOWN = 255`** plus **`caps` b5 `battery`**
+> ([ble-gatt §5.1.1](../../protocol/ble-gatt.md)). 0 was rejected because it is a plausible
+> reading — a device with no battery sensor would render as one about to die. The constant is in
+> `records.yaml`, so both languages get it generated rather than typed twice.
 
 ### P3.2 protocol: fold device_info and wifi_scan_ctrl into records.yaml and regenerate
 
@@ -534,6 +563,14 @@ at a spinner.
 **Done when:** an integration test wiring the fake peripheral to a spawned `tools/sim` walks
 success, wrong-password → recover → succeed, and unreachable-STA → revert-to-AP, and the 20 s
 budget is asserted on a fake clock.
+
+> **[DEVIATION 2026-07-22 — no spawned `tools/sim`.]** `tools/sim` is a member of the root Dart pub
+> workspace; `app/` is a standalone Flutter package and CI's app job only runs `flutter pub get`
+> inside it, so `dart run sim` cannot resolve where this suite has to pass. The four scenarios are
+> walked in-process instead, against the **real** `ConnectionManager` racing the **real**
+> `HttpTransport` over the same `HttpClientAdapter` seam A5 is verified through — so the code under
+> test is identical and only the two ends (radio, wire) are faked. Recorded in the test's own header
+> (`app/test/features/onboarding_handoff_test.dart`). `tools/sim` keeps its role in A5 and A15.
 
 ### A8.4 bench: run the M3 exit gate — and close M2's deferred rows
 

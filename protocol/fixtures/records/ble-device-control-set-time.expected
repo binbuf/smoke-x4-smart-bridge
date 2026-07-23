@@ -1,0 +1,8 @@
+# device_control op 3: the wizard step that dates a cook from its first sample
+kind=device_control
+wire_len=12
+ver=1
+op=3
+body_len=10
+unix_ms=1774051200000
+tz_offset_min=-300

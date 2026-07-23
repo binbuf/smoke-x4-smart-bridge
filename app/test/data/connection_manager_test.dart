@@ -7,8 +7,11 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smoke_bridge/data/transport/ble_transport.dart';
 import 'package:smoke_bridge/data/transport/connection_manager.dart';
 import 'package:smoke_bridge/data/transport/discovery.dart';
+
+import 'fake_peripheral.dart';
 
 class _FakeDiscovery implements DiscoverySource {
   _FakeDiscovery(this.bridges);
@@ -16,6 +19,16 @@ class _FakeDiscovery implements DiscoverySource {
 
   @override
   Stream<DiscoveredBridge> discover() => Stream.fromIterable(bridges);
+}
+
+/// A real BleTransport over the fake peripheral — what the production
+/// lane actually hands back, so the degraded-capability assertions below
+/// are about the shipping object rather than a stand-in.
+Future<BleTransport> bleOverFake() async {
+  final fake = FakePeripheral();
+  await fake.connect('AA:BB:CC:DD:A4:F2');
+  await fake.bond();
+  return BleTransport(fake);
 }
 
 /// The fake clock: records every asked delay; delays matching `hold` (all
@@ -175,6 +188,117 @@ void main() {
         delay: _FakeDelay().call,
       );
       expect(await mgr.race(), isA<Offline>());
+    });
+  });
+
+  group('the BLE lane (A6.5)', () {
+    test('BLE wins only after every HTTP lane has failed', () async {
+      var bleTried = false;
+      final probed = <String>[];
+      final transport = await bleOverFake();
+      final mgr = ConnectionManager(
+        probe: (url) async {
+          probed.add(url);
+          return false;
+        },
+        writeCache: (_) async {
+          fail('a BLE win has no address to cache');
+        },
+        cachedBaseUrl: 'http://10.0.0.7',
+        bleAttempt: () async {
+          bleTried = true;
+          return transport;
+        },
+        delay: _FakeDelay().call,
+      );
+
+      final outcome = await mgr.race();
+      expect(bleTried, isTrue);
+      // Every HTTP lane was actually attempted first — BLE is a fallback,
+      // not a competitor. A bonded reconnect is fast enough to beat Wi-Fi
+      // in a straight race, and winning it would silently demote a
+      // perfectly good HTTP link to a degraded transport.
+      expect(probed, hasLength(3));
+      expect(probed, contains('http://10.0.0.7'));
+      expect(probed, contains('http://192.168.4.1'));
+
+      expect(outcome, isA<Connected>());
+      final c = outcome as Connected;
+      expect(c.lane, ConnectionLane.ble);
+      expect(c.isDegraded, isTrue);
+      expect(c.baseUrl, isEmpty);
+      // The caller gets a live transport whose capabilities say degraded —
+      // which is what drives the chart's "full history needs Wi-Fi".
+      expect(c.transport, same(transport));
+      expect(c.transport!.capabilities.fullHistory, isFalse);
+    });
+
+    test('an HTTP lane that answers keeps BLE out of it', () async {
+      var bleTried = false;
+      final mgr = ConnectionManager(
+        probe: (url) async => url == 'http://192.168.4.1',
+        writeCache: (_) async {},
+        bleAttempt: () async {
+          bleTried = true;
+          return bleOverFake();
+        },
+        delay: _FakeDelay().call,
+      );
+      final outcome = await mgr.race();
+      expect((outcome as Connected).lane, ConnectionLane.apDefault);
+      expect(bleTried, isFalse);
+    });
+
+    test('BLE unavailable falls through to offline', () async {
+      final mgr = ConnectionManager(
+        probe: (_) async => false,
+        writeCache: (_) async {},
+        cachedBaseUrl: 'http://10.0.0.7',
+        bleAttempt: () async => null, // no bonded bridge in range
+        delay: _FakeDelay().call,
+      );
+      expect(await mgr.race(), isA<Offline>());
+    });
+
+    test('a throwing BLE attempt is offline, not an exception', () async {
+      // Bluetooth off, permission denied, adapter busy: all the same
+      // answer to the race, and none of them may escape it.
+      final mgr = ConnectionManager(
+        probe: (_) async => false,
+        writeCache: (_) async {},
+        bleAttempt: () async => throw StateError('bluetooth is off'),
+        delay: _FakeDelay().call,
+      );
+      expect(await mgr.race(), isA<Offline>());
+    });
+
+    test('no bleAttempt at all is still just offline', () async {
+      final mgr = ConnectionManager(
+        probe: (_) async => false,
+        writeCache: (_) async {},
+        delay: _FakeDelay().call,
+      );
+      expect(await mgr.race(), isA<Offline>());
+    });
+
+    test('manual entry pre-empts a BLE attempt in flight', () async {
+      // The escape hatch outranks everything, including the fallback.
+      final bleGate = Completer<void>();
+      final mgr = ConnectionManager(
+        probe: (url) async => url == 'http://10.0.0.42',
+        writeCache: (_) async {},
+        bleAttempt: () async {
+          await bleGate.future;
+          return bleOverFake();
+        },
+        delay: _FakeDelay().call,
+      );
+      final race = mgr.race();
+      mgr.enterManual('http://10.0.0.42');
+      final outcome = await race;
+      expect((outcome as Connected).lane, ConnectionLane.manual);
+      expect(outcome.isDegraded, isFalse);
+      bleGate.complete(); // the in-flight attempt resolves harmlessly
     });
   });
 

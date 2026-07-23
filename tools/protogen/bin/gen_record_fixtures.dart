@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -207,6 +208,253 @@ void main() {
       'mark_kind': decodedMark.kind,
       'probe': decodedMark.probe,
       'text': decodedMark.text,
+    },
+  );
+
+  // ── BLE characteristic payloads (P3.2, ble-gatt §5) ──────────────────
+  //
+  // The GATT server (F10.1) and the Dart fake peripheral (A6.1) both assert
+  // byte-equality against these, so a firmware/app divergence is a red test
+  // rather than a bridge that will not provision in someone's back yard.
+
+  // caps: wifi_ap | wifi_sta | history_preview. `battery` (b5) is CLEAR and
+  // stays clear until F12 (M5) — which is exactly why soc_pct is SOC_UNKNOWN
+  // in the live_state vectors below. Two facts, one decision (P3.2).
+  final info = DeviceInfo(
+    api: 1,
+    probes: 4,
+    caps: (1 << 0) | (1 << 1) | (1 << 3),
+    idRaw: utf8ToPadded('A4F2', 4),
+    modelRaw: utf8ToPadded('heltec-v3', 16),
+    fwRaw: utf8ToPadded('1.0.0', 16),
+  );
+  write(
+    'ble-device-info',
+    'device_info: the open identity card; caps.battery clear until F12 (M5)',
+    info.encode(),
+    {
+      'kind': 'device_info',
+      'ver': info.ver,
+      'api': info.api,
+      'probes': info.probes,
+      'caps': info.caps,
+      'cap_wifi_ap': info.wifiAp ? 1 : 0,
+      'cap_wifi_sta': info.wifiSta ? 1 : 0,
+      'cap_wifi_enterprise': info.wifiEnterprise ? 1 : 0,
+      'cap_history_preview': info.historyPreview ? 1 : 0,
+      'cap_ota': info.ota ? 1 : 0,
+      'cap_battery': info.battery ? 1 : 0,
+      'id': info.id,
+      'model': info.model,
+      'fw': info.fw,
+    },
+  );
+
+  for (final (name, cmd, note) in [
+    ('start', ScanCmd.start.wire, 'start an AP scan'),
+    ('cancel', ScanCmd.cancel.wire, 'cancel a scan in progress'),
+  ]) {
+    final c = WifiScanCtrl(cmd: cmd);
+    write('ble-wifi-scan-ctrl-$name', 'wifi_scan_ctrl: $note', c.encode(), {
+      'kind': 'wifi_scan_ctrl',
+      'ver': c.ver,
+      'cmd': c.cmd,
+    });
+  }
+
+  Map<String, Object> liveExpect(LiveState s) => {
+    'kind': 'live_state',
+    'ver': s.ver,
+    'flags': s.flags,
+    'flag_paired': s.paired ? 1 : 0,
+    'flag_session_active': s.sessionActive ? 1 : 0,
+    'flag_billows': s.billows ? 1 : 0,
+    'flag_alarm_active': s.alarmActive ? 1 : 0,
+    'flag_clock_valid': s.clockValid ? 1 : 0,
+    for (var i = 0; i < 4; i++) 'temp$i': s.temp[i],
+    for (var i = 0; i < 4; i++)
+      'temp${i}_null': s.tempOrNull(i) == null ? 1 : 0,
+    'soc_pct': s.socPct,
+    'soc_unknown': s.socPct == socUnknown ? 1 : 0,
+    'rssi_lora': s.rssiLora,
+    'session_t': s.sessionT,
+  };
+
+  final liveSession = LiveState(
+    flags:
+        (1 << 0) | (1 << 1) | (1 << 4), // paired, session_active, clock_valid
+    temp: [2431, 1632, 1594, 887],
+    socPct: socUnknown,
+    rssiLora: -71,
+    sessionT: 15120, // 4 h 12 m — the scan-response blob's session_minutes
+  );
+  write(
+    'ble-live-state-session',
+    'live_state: paired, mid-cook, four probes; soc_pct = SOC_UNKNOWN (no F12)',
+    liveSession.encode(),
+    liveExpect(liveSession),
+  );
+
+  final liveDetached = LiveState(
+    flags: (1 << 0) | (1 << 1) | (1 << 3) | (1 << 4), // + alarm_active
+    temp: [2431, tempDetached, tempInvalid, 887],
+    socPct: socUnknown,
+    rssiLora: -88,
+    sessionT: 15150,
+  );
+  write(
+    'ble-live-state-detached',
+    'live_state: detached + invalid sentinels survive to the wire, never 0',
+    liveDetached.encode(),
+    liveExpect(liveDetached),
+  );
+
+  Map<String, Object> netExpect(NetStatus s, int wireLen) => {
+    'kind': 'net_status',
+    'wire_len': wireLen,
+    'ver': s.ver,
+    'mode': s.mode,
+    'state': s.state,
+    'wifi_rssi': s.wifiRssi,
+    'ip': s.ip.join('.'),
+    'ssid': s.ssid,
+    'host': s.host,
+  };
+
+  final netSta = NetStatus(
+    mode: NetMode.sta.wire,
+    state: NetState.up.wire,
+    wifiRssi: -54,
+    ip: [192, 168, 1, 42],
+    ssidRaw: utf8.encode('Backyard'),
+    hostRaw: utf8.encode('smokebridge'),
+  );
+  write(
+    'ble-net-status-sta-up',
+    'net_status: STA up — the frame the wizard waits for across the handoff',
+    netSta.pack(),
+    netExpect(netSta, netSta.pack().length),
+  );
+
+  final netAp = NetStatus(
+    mode: NetMode.ap.wire,
+    state: NetState.up.wire,
+    ip: [192, 168, 4, 1],
+    ssidRaw: utf8.encode('SmokeBridge-A4F2'),
+    hostRaw: utf8.encode('smokebridge'),
+  );
+  write(
+    'ble-net-status-ap',
+    'net_status: hosting — the recovery destination when STA cannot be reached',
+    netAp.pack(),
+    netExpect(netAp, netAp.pack().length),
+  );
+
+  final scan = WifiScanResult(
+    index: 3,
+    total: 12,
+    rssi: -61,
+    auth: 3, // WPA2-PSK (ble-gatt §5.4.1)
+    channel: 6,
+    ssidRaw: utf8.encode('Backyard'),
+  );
+  write(
+    'ble-wifi-scan-result',
+    'wifi_scan_result: one AP of twelve; completion is implicit in index/total',
+    scan.pack(),
+    {
+      'kind': 'wifi_scan_result',
+      'wire_len': scan.pack().length,
+      'ver': scan.ver,
+      'index': scan.index,
+      'total': scan.total,
+      'rssi': scan.rssi,
+      'auth': scan.auth,
+      'channel': scan.channel,
+      'ssid': scan.ssid,
+    },
+  );
+
+  final cfg = WifiConfig(
+    mode: NetMode.sta.wire,
+    auth: 3,
+    ssidRaw: utf8.encode('Backyard'),
+    pskRaw: utf8.encode('hunter2boo'),
+  );
+  write(
+    'ble-wifi-config-sta',
+    'wifi_config: join a WPA2 network — the provisioning artery (§5.5)',
+    cfg.pack(),
+    {
+      'kind': 'wifi_config',
+      'wire_len': cfg.pack().length,
+      'ver': cfg.ver,
+      'mode': cfg.mode,
+      'auth': cfg.auth,
+      'ssid': cfg.ssid,
+      'psk': cfg.psk,
+      'user': cfg.user,
+    },
+  );
+
+  final setTime = CtrlSetTime(unixMs: 1774051200000, tzOffsetMin: -300);
+  final ctrl = DeviceControl(
+    op: ControlOp.setTime.wire,
+    bodyRaw: setTime.encode(),
+  );
+  write(
+    'ble-device-control-set-time',
+    'device_control op 3: the wizard step that dates a cook from its first sample',
+    ctrl.pack(),
+    {
+      'kind': 'device_control',
+      'wire_len': ctrl.pack().length,
+      'ver': ctrl.ver,
+      'op': ctrl.op,
+      'body_len': ctrl.bodyRaw.length,
+      'unix_ms': setTime.unixMs,
+      'tz_offset_min': setTime.tzOffsetMin,
+    },
+  );
+
+  final apPsk = ResultFrame(
+    opEcho: 0, // wifi_config answers with op_echo 0 (§5.9)
+    status: ResultStatus.ok.wire,
+    detailRaw: utf8.encode('Gk7mR2xQpT'),
+  );
+  write(
+    'ble-result-ap-psk',
+    'result: the AP PSK the phone needs to join after a mode change to AP',
+    apPsk.pack(),
+    {
+      'kind': 'result',
+      'wire_len': apPsk.pack().length,
+      'ver': apPsk.ver,
+      'op_echo': apPsk.opEcho,
+      'status': apPsk.status,
+      'detail': apPsk.detail,
+    },
+  );
+
+  final preview = HistoryPreview(
+    probeIndex: 0,
+    bucketMin: 1,
+    values: [2401, 2412, tempDetached, 2430, 2431],
+  );
+  write(
+    'ble-history-preview',
+    'history_preview: a ring shorter than 2 h yields count < 120, never padding',
+    preview.pack(),
+    {
+      'kind': 'history_preview',
+      'wire_len': preview.pack().length,
+      'ver': preview.ver,
+      'probe_index': preview.probeIndex,
+      'count': preview.values.length,
+      'bucket_min': preview.bucketMin,
+      for (var i = 0; i < preview.values.length; i++) 'v$i': preview.values[i],
+      for (var i = 0; i < preview.values.length; i++)
+        'v${i}_null': preview.valuesNullable[i] == null ? 1 : 0,
     },
   );
 }

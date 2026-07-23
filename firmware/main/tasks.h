@@ -28,7 +28,11 @@ extern "C" {
     X(app_power, 2560, 2, 0) /* battery ADC every 30 s, SoC filter         */    \
     X(ws_push, 4096, 4, 0)   /* serialize + fan out WebSocket frames; the \
                                  lwip send path runs on THIS stack (board- \
-                                 found: 3072 overflowed)                   */
+                                 found: 3072 overflowed)                   */ \
+    X(ble_push, 4096, 4, 0)  /* build + fan out GATT notifications; NEVER \
+                                 the event loop or the NimBLE host task \
+                                 (F10.4 — the ws_push lesson, applied \
+                                 before the board can teach it again)      */
 
 typedef struct {
     const char *name;
@@ -51,9 +55,30 @@ static const bridge_task_def_t bridge_task_defs[]
 enum { BRIDGE_TASK_STACK_TOTAL = 0 BRIDGE_TASK_TABLE(BRIDGE_TASK_SUM) };
 #undef BRIDGE_TASK_SUM
 
-/* 01 §1.4 budgets ~26 KB for application task stacks; hold the line at 28 KB
- * so growth is a deliberate design conversation, not drift. */
-#define BRIDGE_TASK_STACK_BUDGET (28u * 1024u)
+/* 01 §1.4 budgets application task stacks; the assert holds the line so
+ * growth is a deliberate design conversation, not drift.
+ *
+ * RENEGOTIATED IN M3 (F10.4): 28 KB → 32 KB. Adding the ble_push row took
+ * the table from 27.5 KB to 31.5 KB and tripped the old assert — which is
+ * the assert doing its job, so here is the argument rather than a bump.
+ *
+ *   §1.4's estimate was ~26 KB over seven tasks and ALREADY included a
+ *   4 KB `ble_app` allowance, so ble_push is not new spending — it is the
+ *   allowance finally being drawn. The extra ~5.5 KB over that estimate is
+ *   two rows §1.4 never listed: app_power (2.5 KB) and ws_push (4 KB, a
+ *   board-found M2 addition), less 1 KB that smoke_x came in under.
+ *
+ *   It is affordable on measured numbers, not on estimates: the M2 bench
+ *   sitting recorded min_free_heap ≈ 180.7 KB with AP + httpd + both
+ *   LittleFS mounts running (docs/hardware-verified.md). 5.5 KB against
+ *   that is noise; the 35–45 KB NimBLE itself costs is not, and V3a.1
+ *   re-measures the whole picture with the stack live before M4.
+ *
+ * ble_push gets the full 4 KB rather than 3 KB deliberately: ws_push is
+ * the directly analogous row and it overflowed at 3072 on the board,
+ * because the send path runs on the pushing task's stack. Paying 1 KB to
+ * not repeat that during a bench sitting is the right trade. */
+#define BRIDGE_TASK_STACK_BUDGET (32u * 1024u)
 _Static_assert(BRIDGE_TASK_STACK_TOTAL <= BRIDGE_TASK_STACK_BUDGET,
                "task stacks exceed the 01 §1.4 RAM budget — renegotiate the "
                "budget, don't just bump it");

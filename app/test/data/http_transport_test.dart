@@ -18,6 +18,7 @@ import 'package:smoke_bridge/data/transport/http_transport.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'records_parity_test.dart' show repoRoot;
+import 'transport_contract.dart';
 
 /// Serves canned responses keyed by path prefix; records requests.
 class FakeAdapter implements HttpClientAdapter {
@@ -124,6 +125,20 @@ HttpTransport transportWith(FakeAdapter adapter, {FakeWs? ws}) {
 }
 
 void main() {
+  // A6.2: the shared behavioural contract, over the committed fixtures.
+  runTransportContract(
+    name: 'http',
+    create: () async => transportWith(
+      FakeAdapter()
+        ..json('/api/v1/status', 'status.json')
+        ..json('/api/v1/live', 'live-two-detached.json')
+        // No committed fixture for an EMPTY session list, and the
+        // contract only needs the shape here — the populated case is
+        // covered by the fixture-backed tests below.
+        ..routes['/api/v1/sessions'] = (200, '{"sessions":[]}'),
+    ),
+  );
+
   test('status maps the nested fixture to the flat BridgeStatus', () async {
     final a = FakeAdapter()..json('/api/v1/status', 'status.json');
     final t = transportWith(a);

@@ -12,10 +12,12 @@ Sources, in order of authority:
 2. [Design 05 §5.6](../docs/design/05-connectivity-and-provisioning.md) — service shape,
    security, advertising, MTU strategy, coexistence.
 
-Two payloads appear **only** here, because `records.yaml` does not (yet) describe them:
-`device_info` (`0x0001`) and `wifi_scan_ctrl` (`0x0003`). Their tables in §5 are normative and
-are marked _(defined by this document)_; they must be folded into `records.yaml` before the
-firmware BLE service (M3) implements them.
+**P3.2 closed this file's founding debt.** `device_info` (`0x0001`) and `wifi_scan_ctrl`
+(`0x0003`) used to live only here, as prose. They are now in `records.yaml` with generated
+codecs and committed hex vectors like every other payload, so rule 1 above applies to all
+nine characteristics with no exceptions. Two contract questions were settled at the same
+time and are recorded where they bite: **§5.1.1** (the `soc_pct` "battery unknown" value)
+and **§5.6.6** (why there is no `set_token` op in v1).
 
 Conventions, everywhere, no exceptions:
 
@@ -87,7 +89,7 @@ one is assigned _(defined by this document — design 05 is silent)_.
 | 0      | 1    | `ver`             | u8     | `1`                                                              |
 | 1      | 1    | `flags`           | u8     | same bit assignments as `live_state.flags` (§5.7)                |
 | 2      | 2    | `pit_temp`        | i16 LE | pit probe, tenths °F; `TEMP_DETACHED` / `TEMP_INVALID` sentinels |
-| 4      | 1    | `soc`             | u8     | battery state of charge, 0–100                                   |
+| 4      | 1    | `soc`             | u8     | battery SoC 0–100, or `SOC_UNKNOWN` (255) — see §5.1.1           |
 | 5      | 2    | `session_minutes` | u16 LE | minutes into the active session; 0 when none                     |
 
 This is what lets the app's device list render _"Smoke Bridge · pit 243 °F · 4 h 12 m"_
@@ -161,7 +163,7 @@ MTU**:
 All layouts restate `records.yaml` (`ble_payloads` / `control_bodies`); offsets and sizes
 below were cross-checked against the generated `gen/records.g.dart` encoders.
 
-### 5.1 `0001 device_info` — Read, open _(defined by this document)_
+### 5.1 `0001 device_info` — Read, open
 
 Fixed 40 B. The unencrypted identity card, mirroring the mDNS TXT records
 (`id`, `model`, `fw`, `api`, `probes`).
@@ -171,12 +173,28 @@ Fixed 40 B. The unencrypted identity card, mirroring the mDNS TXT records
 | 0      | 1    | `ver`    | u8       | `1`                                                                                                    |
 | 1      | 1    | `api`    | u8       | HTTP/BLE API major version, `1`                                                                        |
 | 2      | 1    | `probes` | u8       | 2 or 4                                                                                                 |
-| 3      | 1    | `caps`   | u8       | b0 `wifi_ap` · b1 `wifi_sta` · b2 `wifi_enterprise` · b3 `history_preview` · b4 `ota` · b5–b7 reserved |
+| 3      | 1    | `caps`   | u8       | b0 `wifi_ap` · b1 `wifi_sta` · b2 `wifi_enterprise` · b3 `history_preview` · b4 `ota` · b5 `battery` · b6–b7 reserved |
 | 4      | 4    | `id`     | char[4]  | device id, e.g. `A4F2` (ASCII hex, matches SSID/name suffix)                                           |
 | 8      | 16   | `model`  | char[16] | UTF-8, NUL-padded, e.g. `heltec-v3`                                                                    |
 | 24     | 16   | `fw`     | char[16] | UTF-8, NUL-padded, e.g. `1.0.0`                                                                        |
 
 Total: 1 + 1 + 1 + 1 + 4 + 16 + 16 = **40 B**.
+
+#### 5.1.1 `caps` b5 `battery`, and the `soc_pct` unknown value — P3.2 decision
+
+Neither `live_state.soc_pct` (§5.7) nor the advertising blob's `soc` (§2.3) had a way to say
+_"this device does not know its battery level"_ — and the component that produces the truth,
+`app_power`, is M5's F12. Two halves, decided once, here, rather than improvised twice:
+
+- **`SOC_UNKNOWN = 255`** is the degenerate value, in `records.yaml` `constants` and therefore
+  generated into both languages. Valid SoC is 0–100, so 255 cannot collide. **0 was rejected**:
+  it is a plausible reading, so it renders as a red empty battery — a device with no battery
+  sensor would look like a device about to die.
+- **`caps` b5 `battery`** says whether a real value can ever arrive. `false` in M3, and clients
+  should hide the battery affordance entirely rather than show a permanent "unknown" glyph.
+
+A reader that sees `soc_pct = 255` treats it as _null_, never as a number — the same rule
+`TEMP_DETACHED` has carried since M0.
 
 ### 5.2 `0002 net_status` — Read + Notify, encrypted
 
@@ -197,15 +215,15 @@ the §5.7 handoff).
 
 Wire length: `10 + ssid_len + host_len`; maximum 10 + 32 + 22 = **64 B**.
 
-### 5.3 `0003 wifi_scan_ctrl` — Write, encrypted _(defined by this document)_
+### 5.3 `0003 wifi_scan_ctrl` — Write, encrypted
 
 Fixed 2 B. Starts (or cancels) an AP scan; results arrive on `0004`, completion is implicit
 in the last result's `index == total − 1`.
 
-| Offset | Size | Field | Type | Meaning                     |
-| ------ | ---- | ----- | ---- | --------------------------- |
-| 0      | 1    | `ver` | u8   | `1`                         |
-| 1      | 1    | `cmd` | u8   | 1 = start scan · 0 = cancel |
+| Offset | Size | Field | Type | Meaning                                |
+| ------ | ---- | ----- | ---- | -------------------------------------- |
+| 0      | 1    | `ver` | u8   | `1`                                    |
+| 1      | 1    | `cmd` | u8   | `scan_cmd`: 1 = start scan · 0 = cancel |
 
 A scan already in progress answers `result{op_echo: 0, status: busy}`.
 
@@ -314,6 +332,29 @@ to byte 2 of the write.
 | ----------- | ----- | ---- | ---------- | ---- | ---------------------------- |
 | 0           | 2     | 1    | `alarm_id` | u8   | the alarm being acknowledged |
 
+#### 5.6.6 There is no `set_token` op in v1 — P3.2 decision
+
+M2's planning notes promised that setting the optional API bearer token would "travel over
+BLE (M3)". **It does not, and the reason is arithmetic, not preference.**
+
+`device/api_token` is 32 characters. A `set_token` op would be `ver` + `op` + `len` +
+32 = **35 B**, against a `device_control` envelope frozen at **≤ 30 B** with a **≤ 28 B**
+body. It does not fit. Widening `device_control` is not the additive growth this contract
+sanctions — every implementation has already sized a 30-byte buffer against the frozen
+number — so it needs a payload-version bump, which is v1.1's business, not M3's.
+
+Consequences, stated so nobody rediscovers them:
+
+- **v1.0 ships the bearer gate dormant.** F9.1 enforces `Authorization: Bearer` whenever
+  `device/api_token` is non-empty; nothing in v1.0 can make it non-empty, so the API is open
+  by default — which is exactly what [06](../docs/design/06-device-api.md) already documents.
+- **M4's settings UI hides the toggle**, rather than offering a switch that cannot be honoured.
+- A truncated token (26 chars, to fit) was rejected: silently weakening a secret to fit a
+  frame is how security features become theatre.
+
+An unknown op is already defined behaviour — `result{status: invalid}`, no side effects
+(§5.9) — so a future v1.1 client talking to v1.0 firmware degrades cleanly.
+
 ### 5.7 `0007 live_state` — Read + Notify, encrypted
 
 **Fixed 16 B** — deliberately ≤ 20 B so it fits the default ATT MTU (§4). Notified on every
@@ -327,7 +368,7 @@ decoded LoRa packet (~30 s) plus immediately on any alarm transition.
 | 4      | 2    | `temp[1]`   | i16 LE | ”                                                                                                        |
 | 6      | 2    | `temp[2]`   | i16 LE | ”                                                                                                        |
 | 8      | 2    | `temp[3]`   | i16 LE | ”                                                                                                        |
-| 10     | 1    | `soc_pct`   | u8     | battery state of charge, 0–100                                                                           |
+| 10     | 1    | `soc_pct`   | u8     | battery SoC 0–100, or `SOC_UNKNOWN` (255) — see §5.1.1                                                   |
 | 11     | 1    | `rssi_lora` | i8     | dBm of the last state message                                                                            |
 | 12     | 4    | `session_t` | u32 LE | seconds into the active session; 0 when none                                                             |
 
@@ -387,7 +428,9 @@ copies: `tools/bridge_protocol/lib/records.g.dart`, `app/lib/data/dto/records.g.
 
 | Doc section | Generated symbol             | Size / max                    |
 | ----------- | ---------------------------- | ----------------------------- |
+| §5.1        | `DeviceInfo.encode/decode`   | 40                            |
 | §5.2        | `NetStatus.pack/unpack`      | max 64                        |
+| §5.3        | `WifiScanCtrl.encode/decode` | 2                             |
 | §5.4        | `WifiScanResult.pack/unpack` | max 40 declared, 39 reachable |
 | §5.5        | `WifiConfig.pack/unpack`     | max 134                       |
 | §5.6        | `DeviceControl.pack/unpack`  | max 30                        |
@@ -399,5 +442,7 @@ copies: `tools/bridge_protocol/lib/records.g.dart`, `app/lib/data/dto/records.g.
 | §5.8        | `HistoryPreview.pack/unpack` | max 244                       |
 | §5.9        | `ResultFrame.pack/unpack`    | max 68                        |
 
-`device_info` (§5.1) and `wifi_scan_ctrl` (§5.3) have no generated codec yet — see the note
-at the top of this file.
+Every payload now has a generated codec (P3.2 folded in the last two) **and** a committed
+hex vector under `protocol/fixtures/records/ble-*.hex`, parsed by both the C host suite
+(`firmware/test/test_record_gen.c`) and the Dart parity suites. A C/Dart divergence is a red
+test, not a bridge that will not provision.

@@ -242,6 +242,11 @@ Transient screens that pre-empt whatever page is showing.
 └─────────────────────┘
 ```
 
+> **Shipped in M3 with one decided deviation: row 7 is blank.** The status strip's sources (battery
+> SoC, the alarm glyph) are M5 components, so F11a leaves the row empty rather than inventing them;
+> F11b adds the strip to every page and overlay at once. Stated here so the committed golden
+> (`firmware/test/goldens/oled/passkey-418302.fb`) is not mistaken for drift.
+
 **Alarm** — inverted video so it reads across a dark yard:
 
 ```
@@ -371,7 +376,15 @@ for a 1 KB framebuffer on a device with no PSRAM.
   fields, instead of the reference's unconditional 1 Hz full redraw. Cuts I²C traffic and CPU
   wakeups to near zero while nothing is changing.
 - Page renderers are pure functions of a snapshot struct — `render_page_probes(const ui_state_t*)` —
-  so the whole display layer is testable on the host. `tools/render_oled_preview.py` (the reference
-  ships one) turns the framebuffer into a PNG, which makes visual review possible in CI without
-  hardware.
+  so the whole display layer is testable on the host. **Built in M3 as
+  `tools/oled/render_oled_preview.py`** (`make oled-preview`): the host test writes each rendered
+  snapshot as a raw 1 KB framebuffer and the script turns those into PNGs, which makes visual review
+  possible in CI without hardware.
+
+  One adaptation from the reference's version, worth stating because it is the whole point: the
+  reference re-implemented the firmware's font in Python and drew sample text, so its picture could
+  agree with the script while disagreeing with the firmware. Ours renders **the firmware's own
+  output** and owns no font at all. The **`.fb` is the golden** — byte-compared in the C host test,
+  so a one-pixel change is a red test; the PNG is the artifact a human reviews, and is not
+  diff-gated because deflate output is not stable across zlib versions.
   </content>

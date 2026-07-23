@@ -1,0 +1,10 @@
+# wifi_scan_result: one AP of twelve; completion is implicit in index/total
+kind=wifi_scan_result
+wire_len=15
+ver=1
+index=3
+total=12
+rssi=-61
+auth=3
+channel=6
+ssid=Backyard

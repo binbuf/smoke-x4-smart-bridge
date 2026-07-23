@@ -1,0 +1,2 @@
+# device_control op 3: the wizard step that dates a cook from its first sample
+01 03 00 0c b1 0d 9d 01 00 00 d4 fe

@@ -102,6 +102,121 @@ void main() {
           expect(m.text, expected['text']);
           expect(m.encode(), bytes, reason: 'byte-identical round-trip');
 
+        // ── BLE payloads (P3.2) ──────────────────────────────────────
+        case 'device_info':
+          final d = DeviceInfo.decode(bytes);
+          expect(d.ver, int.parse(expected['ver']!));
+          expect(d.api, int.parse(expected['api']!));
+          expect(d.probes, int.parse(expected['probes']!));
+          expect(d.caps, int.parse(expected['caps']!));
+          expect(d.wifiAp, expected['cap_wifi_ap'] == '1');
+          expect(d.wifiSta, expected['cap_wifi_sta'] == '1');
+          expect(d.wifiEnterprise, expected['cap_wifi_enterprise'] == '1');
+          expect(d.historyPreview, expected['cap_history_preview'] == '1');
+          expect(d.ota, expected['cap_ota'] == '1');
+          expect(d.battery, expected['cap_battery'] == '1');
+          expect(d.id, expected['id']);
+          expect(d.model, expected['model']);
+          expect(d.fw, expected['fw']);
+          expect(d.encode(), bytes, reason: 'byte-identical round-trip');
+
+        case 'wifi_scan_ctrl':
+          final c = WifiScanCtrl.decode(bytes);
+          expect(c.ver, int.parse(expected['ver']!));
+          expect(c.cmd, int.parse(expected['cmd']!));
+          expect(c.cmdEnum, isNotNull, reason: 'cmd must name a scan_cmd');
+          expect(c.encode(), bytes, reason: 'byte-identical round-trip');
+
+        case 'live_state':
+          final s = LiveState.decode(bytes);
+          expect(bytes, hasLength(16), reason: '16 ≤ 20: survives MTU 23');
+          expect(s.ver, int.parse(expected['ver']!));
+          expect(s.flags, int.parse(expected['flags']!));
+          expect(s.paired, expected['flag_paired'] == '1');
+          expect(s.sessionActive, expected['flag_session_active'] == '1');
+          expect(s.billows, expected['flag_billows'] == '1');
+          expect(s.alarmActive, expected['flag_alarm_active'] == '1');
+          expect(s.clockValid, expected['flag_clock_valid'] == '1');
+          for (var i = 0; i < 4; i++) {
+            expect(s.temp[i], int.parse(expected['temp$i']!));
+            final expectNull = expected['temp${i}_null'] == '1';
+            expect(s.tempOrNull(i) == null, expectNull);
+            if (expectNull) {
+              expect(s.tempNullable[i], isNull);
+            }
+          }
+          expect(s.socPct, int.parse(expected['soc_pct']!));
+          expect(s.socPct == socUnknown, expected['soc_unknown'] == '1');
+          expect(s.rssiLora, int.parse(expected['rssi_lora']!));
+          expect(s.sessionT, int.parse(expected['session_t']!));
+          expect(s.encode(), bytes, reason: 'byte-identical round-trip');
+
+        case 'net_status':
+          final s = NetStatus.unpack(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(s.ver, int.parse(expected['ver']!));
+          expect(s.mode, int.parse(expected['mode']!));
+          expect(s.state, int.parse(expected['state']!));
+          expect(s.wifiRssi, int.parse(expected['wifi_rssi']!));
+          expect(s.ip.join('.'), expected['ip']);
+          expect(s.ssid, expected['ssid']);
+          expect(s.host, expected['host']);
+          expect(s.pack(), bytes, reason: 'byte-identical round-trip');
+
+        case 'wifi_scan_result':
+          final r = WifiScanResult.unpack(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(r.index, int.parse(expected['index']!));
+          expect(r.total, int.parse(expected['total']!));
+          expect(r.rssi, int.parse(expected['rssi']!));
+          expect(r.auth, int.parse(expected['auth']!));
+          expect(r.channel, int.parse(expected['channel']!));
+          expect(r.ssid, expected['ssid']);
+          expect(r.pack(), bytes, reason: 'byte-identical round-trip');
+
+        case 'wifi_config':
+          final c = WifiConfig.unpack(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(c.mode, int.parse(expected['mode']!));
+          expect(c.auth, int.parse(expected['auth']!));
+          expect(c.ssid, expected['ssid']);
+          expect(c.psk, expected['psk']);
+          expect(c.user, expected['user']);
+          expect(c.pack(), bytes, reason: 'byte-identical round-trip');
+
+        case 'device_control':
+          final c = DeviceControl.unpack(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(c.op, int.parse(expected['op']!));
+          expect(c.bodyRaw, hasLength(int.parse(expected['body_len']!)));
+          if (c.opEnum == ControlOp.setTime) {
+            final t = CtrlSetTime.decode(c.bodyRaw);
+            expect(t.unixMs, int.parse(expected['unix_ms']!));
+            expect(t.tzOffsetMin, int.parse(expected['tz_offset_min']!));
+          }
+          expect(c.pack(), bytes, reason: 'byte-identical round-trip');
+
+        case 'result':
+          final r = ResultFrame.unpack(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(r.opEcho, int.parse(expected['op_echo']!));
+          expect(r.status, int.parse(expected['status']!));
+          expect(r.detail, expected['detail']);
+          expect(r.pack(), bytes, reason: 'byte-identical round-trip');
+
+        case 'history_preview':
+          final h = HistoryPreview.unpack(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(h.probeIndex, int.parse(expected['probe_index']!));
+          expect(h.values, hasLength(int.parse(expected['count']!)));
+          expect(h.values.length, lessThanOrEqualTo(120));
+          expect(h.bucketMin, int.parse(expected['bucket_min']!));
+          for (var i = 0; i < h.values.length; i++) {
+            expect(h.values[i], int.parse(expected['v$i']!));
+            expect(h.valuesNullable[i] == null, expected['v${i}_null'] == '1');
+          }
+          expect(h.pack(), bytes, reason: 'byte-identical round-trip');
+
         default:
           fail('unknown fixture kind ${expected['kind']}');
       }

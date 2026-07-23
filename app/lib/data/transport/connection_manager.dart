@@ -9,6 +9,7 @@ library;
 
 import 'dart:async';
 
+import 'bridge_transport.dart';
 import 'discovery.dart';
 
 /// Where a candidate address came from — the five §8.4 lanes.
@@ -18,7 +19,7 @@ enum ConnectionLane {
   mdns, // _smokebridge._tcp browse
   mdnsName, // smokebridge.local
   apDefault, // 192.168.4.1 (the bridge's own AP)
-  ble, // M3 — an honest stub reporting unavailable in M2
+  ble, // A6.5 — the fallback, tried only after every HTTP lane fails
 }
 
 class ConnectionCandidate {
@@ -33,9 +34,19 @@ sealed class ConnectionOutcome {
 }
 
 class Connected extends ConnectionOutcome {
-  const Connected(this.baseUrl, this.lane);
+  const Connected(this.baseUrl, this.lane, {this.transport});
+
+  /// The HTTP base URL. **Empty for a BLE win** — there is no address to
+  /// speak to; callers switch on [lane] or use [transport].
   final String baseUrl;
   final ConnectionLane lane;
+
+  /// Non-null only on the BLE lane (A6.5): a live transport whose
+  /// capabilities honestly report the degradation, which is what drives
+  /// the chart's "full history needs Wi-Fi" notice rather than an error.
+  final BridgeTransport? transport;
+
+  bool get isDegraded => lane == ConnectionLane.ble;
 }
 
 class Offline extends ConnectionOutcome {
@@ -51,6 +62,11 @@ typedef CacheWriter = Future<void> Function(String baseUrl);
 
 /// Injected so tests drive time; production passes Future.delayed.
 typedef Delay = Future<void> Function(Duration d);
+
+/// A6.5 — the BLE lane. Returns a connected [BridgeTransport], or null if
+/// BLE is unavailable (no bonded bridge in range, Bluetooth off, the user
+/// never onboarded). Injected, so the race needs no radio in tests.
+typedef BleAttempt = Future<BridgeTransport?> Function();
 
 /// §8.4: 1, 2, 4, 8, 15, 30 s, capped at 30.
 const backoffLadderS = [1, 2, 4, 8, 15, 30];
@@ -70,6 +86,7 @@ class ConnectionManager {
     required this.writeCache,
     this.cachedBaseUrl,
     this.discovery,
+    this.bleAttempt,
     Delay? delay,
     Stream<void>? connectivityChanges,
   }) : _delay = delay ?? _realDelay,
@@ -79,6 +96,10 @@ class ConnectionManager {
   final CacheWriter writeCache;
   final String? cachedBaseUrl;
   final DiscoverySource? discovery;
+
+  /// Null when the app has no BLE lane to offer (never onboarded, or the
+  /// user turned the persistent BLE link off — 05 §5.7).
+  final BleAttempt? bleAttempt;
   final Delay _delay;
   final Stream<void> _connectivity;
 
@@ -142,10 +163,12 @@ class ConnectionManager {
           ConnectionLane.apDefault,
         ),
       ),
-      // BLE (M3): an honest stub — the lane exists, reports unavailable.
-      Future.value(null),
     ];
 
+    // A6.5: BLE is a FALLBACK, not a competitor. It engages only once
+    // every HTTP lane has failed — a bridge reachable over Wi-Fi must
+    // never be demoted to a degraded transport just because BLE answered
+    // first. (Which it would: bonded reconnects are fast.)
     var pending = lanes.length;
     for (final f in lanes) {
       f
@@ -161,9 +184,16 @@ class ConnectionManager {
           })
           .whenComplete(() {
             pending--;
-            if (pending == 0 && !winner.isCompleted) {
-              winner.complete(const Offline());
+            if (pending != 0 || winner.isCompleted) {
+              return;
             }
+            unawaited(
+              _tryBle().then((outcome) {
+                if (!winner.isCompleted) {
+                  winner.complete(outcome);
+                }
+              }),
+            );
           });
     }
 
@@ -175,6 +205,28 @@ class ConnectionManager {
       }),
     );
     return winner.future;
+  }
+
+  /// The BLE fallback. Never throws: an unavailable radio, an unbonded
+  /// bridge, and a user who turned BLE off all mean the same thing to the
+  /// race — no win, fall through to offline-from-cache.
+  Future<ConnectionOutcome> _tryBle() async {
+    final attempt = bleAttempt;
+    if (attempt == null) {
+      return const Offline();
+    }
+    try {
+      final transport = await attempt();
+      if (transport == null) {
+        return const Offline();
+      }
+      // No writeCache: there is no address to remember, and overwriting
+      // the cached IP with an empty string would break the next launch's
+      // fastest lane.
+      return Connected('', ConnectionLane.ble, transport: transport);
+    } on Object {
+      return const Offline();
+    }
   }
 
   /// A7.3: re-race on a backoff ladder until connected. A connectivity

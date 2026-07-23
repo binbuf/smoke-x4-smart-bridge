@@ -52,9 +52,9 @@ battery reporting is possible.
 
 | Deferred check | Why | Closes at |
 | --- | --- | --- |
-| Free heap ≥ 150 KB with AP + NimBLE + httpd + both LittleFS mounts | Our stack doesn't exist yet | F9 / F10 (M2–M3) |
-| LoRa RX with BLE advertising **and** a WebSocket client streaming | Same | V3 (M3) |
-| OLED I²C stable with BLE active | Reference has no BLE | M3 |
+| Free heap ≥ 150 KB with AP + NimBLE + httpd + both LittleFS mounts | Our stack doesn't exist yet | F9 / F10 (M2–M3) — **F9.13 provisional; V3a.1 below re-measures** |
+| LoRa RX with BLE advertising **and** a WebSocket client streaming | Same | V3a.1 (M3) — see the M3 section below |
+| OLED I²C stable with BLE active | Reference has no BLE | V3a.1 (M3) — see the M3 section below |
 
 ## M1 exit gate (F3.9, F5.11) — verified on the board 2026-07-22
 
@@ -74,6 +74,94 @@ battery reporting is possible.
 | F9.13 heap with everything running | ✅ `free_heap 190,468 / min_free_heap 180,716` at first measure; 189,064/183,852 on a later boot — comfortably above the 150 KB gate. **Provisional per the plan caveat**: NimBLE does not exist until M3; V3a re-measures with BLE live. |
 | A14.4 Android AP-routing proof | ⏳ **partial by design**: the binder-alone/shim-alone matrix needs app UI that arrives in M4 (recorded in the plan); the shim-half phone-browser check was pending user observation at sitting close. |
 | Board-found defects (all fixed + committed, `5864bb8` + follow-ups) | sys_evt stack 2304→4096; httpd stack 4 KB→8 KB (TLS-trample LoadProhibited); WS fan-out moved off the event loop onto the ws_push task (3072→4096 — the lwip send path runs there); **IDF v6 never calls the ws URI handler on the handshake GET** — open path moved to `ws_post_handshake_cb`; ghost WS clients purged via the httpd `close_fn`. |
+
+## M3 exit gate (F10.10, A6.7, A8.4, V3a.1) — ⏳ the sitting is owed
+
+All 24 board-free M3 tasks are done (host 21/21, app 225/225, both images build
+with NimBLE). These four rows are the whole remainder, and they are **one
+sitting** ([§12.6 rule 7](design/12-task-planning-notes.md)) in this order —
+V3a.1 last, because it needs everything else running.
+
+Flash: `idf.py -B build/heltec-v3 '-DSDKCONFIG=sdkconfig.heltec-v3' -p COMx flash monitor`
+(ESP-IDF PowerShell; quote args containing `=` or `.`).
+
+| Check | Result |
+| --- | --- |
+| **F10.10** advertises with the §2 scan-response blob (verify against the byte tables with a BLE scanner app) | ⏳ |
+| **F10.10** a phone bonds via the passkey **shown on the real OLED** — F11a's whole output proving itself in one glance | ⏳ |
+| **F10.10** an unauthenticated `wifi_config` write from an unbonded central is rejected | ⏳ |
+| **F10.10** bonds survive a reboot; forget-all (`device_control` op 8) clears them | ⏳ |
+| **F10.10** record the negotiated ATT MTU and any OEM oddity, with the phone's OEM + Android version | ⏳ |
+| **A6.7** the scan list shows the blob-decorated entry (`pit … °F · … h … m`) before connecting | ⏳ |
+| **A6.7** `live_state` notifications arrive at the sample cadence; `control(set_units)` round-trips `ok` | ⏳ |
+| **A6.7** kill Wi-Fi on the phone → the ConnectionManager race falls through to the BLE lane, degraded-capability notice surfaces | ⏳ |
+| **A8.4** the wizard provisions a **working STA connection entirely over BLE** | ✅ 2026-07-22 — `net_status up ip=10.50.50.38 ssid=Home_WiFi` over BLE, then a real `GET /api/v1/status` → **200** from the phone, 4.9 s from config write to verified. The exit gate's first clause. (The full A8.4 row still needs the factory-reset start and the wrong-password branch.) |
+| **A8.4** factory-reset (10 s PRG), run the wizard, **enter a wrong Wi-Fi password first**, recover over the still-connected BLE link, correct it, finish on the **real home network** | ⏳ |
+| **A8.4** closes F8.8's deferred real-credential STA join — the row M2 deferred to exactly this flow | ⏳ |
+| **A8.4** with STA genuinely up: `smokebridge.local` and `dns-sd -B _smokebridge._tcp` from a LAN machine (the mDNS-from-LAN rider) | ⏳ |
+| **A8.4** the hardware is never touched between factory reset and STA-up except to hold PRG at the start | ⏳ |
+| **V3a.1** OLED I²C error count with BLE active, ≥ 10 min (the V1.4 method) | ⏳ **not measurable in the product image** — M3's panel is dark except while a passkey is showing (F11a scope), so there is no sustained I²C traffic to count errors against, and `app_ui` has no error counter. Either re-run the V1.4 bench image with BLE enabled, or defer to M5/F11b when the display is always on. Recorded rather than silently ticked. |
+| **V3a.1** LoRa RX cadence unaffected with BLE advertising **and** a WebSocket client streaming | ✅ 2026-07-22 — 165 s soak with a phone bonded+connected over BLE, a WebSocket client streaming, and STA up: **5 packets, one per ~33 s**, `last_packet_s_ago` cycling 7→23 s. Sub-GHz is independent of the 2.4 GHz contention, confirmed rather than assumed. A separate 111 s run saw samples at 0/20/50/80/111 s — steady 30 s cadence through an interleaved HTTP request. |
+| **V3a.1** free heap with AP + NimBLE + httpd + both LittleFS mounts — closes F9.13's provisional | ❌ **FAILS THE 150 KB TARGET.** Measured with STA up + NimBLE bonded/connected + httpd + a live WebSocket + LoRa RX: `free_heap` steady **≈ 90.5 KB**, `min_free_heap` **80,116 B = 78.2 KB**. Stable over the window (no leak — free_heap moved < 0.6 KB across 165 s), so this is a **level** problem, not a growth one. F9.13's provisional 180.7 KB is superseded: NimBLE's real cost here is ≈ 90–100 KB against the [01 §1.4](design/01-hardware.md) allowance of 35–45 KB. **This is the design conversation the plan requires before M4**, not a bench tuning exercise — see the open question below. |
+
+### Open design question — the heap target (raised by V3a.1, 2026-07-22)
+
+The 150 KB target is missed by roughly half. The plan
+([M3](tasks/M3-ble-and-provisioning.md), [M2–M6](tasks/M2-M6-outline.md)) is explicit that this is a
+design conversation held **before M4**, and that shrinking things ad hoc at the bench is not the
+task. Stating the options rather than picking one:
+
+1. **The target is wrong.** 150 KB was set in [01 §1.4](design/01-hardware.md) against an estimated
+   NimBLE cost of 35–45 KB. The measured cost is roughly double. 78 KB of headroom on a device that
+   is stable, leak-free, and doing everything it will ever do may simply be *fine* — the number to
+   defend is "does it survive a 24 h cook", which is M6's V3 soak.
+2. **Buffer counts.** `CONFIG_BT_NIMBLE_MSYS1_BLOCK_COUNT`, the Wi-Fi RX/TX buffers already trimmed
+   in `sdkconfig.defaults`, and LittleFS cache sizes are all levers.
+3. **Concurrency caps.** 2 WebSocket clients and 4 httpd sockets each cost real RAM.
+
+**Nothing in M4 depends on this** — M4 is Flutter-side and consumes no device heap. M5 (F12/F13)
+and M6's soak do. The decision is owed before M5, and the 24 h soak (V3) is what should settle it.
+
+**Bring-up already done 2026-07-22** (firmware flashed to COM5, debug APK
+installed on the test phone), with one board-found defect fixed before the
+sitting proper:
+
+| Check | Result |
+| --- | --- |
+| Firmware boots with NimBLE | ✅ `boot complete: 16/16 steps`; `app_ble: NimBLE up: SmokeBridge-8274, 0 bond(s) stored` |
+| F11a.5 panel bring-up on the real OLED | ✅ `app_ui: display up: SSD1306 @400 kHz, passkey overlay only (M3)` — the V1.4 rail-before-bus order works in the product |
+| §2 advertising interval policy | ✅ `adv_itvl_min/max=400` = 250 ms — the fast window for 60 s after boot, as specified |
+| Task stacks | ✅ `32256 B declared across 9 tasks` — the renegotiated 32 KB budget |
+| **F10.10** bond via the passkey on the real OLED | ✅ Android reports `le_authenticated: T`, `ble_enc_key_size: 16` — an **MITM-authenticated** LTK, not Just Works. The §3 security profile and F11a's passkey overlay both prove out in one observation |
+| **A6.4** reconnect to a bonded bridge skips pairing | ✅ Cold app start → tap the bridge → straight through to the mode choice, **no passkey prompt** |
+| **A6.6** no location prompt | ✅ `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` granted `USER_SET`; `ACCESS_FINE_LOCATION` never requested — `neverForLocation` holds on Android 16 |
+| **A6.7** blob-decorated scan entry | ✅ `SmokeBridge-8274 · pit 88 °F · 6 h 40 m` rendered **before connecting**, from live LoRa data |
+| **A6.7** negotiated MTU | ✅ `negotiated ATT MTU 247 (chunk 244)` — the full ask; `history_preview` fits a single PDU |
+| **F10.7** Wi-Fi scan over BLE | ✅ 18 APs streamed as 15 correctly-indexed `wifi_scan_result` notifications, rendered in the picker |
+
+**Two board-found defects, both fixed and re-verified:**
+
+| Defect | Detail |
+| --- | --- |
+| **Event-bus subscribers silently overwrote each other** (firmware) | `bridge_event_handler_register` routed every subscriber through the same `guarded_trampoline` function pointer, and `esp_event_handler_register` de-duplicates by (base, id, function) — so **the second component to subscribe to an event replaced the first**, logging only `handler already registered, overwriting`. Latent since M0; M3 made it bite, because `app_ble` subscribes to SAMPLE/ALARM/NET and would have displaced `app_api`'s WebSocket fan-out (the live push F9.12 verified). Fixed with `esp_event_handler_instance_register`, which permits the same function with different args. Re-flashed: **0 warnings**. |
+| **`RadioGroup` painted nothing** (app) | The network picker rendered a **completely blank screen — AppBar included** — with **no exception logged** and every build method completing normally (instrumentation confirmed `NET build n=16 scanning=false` on a black screen). Bisected on hardware to Flutter's `RadioGroup`/`RadioListTile` (new in 3.32); replacing it with plain `ListTile`s renders correctly. **No unit test could have caught this** — `RadioGroup` renders fine under `flutter test`; only the device showed it. Recorded in the code at the call site so it is not reintroduced. |
+| **The handoff address was discarded** (app) | `net_status` carries the bridge's IP (§5.2) and the wizard threw it away, then probed `smokebridge.local` (Dart's HttpClient resolves through the platform resolver, which does not answer `.local`) and `192.168.4.1` (the AP just left). A healthy bridge read as unreachable. The settled `net_status` address is now the known-address lane, as §5.7's own diagram specifies. |
+| **Re-provisioning did nothing, silently** (firmware) | Two stacked no-ops. `app_net_core_set_mode` returned early when the mode was unchanged — so re-provisioning an STA bridge never re-associated, and pointing it at a *different* SSID persisted the new credentials while keeping the old association. Fixing that exposed the second: `esp_wifi_connect()` on an already-connected station does nothing at all, so the core sat in `STA_CONNECTING` emitting **no event**, and the phone waited out its full 20 s handoff budget in silence. Now a provisioning write forces re-association, tearing the old association down first, with a one-shot flag so the self-inflicted disconnect does not trip the fallback ladder. |
+| **Success looked exactly like failure** (app) | On completion the route navigated home immediately, so "Your bridge is ready" existed for one frame and the user landed on the M2 placeholder reading *"Not connected"*. A successful provision was indistinguishable from a failed one — reported as "doesn't look like it connected" about a run that had just returned HTTP 200. Onboarding no longer navigates itself; the final screen names the address it reached and waits to be dismissed. |
+
+Test phone for the sitting: **Samsung SM-A166U (Galaxy A16 5G), Android 16**,
+over wireless adb. `BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT` are `granted=false` —
+`flutter_blue_plus` requests them at first scan, so **the first tap of "Set up a
+bridge" should raise the system permission prompt**. That prompt appearing (and
+*not* a location prompt) is itself an A6.6 observation worth recording.
+
+**Go in with eyes open on V3a.1.** M2 measured `min_free_heap` ≈ 180.7 KB without
+NimBLE; subtracting the [01 §1.4](design/01-hardware.md) allowance of 35–45 KB
+lands at **136–146 KB, potentially under the 150 KB target** — and M3 also added
+~5.5 KB of task stacks (`ble_push`, and M2's `ws_push`). If the margin is gone,
+that is a **design conversation before M4** (buffer counts, concurrency caps, or
+the target itself), opened as its own recorded question. Shrinking things ad hoc
+at the bench is explicitly not this task.
 
 ## V2 — capture campaign results
 
