@@ -75,10 +75,10 @@ static int cfg_erase_all(void *ctx) {
     return APP_CONFIG_OK;
 }
 
-static const app_config_backend_t g_cfg_backend = {
+static __attribute__((unused)) const app_config_backend_t g_cfg_backend = {
     .get = cfg_get, .set = cfg_set, .erase_all = cfg_erase_all, .ctx = NULL};
 
-static uint32_t cfg_rng(void) { return 7u; }
+static __attribute__((unused)) uint32_t cfg_rng(void) { return 7u; }
 
 /* ── malloc-backed VFS ────────────────────────────────────────────────── */
 

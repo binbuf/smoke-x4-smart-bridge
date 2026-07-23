@@ -7,6 +7,7 @@
 #define COOK_STORE_H
 
 #include "cook_lifecycle.h"
+#include "cook_novelty_log.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 

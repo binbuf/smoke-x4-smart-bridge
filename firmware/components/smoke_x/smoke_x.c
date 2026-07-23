@@ -8,6 +8,7 @@
 #include "app_config_store.h"
 #include "app_lora.h"
 #include "bridge_event.h"
+#include "cook_novelty_log.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "record_gen.h"
@@ -133,10 +134,14 @@ static const smoke_x_ops_t k_ops = {
 
 static void novelty_sink(const smoke_x_novelty_entry_t *e, void *ctx) {
     (void)ctx;
-    /* Persistence (F4.3) attaches to cook_store; until then the entry is
-     * at least in the log for the serial capture flow. */
-    ESP_LOGI(TAG, "novelty[%s] %s: %s",
-             smoke_x_novelty_reason_name(e->reason), e->value, e->payload);
+    const char *reason = smoke_x_novelty_reason_name(e->reason);
+    ESP_LOGI(TAG, "novelty[%s] %s: %s", reason, e->value, e->payload);
+    /* Pinned persistence (F4.3): the evidence survives on /cooks. */
+    (void)cook_novelty_log_append(e->t_ms, reason, e->value, e->payload);
+    if (e->prev_payload[0] != '\0') {
+        (void)cook_novelty_log_append(e->t_ms, reason, "prev",
+                                      e->prev_payload);
+    }
 }
 
 static void on_rx(const char *payload, int8_t rssi, int8_t snr) {

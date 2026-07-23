@@ -143,6 +143,9 @@ int cook_store_init(void) {
         ESP_LOGI(TAG, "/cooks mounted: %u KB used of %u KB",
                  (unsigned)(used / 1024), (unsigned)(total / 1024));
     }
+    if (cook_novelty_log_init(&k_vfs) != COOK_STORE_OK) {
+        ESP_LOGW(TAG, "novelty log init failed — continuing without it");
+    }
     return cook_store_core_init(&k_vfs, on_store_evt, NULL) == COOK_STORE_OK
                ? 0
                : -1;
