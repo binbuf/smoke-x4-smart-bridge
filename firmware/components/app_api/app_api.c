@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "app_api_core.h"
 #include "app_api_ws.h"
@@ -497,11 +498,30 @@ static esp_err_t ws_handler(httpd_req_t *req) {
 
 /* ── registration ──────────────────────────────────────────────────────── */
 
+/* Board-found: the data-frame CLOSE path never runs for a client that
+ * just drops (v6 closes the socket internally), leaving a ghost fd that
+ * every push fails against forever. The server-wide close hook is the
+ * reliable teardown signal. */
+static void on_sock_close(httpd_handle_t hd, int sockfd) {
+    (void)hd;
+    for (int i = 0; i < APP_API_WS_MAX_CLIENTS; i++) {
+        if (s_ws_conns[i].used && s_ws_conns[i].fd == sockfd) {
+            app_api_ws_remove(s_ws_conns[i].slot);
+            s_ws_conns[i].used = false;
+        }
+    }
+    if (app_api_ws_count() == 0) {
+        app_net_set_low_latency(false);
+    }
+    close(sockfd); /* a custom close_fn owns the actual close */
+}
+
 int app_api_init(void) {
     if (app_api_core_init(&k_ops) != 0) {
         return -1;
     }
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
+    cfg.close_fn = on_sock_close;
     cfg.server_port = 80;
     cfg.max_open_sockets = 7; /* the 06 §6.1 cap, stated and enforced */
     cfg.uri_match_fn = httpd_uri_match_wildcard;
