@@ -102,6 +102,17 @@ target_include_directories(test_cook_ring_lifecycle PRIVATE
 )
 add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
 
+# Wi-Fi mode selection and STA supervision (F8.1–F8.3).
+add_executable(test_app_net
+    test_app_net.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
+)
+target_include_directories(test_app_net PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+)
+add_test(NAME app_net COMMAND test_app_net)
+
 # The parser against the whole committed capture corpus, real and
 # adversarial (F3.8, T4.3).
 add_executable(test_lora_corpus
