@@ -102,6 +102,21 @@ target_include_directories(test_cook_ring_lifecycle PRIVATE
 )
 add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
 
+# Clock arbitration, the named back-patch case, monotonic floor (F6).
+add_executable(test_app_time
+    test_app_time.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/app_time_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+)
+target_include_directories(test_app_time PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME app_time COMMAND test_app_time)
+
 # Raw packet ring and novelty seen-set (F4.1/F4.2).
 add_executable(test_smoke_x_novelty
     test_smoke_x_novelty.c
