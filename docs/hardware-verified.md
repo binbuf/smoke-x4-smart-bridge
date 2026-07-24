@@ -535,3 +535,32 @@ and drop the numbers here.
 | App still showing live data (no crash screen, no stale-address fatal) | ⏳ |
 | Sample count consistent with elapsed (no silent drop-out) | ⏳ |
 | Any coredump present (a panic to review) | ⏳ |
+
+## Reflash-exposed boot crashes (found + fixed 2026-07-23)
+
+Flashing the power-log image (`b9c791e`) rebooted a board that had been up for a
+day and surfaced two **pre-existing latent boot-time crashes** — real for every
+user's board, not artifacts of the new feature. Both were decoded from the
+coredump partition (`esp-coredump info_corefile`), fixed, and verified by six
+consecutive clean boots. The power log itself made the sequence legible: its boot
+markers read `poweron / panic / panic / … / poweron ×6` — the panics stop exactly
+at the second fix.
+
+1. **`app_net` null-deref boot race** (`71952ef`). `esp_wifi` raises
+   `WIFI_EVENT_AP_START` the instant the softAP comes up (~987 ms), before
+   `app_net_core_init` sets `s_ops` on some boots → `s_ops->publish` derefs offset
+   0x10 off null (`excvaddr 0x10`). Panicked twice before the third boot won. The
+   event handlers now no-op until the core is initialised. Regression test verified
+   to segfault (exit 139) without the guards.
+
+2. **`app_ui` handler over the 5 ms budget** (`19c88ec`). Once the deref was fixed,
+   the next boot tripped the F1.3 guard: `app_ui.alarm` measured at **17 ms**.
+   `ui_task` held `s_lock` across two NVS config reads, and NVS shares the flash bus
+   with LittleFS (cook + power log) — under boot contention a read blocks ~17 ms, so
+   the event-loop handlers waiting on that lock blew their budget. Fixed by reading
+   config before taking the lock; verified on the board (six clean `boot complete:
+   16/16`), as it lives in glue the host suite does not compile.
+
+**Net:** the power log paid for itself on day one — it is the forensic record that
+turned "the board sometimes panics at boot" into two decoded, fixed root causes.
+Host suite 26/26; both images build; the 21.7 h cook survived every reflash.
