@@ -118,6 +118,7 @@ add_executable(test_app_api
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_ring.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_novelty_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_power_log.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/app_time_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
@@ -210,6 +211,20 @@ target_include_directories(test_novelty_log PRIVATE
     ${REPO_ROOT}/protocol/gen
 )
 add_test(NAME novelty_log COMMAND test_novelty_log)
+
+# The persisted battery power log: FIFO wrap keeps the newest lines, the
+# boot marker records the reset reason, the line format round-trips
+# (follow-on to F12).
+add_executable(test_power_log
+    test_power_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_power_log.c
+)
+target_include_directories(test_power_log PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME power_log COMMAND test_power_log)
 
 # Radio params, scanner dwell, and the TX guard invariant (F2).
 add_executable(test_app_lora
