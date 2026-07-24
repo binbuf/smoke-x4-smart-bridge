@@ -56,6 +56,30 @@ enums:
     alarm: 5
     phase_change: 6
     auto_detected: 7
+  # F13/M5. The nine device-tier rules of 09 §9.2. The KEY is the JSON
+  # spelling used by /status.alarms[].rule and the WebSocket alarm frame
+  # (06 §6.2, §6.3) — it is generated rather than typed because the same
+  # closed set is otherwise spelled in rules.c, in app_api's emitter, in
+  # the app's rule labels, and in the sim.
+  alarm_rule:
+    smoke_x_alarm: 0
+    target_reached: 1
+    pit_out_of_band: 2
+    pit_crash: 3
+    probe_detached: 4
+    base_lost: 5
+    battery_low: 6
+    storage_low: 7
+    system_fault: 8
+  # 09 §9.2's severity column. Derived from the rule — target_reached is
+  # critical every time it fires — with one exception the table itself
+  # names: battery_low escalates from warning to critical at its second
+  # threshold. Carried on the wire so a client does not have to
+  # reimplement the derivation to colour an icon.
+  alarm_severity:
+    info: 0
+    warning: 1
+    critical: 2
   net_mode: # net_status.mode
     off: 0
     ap: 1
