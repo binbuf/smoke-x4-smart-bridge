@@ -75,7 +75,34 @@ battery reporting is possible.
 | A14.4 Android AP-routing proof | ⏳ **partial by design**: the binder-alone/shim-alone matrix needs app UI that arrives in M4 (recorded in the plan); the shim-half phone-browser check was pending user observation at sitting close. |
 | Board-found defects (all fixed + committed, `5864bb8` + follow-ups) | sys_evt stack 2304→4096; httpd stack 4 KB→8 KB (TLS-trample LoadProhibited); WS fan-out moved off the event loop onto the ws_push task (3072→4096 — the lwip send path runs there); **IDF v6 never calls the ws URI handler on the handshake GET** — open path moved to `ws_post_handshake_cb`; ghost WS clients purged via the httpd `close_fn`. |
 
-## M3 exit gate (F10.10, A6.7, A8.4, V3a.1) — ⏳ the sitting is owed
+## M3 exit gate (F10.10, A6.7, A8.4, V3a.1) — partially closed 2026-07-23
+
+**Update 2026-07-23:** F10.10's unbonded-rejection row and A6.7's `set_units`
+row are now closed on hardware, and one defect was found and fixed in the
+process (`/status.ble`, below). The rows that remain are blocked on inputs
+this session does not have — the Wi-Fi password and a USB cable — rather than
+on work; each says so in its own row.
+
+### `/status.ble` was hardcoded (found 2026-07-23, fixed)
+
+`GET /api/v1/status` reported `{"advertising":false,"connections":0,"bonded":0}`
+from a **string literal** — a shape-complete placeholder from M2 whose comment
+read *"honest degenerate values until M3/M5"*. F10 landed BLE and nobody went
+back, so a bridge with a live bond and an active advertiser reported neither.
+That is worse than an unimplemented field: `"bonded":0` reads as a **lost
+pairing**, and it was about to be recorded as a failure of F10.10's own
+bond-survival row.
+
+Now wired through the `app_api_ops_t` seam to `app_ble_link_status()`
+(`ble_gap_adv_active()`, the connection handle, and the existing
+`app_ble_bond_count()`), with a null-op fallback so a build without BLE still
+reports zeros rather than crashing. Validated against a real link: `connections`
+moved 0 → 1 → 0 across a connect/disconnect, `advertising` inverted with it, and
+an unbonded peer left `bonded` untouched. Host test added.
+
+*(A first reading appeared to show `connections` stuck at 1 after disconnect;
+a longer settle showed it returns to 0 — the probe was impatient, the firmware
+was not wrong.)*
 
 All 24 board-free M3 tasks are done (host 21/21, app 225/225, both images build
 with NimBLE). These four rows are the whole remainder, and they are **one
@@ -89,17 +116,17 @@ Flash: `idf.py -B build/heltec-v3 '-DSDKCONFIG=sdkconfig.heltec-v3' -p COMx flas
 | --- | --- |
 | **F10.10** advertises with the §2 scan-response blob (verify against the byte tables with a BLE scanner app) | ⏳ |
 | **F10.10** a phone bonds via the passkey **shown on the real OLED** — F11a's whole output proving itself in one glance | ⏳ |
-| **F10.10** an unauthenticated `wifi_config` write from an unbonded central is rejected | ⏳ |
-| **F10.10** bonds survive a reboot; forget-all (`device_control` op 8) clears them | ⏳ |
+| **F10.10** an unauthenticated `wifi_config` write from an unbonded central is rejected | ✅ 2026-07-23 — driven from **this PC**, which has never paired with the bridge; the phone could not prove this row because it is bonded, so it only ever exercised the allow path. `device_info` (open) read 40 B as specified; `net_status`, `wifi_config` **and** `device_control` all returned ATT **0x05 Insufficient Authentication**. The `wifi_config` payload was a well-formed 12-byte SSID + 14-byte PSK, so the refusal is about security and not about a parser rejecting garbage. Re-run after a reboot and after a reflash: 4/4 both times |
+| **F10.10** bonds survive a reboot; forget-all (`device_control` op 8) clears them | ⚠️ **half done.** Bonds survive: `"bonded":1` after two reboots and a reflash, with the phone's record still present on its side (`dumpsys bluetooth_manager` shows `SmokeBridge-8274`, transport LE). This was only *provable* after fixing the `/status.ble` stub below — it had been reporting `"bonded":0` on a bridge with a live bond. **Forget-all is still owed**: the only path to it is `device_control` op 8, which is a full factory reset, and that is blocked with A8.4 below |
 | **F10.10** record the negotiated ATT MTU and any OEM oddity, with the phone's OEM + Android version | ⏳ |
 | **A6.7** the scan list shows the blob-decorated entry (`pit … °F · … h … m`) before connecting | ⏳ |
-| **A6.7** `live_state` notifications arrive at the sample cadence; `control(set_units)` round-trips `ok` | ⏳ |
-| **A6.7** kill Wi-Fi on the phone → the ConnectionManager race falls through to the BLE lane, degraded-capability notice surfaces | ⏳ |
+| **A6.7** `live_state` notifications arrive at the sample cadence; `control(set_units)` round-trips `ok` | ✅ 2026-07-23 (set_units) — F → C → readback `C` → F → readback `F`, each `{"ok":true}`. The wire stayed canonical throughout (`units_source: "F"`, values in tenths °F), confirming units are a **display** concern and never a transport one. Note the field is `display_units`; a body naming it `units` returns `ok:true` and changes nothing, which is ordinary merge-patch semantics rather than a defect |
+| **A6.7** kill Wi-Fi on the phone → the ConnectionManager race falls through to the BLE lane, degraded-capability notice surfaces | ⏳ **blocked on the harness, not the work.** `adb` reaches the phone over adb-tls on the same Wi-Fi, so disabling Wi-Fi to force the BLE lane also severs the only channel for driving and observing the phone. Needs a USB cable, or a self-restoring on-device script — deliberately not attempted unattended, since a failed restore strands the phone off the network |
 | **A8.4** the wizard provisions a **working STA connection entirely over BLE** | ✅ 2026-07-22 — `net_status up ip=10.50.50.38 ssid=Home_WiFi` over BLE, then a real `GET /api/v1/status` → **200** from the phone, 4.9 s from config write to verified. The exit gate's first clause. (The full A8.4 row still needs the factory-reset start and the wrong-password branch.) |
-| **A8.4** factory-reset (10 s PRG), run the wizard, **enter a wrong Wi-Fi password first**, recover over the still-connected BLE link, correct it, finish on the **real home network** | ⏳ |
+| **A8.4** factory-reset (10 s PRG), run the wizard, **enter a wrong Wi-Fi password first**, recover over the still-connected BLE link, correct it, finish on the **real home network** | ⏳ **blocked on the owner's Wi-Fi password.** Every branch of this row destroys the stored credential: `apply_pending_cfg` writes the STA SSID/PSK on any STA-mode config, and a factory reset clears them outright. Finishing *on the real home network* therefore requires re-entering the real password, which is the owner's to type. Note the reset itself is **not** the obstacle — `device_control` op 8 does it over BLE, so the 10 s PRG hold is not actually required |
 | **A8.4** closes F8.8's deferred real-credential STA join — the row M2 deferred to exactly this flow | ⏳ |
 | **A8.4** with STA genuinely up: `smokebridge.local` and `dns-sd -B _smokebridge._tcp` from a LAN machine (the mDNS-from-LAN rider) | ⏳ |
-| **A8.4** the hardware is never touched between factory reset and STA-up except to hold PRG at the start | ⏳ |
+| **A8.4** the hardware is never touched between factory reset and STA-up except to hold PRG at the start | ⏳ — and worth re-scoping: `device_control` op 8 performs the reset over BLE, so this row can be run **without touching the hardware at all** |
 | **V3a.1** OLED I²C error count with BLE active, ≥ 10 min (the V1.4 method) | ⏳ **not measurable in the product image** — M3's panel is dark except while a passkey is showing (F11a scope), so there is no sustained I²C traffic to count errors against, and `app_ui` has no error counter. Either re-run the V1.4 bench image with BLE enabled, or defer to M5/F11b when the display is always on. Recorded rather than silently ticked. |
 | **V3a.1** LoRa RX cadence unaffected with BLE advertising **and** a WebSocket client streaming | ✅ 2026-07-22 — 165 s soak with a phone bonded+connected over BLE, a WebSocket client streaming, and STA up: **5 packets, one per ~33 s**, `last_packet_s_ago` cycling 7→23 s. Sub-GHz is independent of the 2.4 GHz contention, confirmed rather than assumed. A separate 111 s run saw samples at 0/20/50/80/111 s — steady 30 s cadence through an interleaved HTTP request. |
 | **V3a.1** free heap with AP + NimBLE + httpd + both LittleFS mounts — closes F9.13's provisional | ❌ **FAILS THE 150 KB TARGET.** Measured with STA up + NimBLE bonded/connected + httpd + a live WebSocket + LoRa RX: `free_heap` steady **≈ 90.5 KB**, `min_free_heap` **80,116 B = 78.2 KB**. Stable over the window (no leak — free_heap moved < 0.6 KB across 165 s), so this is a **level** problem, not a growth one. F9.13's provisional 180.7 KB is superseded: NimBLE's real cost here is ≈ 90–100 KB against the [01 §1.4](design/01-hardware.md) allowance of 35–45 KB. **This is the design conversation the plan requires before M4**, not a bench tuning exercise — see the open question below. |
@@ -236,7 +263,7 @@ Both fixes carry tests verified to fail without them.
 | **A15.5** export a CSV and open it off the phone; it must match the device's `format=csv` for the same range | ✅ `cook-0001-cook-1.csv`, 111,993 B, pulled off the phone and parsed: **1970 lines = 1 header + 1969 samples**, matching the statistics panel exactly; 8 columns on every row; peak 134.8° matching the list's "peak 135°"; **no literal `0` in any temperature column** — sentinels stayed absent rather than becoming fake readings. **Still no share sheet** — the file is written and its path named, and handing it to another app remains owed |
 | **A15.5** record the phone's OEM, Android version, and time to first render | ✅ Samsung SM-A166U, Android 15. First render is immediate; the dashboard then shows a spinner for a few seconds while 15 h of history syncs |
 | **A15.5** the sentinels survive the whole trip | ✅ `battery n/a` rather than 0 %, `Pit mean —` rather than 0 with no probe roled as pit |
-| **A14.4b** binder-on / shim-on in AP mode: does the dashboard route? | ⏳ |
+| **A14.4b** binder-on / shim-on in AP mode: does the dashboard route? | ⏳ **blocked twice over.** (1) The phone must join the bridge's AP, which severs adb-tls — the only channel for driving it — so it needs USB. (2) AP mode is a **one-way door without the owner's Wi-Fi password**: there is no creds-free route back to STA. The BLE `device_control` ops are PAIR/UNPAIR/SESSION_*/SET_TIME/MARK/SET_UNITS/ACK_ALARM/IDENTIFY/REBOOT/FACTORY_RESET — no set-mode — and `POST /config/wifi` with `mode:sta` requires an SSID and overwrites the stored PSK with whatever it is given. Switching to AP unattended would have stranded the bridge off the owner's network |
 | **A14.4b** binder-off / shim-on | ⏳ |
 | **A14.4b** binder-on / shim-off | ⏳ |
 | **A14.4b** closes A14.4's *partial by design* row above (§5.8.1 predicts neither mitigation alone is sufficient — confirm or correct it) | ⏳ |
