@@ -43,6 +43,11 @@ dependencies:
   # Notifications / foreground service
   flutter_local_notifications: ^22.1.0
   flutter_foreground_task: ^10.0.0
+  # Filesystem — drift's on-device file lives in the documents directory.
+  # Not in the §8.2 table because §8.2 lists the interesting choices;
+  # this pair is what `drift` needs to point at a real file on Android.
+  path_provider: ^2.1.5
+  path: ^1.9.1
   # Prefs / logging / routing
   shared_preferences: ^2.5.5
   logger: ^2.7.0

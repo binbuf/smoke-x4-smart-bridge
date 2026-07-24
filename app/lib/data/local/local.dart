@@ -5,3 +5,4 @@
 library;
 
 export 'database.dart';
+export 'open_database.dart';

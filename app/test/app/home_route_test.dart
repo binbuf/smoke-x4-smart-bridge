@@ -1,27 +1,32 @@
-/// A1.2 — the placeholder home route renders under BOTH themes.
+/// A9.5/A9.6 — the home route is the dashboard now.
+///
+/// A1.2's `HomePlaceholderScreen` is gone: `/` builds [DashboardRoute],
+/// which decides whether this phone has ever met a bridge and routes to
+/// the wizard if not. Mounted with no [AppEnv] installed — the case a
+/// bare widget test hits — it must render its chrome and its connecting
+/// state rather than throwing, which is what this file pins.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/app/router.dart';
 import 'package:smoke_bridge/app/theme.dart';
+import 'package:smoke_bridge/features/dashboard/dashboard_route.dart';
 
 Widget _appWith(ThemeData theme) =>
     MaterialApp.router(theme: theme, routerConfig: createRouter());
 
-void _expectHomePlaceholder(WidgetTester tester, Brightness brightness) {
-  expect(find.byType(HomePlaceholderScreen), findsOneWidget);
-  // App name.
+Future<void> _expectDashboardChrome(
+  WidgetTester tester,
+  Brightness brightness,
+) async {
+  expect(find.byType(DashboardRoute), findsOneWidget);
   expect(find.text('Smoke Bridge'), findsOneWidget);
-  // Connection placeholder.
-  expect(find.text('Not connected'), findsOneWidget);
-  // The two headline temperature slots, in the theme's display type.
-  expect(find.text('––°'), findsNWidgets(2));
-  final context = tester.element(find.byType(HomePlaceholderScreen));
-  final theme = Theme.of(context);
-  expect(theme.brightness, brightness);
-  final headline = tester.widget<Text>(find.text('––°').first);
-  expect(headline.style?.fontSize, SmokeTheme.headlineTemp.fontSize);
+  // The two doors out of the dashboard (A11, A12).
+  expect(find.byKey(const Key('nav-sessions')), findsOneWidget);
+  expect(find.byKey(const Key('nav-settings')), findsOneWidget);
+  final context = tester.element(find.byType(DashboardRoute));
+  expect(Theme.of(context).brightness, brightness);
 }
 
 void main() {
@@ -29,14 +34,23 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(_appWith(SmokeTheme.dark));
-    await tester.pumpAndSettle();
-    _expectHomePlaceholder(tester, Brightness.dark);
+    await tester.pump();
+    await _expectDashboardChrome(tester, Brightness.dark);
   });
 
   testWidgets('home route renders under the light theme', (tester) async {
     await tester.pumpWidget(_appWith(SmokeTheme.light));
-    await tester.pumpAndSettle();
-    _expectHomePlaceholder(tester, Brightness.light);
+    await tester.pump();
+    await _expectDashboardChrome(tester, Brightness.light);
+  });
+
+  testWidgets('with no environment it waits rather than throwing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_appWith(SmokeTheme.dark));
+    await tester.pump();
+    expect(find.byKey(const Key('dashboard-connecting')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('themes demand generous touch targets', (tester) async {
@@ -44,5 +58,10 @@ void main() {
       expect(theme.materialTapTargetSize, MaterialTapTargetSize.padded);
       expect(theme.visualDensity, VisualDensity.standard);
     }
+  });
+
+  test('the headline temperature style is still the huge one', () {
+    // A9.2 relies on this: "the two numbers that matter are enormous".
+    expect(SmokeTheme.dark.textTheme.displayLarge?.fontSize, 88);
   });
 }

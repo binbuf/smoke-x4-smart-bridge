@@ -41,6 +41,11 @@ abstract class Probe with _$Probe {
     /// Tenths °F; null = no target set.
     int? targetF10,
     @Default(false) bool alarmEnabled,
+
+    /// The device-tier alarm band (09 §9.2 `pit_out_of_band`), tenths °F.
+    /// Null = no band configured; the chart draws no shading for it.
+    int? alarmMinF10,
+    int? alarmMaxF10,
   }) = _Probe;
 }
 
@@ -131,6 +136,14 @@ abstract class LiveState with _$LiveState {
     required List<int?> tempsF10,
     @Default(false) bool billows,
     @Default(<Sample>[]) List<Sample> recent,
+
+    /// The probe *configuration* the device is running with — names,
+    /// roles, targets, alarm bands. `GET /api/v1/live` carries it
+    /// (06 §6.2) so one call answers both "what is it reading" and "what
+    /// is it called"; transports that cannot know (BLE's 16-byte
+    /// `live_state`) leave it empty and the UI falls back to the
+    /// device's own convention: jack 1 is the pit.
+    @Default(<Probe>[]) List<Probe> probes,
   }) = _LiveState;
 }
 

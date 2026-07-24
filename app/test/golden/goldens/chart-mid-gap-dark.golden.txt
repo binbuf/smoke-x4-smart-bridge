@@ -1,0 +1,20 @@
+[chart-gestures]
+  chart x 0..14370 y 50..269 touch ours
+    bar color #ffd95926 width 3.0 dash solid spots 34 from 0 to 3600
+    bar color #ffd95926 width 3.0 dash solid spots 85 from 5400 to 14370
+    bar color #ff9085e9 width 2.0 dash [8, 4] spots 34 from 0 to 3600
+    bar color #ff9085e9 width 2.0 dash [8, 4] spots 85 from 5400 to 14370
+    target y 250.0 #8cd95926
+    target y 203.0 #8c9085e9
+    band 225.0..275.0
+    text "2:30"
+    text "3:30"
+    text "4:30"
+    text "5:30"
+    text "6:29"
+    text "50"
+    text "100"
+    text "150"
+    text "200"
+    text "250"
+    text "269"

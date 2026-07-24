@@ -16,7 +16,9 @@ mixin _$Probe {
 
 /// 1..4 — the physical jack on the base station.
  int get n; String get name; ProbeRole get role;/// Tenths °F; null = no target set.
- int? get targetF10; bool get alarmEnabled;
+ int? get targetF10; bool get alarmEnabled;/// The device-tier alarm band (09 §9.2 `pit_out_of_band`), tenths °F.
+/// Null = no band configured; the chart draws no shading for it.
+ int? get alarmMinF10; int? get alarmMaxF10;
 /// Create a copy of Probe
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,16 +29,16 @@ $ProbeCopyWith<Probe> get copyWith => _$ProbeCopyWithImpl<Probe>(this as Probe, 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Probe&&(identical(other.n, n) || other.n == n)&&(identical(other.name, name) || other.name == name)&&(identical(other.role, role) || other.role == role)&&(identical(other.targetF10, targetF10) || other.targetF10 == targetF10)&&(identical(other.alarmEnabled, alarmEnabled) || other.alarmEnabled == alarmEnabled));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Probe&&(identical(other.n, n) || other.n == n)&&(identical(other.name, name) || other.name == name)&&(identical(other.role, role) || other.role == role)&&(identical(other.targetF10, targetF10) || other.targetF10 == targetF10)&&(identical(other.alarmEnabled, alarmEnabled) || other.alarmEnabled == alarmEnabled)&&(identical(other.alarmMinF10, alarmMinF10) || other.alarmMinF10 == alarmMinF10)&&(identical(other.alarmMaxF10, alarmMaxF10) || other.alarmMaxF10 == alarmMaxF10));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,n,name,role,targetF10,alarmEnabled);
+int get hashCode => Object.hash(runtimeType,n,name,role,targetF10,alarmEnabled,alarmMinF10,alarmMaxF10);
 
 @override
 String toString() {
-  return 'Probe(n: $n, name: $name, role: $role, targetF10: $targetF10, alarmEnabled: $alarmEnabled)';
+  return 'Probe(n: $n, name: $name, role: $role, targetF10: $targetF10, alarmEnabled: $alarmEnabled, alarmMinF10: $alarmMinF10, alarmMaxF10: $alarmMaxF10)';
 }
 
 
@@ -47,7 +49,7 @@ abstract mixin class $ProbeCopyWith<$Res>  {
   factory $ProbeCopyWith(Probe value, $Res Function(Probe) _then) = _$ProbeCopyWithImpl;
 @useResult
 $Res call({
- int n, String name, ProbeRole role, int? targetF10, bool alarmEnabled
+ int n, String name, ProbeRole role, int? targetF10, bool alarmEnabled, int? alarmMinF10, int? alarmMaxF10
 });
 
 
@@ -64,14 +66,16 @@ class _$ProbeCopyWithImpl<$Res>
 
 /// Create a copy of Probe
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? n = null,Object? name = null,Object? role = null,Object? targetF10 = freezed,Object? alarmEnabled = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? n = null,Object? name = null,Object? role = null,Object? targetF10 = freezed,Object? alarmEnabled = null,Object? alarmMinF10 = freezed,Object? alarmMaxF10 = freezed,}) {
   return _then(_self.copyWith(
 n: null == n ? _self.n : n // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as ProbeRole,targetF10: freezed == targetF10 ? _self.targetF10 : targetF10 // ignore: cast_nullable_to_non_nullable
 as int?,alarmEnabled: null == alarmEnabled ? _self.alarmEnabled : alarmEnabled // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,alarmMinF10: freezed == alarmMinF10 ? _self.alarmMinF10 : alarmMinF10 // ignore: cast_nullable_to_non_nullable
+as int?,alarmMaxF10: freezed == alarmMaxF10 ? _self.alarmMaxF10 : alarmMaxF10 // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -156,10 +160,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int n,  String name,  ProbeRole role,  int? targetF10,  bool alarmEnabled)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int n,  String name,  ProbeRole role,  int? targetF10,  bool alarmEnabled,  int? alarmMinF10,  int? alarmMaxF10)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Probe() when $default != null:
-return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled);case _:
+return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled,_that.alarmMinF10,_that.alarmMaxF10);case _:
   return orElse();
 
 }
@@ -177,10 +181,10 @@ return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int n,  String name,  ProbeRole role,  int? targetF10,  bool alarmEnabled)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int n,  String name,  ProbeRole role,  int? targetF10,  bool alarmEnabled,  int? alarmMinF10,  int? alarmMaxF10)  $default,) {final _that = this;
 switch (_that) {
 case _Probe():
-return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled);case _:
+return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled,_that.alarmMinF10,_that.alarmMaxF10);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -197,10 +201,10 @@ return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int n,  String name,  ProbeRole role,  int? targetF10,  bool alarmEnabled)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int n,  String name,  ProbeRole role,  int? targetF10,  bool alarmEnabled,  int? alarmMinF10,  int? alarmMaxF10)?  $default,) {final _that = this;
 switch (_that) {
 case _Probe() when $default != null:
-return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled);case _:
+return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled,_that.alarmMinF10,_that.alarmMaxF10);case _:
   return null;
 
 }
@@ -212,8 +216,8 @@ return $default(_that.n,_that.name,_that.role,_that.targetF10,_that.alarmEnabled
 
 
 class _Probe implements Probe {
-  const _Probe({required this.n, this.name = '', this.role = ProbeRole.unused, this.targetF10, this.alarmEnabled = false});
-
+  const _Probe({required this.n, this.name = '', this.role = ProbeRole.unused, this.targetF10, this.alarmEnabled = false, this.alarmMinF10, this.alarmMaxF10});
+  
 
 /// 1..4 — the physical jack on the base station.
 @override final  int n;
@@ -222,6 +226,10 @@ class _Probe implements Probe {
 /// Tenths °F; null = no target set.
 @override final  int? targetF10;
 @override@JsonKey() final  bool alarmEnabled;
+/// The device-tier alarm band (09 §9.2 `pit_out_of_band`), tenths °F.
+/// Null = no band configured; the chart draws no shading for it.
+@override final  int? alarmMinF10;
+@override final  int? alarmMaxF10;
 
 /// Create a copy of Probe
 /// with the given fields replaced by the non-null parameter values.
@@ -233,16 +241,16 @@ _$ProbeCopyWith<_Probe> get copyWith => __$ProbeCopyWithImpl<_Probe>(this, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Probe&&(identical(other.n, n) || other.n == n)&&(identical(other.name, name) || other.name == name)&&(identical(other.role, role) || other.role == role)&&(identical(other.targetF10, targetF10) || other.targetF10 == targetF10)&&(identical(other.alarmEnabled, alarmEnabled) || other.alarmEnabled == alarmEnabled));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Probe&&(identical(other.n, n) || other.n == n)&&(identical(other.name, name) || other.name == name)&&(identical(other.role, role) || other.role == role)&&(identical(other.targetF10, targetF10) || other.targetF10 == targetF10)&&(identical(other.alarmEnabled, alarmEnabled) || other.alarmEnabled == alarmEnabled)&&(identical(other.alarmMinF10, alarmMinF10) || other.alarmMinF10 == alarmMinF10)&&(identical(other.alarmMaxF10, alarmMaxF10) || other.alarmMaxF10 == alarmMaxF10));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,n,name,role,targetF10,alarmEnabled);
+int get hashCode => Object.hash(runtimeType,n,name,role,targetF10,alarmEnabled,alarmMinF10,alarmMaxF10);
 
 @override
 String toString() {
-  return 'Probe(n: $n, name: $name, role: $role, targetF10: $targetF10, alarmEnabled: $alarmEnabled)';
+  return 'Probe(n: $n, name: $name, role: $role, targetF10: $targetF10, alarmEnabled: $alarmEnabled, alarmMinF10: $alarmMinF10, alarmMaxF10: $alarmMaxF10)';
 }
 
 
@@ -253,7 +261,7 @@ abstract mixin class _$ProbeCopyWith<$Res> implements $ProbeCopyWith<$Res> {
   factory _$ProbeCopyWith(_Probe value, $Res Function(_Probe) _then) = __$ProbeCopyWithImpl;
 @override @useResult
 $Res call({
- int n, String name, ProbeRole role, int? targetF10, bool alarmEnabled
+ int n, String name, ProbeRole role, int? targetF10, bool alarmEnabled, int? alarmMinF10, int? alarmMaxF10
 });
 
 
@@ -270,14 +278,16 @@ class __$ProbeCopyWithImpl<$Res>
 
 /// Create a copy of Probe
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? n = null,Object? name = null,Object? role = null,Object? targetF10 = freezed,Object? alarmEnabled = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? n = null,Object? name = null,Object? role = null,Object? targetF10 = freezed,Object? alarmEnabled = null,Object? alarmMinF10 = freezed,Object? alarmMaxF10 = freezed,}) {
   return _then(_Probe(
 n: null == n ? _self.n : n // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as ProbeRole,targetF10: freezed == targetF10 ? _self.targetF10 : targetF10 // ignore: cast_nullable_to_non_nullable
 as int?,alarmEnabled: null == alarmEnabled ? _self.alarmEnabled : alarmEnabled // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,alarmMinF10: freezed == alarmMinF10 ? _self.alarmMinF10 : alarmMinF10 // ignore: cast_nullable_to_non_nullable
+as int?,alarmMaxF10: freezed == alarmMaxF10 ? _self.alarmMaxF10 : alarmMaxF10 // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -488,7 +498,7 @@ return $default(_that.t,_that.tempsF10,_that.billows,_that.newAlarm,_that.source
 
 class _Sample implements Sample {
   const _Sample({required this.t, required final  List<int?> tempsF10, this.billows = false, this.newAlarm = false, this.sourceCelsius = false, this.rssi = 0}): _tempsF10 = tempsF10;
-
+  
 
 /// Seconds since session start (monotonic, never wall-clock).
 @override final  int t;
@@ -776,7 +786,7 @@ return $default(_that.id,_that.name,_that.startedUnixMs,_that.endedUnixMs,_that.
 
 class _CookSession implements CookSession {
   const _CookSession({required this.id, this.name = '', this.startedUnixMs, this.endedUnixMs, this.samplePeriodS = 30, this.sampleCount = 0, this.numProbes = 4, final  List<Probe> probes = const <Probe>[], this.closed = false, this.pinned = false}): _probes = probes;
-
+  
 
 @override final  int id;
 @override@JsonKey() final  String name;
@@ -1064,7 +1074,7 @@ return $default(_that.t,_that.kind,_that.probe,_that.text);case _:
 
 class _Mark implements Mark {
   const _Mark({required this.t, required this.kind, this.probe = 0, this.text = ''});
-
+  
 
 /// Seconds since session start.
 @override final  int t;
@@ -1336,7 +1346,7 @@ return $default(_that.id,_that.rule,_that.probe,_that.valueF10,_that.sinceUnixMs
 
 class _Alarm implements Alarm {
   const _Alarm({required this.id, required this.rule, this.probe = 0, this.valueF10, this.sinceUnixMs, this.severity = AlarmSeverity.warning, this.acked = false});
-
+  
 
 @override final  int id;
 @override final  String rule;
@@ -1416,7 +1426,13 @@ mixin _$LiveState {
 /// Seconds into the active session; 0 when none.
  int get t;/// Wall clock, when the bridge knows it.
  int? get unixMs;/// Length 4; tenths °F; null = detached — never 0.
- List<int?> get tempsF10; bool get billows; List<Sample> get recent;
+ List<int?> get tempsF10; bool get billows; List<Sample> get recent;/// The probe *configuration* the device is running with — names,
+/// roles, targets, alarm bands. `GET /api/v1/live` carries it
+/// (06 §6.2) so one call answers both "what is it reading" and "what
+/// is it called"; transports that cannot know (BLE's 16-byte
+/// `live_state`) leave it empty and the UI falls back to the
+/// device's own convention: jack 1 is the pit.
+ List<Probe> get probes;
 /// Create a copy of LiveState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1427,16 +1443,16 @@ $LiveStateCopyWith<LiveState> get copyWith => _$LiveStateCopyWithImpl<LiveState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveState&&(identical(other.t, t) || other.t == t)&&(identical(other.unixMs, unixMs) || other.unixMs == unixMs)&&const DeepCollectionEquality().equals(other.tempsF10, tempsF10)&&(identical(other.billows, billows) || other.billows == billows)&&const DeepCollectionEquality().equals(other.recent, recent));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveState&&(identical(other.t, t) || other.t == t)&&(identical(other.unixMs, unixMs) || other.unixMs == unixMs)&&const DeepCollectionEquality().equals(other.tempsF10, tempsF10)&&(identical(other.billows, billows) || other.billows == billows)&&const DeepCollectionEquality().equals(other.recent, recent)&&const DeepCollectionEquality().equals(other.probes, probes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,t,unixMs,const DeepCollectionEquality().hash(tempsF10),billows,const DeepCollectionEquality().hash(recent));
+int get hashCode => Object.hash(runtimeType,t,unixMs,const DeepCollectionEquality().hash(tempsF10),billows,const DeepCollectionEquality().hash(recent),const DeepCollectionEquality().hash(probes));
 
 @override
 String toString() {
-  return 'LiveState(t: $t, unixMs: $unixMs, tempsF10: $tempsF10, billows: $billows, recent: $recent)';
+  return 'LiveState(t: $t, unixMs: $unixMs, tempsF10: $tempsF10, billows: $billows, recent: $recent, probes: $probes)';
 }
 
 
@@ -1447,7 +1463,7 @@ abstract mixin class $LiveStateCopyWith<$Res>  {
   factory $LiveStateCopyWith(LiveState value, $Res Function(LiveState) _then) = _$LiveStateCopyWithImpl;
 @useResult
 $Res call({
- int t, int? unixMs, List<int?> tempsF10, bool billows, List<Sample> recent
+ int t, int? unixMs, List<int?> tempsF10, bool billows, List<Sample> recent, List<Probe> probes
 });
 
 
@@ -1464,14 +1480,15 @@ class _$LiveStateCopyWithImpl<$Res>
 
 /// Create a copy of LiveState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? t = null,Object? unixMs = freezed,Object? tempsF10 = null,Object? billows = null,Object? recent = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? t = null,Object? unixMs = freezed,Object? tempsF10 = null,Object? billows = null,Object? recent = null,Object? probes = null,}) {
   return _then(_self.copyWith(
 t: null == t ? _self.t : t // ignore: cast_nullable_to_non_nullable
 as int,unixMs: freezed == unixMs ? _self.unixMs : unixMs // ignore: cast_nullable_to_non_nullable
 as int?,tempsF10: null == tempsF10 ? _self.tempsF10 : tempsF10 // ignore: cast_nullable_to_non_nullable
 as List<int?>,billows: null == billows ? _self.billows : billows // ignore: cast_nullable_to_non_nullable
 as bool,recent: null == recent ? _self.recent : recent // ignore: cast_nullable_to_non_nullable
-as List<Sample>,
+as List<Sample>,probes: null == probes ? _self.probes : probes // ignore: cast_nullable_to_non_nullable
+as List<Probe>,
   ));
 }
 
@@ -1556,10 +1573,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int t,  int? unixMs,  List<int?> tempsF10,  bool billows,  List<Sample> recent)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int t,  int? unixMs,  List<int?> tempsF10,  bool billows,  List<Sample> recent,  List<Probe> probes)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _LiveState() when $default != null:
-return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent);case _:
+return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent,_that.probes);case _:
   return orElse();
 
 }
@@ -1577,10 +1594,10 @@ return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent);
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int t,  int? unixMs,  List<int?> tempsF10,  bool billows,  List<Sample> recent)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int t,  int? unixMs,  List<int?> tempsF10,  bool billows,  List<Sample> recent,  List<Probe> probes)  $default,) {final _that = this;
 switch (_that) {
 case _LiveState():
-return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent);case _:
+return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent,_that.probes);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1597,10 +1614,10 @@ return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent);
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int t,  int? unixMs,  List<int?> tempsF10,  bool billows,  List<Sample> recent)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int t,  int? unixMs,  List<int?> tempsF10,  bool billows,  List<Sample> recent,  List<Probe> probes)?  $default,) {final _that = this;
 switch (_that) {
 case _LiveState() when $default != null:
-return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent);case _:
+return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent,_that.probes);case _:
   return null;
 
 }
@@ -1612,8 +1629,8 @@ return $default(_that.t,_that.unixMs,_that.tempsF10,_that.billows,_that.recent);
 
 
 class _LiveState implements LiveState {
-  const _LiveState({required this.t, this.unixMs, required final  List<int?> tempsF10, this.billows = false, final  List<Sample> recent = const <Sample>[]}): _tempsF10 = tempsF10,_recent = recent;
-
+  const _LiveState({required this.t, this.unixMs, required final  List<int?> tempsF10, this.billows = false, final  List<Sample> recent = const <Sample>[], final  List<Probe> probes = const <Probe>[]}): _tempsF10 = tempsF10,_recent = recent,_probes = probes;
+  
 
 /// Seconds into the active session; 0 when none.
 @override final  int t;
@@ -1636,6 +1653,25 @@ class _LiveState implements LiveState {
   return EqualUnmodifiableListView(_recent);
 }
 
+/// The probe *configuration* the device is running with — names,
+/// roles, targets, alarm bands. `GET /api/v1/live` carries it
+/// (06 §6.2) so one call answers both "what is it reading" and "what
+/// is it called"; transports that cannot know (BLE's 16-byte
+/// `live_state`) leave it empty and the UI falls back to the
+/// device's own convention: jack 1 is the pit.
+ final  List<Probe> _probes;
+/// The probe *configuration* the device is running with — names,
+/// roles, targets, alarm bands. `GET /api/v1/live` carries it
+/// (06 §6.2) so one call answers both "what is it reading" and "what
+/// is it called"; transports that cannot know (BLE's 16-byte
+/// `live_state`) leave it empty and the UI falls back to the
+/// device's own convention: jack 1 is the pit.
+@override@JsonKey() List<Probe> get probes {
+  if (_probes is EqualUnmodifiableListView) return _probes;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_probes);
+}
+
 
 /// Create a copy of LiveState
 /// with the given fields replaced by the non-null parameter values.
@@ -1647,16 +1683,16 @@ _$LiveStateCopyWith<_LiveState> get copyWith => __$LiveStateCopyWithImpl<_LiveSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LiveState&&(identical(other.t, t) || other.t == t)&&(identical(other.unixMs, unixMs) || other.unixMs == unixMs)&&const DeepCollectionEquality().equals(other._tempsF10, _tempsF10)&&(identical(other.billows, billows) || other.billows == billows)&&const DeepCollectionEquality().equals(other._recent, _recent));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LiveState&&(identical(other.t, t) || other.t == t)&&(identical(other.unixMs, unixMs) || other.unixMs == unixMs)&&const DeepCollectionEquality().equals(other._tempsF10, _tempsF10)&&(identical(other.billows, billows) || other.billows == billows)&&const DeepCollectionEquality().equals(other._recent, _recent)&&const DeepCollectionEquality().equals(other._probes, _probes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,t,unixMs,const DeepCollectionEquality().hash(_tempsF10),billows,const DeepCollectionEquality().hash(_recent));
+int get hashCode => Object.hash(runtimeType,t,unixMs,const DeepCollectionEquality().hash(_tempsF10),billows,const DeepCollectionEquality().hash(_recent),const DeepCollectionEquality().hash(_probes));
 
 @override
 String toString() {
-  return 'LiveState(t: $t, unixMs: $unixMs, tempsF10: $tempsF10, billows: $billows, recent: $recent)';
+  return 'LiveState(t: $t, unixMs: $unixMs, tempsF10: $tempsF10, billows: $billows, recent: $recent, probes: $probes)';
 }
 
 
@@ -1667,7 +1703,7 @@ abstract mixin class _$LiveStateCopyWith<$Res> implements $LiveStateCopyWith<$Re
   factory _$LiveStateCopyWith(_LiveState value, $Res Function(_LiveState) _then) = __$LiveStateCopyWithImpl;
 @override @useResult
 $Res call({
- int t, int? unixMs, List<int?> tempsF10, bool billows, List<Sample> recent
+ int t, int? unixMs, List<int?> tempsF10, bool billows, List<Sample> recent, List<Probe> probes
 });
 
 
@@ -1684,14 +1720,15 @@ class __$LiveStateCopyWithImpl<$Res>
 
 /// Create a copy of LiveState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? t = null,Object? unixMs = freezed,Object? tempsF10 = null,Object? billows = null,Object? recent = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? t = null,Object? unixMs = freezed,Object? tempsF10 = null,Object? billows = null,Object? recent = null,Object? probes = null,}) {
   return _then(_LiveState(
 t: null == t ? _self.t : t // ignore: cast_nullable_to_non_nullable
 as int,unixMs: freezed == unixMs ? _self.unixMs : unixMs // ignore: cast_nullable_to_non_nullable
 as int?,tempsF10: null == tempsF10 ? _self._tempsF10 : tempsF10 // ignore: cast_nullable_to_non_nullable
 as List<int?>,billows: null == billows ? _self.billows : billows // ignore: cast_nullable_to_non_nullable
 as bool,recent: null == recent ? _self._recent : recent // ignore: cast_nullable_to_non_nullable
-as List<Sample>,
+as List<Sample>,probes: null == probes ? _self._probes : probes // ignore: cast_nullable_to_non_nullable
+as List<Probe>,
   ));
 }
 
@@ -1909,7 +1946,7 @@ return $default(_that.deviceId,_that.model,_that.fw,_that.uptimeS,_that.paired,_
 
 class _BridgeStatus implements BridgeStatus {
   const _BridgeStatus({required this.deviceId, this.model = '', this.fw = '', this.uptimeS = 0, this.paired = false, this.numProbes = 0, this.lastPacketSAgo, this.baseLost = false, this.sessionActive = false, this.activeSessionId, this.storageFreePct = 0, this.socPct, this.charging = false, final  List<Alarm> alarms = const <Alarm>[]}): _alarms = alarms;
-
+  
 
 @override final  String deviceId;
 @override@JsonKey() final  String model;

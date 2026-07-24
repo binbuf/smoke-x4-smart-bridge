@@ -140,6 +140,18 @@ class SessionDao extends DatabaseAccessor<AppDatabase> with _$SessionDaoMixin {
         }
       });
 
+  /// The bridge this app last talked to. v1 is single-bridge (D12), so
+  /// "the one row" is the answer — but the schema stays multi-capable and
+  /// this is the only place that assumption is written down.
+  Future<String?> knownBridgeId() async {
+    final rows =
+        await (select(bridges)
+              ..orderBy([(b) => OrderingTerm.desc(b.lastSeenUnixMs)])
+              ..limit(1))
+            .get();
+    return rows.isEmpty ? null : rows.first.id;
+  }
+
   Future<List<CookSession>> allSessions(String bridgeId) async {
     final rows =
         await (select(sessions)
@@ -219,6 +231,81 @@ class SampleDao extends DatabaseAccessor<AppDatabase> with _$SampleDaoMixin {
     return row.read(countExpr) ?? 0;
   }
 
+  /// A11.2 — one aggregate query for the whole sessions list.
+  ///
+  /// The list must never build its rows by loading samples: 54 days of
+  /// retention is ~155,000 rows (08 §8.5), and a per-row `range()` is
+  /// smooth on the sim's single fixture and unusable on a real device
+  /// after two months. SQLite does the arithmetic and hands back one row
+  /// per session.
+  Future<Map<int, SampleSummary>> summaries(String bridgeId) async {
+    final rows = await customSelect(
+      'SELECT session_id, MIN(t) AS min_t, MAX(t) AS max_t, COUNT(*) AS n, '
+      'MAX(MAX(IFNULL(p1, -32768), IFNULL(p2, -32768), '
+      'IFNULL(p3, -32768), IFNULL(p4, -32768))) AS peak '
+      'FROM samples WHERE bridge_id = ? GROUP BY session_id',
+      variables: [Variable<String>(bridgeId)],
+      readsFrom: {samples},
+    ).get();
+    return {
+      for (final r in rows)
+        r.read<int>('session_id'): SampleSummary(
+          sessionId: r.read<int>('session_id'),
+          minT: r.read<int>('min_t'),
+          maxT: r.read<int>('max_t'),
+          count: r.read<int>('n'),
+          // -32768 is the "no reading at all" floor of the aggregate,
+          // never a temperature — it stays null, like every other
+          // absent reading in this codebase.
+          peakF10: switch (r.read<int?>('peak')) {
+            null || -32768 => null,
+            final v => v,
+          },
+        ),
+    };
+  }
+
+  /// The list row's sparkline: bucketed in SQL to ~[points] values, so a
+  /// 54-day cook costs the same as an 18-hour one to draw.
+  Future<List<({int t, double f})>> sparkline(
+    String bridgeId,
+    int sessionId, {
+    int points = 48,
+  }) async {
+    final bounds = await customSelect(
+      'SELECT MIN(t) AS lo, MAX(t) AS hi FROM samples '
+      'WHERE bridge_id = ? AND session_id = ?',
+      variables: [Variable<String>(bridgeId), Variable<int>(sessionId)],
+      readsFrom: {samples},
+    ).getSingleOrNull();
+    final lo = bounds?.read<int?>('lo');
+    final hi = bounds?.read<int?>('hi');
+    if (lo == null || hi == null) {
+      return const [];
+    }
+    final bucket = ((hi - lo) / (points < 2 ? 2 : points)).ceil().clamp(
+      1,
+      1 << 30,
+    );
+    final rows = await customSelect(
+      'SELECT MIN(t) AS t, AVG(COALESCE(p1, p2, p3, p4)) AS v '
+      'FROM samples WHERE bridge_id = ? AND session_id = ? '
+      'AND COALESCE(p1, p2, p3, p4) IS NOT NULL '
+      'GROUP BY t / ? ORDER BY t / ?',
+      variables: [
+        Variable<String>(bridgeId),
+        Variable<int>(sessionId),
+        Variable<int>(bucket),
+        Variable<int>(bucket),
+      ],
+      readsFrom: {samples},
+    ).get();
+    return [
+      for (final r in rows)
+        (t: r.read<int>('t'), f: r.read<double>('v') / 10.0),
+    ];
+  }
+
   Future<List<Sample>> range(
     String bridgeId,
     int sessionId, {
@@ -287,6 +374,27 @@ class MarkDao extends DatabaseAccessor<AppDatabase> with _$MarkDaoMixin {
         )
         .toList();
   }
+}
+
+/// What the sessions list needs per cook, computed in SQL.
+class SampleSummary {
+  const SampleSummary({
+    required this.sessionId,
+    required this.minT,
+    required this.maxT,
+    required this.count,
+    this.peakF10,
+  });
+
+  final int sessionId;
+  final int minT;
+  final int maxT;
+  final int count;
+
+  /// Null when no probe ever reported — never 0.
+  final int? peakF10;
+
+  int get durationS => maxT - minT;
 }
 
 // ── Row ↔ domain mapping ──────────────────────────────────────────────────

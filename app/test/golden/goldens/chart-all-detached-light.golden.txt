@@ -1,0 +1,2 @@
+[chart-empty]
+text "No readings yet"

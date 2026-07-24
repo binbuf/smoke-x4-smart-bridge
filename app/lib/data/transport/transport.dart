@@ -12,3 +12,4 @@ export 'connection_manager.dart';
 export 'discovery.dart';
 export 'http_transport.dart';
 export 'mock_transport.dart';
+export 'nsd_discovery.dart';

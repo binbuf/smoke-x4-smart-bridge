@@ -4,3 +4,5 @@
 /// depend on `data/`, `features/`, or `platform/`.
 /// See design 08 §8.3.
 library;
+
+export 'format.dart';

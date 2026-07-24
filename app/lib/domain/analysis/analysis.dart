@@ -5,6 +5,8 @@
 /// matter.
 library;
 
+export 'chart_series.dart';
+export 'cook_stats.dart';
 export 'eta.dart';
 export 'lid_open.dart';
 export 'lttb.dart';

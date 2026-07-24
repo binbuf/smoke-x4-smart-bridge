@@ -162,14 +162,39 @@ class HttpTransport implements BridgeTransport {
     final j = await _getJson('/api/v1/live?window=${window.inSeconds}') as Map;
     final probes = (j['probes'] as List?) ?? [];
     final temps = List<int?>.filled(4, null);
+    // A9.1 needs names, roles and targets to decide which tile is large;
+    // §6.2's /live already carries them, so one call answers both "what
+    // is it reading" and "what is it called".
+    final config = <Probe>[];
     for (final p in probes) {
       if (p is Map) {
         final n = (p['n'] as num?)?.toInt() ?? 0;
         if (n >= 1 && n <= 4) {
-          temps[n - 1] = (p['temp_f10'] as num?)?.toInt();
+          // `attached: false` means detached — and a detached probe is
+          // null, never 0, at every layer (04 §4.2).
+          temps[n - 1] = p['attached'] == false
+              ? null
+              : (p['temp_f10'] as num?)?.toInt();
+          config.add(
+            Probe(
+              n: n,
+              name: '${p['name'] ?? ''}',
+              role: switch (p['role']) {
+                'pit' => ProbeRole.pit,
+                'food' => ProbeRole.food,
+                'ambient' => ProbeRole.ambient,
+                _ => ProbeRole.unused,
+              },
+              targetF10: (p['target_f10'] as num?)?.toInt(),
+              alarmEnabled: p['alarm_enabled'] == true,
+              alarmMinF10: (p['min_f10'] as num?)?.toInt(),
+              alarmMaxF10: (p['max_f10'] as num?)?.toInt(),
+            ),
+          );
         }
       }
     }
+    config.sort((a, b) => a.n.compareTo(b.n));
     final recent = (j['recent'] as Map?) ?? {};
     final t0 = (recent['t0'] as num?)?.toInt() ?? 0;
     final stepS = (recent['step_s'] as num?)?.toInt() ?? 30;
@@ -196,6 +221,7 @@ class HttpTransport implements BridgeTransport {
       tempsF10: temps,
       billows: billows['attached'] == true,
       recent: samples,
+      probes: config,
     );
   }
 
@@ -327,6 +353,9 @@ class HttpTransport implements BridgeTransport {
             'name': p.name,
             'role': p.role.name,
             'target_f10': p.targetF10,
+            'alarm_enabled': p.alarmEnabled,
+            if (p.alarmMinF10 != null) 'min_f10': p.alarmMinF10,
+            if (p.alarmMaxF10 != null) 'max_f10': p.alarmMaxF10,
           },
       ];
     }

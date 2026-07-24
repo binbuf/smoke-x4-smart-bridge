@@ -1,4 +1,9 @@
-/// Sessions feature: history list, detail, compare, and export.
+/// Sessions feature: history list, detail, stats, and CSV export (A11, M4).
 ///
-/// See design 08 §8.3, §8.6. Lands in M2+.
+/// Cache-first: every screen here renders with the bridge unplugged.
+/// See design 08 §8.6 and 09 §9.4.
 library;
+
+export 'export.dart';
+export 'sessions_route.dart';
+export 'sessions_screen.dart';

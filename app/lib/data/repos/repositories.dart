@@ -6,7 +6,7 @@
 library;
 
 import '../../domain/entities/entities.dart';
-import '../local/database.dart';
+import '../local/database.dart' show AppDatabase, SampleSummary;
 import '../transport/bridge_transport.dart';
 import 'sync_engine.dart';
 
@@ -30,6 +30,14 @@ class SessionRepository {
 
   Future<List<Mark>> marks(int sessionId) =>
       db.markDao.forSession(bridgeId, sessionId);
+
+  /// A11.2 — the sessions list's row data, aggregated in SQL. Deliberately
+  /// **not** built from [samples]: see the DAO's comment.
+  Future<Map<int, SampleSummary>> summaries() =>
+      db.sampleDao.summaries(bridgeId);
+
+  Future<List<({int t, double f})>> sparkline(int sessionId) =>
+      db.sampleDao.sparkline(bridgeId, sessionId);
 }
 
 class BridgeRepository {

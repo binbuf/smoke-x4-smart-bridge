@@ -32,6 +32,17 @@ class MockTransport implements BridgeTransport {
   final List<BridgeConfig> configureLog = [];
   bool _closed = false;
 
+  /// The device's probe configuration, as `/live` would report it (06
+  /// §6.2). Defaults to the convention every X4 owner already uses and
+  /// the OLED already assumes — **jack 1 is the pit** — so a dashboard
+  /// test does not have to configure one to have a headline tile.
+  List<Probe> probeConfig = [
+    const Probe(n: 1, name: 'Pit', role: ProbeRole.pit),
+    const Probe(n: 2, name: 'Food 1', role: ProbeRole.food),
+    const Probe(n: 3, name: 'Food 2', role: ProbeRole.food),
+    const Probe(n: 4, name: 'Food 3', role: ProbeRole.food),
+  ];
+
   List<Mark> get marks => List.unmodifiable(_marks);
 
   @override
@@ -83,7 +94,11 @@ class MockTransport implements BridgeTransport {
   Future<LiveState> live({Duration window = const Duration(hours: 1)}) async {
     final samples = _archive.toSamples();
     if (samples.isEmpty) {
-      return const LiveState(t: 0, tempsF10: [null, null, null, null]);
+      return LiveState(
+        t: 0,
+        tempsF10: const [null, null, null, null],
+        probes: probeConfig,
+      );
     }
     final last = samples.last;
     final fromT = last.t - window.inSeconds;
@@ -98,6 +113,7 @@ class MockTransport implements BridgeTransport {
         for (final s in samples)
           if (s.t > fromT) s,
       ],
+      probes: probeConfig,
     );
   }
 
@@ -139,6 +155,9 @@ class MockTransport implements BridgeTransport {
   @override
   Future<void> configure(BridgeConfig cfg) async {
     configureLog.add(cfg);
+    if (cfg.probes != null) {
+      probeConfig = List.of(cfg.probes!)..sort((a, b) => a.n.compareTo(b.n));
+    }
   }
 
   @override
