@@ -147,10 +147,19 @@ static void power_task(void *arg) {
         /* Persist the discharge curve (follow-on to F12). Only when a real
          * pack was read — a 0 mV reading is "no pack / divider gated", not a
          * flat battery, and must not land in the log as one. Throttled so a
-         * 30 s tick does not write flash twice a minute. */
+         * 30 s tick does not write flash twice a minute.
+         *
+         * DISABLED pending an app_ui fix. The LittleFS write here contends
+         * for the flash bus with the sys_evt event loop, tipping app_ui's
+         * bridge_event handler past the 5 ms F1.3 budget and panic-looping
+         * the board (found on the bench 2026-07-23). The once-per-boot marker
+         * in cook_power_log_init still runs — that is the brownout trace,
+         * and it writes in the controlled boot window, not against live
+         * alarm events. Re-enable once the app_ui handler no longer blocks
+         * on a flash-contended lock. */
         static uint32_t s_last_log_s;
         static bool s_logged;
-        if (app_power_svc_available() && adc_mv != 0 &&
+        if (false && app_power_svc_available() && adc_mv != 0 &&
             (!s_logged || now_s - s_last_log_s >= POWER_LOG_PERIOD_S)) {
             s_last_log_s = now_s;
             s_logged = true;
