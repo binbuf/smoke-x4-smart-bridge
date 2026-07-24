@@ -3,6 +3,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 void app_api_out_init(app_api_out_t *out, app_api_sink_t sink, void *ctx) {
@@ -60,11 +61,33 @@ void app_api_emit_fmt(app_api_out_t *out, const char *fmt, ...) {
     va_start(ap, fmt);
     const int n = vsnprintf(piece, sizeof piece, fmt, ap);
     va_end(ap);
-    if (n > 0) {
-        app_api_emit_raw(out, piece,
-                         (size_t)n < sizeof piece ? (size_t)n
-                                                  : sizeof piece - 1);
+    if (n <= 0) {
+        return;
     }
+    if ((size_t)n < sizeof piece) {
+        app_api_emit_raw(out, piece, (size_t)n);
+        return;
+    }
+    /* Overflow used to emit the first 255 bytes and say nothing, so a
+     * format string that outgrew the stack buffer produced JSON that was
+     * well-formed right up to where it was severed. F13.8 hit exactly
+     * that with twelve tunables in one call and worked around it by
+     * splitting the call — but the trap stayed armed for the next
+     * endpoint. Retry on the heap, and if even that fails, abort the
+     * response rather than emit a truncated body: a client can retry a
+     * failed request, but it cannot detect a plausible-looking lie. */
+    char *big = malloc((size_t)n + 1);
+    if (big == NULL) {
+        out->aborted = true;
+        return;
+    }
+    va_start(ap, fmt);
+    const int m = vsnprintf(big, (size_t)n + 1, fmt, ap);
+    va_end(ap);
+    if (m > 0) {
+        app_api_emit_raw(out, big, (size_t)m);
+    }
+    free(big);
 }
 
 void app_api_emit_json_str(app_api_out_t *out, const char *s) {

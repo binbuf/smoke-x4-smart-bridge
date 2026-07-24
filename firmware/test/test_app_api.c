@@ -286,6 +286,31 @@ static void test_emitter_streams_100kb_through_2kb(void) {
     CHECK((int)out.peak <= APP_API_EMIT_BUF); /* the F9.2 bound */
 }
 
+/* app_api_emit_fmt used to format into a 256 B stack buffer and, on
+ * overflow, emit the first 255 bytes with no signal at all — JSON that
+ * was well-formed right up to where it was severed. F13.8 hit this with
+ * twelve tunables in one call and split the call to dodge it; this pins
+ * the primitive so the next endpoint cannot walk into it. */
+static void test_emit_fmt_survives_a_long_format(void) {
+    app_api_out_t out;
+    app_api_out_init(&out, capture_sink, NULL);
+    g_body_len = 0;
+    app_api_out_begin(&out, 200, "application/json");
+
+    char filler[400];
+    memset(filler, 'y', sizeof filler);
+    filler[sizeof filler - 1] = 0;
+    app_api_emit_fmt(&out, "{\"a\":\"%s\",\"b\":%d}", filler, 7);
+    (void)app_api_out_finish(&out);
+
+    g_body[g_body_len] = 0;
+    const char *body = strstr(g_body, "{\"a\"");
+    CHECK(body != NULL);
+    /* The tail must survive: truncation would have eaten it silently. */
+    CHECK(strstr(body, "\"b\":7}") != NULL);
+    CHECK_EQ_INT((int)strlen(filler), 399);
+}
+
 static void test_status_shape(void) {
     seed_world();
     do_req("GET", "/api/v1/status", NULL, NULL);
@@ -848,6 +873,7 @@ int main(void) {
     test_captive_probes_exact_bytes();
     test_router_auth_and_errors();
     test_emitter_streams_100kb_through_2kb();
+    test_emit_fmt_survives_a_long_format();
     test_status_shape();
     test_status_ble_is_reported_not_hardcoded();
     test_live_detached_never_zero();
