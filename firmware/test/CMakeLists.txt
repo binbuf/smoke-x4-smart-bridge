@@ -26,7 +26,8 @@ add_test(NAME record_gen COMMAND test_record_gen)
 add_executable(test_smk_fixture test_smk_fixture.c)
 target_include_directories(test_smk_fixture PRIVATE ${REPO_ROOT}/protocol/gen)
 target_compile_definitions(test_smk_fixture PRIVATE
-    SMK_FIXTURE="${REPO_ROOT}/protocol/fixtures/brisket-18h.smk"
+    SMK_FIXTURE_SYNTH="${REPO_ROOT}/protocol/fixtures/brisket-18h.smk"
+    SMK_FIXTURE_REAL="${REPO_ROOT}/protocol/fixtures/overnight-18h.smk"
 )
 add_test(NAME smk_fixture COMMAND test_smk_fixture)
 
