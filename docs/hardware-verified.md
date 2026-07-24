@@ -381,3 +381,85 @@ or having risen ≥ 30 mV over 10 minutes. An inferred `true` costs nothing;
 an inferred `false` on a charging bridge shows a discharging icon. If the
 flag misbehaves, that is a finding to write down rather than a number to
 tune at the bench.
+
+## M6 bench sitting (F14.9, T5.6, V3.3, V4.3) — owed
+
+All 18 board-free M6 tasks are done (host **25/25**, app **501/501**, the
+new `tools/flash` and `tools/soak` suites green, both images build,
+`protogen --check` green). These four rows are the whole remainder and are
+**one sitting** ([§12.6 rule 7](design/12-task-planning-notes.md)) in this
+order — because each is the precondition of the next.
+
+**§12.6 rule 8 governs the whole sitting: never OTA the only board with an
+image that has not been flashed over USB first.** T5.6 runs before F14.9
+for exactly that reason; the order is the rule, not a preference. Keep a
+USB cable and `idf.py flash` in reach for the entire sitting — that is the
+recovery, and it is why these are bench rows and not CI jobs.
+
+Flash (USB): `idf.py -B build/heltec-v3 '-DSDKCONFIG=sdkconfig.heltec-v3' -p COMx flash monitor`
+(ESP-IDF PowerShell; quote args containing `=` or `.`).
+Merged image + manifest: `dart run flash --version 1.0.0 --out dist`.
+Soak: `dart run soak --host <ip> --hours 24 --trace soak.ndjson`.
+
+### T5.6 — flash the merged image over USB, then install from a browser
+
+| Check | Result |
+| --- | --- |
+| **T5.6** `dart run flash` builds the merged image; `esptool ... write_flash 0x0` puts it on the board; it boots to the splash and advertises `SmokeBridge-XXXX` | ⏳ — the generated command and the byte-identity to `esptool merge-bin` are proven host-side (SHA-256 match recorded in the M6 plan); this row proves the board runs it |
+| **T5.6** the browser installer flashes from a machine that has **never** had ESP-IDF — Chrome/Edge, plug in, Install, boots and advertises | ⏳ — the point is a toolchain-free machine; a machine with the toolchain does not test the page |
+| **T5.6** the first-boot handoff string matches what the board actually advertises, and stored cooks are erased/preserved as the page claims | ⏳ |
+
+### F14.9 — the first real OTA, and the deliberately broken image
+
+Runs **after** T5.6 (rule 8). Four observations, in order.
+
+| Check | Result |
+| --- | --- |
+| **F14.9** with a session active, `POST /api/v1/ota` is refused `409` and the cook is untouched; `?force=1` then proceeds | ⏳ |
+| **F14.9** a good image uploads, verifies, reboots, and comes back reporting the new version; `/status.ota` shows `pending_verify` for ≤ 120 s then `passed` | ⏳ |
+| **F14.9** the health gate is failed on purpose (OTA with the test router off, so the STA clause cannot be met) and the **next reset rolls back** to the previous slot — confirmed by reading `/status.ota` and the running version, not inferred | ⏳ |
+| **F14.9** the merged image, uploaded to the OTA endpoint on purpose, is refused by F14.1 (`not_an_app_image_use_the_ota_bin`) **before a byte is written** | ⏳ |
+
+### V3.3 — the 24-hour soak, and the heap question
+
+Runs on the release image with **everything running**: STA up, a phone
+bonded over BLE, a WebSocket streaming, the display awake, a session
+recording real LoRa. The four criteria are fixed **in advance** (the M6
+plan's decisions), so this row meets them or does not — a 24 h trace can
+be made to support any conclusion if the threshold is chosen afterwards.
+
+| Criterion | Threshold | Result |
+| --- | --- | --- |
+| `min_free_heap` floor | ≥ 80 KB whole run | ⏳ — V3a.1 measured 78.2 KB in 165 s, so this is the clause most likely to bite; if it does, the answer is not "lower the bar" |
+| `free_heap` slope | ≥ −256 B/h | ⏳ |
+| `largest_free_block` floor | ≥ 32 KB | ⏳ — fragmentation (R2), which a total cannot see |
+| task stack margin | every task ≥ 512 B | ⏳ |
+| **Verdict** | all four → target was wrong (option 1); any fail → buffer/concurrency conversation with the trace | ⏳ — commit the NDJSON trace and `tools/soak`'s generated report as evidence, and close the open heap question above |
+
+### V4.3 — the release checklist, then hand over for the tag
+
+The milestone's own gate. Run V4.1's checklist (below) end to end on the
+release image, record every result, **then stop** — tagging `v1.0.0` is a
+human's decision made with the completed checklist in hand, and the
+`release.yml` workflow fires on the tag and publishes to a public Pages
+site. Nothing automates the tag.
+
+## V4.1 — the on-target release checklist ([10 §10.5](design/10-repo-tooling-and-testing.md))
+
+Run manually on the **release image**, recorded here. Several rows are
+already proven at an earlier milestone and cite their evidence rather than
+being redone; the genuinely new ones point at F14.9 and V3.3.
+
+| # | Check | How | Pass condition | Status |
+| --- | --- | --- | --- | --- |
+| 1 | Pair with a real X4; the stock ThermoWorks receiver keeps working | put the base in sync, watch both | both update throughout | ✅ **carried from V2** (2026-07-22, re-confirmed 3× through adopt/erase/re-pair). Re-observe once on the release image |
+| 2 | Unpair and re-pair; neither affects the stock receiver | `device_control` op 8 / the wizard | stock receiver unaffected | ✅ **carried from V2 / M3** — re-observe once |
+| 3 | Full AP and STA provisioning from the app, incl. a deliberately wrong password and BLE recovery | the onboarding wizard | recovers without touching hardware | ⚠️ **wrong-password branch PASSED at M4** via the AP lane; the BLE-recovery lane is still owed (A6.7, open) — re-run on the release image |
+| 4 | Power-cut mid-cook; the session resumes and the file recovers | pull USB mid-cook, reboot | same session resumes, CRC recovers the torn tail | ✅ **carried from the M1 exit gate** — re-observe once on the release image |
+| 5 | OTA with a session active; rollback on a deliberately broken image | **F14.9** | 409 without force; rollback confirmed | ⏳ **new — is F14.9** |
+| 6 | 24-hour soak: heap, stacks, counters, no reconnect storms | **V3.3** | the four criteria | ⏳ **new — is V3.3** |
+| 7 | Battery runtime against the [01 §1.6](design/01-hardware.md) table | leave on battery, watch SoC | matches the estimate, saver engages | ⏳ owed with F12.6 (M5 sitting); the soak (row 6) also yields a runtime number if run on battery |
+
+**Do not tag until every row is pass or fail by observation.** Anything
+failing is a named decision — ship with it, fix it, or defer to v1.0.1 —
+not a blank.

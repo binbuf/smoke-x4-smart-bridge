@@ -76,8 +76,8 @@ Not tasks — properties of CI that fail the build.
 | Binary size and free-space delta     | reported on every PR                | `firmware-build.yml`                |
 | `protocol/gen/**` freshness          | any diff fails                      | `protocol.yml`                      |
 | `app/lib/domain/` imports no Flutter | any match fails                     | `app.yml`                           |
-| Free heap during the 24 h soak       | **fail below 80 KB**                | V3, M6                              |
-| Per-task stack watermarks            | logged once a minute at debug level | [01 §1.4](../design/01-hardware.md) |
+| Free heap during the 24 h soak       | **fail below 80 KB** — one of V3.2's four fixed criteria, evaluated by `tools/soak` from `/api/v1/debug/tasks` (V3.1); the others are a −256 B/h leak-slope floor, a 32 KB largest-free-block floor, and a 512 B per-task stack margin | V3, M6                              |
+| Per-task stack watermarks            | logged once a minute at debug level, **and** served at `GET /api/v1/debug/tasks` — the soak is unattended and cannot hold a serial cable | [01 §1.4](../design/01-hardware.md), `app_api` (V3.1) |
 
 Binary-size reporting earns its two lines: with 2.5 MB app slots holding Wi-Fi + BLE + httpd +
 LittleFS, the day someone adds a library that doesn't fit should be the day they find out.
@@ -86,9 +86,9 @@ LittleFS, the day someone adds a library that doesn't fit should be the day they
 
 ## Open decisions
 
-| #       | Question                | Blocks                                              | Needed by |
-| ------- | ----------------------- | --------------------------------------------------- | --------- |
-| **Q-F** | Public repo or private? | T5 — whether the installer can live on GitHub Pages | before M6 |
+| #       | Question                | Blocks                                              | Needed by | Status |
+| ------- | ----------------------- | --------------------------------------------------- | --------- | ------ |
+| **Q-F** | Public repo or private? | T5 — whether the installer can live on GitHub Pages | before M6 | **Closed 2026-07-23 (M6): PUBLIC.** The docs were the safe superset already — MIT parser attribution retained, nothing assuming privacy — so `release.yml` publishes to GitHub Pages and `T5.5` sweeps the tree (a repeatable test in `tools/flash/test/version_test.dart`) rather than trusting a one-off read. |
 
 Everything else is settled. If a decision in D1–D14 looks wrong during implementation, **raise it as a
 question — do not quietly plan around it** ([§12.3](../design/12-task-planning-notes.md)).

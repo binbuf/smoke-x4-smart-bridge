@@ -56,3 +56,11 @@ jobs:
       - name: sim suite
         run: dart test
         working-directory: tools/sim
+
+      - name: flash suite (merged image, manifest, the Q-F sweep)
+        run: dart test
+        working-directory: tools/flash
+
+      - name: soak suite (the 24 h recorder and the heap report)
+        run: dart test
+        working-directory: tools/soak
