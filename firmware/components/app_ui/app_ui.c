@@ -468,6 +468,18 @@ static void ui_task(void *arg) {
             timeout_s = 30; /* 01 §1.6's saver profile */
         }
 
+        /* Read config BEFORE taking s_lock. These are NVS reads, and NVS
+         * shares the SPI-flash bus with LittleFS (cook + power log): under
+         * boot or write contention one can block ~17 ms. Holding s_lock
+         * across that stalls the event-bus handlers (on_alarm/on_ble/on_wake
+         * all take this lock), and a handler over 5 ms trips the F1.3 guard —
+         * board-found as an `app_ui.alarm` panic at 17 ms. The lock must wrap
+         * only in-memory model work; timeout_s was already read out here. */
+        uint8_t led_mode = 1;
+        (void)app_config_store_get_u8(APP_CONFIG_DEV_LED_ENABLED, &led_mode);
+        uint8_t buzzer = 0;
+        (void)app_config_store_get_u8(APP_CONFIG_DEV_BUZZER_ENABLED, &buzzer);
+
         app_ui_state_t snapshot;
         xSemaphoreTake(s_lock, portMAX_DELAY);
         /* The boot splash owns the glass for the 3 s recovery window
@@ -484,10 +496,6 @@ static void ui_task(void *arg) {
         app_ui_model_tick(&s_model, &s_state, pressed, t, timeout_s);
         snapshot = s_state;
 
-        uint8_t led_mode = 1;
-        (void)app_config_store_get_u8(APP_CONFIG_DEV_LED_ENABLED, &led_mode);
-        uint8_t buzzer = 0;
-        (void)app_config_store_get_u8(APP_CONFIG_DEV_BUZZER_ENABLED, &buzzer);
         s_led.alarm_unacked = snapshot.alarm_unacked;
         s_led.pairing = !snapshot.paired;
         s_led.base_lost = !snapshot.base_ok;
