@@ -1,6 +1,9 @@
 /* app_api_ws — registry, keepalive, frames (F9.9). */
 #include "app_api_ws.h"
 
+#include "app_alarm_core.h"
+#include "record_gen.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -199,6 +202,45 @@ void app_api_ws_pairing(app_api_out_t *out, bool paired,
     } else {
         app_api_emit_str(out, "}");
     }
+}
+
+void app_api_ws_alarm(app_api_out_t *out, const bridge_evt_alarm_t *e,
+                      const char *message) {
+    static const char *const kActions[] = {"raised", "cleared", "acked"};
+    app_api_emit_fmt(
+        out,
+        "{\"type\":\"alarm\",\"action\":\"%s\",\"id\":%u,"
+        "\"rule\":\"%s\",\"severity\":\"%s\",\"probe\":%u",
+        kActions[e->action < 3 ? e->action : 0], (unsigned)e->alarm_id,
+        bridge_alarm_rule_str(e->rule),
+        bridge_alarm_severity_str(app_alarm_rule_severity(e->rule)),
+        (unsigned)e->probe);
+    /* A detached probe is null on the wire, never 0 — the invariant this
+     * project has held end to end since M0. */
+    if (e->value_f10 == BRIDGE_TEMP_DETACHED ||
+        e->value_f10 == BRIDGE_TEMP_INVALID) {
+        app_api_emit_str(out, ",\"value_f10\":null");
+    } else {
+        app_api_emit_fmt(out, ",\"value_f10\":%d", (int)e->value_f10);
+    }
+    if (message != NULL) {
+        app_api_emit_str(out, ",\"message\":");
+        app_api_emit_json_str(out, message);
+    }
+    app_api_emit_str(out, "}");
+}
+
+void app_api_ws_power(app_api_out_t *out, const bridge_evt_power_t *e) {
+    app_api_emit_str(out, "{\"type\":\"power\",\"soc_pct\":");
+    if (e->soc_pct == BRIDGE_SOC_UNKNOWN) {
+        app_api_emit_str(out, "null");
+    } else {
+        app_api_emit_fmt(out, "%u", (unsigned)e->soc_pct);
+    }
+    app_api_emit_fmt(out,
+                     ",\"mv\":%u,\"charging\":%s,\"saver\":%s}",
+                     (unsigned)e->mv, e->charging ? "true" : "false",
+                     e->saver ? "true" : "false");
 }
 
 void app_api_ws_session(app_api_out_t *out, const char *action, uint32_t id,

@@ -12,6 +12,7 @@
  * bench could tell us about the CONTRACT is already known here, so the
  * sitting is spent on OEM behaviour instead of on byte layouts.
  */
+#include "app_alarm_svc.h"
 #include "app_ble_internal.h"
 #include "app_config_store.h"
 #include "app_ui_core.h"
@@ -199,6 +200,7 @@ static void reset_all(void) {
     CHECK_EQ_INT(smoke_x_ctrl_init(&k_radio_ops, NULL, false, 0), 0);
     cook_ring_reset();
     CHECK_EQ_INT(app_time_core_init(0, NULL, NULL), 0);
+    CHECK_EQ_INT(app_alarm_svc_init(NULL), 0);
     CHECK_EQ_INT(app_ble_core_init(&k_ops), APP_BLE_OK);
     app_ble_set_mtu(APP_BLE_MTU_PREFERRED);
 }
@@ -1119,7 +1121,9 @@ static void test_every_op_reaches_its_component(void) {
     app_config_store_get_u8(APP_CONFIG_DEV_UNITS, &stored);
     CHECK_EQ_INT(stored, BRIDGE_UNITS_CELSIUS);
 
-    /* ack_alarm: accept-and-record until F13 (mirrors F9.9). */
+    /* ack_alarm: F13.8 routes it to the engine. An id nothing matches
+     * still answers ok — HTTP, BLE and the PRG button can all ack the
+     * same alarm and none of them should fail for being second. */
     const uint8_t alarm_id = 3;
     CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_ACK_ALARM, &alarm_id, 1),
                  BRIDGE_RESULT_STATUS_OK);
@@ -1308,6 +1312,54 @@ static void test_passkey_reaches_the_renderer(void) {
     CHECK(!st.passkey_active);
 }
 
+/* F13.8 — live_state.alarm_active was a hardcoded `false` from F10 until
+ * M5, and op 11 parsed an id it then threw away. Both are wired now, and
+ * this is the test that says so in the one place a phone can observe it. */
+static void test_live_state_alarm_active_follows_the_engine(void) {
+    reset_all();
+    /* Probe 2 is a food probe about to pass its target. */
+    CHECK_EQ_INT(app_config_store_set_u8(APP_CONFIG_PROBE2_ROLE,
+                                         APP_CONFIG_ROLE_FOOD),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_set_i32(APP_CONFIG_PROBE2_TARGET, 2030),
+                 APP_CONFIG_OK);
+
+    uint8_t buf[BRIDGE_LIVE_STATE_SIZE];
+    CHECK_EQ_INT(app_ble_build_live_state(buf, sizeof buf),
+                 BRIDGE_LIVE_STATE_SIZE);
+    bridge_live_state_t st;
+    bridge_live_state_decode(buf, &st);
+    CHECK_EQ_INT((st.flags & BRIDGE_LIVE_STATE_FLAGS_ALARM_ACTIVE) != 0, 0);
+
+    cook_ring_sample_t rs = {.t = 30, .rssi = -70};
+    rs.temp[0] = 2430;
+    rs.temp[1] = 2041;
+    rs.temp[2] = INT16_MIN;
+    rs.temp[3] = INT16_MIN;
+    cook_ring_push(&rs);
+    app_alarm_svc_on_sample(30);
+
+    CHECK_EQ_INT(app_ble_build_live_state(buf, sizeof buf),
+                 BRIDGE_LIVE_STATE_SIZE);
+    bridge_live_state_decode(buf, &st);
+    CHECK_EQ_INT((st.flags & BRIDGE_LIVE_STATE_FLAGS_ALARM_ACTIVE) != 0, 1);
+
+    /* The phone acks over op 11 — the real dispatch path, not the
+     * service call — and the flag drops while the alarm REMAINS latched
+     * in the list. Acknowledging silences; it does not resolve. */
+    const app_alarm_slot_t *list[APP_ALARM_MAX_ACTIVE];
+    CHECK_EQ_INT(app_alarm_svc_list(list, APP_ALARM_MAX_ACTIVE), 1);
+    const uint8_t id = list[0]->id;
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_ACK_ALARM, &id, 1),
+                 BRIDGE_RESULT_STATUS_OK);
+    CHECK_EQ_INT(app_ble_build_live_state(buf, sizeof buf),
+                 BRIDGE_LIVE_STATE_SIZE);
+    bridge_live_state_decode(buf, &st);
+    CHECK_EQ_INT((st.flags & BRIDGE_LIVE_STATE_FLAGS_ALARM_ACTIVE) != 0, 0);
+    CHECK_EQ_INT(app_alarm_svc_list(list, APP_ALARM_MAX_ACTIVE), 1);
+    CHECK_EQ_INT(list[0]->state, APP_ALARM_SLOT_ACKED);
+}
+
 int main(void) {
     test_registry_matches_the_contract();
     test_uuid_is_little_endian_on_air();
@@ -1334,6 +1386,7 @@ int main(void) {
     test_scan_edge_cases();
     test_every_op_reaches_its_component();
     test_reboot_and_reset_answer_before_they_act();
+    test_live_state_alarm_active_follows_the_engine();
     test_set_time_backpatches_an_open_session();
     test_bond_cap();
     test_passkey_lifecycle();

@@ -4,6 +4,9 @@
  * supplies the true-device ops (heap, uptime, coredump, www mount). */
 #include "app_api.h"
 
+#include "app_alarm.h"
+#include "app_config_store.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -332,10 +335,12 @@ static void ws_broadcast(uint32_t topic_bit_mask,
  * fan-out happen HERE. */
 
 typedef struct {
-    uint8_t kind; /* 0 sample, 1 session */
+    uint8_t kind; /* 0 sample, 1 session, 2 alarm, 3 power */
     union {
         bridge_evt_sample_t sample;
         bridge_evt_session_t session;
+        bridge_evt_alarm_t alarm;
+        bridge_evt_power_t power;
     } u;
 } push_msg_t;
 
@@ -356,6 +361,40 @@ static void build_session_frame(app_api_out_t *out, void *arg) {
                        e->session_id, NULL);
 }
 
+/* F13.8 — 06 §6.3's alarm frame, with the human sentence the app puts in
+ * a notification built HERE rather than in the engine: app_alarm decides,
+ * the transport phrases. */
+static void build_alarm_frame(app_api_out_t *out, void *arg) {
+    const bridge_evt_alarm_t *e = arg;
+    char msg[64];
+    char name[17] = "";
+    static const app_config_key_t name_keys[4] = {
+        APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME,
+        APP_CONFIG_PROBE3_NAME, APP_CONFIG_PROBE4_NAME};
+    if (e->probe >= 1 && e->probe <= 4) {
+        (void)app_config_store_get_str(name_keys[e->probe - 1], name,
+                                       sizeof name);
+    }
+    if (name[0] == '\0' && e->probe >= 1) {
+        snprintf(name, sizeof name, "Probe %u", (unsigned)e->probe);
+    }
+    if (e->value_f10 != BRIDGE_TEMP_DETACHED &&
+        e->value_f10 != BRIDGE_TEMP_INVALID && e->probe >= 1) {
+        snprintf(msg, sizeof msg, "%s %d.%d\xC2\xB0" "F \xE2\x80\x94 %s",
+                 name, (int)(e->value_f10 / 10),
+                 (int)((e->value_f10 < 0 ? -e->value_f10 : e->value_f10) %
+                       10),
+                 bridge_alarm_rule_str(e->rule));
+    } else {
+        snprintf(msg, sizeof msg, "%s", bridge_alarm_rule_str(e->rule));
+    }
+    app_api_ws_alarm(out, e, msg);
+}
+
+static void build_power_frame(app_api_out_t *out, void *arg) {
+    app_api_ws_power(out, (const bridge_evt_power_t *)arg);
+}
+
 static void ws_push_task(void *arg) {
     (void)arg;
     push_msg_t msg;
@@ -363,11 +402,20 @@ static void ws_push_task(void *arg) {
         if (xQueueReceive(s_push_queue, &msg, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-        if (msg.kind == 0) {
+        switch (msg.kind) {
+        case 0:
             ws_broadcast(WS_TOPIC_SAMPLE, build_sample_frame, &msg.u.sample);
-        } else {
+            break;
+        case 1:
             ws_broadcast(WS_TOPIC_SESSION, build_session_frame,
                          &msg.u.session);
+            break;
+        case 2:
+            ws_broadcast(WS_TOPIC_ALARM, build_alarm_frame, &msg.u.alarm);
+            break;
+        default:
+            ws_broadcast(WS_TOPIC_POWER, build_power_frame, &msg.u.power);
+            break;
         }
     }
 }
@@ -395,6 +443,32 @@ static void on_session_evt(void *arg, esp_event_base_t base, int32_t id,
     }
     push_msg_t msg = {.kind = 1};
     memcpy(&msg.u.session, data, sizeof msg.u.session);
+    (void)xQueueSend(s_push_queue, &msg, 0);
+}
+
+static void on_alarm_evt(void *arg, esp_event_base_t base, int32_t id,
+                         void *data) {
+    (void)arg;
+    (void)base;
+    (void)id;
+    if (app_api_ws_count() == 0) {
+        return;
+    }
+    push_msg_t msg = {.kind = 2};
+    memcpy(&msg.u.alarm, data, sizeof msg.u.alarm);
+    (void)xQueueSend(s_push_queue, &msg, 0);
+}
+
+static void on_power_evt(void *arg, esp_event_base_t base, int32_t id,
+                         void *data) {
+    (void)arg;
+    (void)base;
+    (void)id;
+    if (app_api_ws_count() == 0) {
+        return;
+    }
+    push_msg_t msg = {.kind = 3};
+    memcpy(&msg.u.power, data, sizeof msg.u.power);
     (void)xQueueSend(s_push_queue, &msg, 0);
 }
 
@@ -502,7 +576,13 @@ static esp_err_t ws_handler(httpd_req_t *req) {
         if (reply[0] != '\0') {
             ws_send_text(fd, reply, strlen(reply));
         }
-        /* ack_alarm routing lands with the alarm engine (M5 F13). */
+        if (acked >= 0) {
+            /* F13.8: the M2 comment here read "ack_alarm routing lands
+             * with the alarm engine (M5 F13)". This is that. An unknown
+             * id silences nothing and is not an error — three transports
+             * can send the same ack for the same alarm. */
+            (void)app_alarm_ack((uint8_t)acked);
+        }
     }
     return ESP_OK;
 }
@@ -585,6 +665,10 @@ int app_api_init(void) {
                                         NULL, "api_ws_sample");
     (void)bridge_event_handler_register(BRIDGE_EVT_SESSION, on_session_evt,
                                         NULL, "api_ws_session");
+    (void)bridge_event_handler_register(BRIDGE_EVT_ALARM, on_alarm_evt, NULL,
+                                        "api_ws_alarm");
+    (void)bridge_event_handler_register(BRIDGE_EVT_POWER, on_power_evt, NULL,
+                                        "api_ws_power");
 
     ESP_LOGI(TAG, "httpd up on :80 (max_open_sockets=7, ws cap=%d)",
              APP_API_WS_MAX_CLIENTS);

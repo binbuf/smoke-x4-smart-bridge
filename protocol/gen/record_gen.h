@@ -33,6 +33,21 @@ typedef enum {
     BRIDGE_PROBE_ROLE_AMBIENT = 3,
 } bridge_probe_role_t;
 
+static inline const char *bridge_probe_role_str(int v) {
+    switch (v) {
+    case 0:
+        return "unused";
+    case 1:
+        return "pit";
+    case 2:
+        return "food";
+    case 3:
+        return "ambient";
+    default:
+        return "";
+    }
+}
+
 typedef enum {
     BRIDGE_MARK_KIND_NOTE = 0,
     BRIDGE_MARK_KIND_WRAPPED = 1,
@@ -44,11 +59,103 @@ typedef enum {
     BRIDGE_MARK_KIND_AUTO_DETECTED = 7,
 } bridge_mark_kind_t;
 
+static inline const char *bridge_mark_kind_str(int v) {
+    switch (v) {
+    case 0:
+        return "note";
+    case 1:
+        return "wrapped";
+    case 2:
+        return "lid_open";
+    case 3:
+        return "fuel";
+    case 4:
+        return "probe_moved";
+    case 5:
+        return "alarm";
+    case 6:
+        return "phase_change";
+    case 7:
+        return "auto_detected";
+    default:
+        return "";
+    }
+}
+
+typedef enum {
+    BRIDGE_ALARM_RULE_SMOKE_X_ALARM = 0,
+    BRIDGE_ALARM_RULE_TARGET_REACHED = 1,
+    BRIDGE_ALARM_RULE_PIT_OUT_OF_BAND = 2,
+    BRIDGE_ALARM_RULE_PIT_CRASH = 3,
+    BRIDGE_ALARM_RULE_PROBE_DETACHED = 4,
+    BRIDGE_ALARM_RULE_BASE_LOST = 5,
+    BRIDGE_ALARM_RULE_BATTERY_LOW = 6,
+    BRIDGE_ALARM_RULE_STORAGE_LOW = 7,
+    BRIDGE_ALARM_RULE_SYSTEM_FAULT = 8,
+} bridge_alarm_rule_t;
+
+static inline const char *bridge_alarm_rule_str(int v) {
+    switch (v) {
+    case 0:
+        return "smoke_x_alarm";
+    case 1:
+        return "target_reached";
+    case 2:
+        return "pit_out_of_band";
+    case 3:
+        return "pit_crash";
+    case 4:
+        return "probe_detached";
+    case 5:
+        return "base_lost";
+    case 6:
+        return "battery_low";
+    case 7:
+        return "storage_low";
+    case 8:
+        return "system_fault";
+    default:
+        return "";
+    }
+}
+
+typedef enum {
+    BRIDGE_ALARM_SEVERITY_INFO = 0,
+    BRIDGE_ALARM_SEVERITY_WARNING = 1,
+    BRIDGE_ALARM_SEVERITY_CRITICAL = 2,
+} bridge_alarm_severity_t;
+
+static inline const char *bridge_alarm_severity_str(int v) {
+    switch (v) {
+    case 0:
+        return "info";
+    case 1:
+        return "warning";
+    case 2:
+        return "critical";
+    default:
+        return "";
+    }
+}
+
 typedef enum {
     BRIDGE_NET_MODE_OFF = 0,
     BRIDGE_NET_MODE_AP = 1,
     BRIDGE_NET_MODE_STA = 2,
 } bridge_net_mode_t;
+
+static inline const char *bridge_net_mode_str(int v) {
+    switch (v) {
+    case 0:
+        return "off";
+    case 1:
+        return "ap";
+    case 2:
+        return "sta";
+    default:
+        return "";
+    }
+}
 
 typedef enum {
     BRIDGE_NET_STATE_IDLE = 0,
@@ -56,6 +163,21 @@ typedef enum {
     BRIDGE_NET_STATE_UP = 2,
     BRIDGE_NET_STATE_FAILED = 3,
 } bridge_net_state_t;
+
+static inline const char *bridge_net_state_str(int v) {
+    switch (v) {
+    case 0:
+        return "idle";
+    case 1:
+        return "connecting";
+    case 2:
+        return "up";
+    case 3:
+        return "failed";
+    default:
+        return "";
+    }
+}
 
 typedef enum {
     BRIDGE_CONTROL_OP_PAIR = 1,
@@ -71,6 +193,35 @@ typedef enum {
     BRIDGE_CONTROL_OP_ACK_ALARM = 11,
 } bridge_control_op_t;
 
+static inline const char *bridge_control_op_str(int v) {
+    switch (v) {
+    case 1:
+        return "pair";
+    case 2:
+        return "unpair";
+    case 3:
+        return "set_time";
+    case 4:
+        return "session_start";
+    case 5:
+        return "session_stop";
+    case 6:
+        return "mark";
+    case 7:
+        return "reboot";
+    case 8:
+        return "factory_reset";
+    case 9:
+        return "set_units";
+    case 10:
+        return "identify";
+    case 11:
+        return "ack_alarm";
+    default:
+        return "";
+    }
+}
+
 typedef enum {
     BRIDGE_RESULT_STATUS_OK = 0,
     BRIDGE_RESULT_STATUS_INVALID = 1,
@@ -79,15 +230,54 @@ typedef enum {
     BRIDGE_RESULT_STATUS_UNAUTHORIZED = 4,
 } bridge_result_status_t;
 
+static inline const char *bridge_result_status_str(int v) {
+    switch (v) {
+    case 0:
+        return "ok";
+    case 1:
+        return "invalid";
+    case 2:
+        return "busy";
+    case 3:
+        return "failed";
+    case 4:
+        return "unauthorized";
+    default:
+        return "";
+    }
+}
+
 typedef enum {
     BRIDGE_UNITS_CELSIUS = 0,
     BRIDGE_UNITS_FAHRENHEIT = 1,
 } bridge_units_t;
 
+static inline const char *bridge_units_str(int v) {
+    switch (v) {
+    case 0:
+        return "celsius";
+    case 1:
+        return "fahrenheit";
+    default:
+        return "";
+    }
+}
+
 typedef enum {
     BRIDGE_SCAN_CMD_CANCEL = 0,
     BRIDGE_SCAN_CMD_START = 1,
 } bridge_scan_cmd_t;
+
+static inline const char *bridge_scan_cmd_str(int v) {
+    switch (v) {
+    case 0:
+        return "cancel";
+    case 1:
+        return "start";
+    default:
+        return "";
+    }
+}
 
 /* ── Little-endian byte access ─────────────────────────────── */
 

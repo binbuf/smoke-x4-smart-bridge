@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
+#include "app_alarm.h"
 #include "app_api.h"
 #include "app_ble.h"
 #include "app_config.h"
@@ -132,6 +133,13 @@ static int step_ble(void *ctx) {
     return app_ble_init();
 }
 
+/* F13: last of the application steps, because every fact it reads —
+ * config, radio, ring, store, power — is already up by the time it runs. */
+static int step_alarm(void *ctx) {
+    (void)ctx;
+    return app_alarm_init();
+}
+
 static int step_recovery_window(void *ctx) {
     (void)ctx;
     /* 3 s PRG hold on the splash — stubbed until F11 (app_ui). */
@@ -181,7 +189,7 @@ void app_main(void) {
                 [BRIDGE_BOOT_NET - 1] = step_net,
                 [BRIDGE_BOOT_API - 1] = step_api,
                 [BRIDGE_BOOT_BLE - 1] = step_ble,
-                [BRIDGE_BOOT_ALARM - 1] = step_stub,         /* F13 */
+                [BRIDGE_BOOT_ALARM - 1] = step_alarm,
                 [BRIDGE_BOOT_OTA_HEALTH_GATE - 1] = step_ota_health_gate,
             },
     };

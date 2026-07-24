@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "app_alarm_svc.h"
 #include "app_api_internal.h"
 #include "app_config_store.h"
 #include "app_time_core.h"
@@ -351,7 +352,44 @@ static void handle_status(app_api_out_t *out) {
                          "\"samples\":0}");
     }
 
-    app_api_emit_str(out, ",\"alarms\":[]}");
+    /* F13.8 — the real list, in 06 §6.2's shape. This field was an empty
+     * literal from M2 to M5; the /status.ble stub (found on the board,
+     * 2026-07-23) is why it does not stay one a milestone longer than the
+     * engine that fills it. */
+    app_api_emit_str(out, ",\"alarms\":[");
+    const app_alarm_slot_t *alarms[APP_ALARM_MAX_ACTIVE];
+    const int an = app_alarm_svc_list(alarms, APP_ALARM_MAX_ACTIVE);
+    uint64_t now_unix_ms = 0;
+    const bool have_clock =
+        app_time_core_now(s_ops->uptime_ms(), &now_unix_ms);
+    for (int i = 0; i < an; i++) {
+        const app_alarm_slot_t *a = alarms[i];
+        app_api_emit_fmt(out,
+                         "%s{\"id\":%u,\"rule\":\"%s\","
+                         "\"severity\":\"%s\",\"probe\":%u,"
+                         "\"since_unix_ms\":",
+                         i > 0 ? "," : "", (unsigned)a->id,
+                         bridge_alarm_rule_str(a->rule),
+                         bridge_alarm_severity_str(a->severity),
+                         (unsigned)a->probe);
+        /* A bridge with no clock says so rather than emitting an epoch
+         * date the app would render as 1970 (04 §4.4). */
+        if (have_clock) {
+            const uint64_t age_ms =
+                ((uint64_t)(uint32_t)(s_ops->uptime_ms() / 1000ull) -
+                 (uint64_t)a->since_s) *
+                1000ull;
+            app_api_emit_fmt(out, "%llu",
+                             (unsigned long long)(now_unix_ms > age_ms
+                                                      ? now_unix_ms - age_ms
+                                                      : 0ull));
+        } else {
+            app_api_emit_str(out, "null");
+        }
+        app_api_emit_fmt(out, ",\"acked\":%s}",
+                         a->state == APP_ALARM_SLOT_ACKED ? "true" : "false");
+    }
+    app_api_emit_str(out, "]}");
 }
 
 /* ── GET /live (F9.3) ──────────────────────────────────────────────────── */
@@ -757,36 +795,163 @@ static void handle_config_device_post(const app_api_req_t *req,
     app_api_emit_str(out, "{\"ok\":true}");
 }
 
+/* F13.8 — /config/alarms speaks JSON in both directions. Until M5 this
+ * handler stored the POSTed bytes verbatim and echoed them back, which was
+ * honest as a placeholder (the M2 plan recorded it as provisional) and is
+ * a lie the moment an engine reads them. The NVS byte layout is
+ * device-private; the contract is 06 §6.2's JSON. */
+static bool alarm_rule_from_name(const char *name, size_t len, uint8_t *out) {
+    for (uint8_t r = 0; r < APP_ALARM_RULE_COUNT; r++) {
+        const char *s = bridge_alarm_rule_str(r);
+        if (strlen(s) == len && strncmp(s, name, len) == 0) {
+            *out = r;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void emit_alarm_cfg(app_api_out_t *out) {
+    const app_alarm_cfg_t *c = app_alarm_svc_cfg();
+    app_api_emit_str(out, "{\"rules\":[");
+    for (uint8_t r = 0; r < APP_ALARM_RULE_COUNT; r++) {
+        app_api_emit_fmt(out,
+                         "%s{\"rule\":\"%s\",\"enabled\":%s,"
+                         "\"severity\":\"%s\"}",
+                         r > 0 ? "," : "", bridge_alarm_rule_str(r),
+                         app_alarm_cfg_rule_enabled(c, r) ? "true" : "false",
+                         bridge_alarm_severity_str(
+                             app_alarm_rule_severity(r)));
+    }
+    /* Split into three calls on purpose: app_api_emit_fmt formats into a
+     * 256 B stack `piece` and TRUNCATES silently past it. Writing the
+     * twelve tunables as one format string fits in the source and not in
+     * that buffer — the first draft did exactly that and lost the last
+     * two fields, which the host test caught because it asserts a field
+     * at the END of the object rather than only at the start. */
+    app_api_emit_fmt(out,
+                     "],\"pit_band_f10\":%d,\"pit_band_sustain_s\":%u,"
+                     "\"pit_crash_below_f10\":%d",
+                     (int)c->pit_band_f10, (unsigned)c->pit_band_sustain_s,
+                     (int)c->pit_crash_below_f10);
+    app_api_emit_fmt(out,
+                     ",\"pit_crash_slope_f10_per_hr\":%d,"
+                     "\"pit_crash_sustain_s\":%u,\"base_lost_s\":%u",
+                     (int)c->pit_crash_slope_f10_per_hr,
+                     (unsigned)c->pit_crash_sustain_s,
+                     (unsigned)c->base_lost_s);
+    app_api_emit_fmt(out,
+                     ",\"battery_warn_pct\":%u,\"battery_crit_pct\":%u,"
+                     "\"storage_free_pct\":%u,\"target_rearm_f10\":%d,"
+                     "\"band_rearm_s\":%u,\"lid_grace_s\":%u}",
+                     (unsigned)c->batt_warn_pct, (unsigned)c->batt_crit_pct,
+                     (unsigned)c->storage_free_pct,
+                     (int)c->target_rearm_f10, (unsigned)c->band_rearm_s,
+                     (unsigned)c->lid_grace_s);
+}
+
+/* Applies one integer field if present, REFUSING an out-of-range value
+ * rather than clamping it. A band of 30000 tenths is a typo, and quietly
+ * storing 2000 instead would leave the user with a setting they never
+ * chose and no way to tell. */
+static bool take_int(const char *body, const char *key, long lo, long hi,
+                     long *dst) {
+    long v;
+    if (app_api_json_int(body, key, &v) != 0) {
+        return true; /* absent: merge-patch leaves it alone */
+    }
+    if (v < lo || v > hi) {
+        return false;
+    }
+    *dst = v;
+    return true;
+}
+
+#define TAKE_OR_400(key, lo, hi, field, cast)                              \
+    do {                                                                   \
+        long v_ = (long)(cfg.field);                                       \
+        if (!take_int(body, key, (lo), (hi), &v_)) {                       \
+            return app_api_error(out, 400, "invalid_field", key);          \
+        }                                                                  \
+        cfg.field = (cast)v_;                                              \
+    } while (0)
+
 static void handle_config_alarms(const app_api_req_t *req,
                                  app_api_out_t *out, bool post) {
-    if (post) {
-        const size_t n = req->body ? req->body_len : 0;
-        /* The rules blob is 64 B until M5's F13 defines the real encoding
-         * (recorded as provisional in the M2 plan). */
-        if (n > 64) {
-            return app_api_error(out, 400, "invalid_body",
-                                 "rules too large (64 B cap until M5)");
-        }
-        if (n > 0) {
-            (void)app_config_store_set_blob(APP_CONFIG_ALARM_RULES,
-                                            req->body, n);
-        }
+    if (!post) {
         app_api_out_begin(out, 200, "application/json");
-        app_api_emit_str(out, "{\"ok\":true}");
+        emit_alarm_cfg(out);
         return;
     }
-    uint8_t blob[65];
-    size_t len = sizeof blob - 1;
-    if (app_config_store_get_blob(APP_CONFIG_ALARM_RULES, blob, &len) !=
-            APP_CONFIG_OK ||
-        len == 0) {
-        app_api_out_begin(out, 200, "application/json");
-        app_api_emit_str(out, "{\"rules\":[]}");
-        return;
+
+    app_alarm_cfg_t cfg = *app_alarm_svc_cfg();
+    const char *body = req->body;
+    if (body == NULL) {
+        return app_api_error(out, 400, "invalid_body", "expected JSON");
     }
-    blob[len] = '\0';
+
+    /* rules: [{"rule":"target_reached","enabled":false}, ...] */
+    const char *p = strstr(body, "\"rules\"");
+    if (p != NULL && (p = strchr(p, '[')) != NULL) {
+        p++;
+        while (*p != '\0' && *p != ']') {
+            const char *name = strstr(p, "\"rule\"");
+            const char *obj_end = strchr(p, '}');
+            if (name == NULL || obj_end == NULL || name > obj_end) {
+                break;
+            }
+            name = strchr(name + 6, '"');
+            if (name == NULL) {
+                break;
+            }
+            name++;
+            const char *name_end = strchr(name, '"');
+            if (name_end == NULL) {
+                break;
+            }
+            uint8_t rule;
+            if (!alarm_rule_from_name(name, (size_t)(name_end - name),
+                                      &rule)) {
+                return app_api_error(out, 400, "invalid_field",
+                                     "unknown rule");
+            }
+            const char *en = strstr(name_end, "\"enabled\"");
+            const char *yes = en != NULL ? strstr(en, "true") : NULL;
+            if (en != NULL && en < obj_end) {
+                if (yes != NULL && yes < obj_end) {
+                    cfg.enabled_mask |= (uint16_t)(1u << rule);
+                } else {
+                    cfg.enabled_mask &= (uint16_t) ~(1u << rule);
+                }
+            }
+            p = obj_end + 1;
+            if (*p == ',') {
+                p++;
+            }
+        }
+    }
+
+    TAKE_OR_400("pit_band_f10", 10, 2000, pit_band_f10, int16_t);
+    TAKE_OR_400("pit_band_sustain_s", 0, 7200, pit_band_sustain_s, uint16_t);
+    TAKE_OR_400("pit_crash_below_f10", 10, 4000, pit_crash_below_f10,
+                int16_t);
+    TAKE_OR_400("pit_crash_slope_f10_per_hr", -30000, 0,
+                pit_crash_slope_f10_per_hr, int16_t);
+    TAKE_OR_400("pit_crash_sustain_s", 0, 7200, pit_crash_sustain_s,
+                uint16_t);
+    TAKE_OR_400("base_lost_s", 60, 65535, base_lost_s, uint16_t);
+    TAKE_OR_400("battery_warn_pct", 1, 100, batt_warn_pct, uint8_t);
+    TAKE_OR_400("battery_crit_pct", 1, 100, batt_crit_pct, uint8_t);
+    TAKE_OR_400("storage_free_pct", 1, 50, storage_free_pct, uint8_t);
+    TAKE_OR_400("target_rearm_f10", 0, 1000, target_rearm_f10, int16_t);
+    TAKE_OR_400("band_rearm_s", 0, 7200, band_rearm_s, uint16_t);
+    TAKE_OR_400("lid_grace_s", 0, 7200, lid_grace_s, uint16_t);
+
+    if (app_alarm_svc_set_cfg(&cfg) != 0) {
+        return app_api_error(out, 500, "internal", "could not store rules");
+    }
     app_api_out_begin(out, 200, "application/json");
-    app_api_emit_raw(out, blob, len); /* stored verbatim, echoed verbatim */
+    app_api_emit_str(out, "{\"ok\":true}");
 }
 
 static void handle_time_post(const app_api_req_t *req, app_api_out_t *out) {

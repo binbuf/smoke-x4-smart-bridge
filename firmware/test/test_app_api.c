@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "app_alarm_svc.h"
 #include "app_api_core.h"
 #include "app_api_ws.h"
 #include "app_config_store.h"
@@ -214,6 +215,7 @@ static void seed_world(void) {
     cook_ring_reset();
     smoke_x_pktring_reset();
     CHECK_EQ_INT(app_time_core_init(0, NULL, NULL), 0);
+    CHECK_EQ_INT(app_alarm_svc_init(NULL), 0);
     CHECK_EQ_INT(app_api_core_init(&g_api_ops), 0);
     g_coredump_size = 0;
     g_cfg_requests = 0;
@@ -648,6 +650,144 @@ static void test_ws_registry_and_frames(void) {
     }
 }
 
+/* ── F13.8 — alarm state on the HTTP surface ────────────────────────── */
+
+/* The /status.ble stub cost a bench sitting: a shape-complete placeholder
+ * that outlives the milestone which was supposed to fill it reads as a
+ * FAILURE of the thing it stands for ("bonded":0 = a lost pairing). This
+ * array was "[]" from M2 to M5 for the same honest reason, and this is the
+ * test that stops it staying that way. */
+static void test_status_alarms_are_the_engine_not_a_literal(void) {
+    seed_world();
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"alarms\":[]") != NULL);
+
+    /* Probe 2 is a brisket that has just passed its target. */
+    CHECK_EQ_INT(app_config_store_set_u8(APP_CONFIG_PROBE2_ROLE,
+                                         APP_CONFIG_ROLE_FOOD),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_set_i32(APP_CONFIG_PROBE2_TARGET, 2030),
+                 APP_CONFIG_OK);
+    cook_ring_sample_t rs = {.t = 30, .rssi = -70};
+    rs.temp[0] = 2430;
+    rs.temp[1] = 2041;
+    rs.temp[2] = INT16_MIN;
+    rs.temp[3] = INT16_MIN;
+    cook_ring_push(&rs);
+    app_alarm_svc_on_sample(30);
+
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"rule\":\"target_reached\"") != NULL);
+    CHECK(strstr(g_body, "\"severity\":\"critical\"") != NULL);
+    CHECK(strstr(g_body, "\"probe\":2") != NULL);
+    CHECK(strstr(g_body, "\"acked\":false") != NULL);
+    /* No clock in this world, so since_unix_ms is null rather than 1970. */
+    CHECK(strstr(g_body, "\"since_unix_ms\":null") != NULL);
+
+    /* Acknowledging silences; it does not resolve. */
+    const app_alarm_slot_t *list[APP_ALARM_MAX_ACTIVE];
+    CHECK_EQ_INT(app_alarm_svc_list(list, APP_ALARM_MAX_ACTIVE), 1);
+    CHECK_EQ_INT(app_alarm_svc_ack(list[0]->id), 1);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"acked\":true") != NULL);
+    CHECK(strstr(g_body, "\"rule\":\"target_reached\"") != NULL);
+}
+
+static void test_config_alarms_is_json_both_ways(void) {
+    seed_world();
+    do_req("GET", "/api/v1/config/alarms", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    /* All nine rules, named with their generated (= JSON) spellings. */
+    for (uint8_t r = 0; r < APP_ALARM_RULE_COUNT; r++) {
+        char want[64];
+        snprintf(want, sizeof want, "\"rule\":\"%s\"",
+                 bridge_alarm_rule_str(r));
+        CHECK(strstr(g_body, want) != NULL);
+    }
+    CHECK(strstr(g_body, "\"pit_band_f10\":250") != NULL);
+    CHECK(strstr(g_body, "\"lid_grace_s\":900") != NULL);
+    /* NOT the raw blob echoed back, which is what M2's placeholder did. */
+    CHECK(strstr(g_body, "\"rules\":[{") != NULL);
+
+    do_req("POST", "/api/v1/config/alarms",
+           "{\"pit_band_f10\":400,\"rules\":[{\"rule\":\"base_lost\","
+           "\"enabled\":false}]}",
+           NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    do_req("GET", "/api/v1/config/alarms", NULL, NULL);
+    CHECK(strstr(g_body, "\"pit_band_f10\":400") != NULL);
+    CHECK(strstr(g_body,
+                 "{\"rule\":\"base_lost\",\"enabled\":false") != NULL);
+    /* Merge-patch: a field not mentioned is left alone. */
+    CHECK(strstr(g_body, "\"lid_grace_s\":900") != NULL);
+
+    /* An out-of-range value is REFUSED, not clamped — and the stored
+     * config is untouched by the attempt. */
+    do_req("POST", "/api/v1/config/alarms", "{\"pit_band_f10\":30000}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    CHECK(strstr(g_body, "invalid_field") != NULL);
+    do_req("POST", "/api/v1/config/alarms",
+           "{\"rules\":[{\"rule\":\"not_a_rule\",\"enabled\":true}]}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    do_req("GET", "/api/v1/config/alarms", NULL, NULL);
+    CHECK(strstr(g_body, "\"pit_band_f10\":400") != NULL);
+}
+
+static void test_ws_alarm_and_power_frames(void) {
+    seed_world();
+    app_api_out_t out;
+    g_body_len = 0;
+    app_api_out_init(&out, capture_sink, NULL);
+    const bridge_evt_alarm_t a = {.action = BRIDGE_ALARM_RAISED,
+                                  .alarm_id = 4,
+                                  .rule = BRIDGE_ALARM_RULE_TARGET_REACHED,
+                                  .probe = 2,
+                                  .value_f10 = 2031};
+    app_api_ws_alarm(&out, &a, "Brisket reached 203.1F");
+    (void)app_api_out_finish(&out);
+    g_body[g_body_len] = '\0';
+    CHECK(strcmp(g_body,
+                 "{\"type\":\"alarm\",\"action\":\"raised\",\"id\":4,"
+                 "\"rule\":\"target_reached\",\"severity\":\"critical\","
+                 "\"probe\":2,\"value_f10\":2031,"
+                 "\"message\":\"Brisket reached 203.1F\"}") == 0);
+
+    /* A detached probe is null on the wire, never 0. */
+    g_body_len = 0;
+    app_api_out_init(&out, capture_sink, NULL);
+    const bridge_evt_alarm_t d = {.action = BRIDGE_ALARM_RAISED,
+                                  .alarm_id = 5,
+                                  .rule = BRIDGE_ALARM_RULE_PROBE_DETACHED,
+                                  .probe = 3,
+                                  .value_f10 = INT16_MIN};
+    app_api_ws_alarm(&out, &d, NULL);
+    (void)app_api_out_finish(&out);
+    g_body[g_body_len] = '\0';
+    CHECK(strstr(g_body, "\"value_f10\":null") != NULL);
+    CHECK(strstr(g_body, "\"severity\":\"warning\"") != NULL);
+    CHECK(strstr(g_body, "\"message\"") == NULL);
+
+    /* F12.5's power frame: SOC_UNKNOWN is null, not 255 and not 0. */
+    g_body_len = 0;
+    app_api_out_init(&out, capture_sink, NULL);
+    const bridge_evt_power_t pu = {.mv = 0, .soc_pct = BRIDGE_SOC_UNKNOWN};
+    app_api_ws_power(&out, &pu);
+    (void)app_api_out_finish(&out);
+    g_body[g_body_len] = '\0';
+    CHECK(strstr(g_body, "\"soc_pct\":null") != NULL);
+    g_body_len = 0;
+    app_api_out_init(&out, capture_sink, NULL);
+    const bridge_evt_power_t pk = {
+        .mv = 3894, .soc_pct = 71, .charging = true, .saver = false};
+    app_api_ws_power(&out, &pk);
+    (void)app_api_out_finish(&out);
+    g_body[g_body_len] = '\0';
+    CHECK(strcmp(g_body,
+                 "{\"type\":\"power\",\"soc_pct\":71,\"mv\":3894,"
+                 "\"charging\":true,\"saver\":false}") == 0);
+}
+
 int main(void) {
     test_captive_probes_exact_bytes();
     test_router_auth_and_errors();
@@ -663,5 +803,8 @@ int main(void) {
     test_radio_conservative_post();
     test_debug_endpoints();
     test_ws_registry_and_frames();
+    test_status_alarms_are_the_engine_not_a_literal();
+    test_config_alarms_is_json_both_ways();
+    test_ws_alarm_and_power_frames();
     return test_summary("test_app_api");
 }

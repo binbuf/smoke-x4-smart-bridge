@@ -98,6 +98,20 @@ void _emitEnums(ProtocolSpec spec, StringBuffer b) {
     });
     b.writeln('} bridge_${name}_t;');
     b.writeln();
+    // The YAML key IS the JSON spelling (06 §6.2). Emitting it here means a
+    // wire value has exactly one name in C, and it is the same one Dart's
+    // generated enum carries — instead of a switch someone maintains twice.
+    b.writeln('static inline const char *bridge_${name}_str(int v) {');
+    b.writeln('    switch (v) {');
+    values.forEach((k, v) {
+      b.writeln('    case $v:');
+      b.writeln('        return "$k";');
+    });
+    b.writeln('    default:');
+    b.writeln('        return "";');
+    b.writeln('    }');
+    b.writeln('}');
+    b.writeln();
   });
 }
 

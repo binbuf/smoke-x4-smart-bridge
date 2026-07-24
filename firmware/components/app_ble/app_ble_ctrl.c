@@ -10,6 +10,7 @@
 
 #include <string.h>
 
+#include "app_alarm_svc.h"
 #include "app_config_store.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
@@ -264,11 +265,11 @@ static int op_ack_alarm(const uint8_t *body, size_t body_len) {
     }
     bridge_ctrl_ack_alarm_t a;
     bridge_ctrl_ack_alarm_decode(body, &a);
-    /* Accept-and-record until F13 gives it an engine — the same honest
-     * degenerate F9.9 chose for the WebSocket path, so both tiers behave
-     * identically the day the alarm engine lands. The id is parsed rather
-     * than ignored so a malformed one is caught now, not in M5. */
-    (void)a.alarm_id;
+    /* F13.8 — routed. An unknown or already-acked id silences nothing and
+     * still answers ok: HTTP, BLE and the PRG button can all send the same
+     * ack for the same alarm, and none of them should see a failure for
+     * being second. */
+    (void)app_alarm_svc_ack(a.alarm_id);
     return APP_BLE_OK;
 }
 

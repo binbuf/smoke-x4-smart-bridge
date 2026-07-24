@@ -8,6 +8,7 @@
 
 #include <string.h>
 
+#include "app_alarm_svc.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 #include "smoke_x_ctrl.h"
@@ -238,9 +239,11 @@ void app_ble_live_snapshot(app_ble_live_t *out) {
             out->session_t = newest->t;
         }
     }
-    /* F13 (M5) owns alarm state; the field and its notify trigger are
-     * wired now so the alarm engine changes nothing in app_ble. */
-    out->alarm_active = false;
+    /* F13 (M5) owns alarm state, and here it is: true only while an alarm
+     * is raised and NOT acknowledged. Acknowledging silences — it does not
+     * resolve — so an acked alarm leaves this false while still appearing
+     * in /status (09 §9.2). */
+    out->alarm_active = app_alarm_svc_unacked();
 }
 
 int app_ble_build_live_state(uint8_t *out, size_t cap) {

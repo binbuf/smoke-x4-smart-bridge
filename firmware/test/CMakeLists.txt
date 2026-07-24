@@ -119,8 +119,14 @@ add_executable(test_app_api
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_novelty_log.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/app_time_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
 )
 target_include_directories(test_app_api PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
@@ -282,8 +288,14 @@ add_executable(test_app_ble
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_fb.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_font.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_render.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
 )
 target_include_directories(test_app_ble PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
@@ -321,6 +333,48 @@ target_compile_definitions(test_app_ui PRIVATE
     RENDER_DIR="${CMAKE_CURRENT_BINARY_DIR}/oled-render"
 )
 add_test(NAME app_ui COMMAND test_app_ui)
+
+# The device-tier alarm engine: the 09 §9.2 rule table, the latching
+# lifecycle, the ±1 °F oscillation regression from 10 §10.5, and the
+# lid-open branch that keeps a spritz from being an alarm (F13.1,
+# F13.3–F13.5).
+add_executable(test_app_alarm
+    test_app_alarm.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
+)
+target_include_directories(test_app_alarm PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME app_alarm COMMAND test_app_alarm)
+
+# The alarm engine wired to the REAL app_config_store, smoke_x_ctrl,
+# cook_ring and cook_store — the modules the firmware runs, not doubles of
+# them. Only the four device facts are faked (F13.6, F13.7).
+add_executable(test_app_alarm_svc
+    test_app_alarm_svc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_ring.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
+)
+target_include_directories(test_app_alarm_svc PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME app_alarm_svc COMMAND test_app_alarm_svc)
 
 # Task table invariants (F1.4).
 add_executable(test_tasks_table test_tasks_table.c)

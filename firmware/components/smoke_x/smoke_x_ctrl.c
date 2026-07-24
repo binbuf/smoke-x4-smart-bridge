@@ -21,6 +21,13 @@ static uint64_t s_last_valid_ms; /* last accepted state message (or boot) */
 static bool s_have_last_packet;
 static uint64_t s_last_packet_ms; /* for the interval histogram */
 static bool s_base_lost;
+/* The newest ACCEPTED state message, kept whole. The bridge_evt_sample_t
+ * the event bus carries is deliberately narrow (03 §3.2 — small POD
+ * payloads), and app_alarm's smoke_x_alarm rule needs the base's own
+ * per-probe alarm band, which does not fit there. Storing 40 bytes here
+ * is cheaper than widening an event every subscriber copies. */
+static smoke_x_state_t s_last_state;
+static bool s_have_last_state;
 
 static void publish(smoke_x_evt_t evt, const void *payload) {
     s_ops->publish(s_ctx, evt, payload);
@@ -128,6 +135,8 @@ static int handle_state(const char *payload, unsigned int num_probes,
     sample.rssi = rssi;
     sample.snr = snr;
     sample.t_ms = now_ms;
+    s_last_state = sample.state;
+    s_have_last_state = true;
     publish(SMOKE_X_EVT_SAMPLE, &sample);
     return 0;
 }
@@ -204,6 +213,10 @@ uint64_t smoke_x_ctrl_last_valid_ms(void) { return s_last_valid_ms; }
 bool smoke_x_ctrl_base_lost(void) { return s_base_lost; }
 
 uint32_t smoke_x_ctrl_frequency_hz(void) { return s_frequency; }
+
+const smoke_x_state_t *smoke_x_ctrl_last_state(void) {
+    return s_have_last_state ? &s_last_state : NULL;
+}
 
 int smoke_x_ctrl_init(const smoke_x_ops_t *ops, void *ctx,
                       bool rescan_enabled, uint64_t now_ms) {

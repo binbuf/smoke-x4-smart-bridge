@@ -120,6 +120,48 @@ enum MarkKind {
   }
 }
 
+enum AlarmRule {
+  smokeXAlarm(0),
+  targetReached(1),
+  pitOutOfBand(2),
+  pitCrash(3),
+  probeDetached(4),
+  baseLost(5),
+  batteryLow(6),
+  storageLow(7),
+  systemFault(8);
+
+  const AlarmRule(this.wire);
+  final int wire;
+
+  static AlarmRule? fromWire(int v) {
+    for (final e in values) {
+      if (e.wire == v) {
+        return e;
+      }
+    }
+    return null;
+  }
+}
+
+enum AlarmSeverity {
+  info(0),
+  warning(1),
+  critical(2);
+
+  const AlarmSeverity(this.wire);
+  final int wire;
+
+  static AlarmSeverity? fromWire(int v) {
+    for (final e in values) {
+      if (e.wire == v) {
+        return e;
+      }
+    }
+    return null;
+  }
+}
+
 enum NetMode {
   off(0),
   ap(1),

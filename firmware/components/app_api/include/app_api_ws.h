@@ -70,6 +70,13 @@ void app_api_ws_pairing(app_api_out_t *out, bool paired,
                         const char *device_id, int num_probes);
 void app_api_ws_session(app_api_out_t *out, const char *action, uint32_t id,
                         const char *name);
+/* F13.8 — 06 §6.3's alarm frame. `message` is the human sentence the app
+ * shows in a notification; NULL omits it. */
+void app_api_ws_alarm(app_api_out_t *out, const bridge_evt_alarm_t *e,
+                      const char *message);
+/* F12.5 — 06 §6.3's power frame. soc == BRIDGE_SOC_UNKNOWN emits null
+ * rather than a plausible-looking 255. */
+void app_api_ws_power(app_api_out_t *out, const bridge_evt_power_t *e);
 
 #ifdef __cplusplus
 }
