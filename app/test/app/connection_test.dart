@@ -68,6 +68,30 @@ void main() {
     expect(state, isA<LaunchNeedsOnboarding>());
   });
 
+  test('never provisioned still onboards when a BLE radio exists', () async {
+    // Board-found on the A8.4 sitting. The test above passes `bleAttempt:
+    // null`, which is the one case production never has — `bootstrap.dart`
+    // always wires a lane. So a fresh install raced, lost, and showed
+    // "Cannot reach the bridge" with no way to add one; clearing app data
+    // on the bench reproduced it every time.
+    final state = await make(
+      bleAttempt: () async => null, // radio present, nothing found
+    ).start();
+    expect(state, isA<LaunchNeedsOnboarding>());
+  });
+
+  test('a remembered bridge that is unreachable stays offline', () async {
+    // The counterpart: onboarding must NOT swallow a known bridge simply
+    // being off, or a user with a provisioned bridge gets sent back
+    // through the wizard every time the grill is unplugged.
+    final prefs = InMemoryBridgePrefs(lastBaseUrl: 'http://10.50.50.38');
+    final state = await make(
+      prefs: prefs,
+      bleAttempt: () async => null,
+    ).start();
+    expect(state, isA<LaunchOffline>());
+  });
+
   test('cached and reachable wins on the cached lane, first try', () async {
     final probed = <String>[];
     final prefs = InMemoryBridgePrefs(lastBaseUrl: 'http://10.50.50.38');

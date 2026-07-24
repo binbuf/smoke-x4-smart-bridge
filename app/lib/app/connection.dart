@@ -101,14 +101,25 @@ class AppConnection {
   Future<LaunchState> start({
     Duration raceTimeout = const Duration(seconds: 8),
   }) async {
-    if (prefs.lastBaseUrl == null && bleAttempt == null) {
+    final neverMetABridge = prefs.lastBaseUrl == null;
+    if (neverMetABridge && bleAttempt == null) {
       // Nothing remembered and no radio to fall back on: this phone has
       // never met a bridge.
       _emit(const LaunchNeedsOnboarding());
       return _state;
     }
     _emit(const LaunchConnecting());
-    return _race(raceTimeout: raceTimeout);
+    final raced = await _race(raceTimeout: raceTimeout);
+    // Board-found: the guard above only fired when there was ALSO no BLE
+    // radio, and in production `bleAttempt` is never null — so a phone
+    // that had never met a bridge raced, lost, and landed on "Cannot reach
+    // the bridge", a dead end offering no way to add one. A fresh install
+    // could not onboard at all. Nothing remembered plus nothing found is
+    // the definition of needing onboarding, however many lanes were tried.
+    if (raced is LaunchOffline && neverMetABridge) {
+      _emit(const LaunchNeedsOnboarding());
+    }
+    return _state;
   }
 
   Future<LaunchState> _race({required Duration raceTimeout}) async {
