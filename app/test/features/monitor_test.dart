@@ -76,6 +76,13 @@ class _FakeTransport implements BridgeTransport {
   Future<void> configure(BridgeConfig cfg) async {}
 
   @override
+  Future<void> uploadFirmware(
+    Stream<List<int>> image, {
+    required int lengthBytes,
+    bool force = false,
+  }) async {}
+
+  @override
   Future<void> close() async {
     await _events.close();
   }

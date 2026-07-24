@@ -161,6 +161,17 @@ class MockTransport implements BridgeTransport {
   }
 
   @override
+  Future<void> uploadFirmware(
+    Stream<List<int>> image, {
+    required int lengthBytes,
+    bool force = false,
+  }) async {
+    // The mock has no OTA (capabilities.ota is false); a call here is a
+    // wiring bug the analyzer cannot see, so surface it loudly.
+    throw UnsupportedError('MockTransport does not do OTA');
+  }
+
+  @override
   Future<void> close() async {
     _closed = true;
   }

@@ -20,6 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/data/dto/dto.dart' hide AlarmSeverity;
 import 'package:smoke_bridge/data/transport/bridge_transport.dart';
 import 'package:smoke_bridge/data/transport/http_transport.dart';
+import 'package:smoke_bridge/data/transport/mock_transport.dart';
 import 'package:smoke_bridge/domain/entities/entities.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -30,6 +31,10 @@ import 'transport_contract.dart';
 class FakeAdapter implements HttpClientAdapter {
   final Map<String, (int, Object)> routes = {};
   final List<String> requests = [];
+
+  /// A12.6 — the bytes the last request streamed, drained so a test can
+  /// assert the whole image reached the wire.
+  int lastRequestBodyLength = 0;
 
   void json(String prefix, String fixtureName, {int status = 200}) {
     final body = File(
@@ -48,6 +53,12 @@ class FakeAdapter implements HttpClientAdapter {
         options.uri.path +
         (options.uri.query.isEmpty ? '' : '?${options.uri.query}');
     requests.add('${options.method} $pathQ');
+    if (requestStream != null) {
+      lastRequestBodyLength = 0;
+      await for (final chunk in requestStream) {
+        lastRequestBodyLength += chunk.length;
+      }
+    }
     for (final e in routes.entries) {
       if (pathQ.startsWith(e.key)) {
         final (status, body) = e.value;
@@ -283,5 +294,70 @@ void main() {
     expect((await t.status()).paired, isTrue);
     await sub.cancel();
     await t.close();
+  });
+
+  group('A12.6 — firmware upload', () {
+    Stream<List<int>> image(int n) =>
+        Stream.fromIterable([List<int>.filled(n, 0xAB)]);
+
+    test('streams the whole image to POST /ota and completes', () async {
+      final a = FakeAdapter();
+      a.routes['/api/v1/ota'] = (
+        200,
+        '{"accepted":true,"image_size_b":2048,"slot":"ota_1",'
+            '"version":"1.0.1","project":"smoke_bridge","rebooting_in_ms":500}',
+      );
+      final t = transportWith(a);
+      await t.uploadFirmware(image(2048), lengthBytes: 2048);
+      expect(a.requests.single, 'POST /api/v1/ota');
+      // Nothing is materialised: the whole image reached the wire.
+      expect(a.lastRequestBodyLength, 2048);
+      await t.close();
+    });
+
+    test('a 409 surfaces as a typed refusal, not a retry', () async {
+      final a = FakeAdapter();
+      a.routes['/api/v1/ota'] = (
+        409,
+        '{"error":{"code":"session_active","message":"a cook is running"}}',
+      );
+      final t = transportWith(a);
+      // The refusal is thrown for the screen to render; the transport
+      // NEVER retries with force on its own.
+      await expectLater(
+        t.uploadFirmware(image(64), lengthBytes: 64),
+        throwsA(
+          isA<BridgeApiException>()
+              .having((e) => e.statusCode, 'statusCode', 409)
+              .having((e) => e.code, 'code', 'session_active'),
+        ),
+      );
+      expect(a.requests, ['POST /api/v1/ota']); // exactly one attempt
+      await t.close();
+    });
+
+    test('force carries ?force=1', () async {
+      final a = FakeAdapter();
+      a.routes['/api/v1/ota'] = (200, '{"accepted":true}');
+      final t = transportWith(a);
+      await t.uploadFirmware(image(16), lengthBytes: 16, force: true);
+      expect(a.requests.single, 'POST /api/v1/ota?force=1');
+      await t.close();
+    });
+
+    test('the mock refuses OTA rather than pretending', () async {
+      // capabilities.ota is false, so the button is absent; a caller that
+      // ignores the flag gets an honest throw, not a silent drop.
+      final mock = MockTransport.fromSmkBytes(
+        File(
+          '${repoRoot()}/protocol/fixtures/brisket-18h.smk',
+        ).readAsBytesSync(),
+      );
+      expect(mock.capabilities.ota, isFalse);
+      expect(
+        () => mock.uploadFirmware(image(4), lengthBytes: 4),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
   });
 }

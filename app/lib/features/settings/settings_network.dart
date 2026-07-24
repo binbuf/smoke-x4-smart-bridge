@@ -196,6 +196,7 @@ class FirmwareSettingsView extends StatelessWidget {
   const FirmwareSettingsView({
     required this.currentVersion,
     required this.otaSupported,
+    this.imageSourceAvailable = false,
     this.sessionActive = false,
     this.progressPct,
     this.phase = '',
@@ -209,6 +210,13 @@ class FirmwareSettingsView extends StatelessWidget {
   /// False on BLE, always: OTA is HTTP-only (F14, M6 on the device side).
   /// The upload button is then absent, not disabled-and-mysterious.
   final bool otaSupported;
+
+  /// A12.6 — whether an `AppEnv.firmwareImage` source is registered to
+  /// pick a `.bin`. False in v1 (no file picker yet): the screen then
+  /// explains where to get an image and how to install it rather than
+  /// showing a dead enabled button. **A button that explains itself beats
+  /// a button that does nothing.**
+  final bool imageSourceAvailable;
   final bool sessionActive;
   final int? progressPct;
   final String phase;
@@ -287,20 +295,39 @@ class FirmwareSettingsView extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
-          FilledButton.icon(
-            key: const Key('firmware-upload'),
-            onPressed: onUpload == null ? null : () => onUpload!(force: false),
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Upload firmware'),
-          ),
-          if (refusal.isNotEmpty && sessionActive) ...[
-            const SizedBox(height: 8),
-            // A separate, deliberate action. Never an automatic retry.
-            OutlinedButton(
-              key: const Key('firmware-upload-force'),
-              onPressed: onUpload == null ? null : () => onUpload!(force: true),
-              child: const Text('Update anyway, ending this cook'),
+          if (!imageSourceAvailable)
+            // A12.6 — no picker in v1. Explain, do not present a dead
+            // button: the transport is real and drivable against the sim,
+            // and this text is honest about how to update today.
+            Text(
+              'Over-the-air updates from inside the app arrive in a later '
+              'release. For now, install the latest firmware from the web '
+              'installer, or flash it over USB — see the project README.',
+              key: const Key('firmware-no-image-source'),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          else ...[
+            FilledButton.icon(
+              key: const Key('firmware-upload'),
+              onPressed: onUpload == null
+                  ? null
+                  : () => onUpload!(force: false),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Upload firmware'),
             ),
+            if (refusal.isNotEmpty && sessionActive) ...[
+              const SizedBox(height: 8),
+              // A separate, deliberate action. Never an automatic retry.
+              OutlinedButton(
+                key: const Key('firmware-upload-force'),
+                onPressed: onUpload == null
+                    ? null
+                    : () => onUpload!(force: true),
+                child: const Text('Update anyway, ending this cook'),
+              ),
+            ],
           ],
         ],
       ],

@@ -38,6 +38,14 @@ class _SettingsRouteState extends State<SettingsRoute> {
   bool _monitoring = true;
   bool _batteryExempt = false;
 
+  // A12.6 — OTA upload state. Progress comes from the transport's `ota`
+  // events, not from byte counting: the device is authoritative about its
+  // own phase.
+  int? _otaPct;
+  String _otaPhase = '';
+  String _otaRefusal = '';
+  StreamSubscription<BridgeEvent>? _otaEvents;
+
   @override
   void initState() {
     super.initState();
@@ -70,8 +78,67 @@ class _SettingsRouteState extends State<SettingsRoute> {
     }
   }
 
+  /// A12.6 — pick a `.bin` through the injected seam, stream it to
+  /// `POST /api/v1/ota`, and render progress from the device's own `ota`
+  /// frames. [force] carries `?force=1`; the `409 session_active` refusal
+  /// surfaces as copy and the force path is a separate, deliberate act —
+  /// never an automatic retry.
+  Future<void> _uploadFirmware({required bool force}) async {
+    final source = AppEnv.instance?.firmwareImage;
+    final transport = _transport;
+    if (source == null || transport == null) {
+      return;
+    }
+    final image = await source();
+    if (image == null) {
+      return; // the user cancelled the picker
+    }
+
+    setState(() {
+      _otaRefusal = '';
+      _otaPhase = 'starting';
+      _otaPct = 0;
+    });
+
+    // The device is authoritative about its phase, so progress is read off
+    // its `ota` frames rather than counted here.
+    _otaEvents ??= transport.events.listen((e) {
+      if (e is BridgeOtaEvent && mounted) {
+        setState(() {
+          _otaPhase = e.phase;
+          _otaPct = e.pct;
+        });
+      }
+    });
+
+    try {
+      await transport.uploadFirmware(
+        image.bytes,
+        lengthBytes: image.lengthBytes,
+        force: force,
+      );
+    } on BridgeApiException catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _otaPct = null;
+        _otaPhase = '';
+        // The bridge's own refusal (its 409 session_active message). The
+        // view turns it into the two-tier copy and the deliberate force
+        // button, which only appears while a cook is active.
+        _otaRefusal = err.message;
+      });
+    } on Object catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _otaPct = null;
+        _otaPhase = '';
+      });
+    }
+  }
+
   @override
   void dispose() {
+    unawaited(_otaEvents?.cancel());
     unawaited(_transport?.close());
     super.dispose();
   }
@@ -172,7 +239,12 @@ class _SettingsRouteState extends State<SettingsRoute> {
     SettingsSection.firmware => FirmwareSettingsView(
       currentVersion: _status?.fw ?? '',
       otaSupported: _transport?.capabilities.ota ?? false,
+      imageSourceAvailable: AppEnv.instance?.firmwareImage != null,
       sessionActive: _status?.sessionActive ?? false,
+      progressPct: _otaPct,
+      phase: _otaPhase,
+      refusal: _otaRefusal,
+      onUpload: AppEnv.instance?.firmwareImage == null ? null : _uploadFirmware,
     ),
     SettingsSection.about => AboutView(
       appVersion: AppEnv.instance?.appVersion ?? '',

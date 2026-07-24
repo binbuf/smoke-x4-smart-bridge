@@ -75,7 +75,58 @@ Map<String, Object?> statusJson(SimState s) {
       'elapsed_s': ended ? (s.samples.isEmpty ? 0 : s.samples.last.t) : vT,
       'samples': s.liveVisible(vT).length,
     },
+    // F11b.11 / F14.8 — additive objects the device now carries (06 §6.5).
+    'display': {'i2c_ok': 18422, 'i2c_err': 0},
+    'ota': {
+      'slot': s.otaSlot,
+      'pending_verify': false,
+      // A sim is never pending verify: there is nothing to confirm and
+      // nothing to roll back, and reporting `passed` would be the
+      // /status.ble stub all over again.
+      'gate': 'not_applicable',
+      'failed': null,
+    },
     'alarms': <Object?>[],
+  };
+}
+
+/// V3.1 — the soak's evidence, over HTTP. `largest_free_block_b` is the
+/// field a total free-heap number cannot express (R2).
+Map<String, Object?> debugTasksJson(SimState s) {
+  final vT = s.virtualT();
+  return {
+    'heap': {
+      'free_b': 92160,
+      'min_free_b': 80116,
+      'largest_free_block_b': 40960,
+    },
+    'tasks': [
+      for (final t in const [
+        ('lora_rx', 4096, 1360, 6, 1),
+        ('smoke_x', 3072, 1120, 5, 0),
+        ('cook_store', 4096, 1840, 4, 0),
+        ('app_ui', 4096, 1520, 3, 0),
+        ('app_alarm', 3072, 1280, 4, 0),
+        ('app_net', 3072, 1040, 4, 0),
+        ('app_power', 2560, 1180, 2, 0),
+        ('ws_push', 4096, 1240, 4, 0),
+        ('ble_push', 4096, 1600, 4, 0),
+        // The rows main/tasks.h cannot account for, which is why the
+        // trace facility is enabled at all.
+        ('httpd', 0, 2048, 5, -1),
+        ('sys_evt', 0, 1600, 5, -1),
+      ])
+        {
+          'name': t.$1,
+          'stack_b': t.$2,
+          // A little drift with virtual time, so a soak run against the
+          // sim exercises a trend rather than a constant.
+          'high_water_b': t.$3 - (vT ~/ 3600).clamp(0, 200),
+          'margin_b': t.$3 - (vT ~/ 3600).clamp(0, 200),
+          'priority': t.$4,
+          'core': t.$5,
+        },
+    ],
   };
 }
 

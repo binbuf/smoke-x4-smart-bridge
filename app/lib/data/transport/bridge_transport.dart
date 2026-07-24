@@ -90,6 +90,29 @@ abstract class BridgeConfig with _$BridgeConfig {
       _BridgeConfig;
 }
 
+/// A12.6 — a firmware image the user chose, as a length and a byte stream.
+///
+/// The picker that produces one is **not** in v1 (SAF, a plugin, an
+/// Android integration `flutter test` cannot run). This type is the seam
+/// it will plug into: with no [FirmwareImageSource] registered the firmware
+/// screen explains where to get an image instead of showing a dead button,
+/// and the transport underneath is finished and tested for whenever the
+/// picker lands.
+class FirmwareImage {
+  const FirmwareImage({
+    required this.name,
+    required this.lengthBytes,
+    required this.bytes,
+  });
+
+  final String name;
+  final int lengthBytes;
+  final Stream<List<int>> bytes;
+}
+
+/// Returns the image the user picked, or null if they cancelled.
+typedef FirmwareImageSource = Future<FirmwareImage?> Function();
+
 /// The one interface every screen talks to (08 §8.1). Implementations:
 /// `HttpTransport` (M1+), `BleTransport` (M3), `MockTransport` (here).
 abstract interface class BridgeTransport {
@@ -116,6 +139,23 @@ abstract interface class BridgeTransport {
   Future<void> control(ControlCommand cmd);
 
   Future<void> configure(BridgeConfig cfg);
+
+  /// A12.6 — stream a firmware image to `POST /api/v1/ota` (F14.5).
+  ///
+  /// Only [HttpTransport] implements it; BLE and the mock throw
+  /// [UnsupportedError], which is why `capabilities.ota` gates the button.
+  /// Progress is NOT reported here — it arrives on [events] as
+  /// [BridgeOtaEvent]s, because the device is authoritative about its own
+  /// phase.
+  ///
+  /// [force] carries `?force=1`. Without it the bridge refuses with `409
+  /// session_active` while a cook is running — nobody should discover a
+  /// bad flash fourteen hours into a brisket.
+  Future<void> uploadFirmware(
+    Stream<List<int>> image, {
+    required int lengthBytes,
+    bool force = false,
+  });
 
   Future<void> close();
 }

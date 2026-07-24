@@ -181,7 +181,42 @@ void main() {
     });
   });
 
-  group('OTA (T3.4)', () {
+  group('OTA (T3.4 + F14.6)', () {
+    // The first 288 bytes of a REAL heltec-v3 build. Both sides — the C
+    // core and this sim — parse the same committed bytes; a sim that
+    // accepts `[1, 2, 3, 4]` as firmware gives the app path false
+    // confidence in exactly the case that costs a board.
+    List<int> realImage(int total) {
+      final header = File(
+        '${repoRoot()}/protocol/fixtures/ota/app-heltec-v3-header.bin',
+      ).readAsBytesSync();
+      return [...header, ...List.filled(total - header.length, 0x5A)];
+    }
+
+    test('rejects anything that is not an app image for this chip', () async {
+      final s = await startServer(scenarioState('ota'));
+      final client = HttpClient();
+
+      var req = await client.post('127.0.0.1', s.port, '/api/v1/ota');
+      req.add([1, 2, 3, 4]);
+      var res = await req.close();
+      expect(res.statusCode, 400);
+      var body = jsonDecode(await utf8.decoder.bind(res).join()) as Map;
+      expect((body['error'] as Map)['code'], 'invalid_body');
+
+      // THE mistake F14.1 exists to catch: the merged image (which starts
+      // with the bootloader) uploaded instead of the app-only OTA image.
+      final boot = File(
+        '${repoRoot()}/protocol/fixtures/ota/bootloader-header.bin',
+      ).readAsBytesSync();
+      req = await client.post('127.0.0.1', s.port, '/api/v1/ota');
+      req.add([...boot, ...List.filled(1024, 0)]);
+      res = await req.close();
+      expect(res.statusCode, 400);
+      body = jsonDecode(await utf8.decoder.bind(res).join()) as Map;
+      expect((body['error'] as Map)['message'], contains('use_the_ota_bin'));
+    });
+
     test(
       'refused mid-cook without force, allowed on the ota scenario',
       () async {
@@ -190,7 +225,7 @@ void main() {
         final busy = await startServer(SimState(cook: active));
         final client = HttpClient();
         var req = await client.post('127.0.0.1', busy.port, '/api/v1/ota');
-        req.add([1, 2, 3, 4]);
+        req.add(realImage(1024));
         var res = await req.close();
         expect(res.statusCode, 409);
         final body = jsonDecode(await utf8.decoder.bind(res).join()) as Map;
@@ -212,9 +247,18 @@ void main() {
         });
 
         req = await client.post('127.0.0.1', s.port, '/api/v1/ota');
-        req.add(List.filled(1024, 0xAB));
+        req.add(realImage(1024));
         res = await req.close();
         expect(res.statusCode, 200);
+        // 06 §6.2's OtaAccepted, not the ad-hoc {ok, bytes, rebooting}
+        // this used to return.
+        final accepted = jsonDecode(await utf8.decoder.bind(res).join()) as Map;
+        expect(accepted['accepted'], isTrue);
+        expect(accepted['image_size_b'], 1024);
+        expect(accepted['slot'], 'ota_1');
+        expect(accepted['version'], '1.0.0');
+        expect(accepted['project'], 'smoke_bridge');
+        expect(accepted['rebooting_in_ms'], 500);
 
         final (blocked, blockedBody) = await getJson(s, '/api/v1/sessions');
         expect(blocked, 503);
@@ -225,7 +269,15 @@ void main() {
 
         await Future<void>.delayed(const Duration(milliseconds: 1800));
         expect(phases, isNotEmpty);
-        expect(phases.last, 'done:100');
+        // `rebooting` is the device's terminal phase. `done` was never in
+        // WsOtaFrame's enum, and the sim used to emit it anyway.
+        expect(phases.last, 'rebooting:100');
+        for (final p in phases) {
+          expect(
+            p.split(':').first,
+            anyOf('receiving', 'writing', 'verifying', 'rebooting', 'failed'),
+          );
+        }
         final (after, _) = await getJson(s, '/api/v1/sessions');
         expect(after, 200);
       },

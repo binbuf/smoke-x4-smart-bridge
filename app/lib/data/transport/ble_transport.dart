@@ -386,6 +386,18 @@ class BleTransport implements BridgeTransport {
   }
 
   @override
+  Future<void> uploadFirmware(
+    Stream<List<int>> image, {
+    required int lengthBytes,
+    bool force = false,
+  }) =>
+      // OTA is HTTP-only, always (F14 device side). capabilities.ota is
+      // false on BLE, so the upload button is absent rather than
+      // disabled-and-mysterious — but a caller that ignores the flag gets
+      // an honest refusal rather than a silent drop.
+      throw const BridgeUnsupportedException('firmware update');
+
+  @override
   Future<void> configure(BridgeConfig cfg) async {
     if (cfg.probes != null) {
       // No `device_control` op sets probe names or roles — that surface is

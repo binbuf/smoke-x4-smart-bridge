@@ -55,6 +55,10 @@ class SimState {
   bool otaInProgress = false;
   int otaPct = 0;
 
+  /// The slot the running image booted from. Flips on a successful
+  /// upload, like the device's does.
+  String otaSlot = 'ota_0';
+
   // Alarm ack state, keyed by alarm id.
   final Set<int> ackedAlarms = {};
 

@@ -9,6 +9,7 @@ library;
 
 import '../data/local/database.dart';
 import '../data/prefs/bridge_prefs.dart';
+import '../data/transport/bridge_transport.dart';
 import '../data/transport/connection_manager.dart';
 import '../data/transport/discovery.dart';
 import '../data/transport/http_transport.dart';
@@ -27,6 +28,7 @@ class AppEnv {
     this.probe,
     this.notifications,
     this.foregroundService,
+    this.firmwareImage,
     this.appVersion = '1.0.0',
   }) : transportFor = transportFor ?? HttpTransport.new;
 
@@ -42,6 +44,12 @@ class AppEnv {
   /// every consumer degrades to in-app surfacing rather than throwing.
   final NotificationSink? notifications;
   final ForegroundServiceHost? foregroundService;
+
+  /// A12.6 — how the firmware screen gets a `.bin` to upload. Null in v1
+  /// (no file picker yet): the screen then explains where to get an image
+  /// rather than showing a dead button. The transport's `uploadFirmware`
+  /// is real regardless, and drivable against `tools/sim`.
+  final FirmwareImageSource? firmwareImage;
   final String appVersion;
 
   /// A fresh race per route: `ConnectionManager`'s manual-entry completer

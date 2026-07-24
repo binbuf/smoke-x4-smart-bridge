@@ -472,6 +472,7 @@ void main() {
           FirmwareSettingsView(
             currentVersion: '1.0.0',
             otaSupported: true,
+            imageSourceAvailable: true,
             sessionActive: true,
             refusal: 'session_active',
             onUpload: ({required bool force}) async => forced.add(force),
@@ -497,6 +498,7 @@ void main() {
           FirmwareSettingsView(
             currentVersion: '1.0.0',
             otaSupported: true,
+            imageSourceAvailable: true,
             onUpload: ({required bool force}) async {},
           ),
         ),
@@ -504,5 +506,31 @@ void main() {
       expect(find.byKey(const Key('firmware-upload')), findsOneWidget);
       expect(find.byKey(const Key('firmware-upload-force')), findsNothing);
     });
+
+    testWidgets(
+      'A12.6: OTA-capable but no image source explains, no dead button',
+      (tester) async {
+        // v1 has no file picker. The screen must state where to get an
+        // image, NOT present a disabled button that does nothing —
+        // a button that explains itself beats a button that does nothing.
+        _tall(tester);
+        await tester.pumpWidget(
+          _wrap(
+            const FirmwareSettingsView(
+              currentVersion: '1.0.0',
+              otaSupported: true,
+            ),
+          ),
+        );
+        expect(
+          find.byKey(const Key('firmware-no-image-source')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('firmware-upload')), findsNothing);
+        // The version still renders — the page is not degraded, only the
+        // upload path awaits the picker.
+        expect(find.byKey(const Key('firmware-version')), findsOneWidget);
+      },
+    );
   });
 }

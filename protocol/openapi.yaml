@@ -919,6 +919,38 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/debug/tasks:
+    get:
+      tags: [debug]
+      operationId: getDebugTasks
+      summary: Per-task stack watermarks and heap fragmentation
+      description: |
+        V3.1 — the 24-hour soak's evidence, over HTTP.
+
+        01 §1.4 asks for stack watermarks "logged once a minute at debug
+        level". That is right for a bench session and useless for an
+        unattended soak, which cannot hold a serial cable; a log line nobody
+        captured is not a measurement. This endpoint makes the trace a
+        committed artifact instead.
+
+        `largest_free_block_b` is the field `/status` does not carry and R2
+        actually needs: total free heap CANNOT see fragmentation, and a
+        bridge with 80 KB free in 2 KB pieces fails to allocate while every
+        heap number still looks healthy.
+
+        Every task the FreeRTOS trace facility can see is listed, including
+        the ones the application did not create (httpd, the NimBLE host, the
+        event loop) — exactly the rows `main/tasks.h` cannot account for.
+      responses:
+        "200":
+          description: Task table and heap counters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugTasks"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # ── Outside /api/v1: captive-portal shims (05 §5.8.1) and the static fallback ──
 
   /:
@@ -1178,11 +1210,66 @@ components:
           $ref: "#/components/schemas/PowerInfo"
         session:
           $ref: "#/components/schemas/SessionInfo"
+        display:
+          $ref: "#/components/schemas/DisplayInfo"
+        ota:
+          $ref: "#/components/schemas/OtaInfo"
         alarms:
           type: array
           description: Currently active alarms; empty when none.
           items:
             $ref: "#/components/schemas/ActiveAlarm"
+
+    DisplayInfo:
+      type: object
+      description: |
+        F11b.11 — the OLED panel's own I²C traffic, so V3a.1's deferred
+        error-rate row is readable without a serial cable. An error count
+        with no denominator is not a measurement, so `i2c_ok` travels
+        beside it. Zeros on a build with no panel.
+      required: [i2c_ok, i2c_err]
+      properties:
+        i2c_ok:
+          type: integer
+          example: 18422
+        i2c_err:
+          type: integer
+          example: 0
+
+    OtaInfo:
+      type: object
+      description: |
+        F14.8 — the running slot and 03 §3.7's rollback health gate. The
+        only way to read the verdict without a serial cable, and the row
+        F14.9's bench observation is recorded from.
+      required: [slot, pending_verify, gate, failed]
+      properties:
+        slot:
+          type: string
+          description: The partition the running image booted from.
+          example: ota_1
+        pending_verify:
+          type: boolean
+          description: |
+            The running image is awaiting confirmation. A USB-flashed
+            image is never pending: there is nothing to confirm and
+            nothing to roll back.
+          example: false
+        gate:
+          type: string
+          enum: [not_applicable, waiting, passed, failed]
+          description: |
+            `not_applicable` when the image is not pending verify —
+            reported honestly rather than as a cheerful `passed`.
+          example: passed
+        failed:
+          type: string
+          nullable: true
+          description: |
+            Comma-separated failing clauses (`storage`, `net`, `httpd`,
+            `crash`), or null. EVERY failing clause is named: "the health
+            gate failed" with no detail is not a diagnosis.
+          example: net,httpd
 
     DeviceInfo:
       type: object
@@ -2196,10 +2283,63 @@ components:
         coding_rate:
           type: string
 
+    DebugTasks:
+      type: object
+      required: [heap, tasks]
+      properties:
+        heap:
+          type: object
+          required: [free_b, min_free_b, largest_free_block_b]
+          properties:
+            free_b:
+              type: integer
+              example: 92160
+            min_free_b:
+              type: integer
+              example: 80116
+            largest_free_block_b:
+              type: integer
+              description: Fragmentation, which a total cannot express.
+              example: 40960
+        tasks:
+          type: array
+          items:
+            type: object
+            required:
+              [name, stack_b, high_water_b, margin_b, priority, core]
+            properties:
+              name:
+                type: string
+                example: ws_push
+              stack_b:
+                type: integer
+                description: |
+                  Declared in `main/tasks.h`; 0 for a task the IDF created,
+                  whose size we do not own.
+                example: 4096
+              high_water_b:
+                type: integer
+                description: The deepest the stack has ever been used.
+                example: 1200
+              margin_b:
+                type: integer
+                description: |
+                  Computed on the device, because it is what the soak's
+                  threshold is stated against and a reader should not have
+                  to subtract.
+                example: 1200
+              priority:
+                type: integer
+                example: 4
+              core:
+                type: integer
+                description: 0, 1, or -1 for unpinned.
+                example: 0
+
     OtaAccepted:
       type: object
       description: Sent after verification, before the reboot.
-      required: [accepted]
+      required: [accepted, image_size_b, slot, version, project, rebooting_in_ms]
       properties:
         accepted:
           type: boolean
@@ -2211,6 +2351,21 @@ components:
           type: string
           description: The OTA slot the image was written to.
           example: ota_1
+        version:
+          type: string
+          description: |
+            The version in the uploaded image's app descriptor — what is
+            about to be installed, so a human can see it is what they
+            meant.
+          example: 1.0.1
+        project:
+          type: string
+          description: |
+            The image's CMake project name. REPORTED, NEVER ENFORCED: a
+            fork that renames its project should not be locked out of its
+            own hardware, and the SHA-256 plus the rollback gate are the
+            real protections.
+          example: smoke_bridge
         rebooting_in_ms:
           type: integer
           example: 500
@@ -2455,6 +2610,12 @@ components:
         phase:
           type: string
           enum: [receiving, writing, verifying, rebooting, failed]
+          description: |
+            The device never emits `receiving`: it streams straight to
+            flash, so `writing` is true from the first chunk. Progress is
+            pushed on every phase change and every whole 5 % — never per
+            chunk, because a 1.3 MB image in 4 KB reads is 320 frames and
+            the client cap is two.
           example: writing
         pct:
           type: integer

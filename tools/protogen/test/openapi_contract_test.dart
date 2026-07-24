@@ -47,6 +47,7 @@ const requiredPaths = <String>[
   '/api/v1/ota',
   '/api/v1/debug/packets',
   '/api/v1/debug/coredump',
+  '/api/v1/debug/tasks',
   '/',
   '/generate_204',
   '/gen_204',

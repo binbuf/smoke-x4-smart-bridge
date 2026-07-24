@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bridge_protocol/bridge_protocol.dart';
 
@@ -286,6 +287,10 @@ class SimServer {
 
       case ('GET', '/debug/coredump'):
         return _json(req, 404, errorBody('not_found', 'no coredump stored'));
+
+      // V3.1 — so the soak recorder is developable against the sim.
+      case ('GET', '/debug/tasks'):
+        return _json(req, 200, debugTasksJson(state));
     }
 
     // /sessions/{id}[...]
@@ -489,6 +494,13 @@ class SimServer {
 
   Future<void> _ota(HttpRequest req) async {
     final force = req.uri.queryParameters['force'] == '1';
+    if (state.otaInProgress) {
+      return _json(
+        req,
+        503,
+        errorBody('ota_in_progress', 'an update is already being written'),
+      );
+    }
     if (!state.sessionEnded(state.virtualT()) && !force) {
       return _json(
         req,
@@ -500,9 +512,23 @@ class SimServer {
         ),
       );
     }
-    final bytes = await req.fold<int>(0, (n, chunk) => n + chunk.length);
-    if (bytes == 0) {
+    final body = BytesBuilder(copy: false);
+    await for (final chunk in req) {
+      body.add(chunk);
+      // The header is all the validator needs; the rest is only counted.
+      if (body.length > 1 << 20) break;
+    }
+    final bytes = body.takeBytes();
+    if (bytes.isEmpty) {
       return _json(req, 400, errorBody('invalid_body', 'empty image'));
+    }
+    // F14.6 — the sim validates the image header with the SAME rules the
+    // device uses. A fake that accepts `[1, 2, 3, 4]` as firmware gives
+    // the app path false confidence in exactly the case that costs a
+    // board (§12.6 rule 8).
+    final image = inspectOtaImage(bytes);
+    if (!image.ok) {
+      return _json(req, 400, errorBody('invalid_body', image.reason));
     }
     state
       ..otaInProgress = true
@@ -510,18 +536,29 @@ class SimServer {
     for (final pct in [10, 40, 80, 100]) {
       _after(Duration(milliseconds: 100 * (pct ~/ 10)), () {
         state.otaPct = pct;
-        _push({
-          'type': 'ota',
-          'phase': pct < 100 ? 'writing' : 'verifying',
-          'pct': pct,
-        });
+        _push({'type': 'ota', 'phase': 'writing', 'pct': pct});
       });
     }
-    _after(const Duration(milliseconds: 1500), () {
-      state.otaInProgress = false;
-      _push({'type': 'ota', 'phase': 'done', 'pct': 100});
+    _after(const Duration(milliseconds: 1200), () {
+      _push({'type': 'ota', 'phase': 'verifying', 'pct': 100});
     });
-    return _json(req, 200, {'ok': true, 'bytes': bytes, 'rebooting': true});
+    _after(const Duration(milliseconds: 1500), () {
+      state
+        ..otaInProgress = false
+        ..otaSlot = state.otaSlot == 'ota_0' ? 'ota_1' : 'ota_0'
+        ..fw = image.version;
+      // `rebooting` is the device's terminal phase; the spec's enum has
+      // no `done`, and the sim used to emit one.
+      _push({'type': 'ota', 'phase': 'rebooting', 'pct': 100});
+    });
+    return _json(req, 200, {
+      'accepted': true,
+      'image_size_b': bytes.length,
+      'slot': state.otaSlot == 'ota_0' ? 'ota_1' : 'ota_0',
+      'version': image.version,
+      'project': image.project,
+      'rebooting_in_ms': 500,
+    });
   }
 
   // ── WebSocket (T3.3) ──────────────────────────────────────────────

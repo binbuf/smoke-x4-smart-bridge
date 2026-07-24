@@ -57,6 +57,13 @@
     "elapsed_s": 43200,
     "samples": 1440
   },
+  "display": { "i2c_ok": 18422, "i2c_err": 0 },
+  "ota": {
+    "slot": "ota_0",
+    "pending_verify": false,
+    "gate": "not_applicable",
+    "failed": null
+  },
   "alarms": [
     {
       "id": 3,

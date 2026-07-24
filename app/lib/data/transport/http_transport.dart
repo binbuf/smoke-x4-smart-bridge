@@ -356,6 +356,36 @@ class HttpTransport implements BridgeTransport {
   }
 
   @override
+  Future<void> uploadFirmware(
+    Stream<List<int>> image, {
+    required int lengthBytes,
+    bool force = false,
+  }) async {
+    // Streamed straight to the device — the app never materialises a
+    // 1.3 MB image either, the same rule the firmware keeps on its side.
+    // Progress is not returned here: it arrives on `events` as
+    // BridgeOtaEvent, because the device is authoritative about its phase.
+    final res = await _dio.post<Object?>(
+      '/api/v1/ota',
+      data: image,
+      queryParameters: force ? const {'force': '1'} : const {},
+      options: Options(
+        validateStatus: (_) => true,
+        responseType: ResponseType.json,
+        contentType: 'application/octet-stream',
+        headers: {Headers.contentLengthHeader: lengthBytes},
+      ),
+      cancelToken: _cancel,
+    );
+    if ((res.statusCode ?? 0) != 200) {
+      // A 409 session_active surfaces as a BridgeApiException the screen
+      // reads to show the refusal and offer the force path — deliberately,
+      // never as an automatic retry.
+      _throwEnvelope(res.statusCode ?? 0, res.data);
+    }
+  }
+
+  @override
   Future<void> configure(BridgeConfig cfg) async {
     final body = <String, Object?>{};
     if (cfg.displayUnits != null) {
