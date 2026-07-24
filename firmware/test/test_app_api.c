@@ -14,6 +14,7 @@
 #include "app_config_store.h"
 #include "app_time_core.h"
 #include "cook_novelty_log.h"
+#include "cook_power_log.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 #include "smoke_x_ctrl.h"
@@ -895,6 +896,47 @@ static void test_vbat_calibration_is_solved_not_merely_recorded(void) {
     CHECK(strstr(g_body, "\"mv\":4020") != NULL);
 }
 
+/* ── Follow-on to F12: battery_mah config + the /debug/power readback ── */
+
+static void test_battery_mah_and_power_log(void) {
+    seed_world();
+
+    /* The default (3000) surfaces on GET /config/device and in
+     * /status.power — the label field, not the SoC input. */
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"battery_mah\":3000") != NULL);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"battery_mah\":3000") != NULL);
+
+    /* POST sets it; GET and /status both echo the new capacity. */
+    do_req("POST", "/api/v1/config/device", "{\"battery_mah\":5200}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "\"battery_mah\":5200") != NULL);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"battery_mah\":5200") != NULL);
+
+    /* Out of the u16 range is refused, and the stored value is untouched —
+     * the vbat_actual_mv refuse-pattern. */
+    do_req("POST", "/api/v1/config/device", "{\"battery_mah\":0}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    CHECK(strstr(g_body, "invalid_field") != NULL);
+    do_req("POST", "/api/v1/config/device", "{\"battery_mah\":70000}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "\"battery_mah\":5200") != NULL);
+
+    /* /debug/power streams the persisted log as text/plain, mirroring
+     * /debug/novelty — this is what the human reads after the offline test. */
+    CHECK_EQ_INT(cook_power_log_init(&g_vfs, 0, "poweron"), COOK_STORE_OK);
+    CHECK_EQ_INT(cook_power_log_append(66120, 3612, 8, false), COOK_STORE_OK);
+    do_req("GET", "/api/v1/debug/power", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "0 BOOT poweron") != NULL);
+    CHECK(strstr(g_body, "66120 3612 8 0") != NULL);
+}
+
 /* ── F14.5: POST /api/v1/ota, streamed ─────────────────────────────── */
 
 typedef struct {
@@ -1285,6 +1327,7 @@ int main(void) {
     test_ws_alarm_and_power_frames();
     test_status_power_is_real_and_honest_about_absence();
     test_vbat_calibration_is_solved_not_merely_recorded();
+    test_battery_mah_and_power_log();
     test_ota_route();
     test_status_ota_object();
     test_debug_tasks();

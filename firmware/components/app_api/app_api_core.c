@@ -12,6 +12,7 @@
 #include "app_config_store.h"
 #include "app_time_core.h"
 #include "cook_novelty_log.h"
+#include "cook_power_log.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 #include "smoke_x_ctrl.h"
@@ -355,9 +356,13 @@ static void handle_status(app_api_out_t *out) {
     } else {
         app_api_emit_fmt(out, "%u", (unsigned)soc);
     }
-    app_api_emit_fmt(out, ",\"charging\":%s,\"saver\":%s}",
+    uint16_t batt_mah = 3000;
+    (void)app_config_store_get_u16(APP_CONFIG_DEV_BATTERY_MAH, &batt_mah);
+    app_api_emit_fmt(out,
+                     ",\"charging\":%s,\"saver\":%s,\"battery_mah\":%u}",
                      app_power_svc_charging() ? "true" : "false",
-                     app_power_svc_saver() ? "true" : "false");
+                     app_power_svc_saver() ? "true" : "false",
+                     (unsigned)batt_mah);
 
     const bool active = cook_session_is_open();
     app_api_emit_fmt(out, ",\"session\":{\"active\":%s",
@@ -702,13 +707,14 @@ static void handle_config_wifi_post(const app_api_req_t *req,
 
 static void handle_config_device_get(app_api_out_t *out) {
     uint8_t units = 0, timeout_hi = 0, led = 1, saver = 0;
-    uint16_t timeout_s = 60;
+    uint16_t timeout_s = 60, batt_mah = 3000;
     uint8_t max_sessions = 64, min_free = 10;
     (void)app_config_store_get_u8(APP_CONFIG_DEV_UNITS, &units);
     (void)app_config_store_get_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S,
                                    &timeout_s);
     (void)app_config_store_get_u8(APP_CONFIG_DEV_LED_ENABLED, &led);
     (void)app_config_store_get_u8(APP_CONFIG_DEV_BATTERY_SAVER, &saver);
+    (void)app_config_store_get_u16(APP_CONFIG_DEV_BATTERY_MAH, &batt_mah);
     (void)app_config_store_get_u8(APP_CONFIG_DEV_RETENTION_MAX_SESSIONS,
                                   &max_sessions);
     (void)app_config_store_get_u8(APP_CONFIG_DEV_RETENTION_MIN_FREE_PCT,
@@ -719,11 +725,12 @@ static void handle_config_device_get(app_api_out_t *out) {
     app_api_emit_fmt(out,
                      "{\"display_units\":\"%s\",\"display_timeout_s\":%u,"
                      "\"led_enabled\":%s,\"battery_saver\":\"%s\","
+                     "\"battery_mah\":%u,"
                      "\"retention\":{\"max_sessions\":%u,"
                      "\"min_free_pct\":%u},\"probes\":[",
                      units == 1 ? "C" : "F", (unsigned)timeout_s,
                      led ? "true" : "false",
-                     saver_names[saver < 3 ? saver : 2],
+                     saver_names[saver < 3 ? saver : 2], (unsigned)batt_mah,
                      (unsigned)max_sessions, (unsigned)min_free);
     static const app_config_key_t name_keys[4] = {
         APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME, APP_CONFIG_PROBE3_NAME,
@@ -793,6 +800,18 @@ static void handle_config_device_post(const app_api_req_t *req,
                           : strcmp(sval, "auto") == 0 ? 2
                                                       : 0;
         (void)app_config_store_set_u8(APP_CONFIG_DEV_BATTERY_SAVER, v);
+    }
+    if (app_api_json_int(body, "battery_mah", &ival) == 0) {
+        /* Rated pack capacity — label + future mA-draw diagnostic only; it
+         * does NOT feed the SoC curve (that is a voltage lookup). Refused
+         * out of the u16 range, mirroring vbat_actual_mv: one bad write to
+         * NVS is silent and permanent. */
+        if (ival <= 0 || ival > 65535) {
+            return app_api_error(out, 400, "invalid_field",
+                                 "battery_mah out of range (1..65535)");
+        }
+        (void)app_config_store_set_u16(APP_CONFIG_DEV_BATTERY_MAH,
+                                       (uint16_t)ival);
     }
     if (app_api_json_int(body, "max_sessions", &ival) == 0) {
         (void)app_config_store_set_u8(APP_CONFIG_DEV_RETENTION_MAX_SESSIONS,
@@ -1115,14 +1134,24 @@ static void handle_debug_packets(app_api_out_t *out) {
     app_api_emit_str(out, "]}");
 }
 
-static int novelty_sink(void *ctx, const char *data, size_t len) {
+/* Passthrough: streams a text log straight to the response emitter. Shared
+ * by /debug/novelty and /debug/power — both are plain-text ring dumps. */
+static int log_text_sink(void *ctx, const char *data, size_t len) {
     app_api_emit_raw(ctx, data, len);
     return 0;
 }
 
 static void handle_debug_novelty(app_api_out_t *out) {
     app_api_out_begin(out, 200, "text/plain");
-    (void)cook_novelty_log_stream(novelty_sink, out);
+    (void)cook_novelty_log_stream(log_text_sink, out);
+}
+
+/* The persisted battery power log — the discharge curve and, after an
+ * offline brownout, the last reading before death followed by the BOOT
+ * marker. This is what the human reads after the offline battery test. */
+static void handle_debug_power(app_api_out_t *out) {
+    app_api_out_begin(out, 200, "text/plain");
+    (void)cook_power_log_stream(log_text_sink, out);
 }
 
 /* V3.1 — the soak's evidence, over HTTP rather than over a serial cable
@@ -1289,6 +1318,10 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
     }
     if (is_get && strcmp(api, "/debug/novelty") == 0) {
         handle_debug_novelty(out);
+        return 0;
+    }
+    if (is_get && strcmp(api, "/debug/power") == 0) {
+        handle_debug_power(out);
         return 0;
     }
     if (is_get && strcmp(api, "/debug/coredump") == 0) {

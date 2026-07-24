@@ -64,6 +64,11 @@ typedef enum {
     X(DEV_LED_ENABLED, "device", "led_enabled", U8, 1, 1, "")          \
     X(DEV_BUZZER_ENABLED, "device", "buzzer_en", U8, 1, 1, "")         \
     X(DEV_BATTERY_SAVER, "device", "batt_saver", U8, 1, 0, "")         \
+    /* batt_mah is the pack's rated capacity, for the label and a future \
+     * mA-draw diagnostic ONLY. SoC% is a VOLTAGE lookup (power_core      \
+     * k_curve[]), capacity-independent and already correct for any       \
+     * single-cell LiPo — batt_mah is deliberately NOT wired into it. */  \
+    X(DEV_BATTERY_MAH, "device", "batt_mah", U16, 2, 3000, "")         \
     X(DEV_VBAT_CAL_NUM, "device", "vbat_cal_num", U16, 2, 0, "")       \
     X(DEV_VBAT_CAL_DEN, "device", "vbat_cal_den", U16, 2, 0, "")       \
     X(DEV_API_TOKEN, "device", "api_token", STR, 33, 0, "")            \

@@ -33,8 +33,14 @@
 
 #include "app_power_svc.h"
 #include "bridge_event.h"
+#include "cook_power_log.h"
 
 static const char *TAG = "app_power";
+
+/* Persist a reading to /cooks/power.log at most this often. power_task ticks
+ * every 30 s (POWER_PERIOD_MS); logging every tick would fill flash, so we
+ * throttle to ~60 s — 1440 lines over a 24 h run, well under the ring cap. */
+#define POWER_LOG_PERIOD_S 60
 
 /* Mirrors the app_power row of main/tasks.h — components cannot depend on
  * `main`, so the table stays the single source of truth and this is a copy
@@ -137,6 +143,20 @@ static void power_task(void *arg) {
          * event loop, and 03 §3.2 cares about that. */
         if (app_power_svc_sample(adc_mv, now_s)) {
             publish();
+        }
+        /* Persist the discharge curve (follow-on to F12). Only when a real
+         * pack was read — a 0 mV reading is "no pack / divider gated", not a
+         * flat battery, and must not land in the log as one. Throttled so a
+         * 30 s tick does not write flash twice a minute. */
+        static uint32_t s_last_log_s;
+        static bool s_logged;
+        if (app_power_svc_available() && adc_mv != 0 &&
+            (!s_logged || now_s - s_last_log_s >= POWER_LOG_PERIOD_S)) {
+            s_last_log_s = now_s;
+            s_logged = true;
+            (void)cook_power_log_append(now_s, app_power_svc_mv(),
+                                        app_power_svc_soc(),
+                                        app_power_svc_charging());
         }
         vTaskDelay(pdMS_TO_TICKS(POWER_PERIOD_MS));
     }

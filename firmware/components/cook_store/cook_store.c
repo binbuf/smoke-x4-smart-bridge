@@ -12,10 +12,34 @@
 
 #include "esp_littlefs.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "esp_timer.h"
 
 static const char *TAG = "cook_store";
 
 #define COOKS_PARTITION "cooks"
+
+/* The power log's boot marker carries the reset reason as a string; the pure
+ * core stays ESP-IDF-free, so the mapping lives here in the glue. Kept in
+ * step with app_api's reset_reason_name() (the /status spelling). */
+static const char *reset_reason_str(void) {
+    switch (esp_reset_reason()) {
+        case ESP_RST_POWERON:
+            return "poweron";
+        case ESP_RST_SW:
+            return "sw";
+        case ESP_RST_PANIC:
+            return "panic";
+        case ESP_RST_WDT:
+        case ESP_RST_INT_WDT:
+        case ESP_RST_TASK_WDT:
+            return "wdt";
+        case ESP_RST_BROWNOUT:
+            return "brownout";
+        default:
+            return "other";
+    }
+}
 
 static int vfs_open(void *ctx, const char *path, int flags) {
     (void)ctx;
@@ -155,6 +179,14 @@ int cook_store_init(void) {
     }
     if (cook_novelty_log_init(&k_vfs) != COOK_STORE_OK) {
         ESP_LOGW(TAG, "novelty log init failed — continuing without it");
+    }
+    /* The boot marker's reason is what closes the brownout question across a
+     * power cycle; the uptime here is a few seconds into boot. */
+    const uint32_t boot_s =
+        (uint32_t)((uint64_t)esp_timer_get_time() / 1000000ull);
+    if (cook_power_log_init(&k_vfs, boot_s, reset_reason_str()) !=
+        COOK_STORE_OK) {
+        ESP_LOGW(TAG, "power log init failed — continuing without it");
     }
     return cook_store_core_init(&k_vfs, on_store_evt, NULL) == COOK_STORE_OK
                ? 0

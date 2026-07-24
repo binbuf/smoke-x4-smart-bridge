@@ -8,6 +8,7 @@
 
 #include "cook_lifecycle.h"
 #include "cook_novelty_log.h"
+#include "cook_power_log.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 
