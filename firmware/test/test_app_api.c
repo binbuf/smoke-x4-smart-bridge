@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "app_alarm_svc.h"
+#include "app_power_svc.h"
 #include "app_api_core.h"
 #include "app_api_ws.h"
 #include "app_config_store.h"
@@ -216,6 +217,7 @@ static void seed_world(void) {
     smoke_x_pktring_reset();
     CHECK_EQ_INT(app_time_core_init(0, NULL, NULL), 0);
     CHECK_EQ_INT(app_alarm_svc_init(NULL), 0);
+    CHECK_EQ_INT(app_power_svc_init(), 0);
     CHECK_EQ_INT(app_api_core_init(&g_api_ops), 0);
     g_coredump_size = 0;
     g_cfg_requests = 0;
@@ -788,6 +790,57 @@ static void test_ws_alarm_and_power_frames(void) {
                  "\"charging\":true,\"saver\":false}") == 0);
 }
 
+/* ── F12.5 — battery on the HTTP surface ────────────────────────────── */
+
+static void test_status_power_is_real_and_honest_about_absence(void) {
+    seed_world();
+    /* Nothing has read the ADC yet. M4's header renders `battery n/a`
+     * from exactly this, and a 0 % on an MVP screenshot is the kind of
+     * bug that gets filed against the hardware (P3.2). */
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"mv\":null") != NULL);
+    CHECK(strstr(g_body, "\"soc_pct\":null") != NULL);
+    CHECK(strstr(g_body, "\"soc_pct\":0") == NULL);
+    CHECK(strstr(g_body, "\"soc_pct\":255") == NULL);
+
+    /* V1.3's own measured point: adc 788 mV × 4.9 ≈ 3.86 V. */
+    (void)app_power_svc_sample(788, 0);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"mv\":3861") != NULL);
+    CHECK(strstr(g_body, "\"soc_pct\":null") == NULL);
+    CHECK(strstr(g_body, "\"charging\":false") != NULL);
+
+    /* The divider disconnected — which is what driving GPIO37 the way
+     * 01 §1.3's pseudocode says produces on this board — is UNKNOWN
+     * again, not a flat pack. */
+    (void)app_power_svc_sample(0, 30);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"soc_pct\":null") != NULL);
+}
+
+static void test_vbat_calibration_is_solved_not_merely_recorded(void) {
+    seed_world();
+    (void)app_power_svc_sample(800, 0);
+
+    /* A DMM reading of 4020 mV against 800 mV of ADC → ×5.025, inside the
+     * ±20 % clamp. M2's handler stored the number and left the
+     * denominator at 0; this one solves. */
+    do_req("POST", "/api/v1/config/device", "{\"vbat_actual_mv\":4020}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    (void)app_power_svc_sample(800, 30);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"mv\":4020") != NULL);
+
+    /* ×2.0 — the ESPHome figure — is not a calibration, it is a
+     * different board. Refused, and the stored ratio is untouched. */
+    do_req("POST", "/api/v1/config/device", "{\"vbat_actual_mv\":1600}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    CHECK(strstr(g_body, "invalid_field") != NULL);
+    (void)app_power_svc_sample(800, 60);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"mv\":4020") != NULL);
+}
+
 int main(void) {
     test_captive_probes_exact_bytes();
     test_router_auth_and_errors();
@@ -806,5 +859,7 @@ int main(void) {
     test_status_alarms_are_the_engine_not_a_literal();
     test_config_alarms_is_json_both_ways();
     test_ws_alarm_and_power_frames();
+    test_status_power_is_real_and_honest_about_absence();
+    test_vbat_calibration_is_solved_not_merely_recorded();
     return test_summary("test_app_api");
 }

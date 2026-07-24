@@ -13,6 +13,7 @@
  * sitting is spent on OEM behaviour instead of on byte layouts.
  */
 #include "app_alarm_svc.h"
+#include "app_power_svc.h"
 #include "app_ble_internal.h"
 #include "app_config_store.h"
 #include "app_ui_core.h"
@@ -201,6 +202,7 @@ static void reset_all(void) {
     cook_ring_reset();
     CHECK_EQ_INT(app_time_core_init(0, NULL, NULL), 0);
     CHECK_EQ_INT(app_alarm_svc_init(NULL), 0);
+    CHECK_EQ_INT(app_power_svc_init(), 0);
     CHECK_EQ_INT(app_ble_core_init(&k_ops), APP_BLE_OK);
     app_ble_set_mtu(APP_BLE_MTU_PREFERRED);
 }
@@ -1360,6 +1362,40 @@ static void test_live_state_alarm_active_follows_the_engine(void) {
     CHECK_EQ_INT(list[0]->state, APP_ALARM_SLOT_ACKED);
 }
 
+/* F12.5 — soc_pct and the caps bit that makes it readable. P3.2 chose
+ * SOC_UNKNOWN = 255 over 0 precisely because 0 is a plausible reading:
+ * a device with no battery sensor would render as one about to die. */
+static void test_soc_and_the_battery_capability_bit(void) {
+    reset_all();
+    uint8_t info[BRIDGE_DEVICE_INFO_SIZE];
+    CHECK_EQ_INT(app_ble_build_device_info(info, sizeof info),
+                 (int)BRIDGE_DEVICE_INFO_SIZE);
+    bridge_device_info_t d;
+    bridge_device_info_decode(info, &d);
+    /* Before any reading: the bit says a real value can never arrive,
+     * which is the whole distinction it exists to carry. */
+    CHECK_EQ_INT((d.caps & (1u << 5)) != 0, 0);
+
+    uint8_t live[BRIDGE_LIVE_STATE_SIZE];
+    CHECK_EQ_INT(app_ble_build_live_state(live, sizeof live),
+                 BRIDGE_LIVE_STATE_SIZE);
+    bridge_live_state_t st;
+    bridge_live_state_decode(live, &st);
+    CHECK_EQ_INT(st.soc_pct, BRIDGE_SOC_UNKNOWN);
+
+    /* V1.3's point, through the real service. */
+    (void)app_power_svc_sample(788, 0);
+    CHECK_EQ_INT(app_ble_build_device_info(info, sizeof info),
+                 (int)BRIDGE_DEVICE_INFO_SIZE);
+    bridge_device_info_decode(info, &d);
+    CHECK_EQ_INT((d.caps & (1u << 5)) != 0, 1);
+    CHECK_EQ_INT(app_ble_build_live_state(live, sizeof live),
+                 BRIDGE_LIVE_STATE_SIZE);
+    bridge_live_state_decode(live, &st);
+    CHECK(st.soc_pct != BRIDGE_SOC_UNKNOWN);
+    CHECK(st.soc_pct <= 100);
+}
+
 int main(void) {
     test_registry_matches_the_contract();
     test_uuid_is_little_endian_on_air();
@@ -1387,6 +1423,7 @@ int main(void) {
     test_every_op_reaches_its_component();
     test_reboot_and_reset_answer_before_they_act();
     test_live_state_alarm_active_follows_the_engine();
+    test_soc_and_the_battery_capability_bit();
     test_set_time_backpatches_an_open_session();
     test_bond_cap();
     test_passkey_lifecycle();

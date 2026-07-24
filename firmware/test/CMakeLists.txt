@@ -124,9 +124,12 @@ add_executable(test_app_api
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_svc.c
 )
 target_include_directories(test_app_api PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
@@ -293,9 +296,12 @@ add_executable(test_app_ble
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_svc.c
 )
 target_include_directories(test_app_ble PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
@@ -375,6 +381,19 @@ target_include_directories(test_app_alarm_svc PRIVATE
     ${REPO_ROOT}/protocol/gen
 )
 add_test(NAME app_alarm_svc COMMAND test_app_alarm_svc)
+
+# Battery: the 01 §1.3 discharge curve, the EMA, the inferred charging
+# state, the plateau solver and its ±20 % clamp, the saver hysteresis, and
+# the V1.3 gate ORDER through the injected ADC seam (F12.1–F12.4).
+add_executable(test_app_power
+    test_app_power.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_core.c
+)
+target_include_directories(test_app_power PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME app_power COMMAND test_app_power)
 
 # Task table invariants (F1.4).
 add_executable(test_tasks_table test_tasks_table.c)

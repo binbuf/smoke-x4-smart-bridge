@@ -88,6 +88,10 @@ static void op_sysinfo(app_ble_sysinfo_t *out) {
     /* wifi_ap | wifi_sta | history_preview. `ota` (b4) lights up in F14,
      * `battery` (b5) in F12 — advertised honestly, never aspirationally
      * (ble-gatt §5.1.1). */
+    /* b0 history, b1 live, b3 control (ble-gatt §5.1). b5 `battery` is
+     * NOT set here: app_ble_build_device_info() derives it from
+     * app_power, so the bit cannot drift from the value it describes and
+     * a host test can hold it. */
     out->caps = (1u << 0) | (1u << 1) | (1u << 3);
 }
 

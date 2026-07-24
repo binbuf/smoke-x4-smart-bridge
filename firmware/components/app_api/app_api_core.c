@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "app_alarm_svc.h"
+#include "app_power_svc.h"
 #include "app_api_internal.h"
 #include "app_config_store.h"
 #include "app_time_core.h"
@@ -321,9 +322,26 @@ static void handle_status(app_api_out_t *out) {
                      (unsigned)sys.storage_free_pct, cook_store_index_count(),
                      oldest ? (unsigned)oldest->session_id : 0u);
 
-    app_api_emit_str(out,
-                     ",\"power\":{\"mv\":null,\"soc_pct\":null,"
-                     "\"charging\":false,\"saver\":false}");
+    /* F12.5 — real, and honest about the absence. This object was a
+     * string literal from M2 to M5; SOC_UNKNOWN renders as null rather
+     * than as 255 or 0, because a 0 % battery on a bridge that simply
+     * cannot measure one is a bug filed against the hardware (P3.2). */
+    app_api_emit_str(out, ",\"power\":{\"mv\":");
+    if (app_power_svc_available()) {
+        app_api_emit_fmt(out, "%u", (unsigned)app_power_svc_mv());
+    } else {
+        app_api_emit_str(out, "null");
+    }
+    app_api_emit_str(out, ",\"soc_pct\":");
+    const uint8_t soc = app_power_svc_soc();
+    if (soc == BRIDGE_SOC_UNKNOWN) {
+        app_api_emit_str(out, "null");
+    } else {
+        app_api_emit_fmt(out, "%u", (unsigned)soc);
+    }
+    app_api_emit_fmt(out, ",\"charging\":%s,\"saver\":%s}",
+                     app_power_svc_charging() ? "true" : "false",
+                     app_power_svc_saver() ? "true" : "false");
 
     const bool active = cook_session_is_open();
     app_api_emit_fmt(out, ",\"session\":{\"active\":%s",
@@ -735,11 +753,17 @@ static void handle_config_device_post(const app_api_req_t *req,
                                       (uint8_t)ival);
     }
     if (app_api_json_int(body, "vbat_actual_mv", &ival) == 0) {
-        /* Persisted only: the divider solve is F12's (M5). den 0 marks
-         * "recorded, not yet solved". */
-        (void)app_config_store_set_u16(APP_CONFIG_DEV_VBAT_CAL_NUM,
-                                       (uint16_t)ival);
-        (void)app_config_store_set_u16(APP_CONFIG_DEV_VBAT_CAL_DEN, 0);
+        /* F12.5 — 01 §1.3's one-point calibration, solved rather than
+         * merely recorded (M2 stored the number and left den 0). A DMM
+         * reading beats the plateau solver's inference and stands the
+         * solver down; an implied ratio outside ±20 % of ×4.9 is refused,
+         * because one bad write to NVS is permanent and silent. */
+        if (ival <= 0 || ival > 65535 ||
+            app_power_svc_calibrate((uint16_t)ival) != 0) {
+            return app_api_error(out, 400, "invalid_field",
+                                 "vbat_actual_mv implies an implausible "
+                                 "divider ratio");
+        }
     }
     /* probes: [{"n":1,"name":...,"role":...,"target_f10":...}, ...] */
     const char *probes = app_api_json_find(body, "probes");

@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "app_alarm_svc.h"
+#include "app_power_svc.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 #include "smoke_x_ctrl.h"
@@ -172,6 +173,16 @@ int app_ble_build_device_info(uint8_t *out, size_t cap) {
     d.api = 1;
     d.probes = sys.probes;
     d.caps = sys.caps;
+    /* F12.5 — caps b5 `battery` is DERIVED, never a literal: it says
+     * whether a real soc_pct can ever arrive (ble-gatt §5.1.1), which is
+     * exactly what lets the app tell "no battery data" from "a flat
+     * battery". Deriving it here rather than in the glue keeps it from
+     * drifting away from the value it describes. */
+    if (app_power_svc_available()) {
+        d.caps |= (1u << 5);
+    } else {
+        d.caps &= (uint8_t)~(1u << 5);
+    }
     memcpy(d.id, sys.id, sizeof d.id < sizeof sys.id ? sizeof d.id : 4);
     if (sys.model != NULL) {
         strncpy(d.model, sys.model, sizeof d.model);
@@ -222,7 +233,11 @@ void app_ble_live_snapshot(app_ble_live_t *out) {
     out->clock_valid = app_time_core_source() != APP_TIME_NONE;
     /* No battery truth until F12 (M5): the degenerate value is decided
      * once, in the contract (ble-gatt §5.1.1), and emitted from here. */
-    out->soc_pct = BRIDGE_SOC_UNKNOWN;
+    /* F12.5 — a real reading when app_power has one, and the P3.2
+     * sentinel when it does not. 255 rather than 0 because a device with
+     * no battery sensor rendering as one about to die is worse than
+     * rendering as "unknown" (ble-gatt §5.1.1). */
+    out->soc_pct = app_power_svc_soc();
 
     for (int i = 0; i < 4; i++) {
         out->temp[i] = BRIDGE_TEMP_DETACHED;
