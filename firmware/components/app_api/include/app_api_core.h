@@ -85,6 +85,12 @@ typedef struct {
     bool (*www_available)(void);
     /* Current uptime for /live windows and watchdog-ish fields. */
     uint64_t (*uptime_ms)(void);
+    /* F11b.11 — the OLED's own I²C traffic. NULL on a build with no
+     * panel, which /status reports as zeros rather than pretending.
+     * This is V3a.1's deferred OLED-error row made readable without a
+     * serial cable: M3 could not measure it because the panel was dark
+     * except while a passkey was showing. */
+    void (*display_counts)(uint32_t *ok, uint32_t *err);
 } app_api_ops_t;
 
 int app_api_core_init(const app_api_ops_t *ops);

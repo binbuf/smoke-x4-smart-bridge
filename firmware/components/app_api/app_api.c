@@ -5,6 +5,7 @@
 #include "app_api.h"
 
 #include "app_alarm.h"
+#include "app_ui_panel.h"
 #include "app_config_store.h"
 
 #include <stdlib.h>
@@ -129,6 +130,10 @@ static bool ops_www_available(void) {
     return false;
 }
 
+static void ops_display_counts(uint32_t *ok, uint32_t *err) {
+    app_ui_panel_counts(ok, err);
+}
+
 static const app_api_ops_t k_ops = {
     .sysinfo = ops_sysinfo,
     .net_status = ops_net_status,
@@ -138,6 +143,7 @@ static const app_api_ops_t k_ops = {
     .coredump_read = ops_coredump_read,
     .www_available = ops_www_available,
     .uptime_ms = uptime_ms,
+    .display_counts = ops_display_counts,
 };
 
 /* ── request adaptation ────────────────────────────────────────────────── */

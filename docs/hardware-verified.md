@@ -326,3 +326,58 @@ Both fixes carry tests verified to fail without them.
 | V2.1 X4 state traffic (26-comma), overnight | ⏳ overnight pending. 10-min event choreography done 2026-07-21: 37 state packets, hot-water curve, 2 real dropouts, cadence wobble during menu use |
 | Stock ThermoWorks receiver still works after our pairing | ✅ 2026-07-22 — confirmed updating after the reference ACK (V2.2) and re-confirmed three times through our firmware's adopt/erase/re-pair cycle (F3.9 above) |
 | Q1 / Q4 / Q8 / units manipulations performed | ✅ 2026-07-21 — Q1 never left `30`; Q4 detach `state=3` **freezes last temp, does not zero** (reattach jumps straight 3→0; shorted-jack state still uncaptured); Q8 trailing `new_alarm` is **edge-triggered**, one packet per alarm event; units flip confirms field 2 (1=°F, 0=°C), temps in tenths of active unit, alarm bands in whole degrees of active unit |
+
+## M5 bench sitting (F11b.12, F12.6, F13.9, A13.7) — owed
+
+All 30 board-free M5 tasks are done (host 24/24, app 496/496, both images
+build). These four rows are the whole remainder and are **one sitting**
+([§12.6 rule 7](design/12-task-planning-notes.md)) in this order — the
+glass first, because everything after it is easier to observe once the
+pages work, and the overnight cook last because it is the exit gate.
+
+Flash: `idf.py -B build/heltec-v3 '-DSDKCONFIG=sdkconfig.heltec-v3' -p COMx flash monitor`
+(ESP-IDF PowerShell; quote args containing `=` or `.`).
+
+**This sitting also closes V3a.1's OLED-error row**, which M3 recorded as
+*not measurable in the product image* because the panel was dark except
+while a passkey was showing. F11b makes the display always-on and F11b.11
+added `ok`/`err` counters to the panel layer, surfaced on the System page
+and in `GET /api/v1/status`'s new `display` object — so the V1.4 method
+now works against the shipping firmware rather than a bench build.
+
+| Check | Result |
+| --- | --- |
+| **F11b.12** walk all five pages with PRG; every page legible at arm's length | ⏳ |
+| **F11b.12** each context action reaches its confirm, is cancelled by releasing early, and one is run to completion | ⏳ |
+| **F11b.12** the page-2 sparkline agrees with the app's chart over the same 2 h window | ⏳ |
+| **F11b.12** the panel sleeps after `display_timeout_s` and the waking press does NOT change the page | ⏳ |
+| **F11b.12** display on + BLE active for ≥ 10 min: record `i2c_ok` / `i2c_err` (closes V3a.1) | ⏳ |
+| **F12.6** GPIO37 HIGH gates the divider in the PRODUCT image (V1.3 proved it in the bench image) | ⏳ |
+| **F12.6** SoC on battery and on USB; the inferred `charging` flag flips when the cable goes in | ⏳ |
+| **F12.6** a second DMM calibration point, **or** an explicit statement that the plateau solver stands in for one | ⏳ |
+| **F12.6** the saver profile engages and releases (force the threshold if a real discharge is impractical) | ⏳ |
+| **F12.6** V1.5's deferred brownout question: answered, or re-deferred **with a reason** rather than left blank | ⏳ |
+| **F13.9** with the phone **powered off**, drive a probe across its target: raises, latches, LED blinks, overlay shows, still unacked when the phone returns | ⏳ |
+| **F13.9** open the lid on a live pit: **no pit alarm**, and a kind-2 mark in the session | ⏳ |
+| **F13.9** commit the session file carrying the kind-5 and kind-2 marks as evidence | ⏳ |
+| **A13.7** an unattended **overnight** cook wakes the user for `target_reached` — through quiet hours, with the app swiped away | ⏳ |
+| **A13.7** record whether the foreground service survived until morning on this OEM, or the point at which it was killed | ⏳ |
+| **A13.7** at 07:00 the bridge's latched state and the phone's agree | ⏳ |
+
+**Go in with eyes open on two things.**
+
+**The heap.** V3a.1 measured `min_free_heap` ≈ 78.2 KB against a 150 KB
+target, and the working decision is that the target was wrong (see the
+open question above). M5's own budget is **≤ 2 KB of heap and ≈ 0.9 KB of
+BSS**, argued line by line in the
+[M5 plan](tasks/M5-alarms-display-insights.md) — no new task rows, because
+`app_alarm`, `app_ui` and `app_power` have been in `tasks.h` since F1.4.
+Record `free_heap` / `min_free_heap` during this sitting so M6's 24 h soak
+has a before-and-after rather than one number.
+
+**`charging` is inferred, not sensed.** This board exposes no
+charge-status line, so F12 infers it from the filtered pack being ≥ 4.15 V
+or having risen ≥ 30 mV over 10 minutes. An inferred `true` costs nothing;
+an inferred `false` on a charging bridge shows a discharging icon. If the
+flag misbehaves, that is a finding to write down rather than a number to
+tune at the bench.

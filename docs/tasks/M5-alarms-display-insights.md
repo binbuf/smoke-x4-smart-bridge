@@ -31,6 +31,33 @@ beside them on the app side and joining at the sitting.
 > argued and table-tested. F13 **projects** them into C; it does not re-derive them, and any
 > constant that differs between the two files is a bug in one of them, not a dialect.
 
+> **Status 2026-07-23 — all 30 `board: no` tasks are done.** Firmware host suite 21/21 → **24/24**
+> (the three new binaries add ~1,900 checks: `app_alarm`, `app_alarm_svc`, `app_power`, and
+> `test_app_ui` grows from 226 to 1,178). App suite 459/459 → **496/496**, analyzer and formatter
+> clean, `protogen --check` green, both firmware images build. The four `board: yes` rows (F13.9,
+> F11b.12, F12.6, A13.7) are the only remainder and are the single sitting described above; their
+> runbook is the M5 section of [hardware-verified](../hardware-verified.md).
+>
+> **Five defects were found by writing the tests rather than by reading the code**, and each is
+> recorded at its site:
+>
+> | Found | What it was |
+> | --- | --- |
+> | `app_api_emit_fmt` truncates **silently** past a 256 B stack buffer | The twelve `/config/alarms` tunables as one format string lost their last two fields. Caught only because the test asserts a field at the END of the object. Split into three calls |
+> | The charging inference reads the **calibrated** voltage | So a badly wrong ratio would stop the plateau solver ever starting. The rise branch is ratio-robust and is what actually carries it; the level branch cannot |
+> | A flat reading at ~3.6 V while charging was solved **as if it were 4.2 V** | Calibrating the bridge to a confident 100 %. `APP_POWER_PLATEAU_MIN_MV` is the fix, and the solver is now explicitly a refinement rather than a discovery |
+> | The app never parsed `severity` and defaulted every alarm to `warning` | A `target_reached` at 03:40 would have been **silenced by quiet hours** — the exact failure §9.5 argues against |
+> | `caps` b5 written as a literal in the glue | Where no host test could hold it. Moved into the pure builder, which is how the first attempt was caught |
+>
+> Decisions this milestone was asked to make, and made — beyond the section below:
+>
+> | Question | Answer | Recorded in |
+> | --- | --- | --- |
+> | The 5×7 font has no `●`, `⚠`, `▲`, `▼` or `▂▄▆█` | **ASCII stand-ins carrying the same three states** — `*`/`o`, `!`, `^`/`v`/`-`, `####`/`###.` Inventing glyphs for a 21-column strip is how a status line becomes unreadable, and every one of these is a single legible cell | `app_ui_render.c`, with the goldens |
+> | Where does `smoke_x_alarm` get the base's own band? | `smoke_x_ctrl_last_state()`, a new accessor. `bridge_evt_sample_t` is deliberately narrow (03 §3.2) and does not carry it; 40 static bytes beat widening an event every subscriber copies | `smoke_x_ctrl.c` |
+> | Does the 10 s tick feed the lid detector? | **No.** The §9.4 window is defined over SAMPLES, and a tick is the absence of one — advancing the detector on a tick feeds it the same temperature at a new timestamp and quietly widens the window | `app_alarm_input_t.sample_fresh` |
+> | Which alarms latch, and which clear themselves? | Per-rule. Everything critical plus `system_fault` latches until acknowledged; the rest auto-clear. And an **acked** alarm may clear on its re-arm condition, which is what lets `target_reached` fire again on the next cut | `rules.c` |
+
 ---
 
 ## Decisions to carry into planning

@@ -294,7 +294,7 @@ static void test_status_shape(void) {
     const char *sections[] = {"\"device\":{", "\"time\":{",   "\"net\":{",
                               "\"ble\":{",    "\"pairing\":{", "\"radio\":{",
                               "\"storage\":{", "\"power\":{",  "\"session\":{",
-                              "\"alarms\":["};
+                              "\"display\":{", "\"alarms\":["};
     const char *prev = g_body;
     for (size_t i = 0; i < sizeof sections / sizeof sections[0]; i++) {
         const char *found = strstr(g_body, sections[i]);
@@ -302,6 +302,9 @@ static void test_status_shape(void) {
         CHECK(found >= prev);
         prev = found;
     }
+    /* F11b.11 — V3a.1's deferred OLED-error row, readable over HTTP. */
+    CHECK(strstr(g_body, "\"display\":{\"i2c_ok\":") != NULL);
+
     /* Honest degenerates: BLE idle, power null — never invented. */
     CHECK(strstr(g_body, "\"advertising\":false") != NULL);
     CHECK(strstr(g_body, "\"mv\":null") != NULL);

@@ -370,6 +370,18 @@ static void handle_status(app_api_out_t *out) {
                          "\"samples\":0}");
     }
 
+    /* F11b.11 — additive (06 §6.5: clients ignore unknown keys), and the
+     * cheapest way to make V3a.1's deferred OLED-error row measurable in
+     * the PRODUCT image. An error count with no denominator is not a
+     * measurement, so `ok` travels beside it. */
+    uint32_t disp_ok = 0;
+    uint32_t disp_err = 0;
+    if (s_ops->display_counts != NULL) {
+        s_ops->display_counts(&disp_ok, &disp_err);
+    }
+    app_api_emit_fmt(out, ",\"display\":{\"i2c_ok\":%u,\"i2c_err\":%u}",
+                     (unsigned)disp_ok, (unsigned)disp_err);
+
     /* F13.8 — the real list, in 06 §6.2's shape. This field was an empty
      * literal from M2 to M5; the /status.ble stub (found on the board,
      * 2026-07-23) is why it does not stay one a milestone longer than the
