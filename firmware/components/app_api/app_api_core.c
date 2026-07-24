@@ -260,9 +260,19 @@ static void handle_status(app_api_out_t *out) {
                      "\"ap_clients\":%d}",
                      (int)net.rssi, net.ip, net.host, net.ap_clients);
 
-    /* Honest degenerate values until M3/M5 — shape-complete, not invented. */
-    app_api_emit_str(
-        out, ",\"ble\":{\"advertising\":false,\"connections\":0,\"bonded\":0}");
+    /* Real since M3. This block was a shape-complete placeholder while BLE
+     * did not exist; leaving it hardcoded after F10 landed meant /status
+     * reported "bonded":0 on a bridge with a live bond, which reads as a
+     * lost pairing rather than as an unimplemented field. */
+    app_api_ble_snapshot_t ble = {0};
+    if (s_ops->ble_status) {
+        s_ops->ble_status(&ble);
+    }
+    app_api_emit_fmt(out,
+                     ",\"ble\":{\"advertising\":%s,\"connections\":%u,"
+                     "\"bonded\":%u}",
+                     ble.advertising ? "true" : "false",
+                     (unsigned)ble.connections, (unsigned)ble.bonded);
 
     app_config_pairing_t pair;
     const bool paired = app_config_store_get_pairing(&pair) == APP_CONFIG_OK;

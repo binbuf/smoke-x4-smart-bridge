@@ -27,6 +27,10 @@ int app_ble_forget_bonds(void);
  * automatically). */
 void app_ble_note_activity(void);
 
+/* Live link state for GET /status. Any pointer may be null. */
+void app_ble_link_status(bool *advertising, uint8_t *connections,
+                         uint8_t *bonded);
+
 #ifdef __cplusplus
 }
 #endif

@@ -10,6 +10,7 @@
 
 #include "app_api_core.h"
 #include "app_api_ws.h"
+#include "app_ble.h"
 #include "app_net.h"
 #include "app_time_core.h"
 #include "bridge_event.h"
@@ -89,6 +90,15 @@ static void ops_net_status(app_api_net_snapshot_t *out) {
     out->ap_clients = st.ap_clients;
 }
 
+static void ops_ble_status(app_api_ble_snapshot_t *out) {
+    bool advertising = false;
+    uint8_t conns = 0, bonds = 0;
+    app_ble_link_status(&advertising, &conns, &bonds);
+    out->advertising = advertising;
+    out->connections = conns;
+    out->bonded = bonds;
+}
+
 static size_t ops_coredump_size(void) {
     size_t addr = 0, size = 0;
     return esp_core_dump_image_get(&addr, &size) == ESP_OK ? size : 0;
@@ -119,6 +129,7 @@ static bool ops_www_available(void) {
 static const app_api_ops_t k_ops = {
     .sysinfo = ops_sysinfo,
     .net_status = ops_net_status,
+    .ble_status = ops_ble_status,
     .net_request_config = app_net_request_config,
     .coredump_size = ops_coredump_size,
     .coredump_read = ops_coredump_read,

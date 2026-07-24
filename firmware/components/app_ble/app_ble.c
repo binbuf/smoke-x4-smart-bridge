@@ -411,6 +411,21 @@ int app_ble_forget_bonds(void) {
     return rc;
 }
 
+void app_ble_link_status(bool *advertising, uint8_t *connections,
+                         uint8_t *bonded) {
+    if (advertising) {
+        /* Ask NimBLE rather than tracking a shadow flag: advertising also
+         * stops on its own when a central connects. */
+        *advertising = ble_gap_adv_active() != 0;
+    }
+    if (connections) {
+        *connections = s_conn_handle == BLE_HS_CONN_HANDLE_NONE ? 0 : 1;
+    }
+    if (bonded) {
+        *bonded = app_ble_bond_count();
+    }
+}
+
 /* ── the ble_push row (F10.4) ─────────────────────────────────────── */
 
 static void ble_push_task(void *arg) {

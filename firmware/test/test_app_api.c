@@ -161,11 +161,16 @@ static int ops_coredump_read(size_t off, void *buf, size_t n) {
 
 static bool ops_www(void) { return false; }
 
+static app_api_ble_snapshot_t g_ble;
+
+static void ops_ble(app_api_ble_snapshot_t *out) { *out = g_ble; }
+
 static uint64_t ops_uptime(void) { return g_uptime_ms; }
 
 static const app_api_ops_t g_api_ops = {
     .sysinfo = ops_sysinfo,
     .net_status = ops_net,
+    .ble_status = ops_ble,
     .net_request_config = ops_request_config,
     .coredump_size = ops_coredump_size,
     .coredump_read = ops_coredump_read,
@@ -293,10 +298,36 @@ static void test_status_shape(void) {
         CHECK(found >= prev);
         prev = found;
     }
-    /* Honest degenerates: BLE off, power null — never invented. */
+    /* Honest degenerates: BLE idle, power null — never invented. */
     CHECK(strstr(g_body, "\"advertising\":false") != NULL);
     CHECK(strstr(g_body, "\"mv\":null") != NULL);
     CHECK(strstr(g_body, "\"id\":\"A4F2\"") != NULL);
+}
+
+/* The block was hardcoded to zeros while BLE did not exist and stayed that
+ * way after F10 landed, so a bridge with a live bond reported
+ * "bonded":0 — indistinguishable from a pairing that had been lost. */
+static void test_status_ble_is_reported_not_hardcoded(void) {
+    seed_world();
+    g_ble = (app_api_ble_snapshot_t){
+        .advertising = true, .connections = 1, .bonded = 2};
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"advertising\":true") != NULL);
+    CHECK(strstr(g_body, "\"connections\":1") != NULL);
+    CHECK(strstr(g_body, "\"bonded\":2") != NULL);
+
+    /* A build with no BLE at all reports zeros rather than crashing or
+     * inventing a bond. */
+    app_api_ops_t no_ble = g_api_ops;
+    no_ble.ble_status = NULL;
+    app_api_core_init(&no_ble);
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"advertising\":false") != NULL);
+    CHECK(strstr(g_body, "\"bonded\":0") != NULL);
+    app_api_core_init(&g_api_ops);
+    g_ble = (app_api_ble_snapshot_t){0};
 }
 
 static void test_live_detached_never_zero(void) {
@@ -622,6 +653,7 @@ int main(void) {
     test_router_auth_and_errors();
     test_emitter_streams_100kb_through_2kb();
     test_status_shape();
+    test_status_ble_is_reported_not_hardcoded();
     test_live_detached_never_zero();
     test_sessions_group();
     test_samples_formats();

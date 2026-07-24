@@ -65,8 +65,17 @@ typedef struct {
 } app_api_net_snapshot_t;
 
 typedef struct {
+    bool advertising;
+    uint8_t connections;
+    uint8_t bonded;
+} app_api_ble_snapshot_t;
+
+typedef struct {
     void (*sysinfo)(app_api_sysinfo_t *out);
     void (*net_status)(app_api_net_snapshot_t *out);
+    /* F10: null on a build without BLE, which /status reports as zeros
+     * rather than pretending. */
+    void (*ble_status)(app_api_ble_snapshot_t *out);
     /* F8.4 deferred apply — reply first, this fires after. */
     int (*net_request_config)(const app_net_pending_cfg_t *cfg);
     /* Coredump partition access (F4.6): size 0 = none stored. */
