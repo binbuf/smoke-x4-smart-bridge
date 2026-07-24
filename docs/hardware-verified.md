@@ -480,3 +480,58 @@ being redone; the genuinely new ones point at F14.9 and V3.3.
 **Do not tag until every row is pass or fail by observation.** Anything
 failing is a named decision — ship with it, fix it, or defer to v1.0.1 —
 not a blank.
+
+## Offline functional test — bridge on battery + phone, no dev PC (in progress 2026-07-23)
+
+**Purpose:** prove the product *works* standalone the way a user runs it — the
+bridge on its 3000 mAh pack and the phone app, with no development machine in the
+loop. This is deliberately **not** the diagnostic soak: the 24 h heap/stack/
+counter capture is wired-only and is written up as a separate pre-release gate in
+[tests/pre-release-24h-soak.md](tests/pre-release-24h-soak.md). We chose to run
+this functional test first and defer that one to just before the v1.0.0 tag.
+
+**Known, accepted limits going in** (all recorded elsewhere and *not* re-argued
+here):
+- **Runtime is unverified.** V1.5 was never measured; estimates are ~145 mA (AP,
+  and higher now that F11b's OLED is always-on) / ~70 mA (STA modem-sleep). At
+  3000 mAh that is **~20 h AP / ~40 h STA** — 24 h is not a safe bet, especially
+  in AP mode. The pack read **4062 mV / 89 %** at hand-off (on USB).
+- **A brownout leaves no trace.** If the pack dies, there is no panic and no
+  coredump — just a board that stopped. The *cook up to that point* survives
+  (the `cooks` partition + the phone's drift cache); the *reason* does not.
+- **BLE-only offline does not work** (the open A6.7 defect — the app never falls
+  through to the BLE lane). The phone must reach the bridge over **Wi-Fi**: the
+  portable `landing` router, or the bridge's own AP.
+- **A stale cached address can crash the app** (open defect) if the bridge's
+  Wi-Fi address changes mid-test. Mitigation: reopen the app; if it shows
+  "Something went wrong", clear its data and reopen.
+
+**Set-up at hand-off (2026-07-23):** release/M6 image flashed over USB; session 1
+"Cook #1" resumed (≈ 20.3 h, 2400+ samples); bridge on `landing` at
+`192.168.8.197`; phone on `landing` with the latest debug APK, connected and
+showing the live dashboard **with real battery %** (F12 end-to-end). To go
+offline: **unplug the bridge's USB** — it runs on the pack; keep the `landing`
+router powered (or portable); the phone stays on `landing`.
+
+**When you return, before touching anything, capture the post-test state** (from
+the phone browser or any machine on `landing`):
+
+| Check | Where | Tells you |
+| --- | --- | --- |
+| `uptime_s`, `reset_reason` | `GET /api/v1/status` | still up on one boot, or rebooted/browned-out (uptime resets, reason ≠ `poweron`) |
+| `power.soc_pct`, `power.mv` | same | how far the pack drained → a first real runtime data point |
+| `min_free_heap`, `coredump_available` | same | heap floor over the run; a panic if one happened |
+| task stack margins, `largest_free_block` | `GET /api/v1/debug/tasks` | any task near its limit; fragmentation |
+| session `samples` vs `elapsed_s` | same `/status` | dropped samples (a stall or a reconnect storm shows as a shortfall) |
+
+Screenshot those, note the wall-clock when you unplugged and when you returned,
+and drop the numbers here.
+
+| Observation | Result |
+| --- | --- |
+| Bridge still reachable on the phone when you returned | ⏳ |
+| Board on one boot the whole time (`reset_reason` = `poweron`, `uptime_s` ≈ elapsed) | ⏳ |
+| Battery SoC on return (→ first real runtime point vs the ~20 h AP / ~40 h STA estimate) | ⏳ |
+| App still showing live data (no crash screen, no stale-address fatal) | ⏳ |
+| Sample count consistent with elapsed (no silent drop-out) | ⏳ |
+| Any coredump present (a panic to review) | ⏳ |
