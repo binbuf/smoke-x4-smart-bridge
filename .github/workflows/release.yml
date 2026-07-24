@@ -1,0 +1,177 @@
+# T5.4 — the tag-driven release (design 10 §10.6, §10.8). The last of the
+# six workflows §10.6 names, and the only one that publishes anything.
+#
+# Q-F is answered: the repo is PUBLIC, so the installer can live on GitHub
+# Pages and esp-web-tools can fetch the firmware over plain HTTPS with no
+# token. Nothing below assumes privacy.
+#
+# Two guards, because a release workflow that can publish a wrong thing is
+# worse than no release workflow:
+#
+#   1. THE TAG AND THE VERSION MUST AGREE, checked before anything is
+#      built. §10.8 makes firmware and app share a version because the API
+#      contract binds them (06 §6.5), so v1.0.0 must match
+#      CONFIG_APP_PROJECT_VER and app/pubspec.yaml.
+#   2. THE TWO IMAGES ARE NAMED SO THEY CANNOT BE CONFUSED. F14.1 refuses
+#      the merged image over the air precisely because somebody uploads
+#      the wrong one anyway; the filenames should not help them.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Version agreement (tag vs firmware vs app)
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(sed -n 's/^CONFIG_APP_PROJECT_VER="\(.*\)"$/\1/p' \
+              firmware/sdkconfig.defaults)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          dart pub get
+          dart test tools/flash --name "version agreement"
+          FW=$(sed -n 's/^CONFIG_APP_PROJECT_VER="\(.*\)"$/\1/p' \
+            firmware/sdkconfig.defaults)
+          APP=$(sed -n 's/^version: \([0-9.]*\)+.*$/\1/p' app/pubspec.yaml)
+          if [ "$VERSION" != "$FW" ] || [ "$VERSION" != "$APP" ]; then
+            echo "::error::version mismatch — tag=$VERSION firmware=$FW app=$APP"
+            exit 1
+          fi
+
+      - name: Build firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.4
+          target: esp32s3
+          path: firmware
+          command: |
+            idf.py -B build/heltec-v3 \
+              -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.heltec-v3" \
+              build
+
+      - name: Merged image, OTA image, and the installer manifest
+        run: |
+          set -euo pipefail
+          dart run flash \
+            --build firmware/build/heltec-v3 \
+            --version "${{ steps.version.outputs.version }}" \
+            --out dist
+          cp tools/installer/index.html dist/index.html
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-dist
+          path: dist
+          if-no-files-found: error
+
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.7
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - name: Name the APK for the release
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/^version: \([0-9.]*\)+.*$/\1/p' pubspec.yaml)
+          mkdir -p ../dist
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             "../dist/smoke-bridge-$VERSION.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-dist
+          path: dist
+          if-no-files-found: error
+
+  publish:
+    needs: [build, apk]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-dist
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk-dist
+          path: dist
+
+      - name: Changelog from Conventional Commits
+        run: |
+          set -euo pipefail
+          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" \
+            2>/dev/null || true)
+          RANGE=${PREV:+$PREV..}${GITHUB_REF_NAME}
+          {
+            echo "## ${GITHUB_REF_NAME}"
+            echo ""
+            git log --no-merges --pretty='- %s' "${RANGE:-HEAD}"
+          } > CHANGELOG-release.md
+          cat CHANGELOG-release.md
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: CHANGELOG-release.md
+          files: |
+            dist/smoke-bridge-heltec-v3-*.bin
+            dist/smoke-bridge-*-ota.bin
+            dist/smoke-bridge-*.apk
+            dist/manifest.json
+
+      # The installer page and the assets it fetches go up together, so a
+      # page can never reference a firmware build that was not published.
+      - uses: actions/configure-pages@v5
+        id: pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4

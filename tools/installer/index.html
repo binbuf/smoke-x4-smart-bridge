@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>
+      Smoke X4 Smart Bridge — browser-flash firmware for a Heltec WiFi LoRa 32
+      V3
+    </title>
+    <meta
+      name="description"
+      content="Open-source ESP32-S3 + LoRa firmware that receives a ThermoWorks Smoke X4 base station, records every cook to flash, and serves it to an Android app over Wi-Fi or Bluetooth. Flash it from your browser — no Python, no esptool, no toolchain."
+    />
+
+    <!--
+      T5.3 — the browser installer (design 10 §10.8).
+
+      Copied in shape from docs/reference/smoke-x-receiver/docs/index.html
+      (MIT © G-Two), retargeted at our board, our manifest and our
+      onboarding. Two additions the reference does not need:
+
+        * the ANTENNA WARNING (01 §1.5) — powering an SX1262 with no
+          antenna damages it, and this page is aimed at someone holding a
+          brand-new board;
+        * the FIRST-BOOT HANDOFF into BLE onboarding (05 §5.7), because a
+          flashed board with no app is a board with a blinking LED and no
+          next step.
+
+      esp-web-tools is the only external asset. Everything else is
+      published beside this file by release.yml.
+    -->
+    <script
+      type="module"
+      src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"
+    ></script>
+
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #16181d;
+        --fg: #e6e8ec;
+        --muted: #99a3b1;
+        --accent: #f59e0b;
+        --danger: #f87171;
+        --bg-soft: rgba(255, 255, 255, 0.05);
+        --border: rgba(255, 255, 255, 0.12);
+        background: var(--bg);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        max-width: 760px;
+        margin: 2em auto;
+        padding: 0 1.25em;
+        line-height: 1.6;
+        color: var(--fg);
+      }
+      h1 {
+        margin: 0;
+        font-size: 2em;
+      }
+      h2 {
+        margin-top: 2em;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.25em;
+      }
+      .tagline {
+        color: var(--muted);
+        font-size: 1.1em;
+        margin: 0.4em 0 0;
+      }
+      .install-cta {
+        margin: 2em 0;
+        padding: 1.5em;
+        background: var(--bg-soft);
+        border-radius: 8px;
+        text-align: center;
+      }
+      .install-button {
+        font: inherit;
+        font-size: 1.15em;
+        padding: 0.75em 1.6em;
+        border-radius: 6px;
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: #16181d;
+        cursor: pointer;
+      }
+      .install-button:hover {
+        opacity: 0.9;
+      }
+      .warn {
+        border-left: 4px solid var(--danger);
+        background: var(--bg-soft);
+        padding: 0.7em 1em;
+        margin: 1.5em 0;
+        border-radius: 0 6px 6px 0;
+      }
+      .note {
+        border-left: 4px solid var(--accent);
+        background: var(--bg-soft);
+        padding: 0.7em 1em;
+        margin: 1.5em 0;
+        border-radius: 0 6px 6px 0;
+      }
+      code {
+        padding: 0.15em 0.4em;
+        background: var(--bg-soft);
+        border-radius: 3px;
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+      pre {
+        background: var(--bg-soft);
+        padding: 0.9em 1em;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      ol li,
+      ul li {
+        margin: 0.4em 0;
+      }
+      a {
+        color: var(--accent);
+      }
+      footer {
+        margin-top: 3em;
+        padding-top: 1em;
+        border-top: 1px solid var(--border);
+        font-size: 0.9em;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Smoke X4 Smart Bridge</h1>
+      <p class="tagline">
+        Turn a Heltec WiFi LoRa 32 V3 into a recorder for your ThermoWorks
+        Smoke X4 — every cook logged to flash, live on your phone, alarms that
+        work with the phone switched off.
+      </p>
+    </header>
+
+    <div class="warn">
+      <strong>Fit the antenna before you power the board.</strong> The SX1262
+      radio can be damaged by transmitting into an open connector. The
+      antenna ships in the box; screw it on first, then plug in USB.
+    </div>
+
+    <section class="install-cta">
+      <strong>Plug a Heltec WiFi LoRa 32 <em>V3</em> into USB, then:</strong>
+      <esp-web-install-button manifest="manifest.json">
+        <button class="install-button" slot="activate">
+          Install Smoke Bridge
+        </button>
+        <span slot="unsupported">
+          Your browser can't talk to serial ports. Use a recent desktop
+          Chrome, Edge, Brave, or Opera — or flash by hand with the command
+          below.
+        </span>
+        <span slot="not-allowed">
+          This page has to be served over HTTPS to reach a serial port.
+        </span>
+      </esp-web-install-button>
+      <p class="note" style="text-align: left">
+        <strong>A fresh install will erase everything on the board</strong> —
+        including any cooks already stored on it. The installer asks before it
+        does. If you are updating a bridge you already use, do it over Wi-Fi
+        from the app instead; that keeps your history.
+      </p>
+    </section>
+
+    <h2>After it flashes: first boot</h2>
+    <ol>
+      <li>
+        The OLED shows the version and a three-second countdown, then the
+        status pages.
+      </li>
+      <li>
+        The bridge starts its own Wi-Fi network and advertises over
+        Bluetooth as <code>SmokeBridge-XXXX</code>, where
+        <code>XXXX</code> is the last four characters of its MAC — the same
+        four the screen shows.
+      </li>
+      <li>
+        <strong
+          >Open the Smoke Bridge app and look for
+          <code>SmokeBridge-XXXX</code></strong
+        >. It will show you a six-digit code on the bridge's own screen to
+        pair with, then walk you through joining your Wi-Fi.
+      </li>
+      <li>
+        Put the Smoke X4 base station into sync mode and let the bridge find
+        it. Your original ThermoWorks receiver keeps working throughout —
+        the bridge only listens.
+      </li>
+    </ol>
+
+    <h2>What you need</h2>
+    <ul>
+      <li>A <strong>Heltec WiFi LoRa 32 V3</strong> (ESP32-S3 + SX1262),
+        with its antenna.</li>
+      <li>A ThermoWorks <strong>Smoke X4</strong> (or X2) base station.</li>
+      <li>A USB-C cable that carries data — not a charge-only one.</li>
+      <li>An Android phone for the app. iOS is not supported yet.</li>
+    </ul>
+
+    <h2>Flashing by hand</h2>
+    <p>
+      The installer above does exactly this, in a browser. If you would
+      rather do it yourself, download
+      <code>smoke-bridge-heltec-v3-&lt;version&gt;.bin</code> from the
+      releases page and run:
+    </p>
+    <pre><code>python -m esptool --chip esp32s3 -p &lt;PORT&gt; -b 460800 \
+    write_flash 0x0 smoke-bridge-heltec-v3-&lt;version&gt;.bin</code></pre>
+    <p class="note">
+      That file is the <em>merged</em> image: bootloader, partition table,
+      OTA selector and application in one, flashable at offset 0. The other
+      release artifact, <code>smoke-bridge-&lt;version&gt;-ota.bin</code>, is
+      the application alone and is what the app sends over Wi-Fi when you
+      update. They are not interchangeable — the bridge will refuse the
+      merged image over the air, and by hand at offset 0 the OTA image will
+      not boot.
+    </p>
+
+    <h2>Source, licence, privacy</h2>
+    <p>
+      Everything is on
+      <a href="https://github.com/">GitHub</a> under the MIT licence,
+      including the packet parser this project carries from
+      <a href="https://github.com/G-Two/smoke-x-receiver"
+        >smoke-x-receiver</a
+      >
+      (MIT &copy; G-Two), with thanks.
+    </p>
+    <p>
+      The bridge talks to your phone and to nothing else. There is no cloud
+      service, no account, and no telemetry — which is also why it keeps
+      working when the internet does not.
+    </p>
+
+    <footer>
+      Smoke X4 Smart Bridge — MIT licensed. Not affiliated with ThermoWorks.
+    </footer>
+  </body>
+</html>

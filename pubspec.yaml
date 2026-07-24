@@ -16,3 +16,5 @@ workspace:
   - tools/cookgen
   - tools/sim
   - tools/lora
+  - tools/flash
+  - tools/soak
