@@ -175,6 +175,22 @@ bool app_api_path_is_open(const char *path) {
     return strncmp(path, "/api/v1", 7) != 0;
 }
 
+bool app_api_path_is_ota(const char *path) {
+    return path && strcmp(path, "/api/v1/ota") == 0;
+}
+
+/* The bearer gate (05 §5.9), factored out so the streamed OTA route runs
+ * exactly the same check the router does rather than a second copy. */
+static bool auth_ok(const app_api_req_t *req) {
+    char token[33] = "";
+    (void)app_config_store_get_str(APP_CONFIG_DEV_API_TOKEN, token,
+                                   sizeof token);
+    if (token[0] == '\0') {
+        return true;
+    }
+    return req->bearer && strcmp(req->bearer, token) == 0;
+}
+
 static bool handle_captive(const app_api_req_t *req, app_api_out_t *out) {
     const char *p = req->path;
     if (strcmp(p, "/generate_204") == 0 || strcmp(p, "/gen_204") == 0) {
@@ -381,6 +397,28 @@ static void handle_status(app_api_out_t *out) {
     }
     app_api_emit_fmt(out, ",\"display\":{\"i2c_ok\":%u,\"i2c_err\":%u}",
                      (unsigned)disp_ok, (unsigned)disp_err);
+
+    /* F14.8 — additive, and the only way to read 03 §3.7's verdict
+     * without a serial cable. A build with no app_ota reports
+     * `not_applicable`, which is true, rather than `passed`, which would
+     * be the /status.ble stub all over again. */
+    app_api_ota_snapshot_t ota = {0};
+    snprintf(ota.gate, sizeof ota.gate, "%s", "not_applicable");
+    if (s_ops->ota_status != NULL) {
+        s_ops->ota_status(&ota);
+    }
+    app_api_emit_str(out, ",\"ota\":{\"slot\":");
+    app_api_emit_json_str(out, ota.slot);
+    app_api_emit_fmt(out, ",\"pending_verify\":%s,\"gate\":",
+                     ota.pending_verify ? "true" : "false");
+    app_api_emit_json_str(out, ota.gate);
+    app_api_emit_str(out, ",\"failed\":");
+    if (ota.failed[0] == '\0') {
+        app_api_emit_str(out, "null}");
+    } else {
+        app_api_emit_json_str(out, ota.failed);
+        app_api_emit_str(out, "}");
+    }
 
     /* F13.8 — the real list, in 06 §6.2's shape. This field was an empty
      * literal from M2 to M5; the /status.ble stub (found on the board,
@@ -1087,6 +1125,35 @@ static void handle_debug_novelty(app_api_out_t *out) {
     (void)cook_novelty_log_stream(novelty_sink, out);
 }
 
+/* V3.1 — the soak's evidence, over HTTP rather than over a serial cable
+ * (design 01 §1.4, 10 §10.5). Streamed like every other response. */
+static void handle_debug_tasks(app_api_out_t *out) {
+    static app_api_tasks_snapshot_t snap;
+    memset(&snap, 0, sizeof snap);
+    if (s_ops->tasks_snapshot != NULL) {
+        s_ops->tasks_snapshot(&snap);
+    }
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(out,
+                     "{\"heap\":{\"free_b\":%u,\"min_free_b\":%u,"
+                     "\"largest_free_block_b\":%u},\"tasks\":[",
+                     (unsigned)snap.free_heap,
+                     (unsigned)snap.min_free_heap,
+                     (unsigned)snap.largest_free_block);
+    for (int i = 0; i < snap.count && i < APP_API_MAX_TASKS; i++) {
+        const app_api_task_row_t *r = &snap.rows[i];
+        app_api_emit_str(out, i > 0 ? ",{\"name\":" : "{\"name\":");
+        app_api_emit_json_str(out, r->name);
+        app_api_emit_fmt(out,
+                         ",\"stack_b\":%u,\"high_water_b\":%u,"
+                         "\"margin_b\":%u,\"priority\":%u,\"core\":%d}",
+                         (unsigned)r->stack_b, (unsigned)r->high_water_b,
+                         (unsigned)r->margin_b, (unsigned)r->priority,
+                         (int)r->core);
+    }
+    app_api_emit_str(out, "]}");
+}
+
 static void handle_debug_coredump(app_api_out_t *out) {
     const size_t size = s_ops->coredump_size ? s_ops->coredump_size() : 0;
     if (size == 0) {
@@ -1129,11 +1196,7 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
 
     /* The optional bearer gate (05 §5.9): set → required on all of
      * API routes, JSON like every other response. */
-    char token[33] = "";
-    (void)app_config_store_get_str(APP_CONFIG_DEV_API_TOKEN, token,
-                                   sizeof token);
-    if (token[0] != '\0' &&
-        (!req->bearer || strcmp(req->bearer, token) != 0)) {
+    if (!auth_ok(req)) {
         app_api_error(out, 401, "unauthorized",
                       "missing or invalid bearer token");
         return 0;
@@ -1232,8 +1295,136 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
         handle_debug_coredump(out);
         return 0;
     }
-    /* POST /ota deliberately unregistered until F14 (M6): an honest 404
-     * rather than a lying 503 stub. */
+    if (is_get && strcmp(api, "/debug/tasks") == 0) {
+        handle_debug_tasks(out);
+        return 0;
+    }
+    /* F14.5 — /ota is real now, but it never comes through here: the
+     * glue intercepts it BEFORE the 8 KB body buffer and calls
+     * app_api_handle_ota() with a streaming reader. Reaching this line
+     * with a POST means the glue forgot, and saying so beats a 404 that
+     * looks like the M2..M5 stub. */
+    if (strcmp(api, "/ota") == 0 && strcmp(req->method, "POST") == 0) {
+        app_api_error(out, 500, "internal",
+                      "ota must be streamed; the glue did not intercept it");
+        return 0;
+    }
     app_api_error(out, 404, "not_found", "no such route");
+    return 0;
+}
+
+/* ── F14.5: the streamed OTA upload ───────────────────────────────────── */
+
+static void ota_emit_progress(const app_api_ota_ctx_t *ota) {
+    if (!ota->progress) {
+        return;
+    }
+    app_ota_phase_t phase;
+    int pct = 0;
+    while (app_ota_session_take_progress(ota->session, &phase, &pct)) {
+        ota->progress(ota->progress_ctx, phase, pct);
+    }
+}
+
+int app_api_handle_ota(const app_api_req_t *req, app_api_out_t *out,
+                       const app_api_ota_ctx_t *ota) {
+    if (!req || !out || !ota || !ota->session || !ota->flash || !ota->read) {
+        app_api_error(out, 500, "internal", "ota context incomplete");
+        return 0;
+    }
+    /* Auth first: a wrong token must not even be told whether a cook is
+     * running. */
+    if (!auth_ok(req)) {
+        app_api_error(out, 401, "unauthorized",
+                      "missing or invalid bearer token");
+        return 0;
+    }
+    if (strcmp(req->method, "POST") != 0) {
+        app_api_error(out, 404, "not_found", "no such route");
+        return 0;
+    }
+
+    const char *force = app_api_query_get(req, "force");
+    const bool forced = force && strcmp(force, "1") == 0;
+
+    const app_ota_admit_t admit = app_ota_session_admit(
+        ota->session, ota->session_active, forced, ota->content_len);
+    switch (admit) {
+    case APP_OTA_ADMIT_OK:
+        break;
+    case APP_OTA_ADMIT_SESSION_ACTIVE:
+        app_api_error(out, 409, "session_active",
+                      "a cook is running — retry with ?force=1. Nobody "
+                      "should discover a bad flash 14 hours into a brisket");
+        return 0;
+    case APP_OTA_ADMIT_IN_PROGRESS:
+        app_api_error(out, 503, "ota_in_progress",
+                      "an update is already being written");
+        return 0;
+    case APP_OTA_ADMIT_EMPTY:
+        app_api_error(out, 400, "invalid_body", "empty image");
+        return 0;
+    }
+
+    app_ota_session_begin(ota->session, ota->flash, ota->content_len);
+
+    static uint8_t chunk[2048];
+    size_t got = 0;
+    while (got < ota->content_len) {
+        const size_t want = (ota->content_len - got) < sizeof chunk
+                                ? (ota->content_len - got)
+                                : sizeof chunk;
+        const int n = ota->read(ota->read_ctx, chunk, want);
+        if (n < 0) {
+            app_ota_session_fail(ota->session, "upload_aborted");
+            ota_emit_progress(ota);
+            app_api_error(out, 400, "invalid_body",
+                          "the upload stopped before the image ended");
+            app_ota_session_reset(ota->session);
+            return 0;
+        }
+        if (n == 0) {
+            break;
+        }
+        if (app_ota_session_feed(ota->session, chunk, (size_t)n) != 0) {
+            const char *reason = ota->session->fail_reason
+                                     ? ota->session->fail_reason
+                                     : "invalid_image";
+            ota_emit_progress(ota);
+            app_api_error(out, 400, "invalid_body", reason);
+            app_ota_session_reset(ota->session);
+            return 0;
+        }
+        got += (size_t)n;
+        ota_emit_progress(ota);
+    }
+
+    if (app_ota_session_finish(ota->session) != 0) {
+        const char *reason = ota->session->fail_reason
+                                 ? ota->session->fail_reason
+                                 : "image_validation_failed";
+        ota_emit_progress(ota);
+        /* 400 rather than 500: the image the client sent is the problem,
+         * and it is the client that must send a different one. */
+        app_api_error(out, 400, "invalid_body", reason);
+        app_ota_session_reset(ota->session);
+        return 0;
+    }
+    ota_emit_progress(ota);
+
+    /* 06 §6.2's OtaAccepted, sent BEFORE the deferred reboot fires. */
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(out, "{\"accepted\":true,\"image_size_b\":%u,\"slot\":",
+                     (unsigned)ota->session->received);
+    app_api_emit_json_str(out, ota->flash->slot_name
+                                   ? ota->flash->slot_name(ota->flash->ctx)
+                                   : "");
+    app_api_emit_str(out, ",\"version\":");
+    app_api_emit_json_str(out, ota->session->info.version);
+    app_api_emit_str(out, ",\"project\":");
+    /* Reported, never enforced — a fork that renames its CMake project
+     * should not be locked out of its own hardware. */
+    app_api_emit_json_str(out, ota->session->info.project);
+    app_api_emit_str(out, ",\"rebooting_in_ms\":500}");
     return 0;
 }

@@ -1,8 +1,8 @@
 idf_component_register(
     SRCS "main.c" "boot_seq.c" "double_reset.c" "bench.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES app_alarm app_api app_ble app_config app_net app_power app_time
-                  app_ui
+    PRIV_REQUIRES app_alarm app_api app_ble app_config app_net app_ota app_power
+                  app_time app_ui
                   cook_store smoke_x
                   bridge_event nvs_flash esp_event esp_timer
                   esp_adc esp_wifi esp_netif

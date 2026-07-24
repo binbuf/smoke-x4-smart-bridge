@@ -43,6 +43,23 @@ CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
 # OTA safety: a fresh image is pending-verify until the 03 §3.7 health gate
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
+# F14.7 — ONE version string. Without this the app descriptor carries a
+# git-describe abbreviation (`e32feb0`) while /status.fw carried a string
+# literal, which is two sources of truth for "what is running" and a third
+# once the OTA reply names the image it is about to install. 10 §10.8 makes
+# firmware and app share a version because the API contract binds them
+# (06 §6.5) — so this is the one line a release bumps, and everything else
+# reads esp_app_get_description()->version.
+CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
+CONFIG_APP_PROJECT_VER="1.0.0"
+
+# V3.1 — uxTaskGetSystemState(), which /api/v1/debug/tasks needs to report
+# stack watermarks for the tasks the application did NOT create: the IDF's
+# own httpd, the NimBLE host, and the event loop. Those are precisely the
+# rows main/tasks.h cannot account for and 01 §1.4 had to estimate. A few
+# bytes per TCB buys the 24 h soak its evidence.
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+
 # Watchdogs: a task that blocks on flash past its budget panics loudly
 CONFIG_ESP_TASK_WDT_INIT=y
 

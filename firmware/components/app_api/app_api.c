@@ -5,6 +5,7 @@
 #include "app_api.h"
 
 #include "app_alarm.h"
+#include "app_ota.h"
 #include "app_ui_panel.h"
 #include "app_config_store.h"
 
@@ -19,6 +20,7 @@
 #include "app_time_core.h"
 #include "bridge_event.h"
 #include "cook_store.h"
+#include "esp_app_desc.h"
 #include "esp_core_dump.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
@@ -65,7 +67,12 @@ static void ops_sysinfo(app_api_sysinfo_t *out) {
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     snprintf(out->id, sizeof out->id, "%02X%02X", mac[4], mac[5]);
     out->model = "heltec-v3";
-    out->fw = "1.0.0";
+    /* F14.7 — ONE version string, and this is not it: the app
+     * descriptor is (CONFIG_APP_PROJECT_VER). A literal here disagreed
+     * with the image's own version for four milestones, and the OTA
+     * reply was about to become a third spelling. */
+    const esp_app_desc_t *desc = esp_app_get_description();
+    out->fw = desc != NULL ? desc->version : "0.0.0";
     out->reset_reason = reset_reason_name();
     out->uptime_s = (uint32_t)(uptime_ms() / 1000u);
     out->free_heap = (uint32_t)esp_get_free_heap_size();
@@ -134,6 +141,80 @@ static void ops_display_counts(uint32_t *ok, uint32_t *err) {
     app_ui_panel_counts(ok, err);
 }
 
+static void ops_ota_status(app_api_ota_snapshot_t *out) {
+    memset(out, 0, sizeof *out);
+    snprintf(out->slot, sizeof out->slot, "%s", app_ota_running_slot());
+    out->pending_verify = app_ota_pending_verify();
+    uint32_t mask = 0;
+    const app_ota_gate_verdict_t v = app_ota_gate_state(&mask);
+    snprintf(out->gate, sizeof out->gate, "%s",
+             app_ota_gate_verdict_str(v));
+    (void)app_ota_gate_clauses_str(mask, out->failed, sizeof out->failed);
+}
+
+/* V3.1 — the 24 h soak's evidence. CONFIG_FREERTOS_USE_TRACE_FACILITY is
+ * what makes uxTaskGetSystemState() available, and it is enabled for this
+ * one reason: it enumerates the tasks the APPLICATION did not create —
+ * httpd, the NimBLE host, the event loop — which are exactly the rows
+ * main/tasks.h cannot account for and 01 §1.4 had to estimate. */
+static void ops_tasks_snapshot(app_api_tasks_snapshot_t *out) {
+    memset(out, 0, sizeof *out);
+    out->free_heap = (uint32_t)esp_get_free_heap_size();
+    out->min_free_heap = (uint32_t)esp_get_minimum_free_heap_size();
+    out->largest_free_block =
+        (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
+
+    static TaskStatus_t status[APP_API_MAX_TASKS];
+    const UBaseType_t n =
+        uxTaskGetSystemState(status, APP_API_MAX_TASKS, NULL);
+    for (UBaseType_t i = 0; i < n && out->count < APP_API_MAX_TASKS; i++) {
+        app_api_task_row_t *row = &out->rows[out->count++];
+        snprintf(row->name, sizeof row->name, "%s",
+                 status[i].pcTaskName ? status[i].pcTaskName : "?");
+        /* usStackHighWaterMark is in WORDS on this port. */
+        row->high_water_b = (uint32_t)status[i].usStackHighWaterMark *
+                            (uint32_t)sizeof(StackType_t);
+        row->margin_b = row->high_water_b;
+        row->priority = (uint8_t)status[i].uxCurrentPriority;
+        /* xTaskGetCoreID rather than TaskStatus_t::xCoreID, which needs
+         * a second Kconfig option this build does not carry. */
+        const BaseType_t core = xTaskGetCoreID(status[i].xHandle);
+        row->core = (core == tskNO_AFFINITY) ? (int8_t)-1 : (int8_t)core;
+        /* The declared size, for the rows main/tasks.h owns. FreeRTOS
+         * does not report it, so it comes from the table — mirrored, per
+         * the components-cannot-include-tasks.h rule. */
+        row->stack_b = 0;
+        static const struct {
+            const char *name;
+            uint32_t stack;
+        } k_declared[] = {
+            {"lora_rx", 4096},  {"smoke_x", 3072}, {"cook_store", 4096},
+            {"app_ui", 4096},   {"app_alarm", 3072}, {"app_net", 3072},
+            {"app_power", 2560}, {"ws_push", 4096}, {"ble_push", 4096},
+        };
+        for (size_t k = 0; k < sizeof k_declared / sizeof k_declared[0];
+             k++) {
+            if (strcmp(row->name, k_declared[k].name) == 0) {
+                row->stack_b = k_declared[k].stack;
+                break;
+            }
+        }
+    }
+}
+
+static void watermark_log_cb(void *arg) {
+    (void)arg;
+    static app_api_tasks_snapshot_t snap;
+    ops_tasks_snapshot(&snap);
+    ESP_LOGD(TAG, "heap free=%u min=%u largest_block=%u",
+             (unsigned)snap.free_heap, (unsigned)snap.min_free_heap,
+             (unsigned)snap.largest_free_block);
+    for (int i = 0; i < snap.count; i++) {
+        ESP_LOGD(TAG, "  %-12s high_water=%u B", snap.rows[i].name,
+                 (unsigned)snap.rows[i].high_water_b);
+    }
+}
+
 static const app_api_ops_t k_ops = {
     .sysinfo = ops_sysinfo,
     .net_status = ops_net_status,
@@ -144,6 +225,8 @@ static const app_api_ops_t k_ops = {
     .www_available = ops_www_available,
     .uptime_ms = uptime_ms,
     .display_counts = ops_display_counts,
+    .ota_status = ops_ota_status,
+    .tasks_snapshot = ops_tasks_snapshot,
 };
 
 /* ── request adaptation ────────────────────────────────────────────────── */
@@ -169,6 +252,48 @@ static int http_sink(void *ctx, const char *data, size_t len) {
     }
     return httpd_resp_send_chunk(c->req, data, (ssize_t)len) == ESP_OK ? 0
                                                                        : -1;
+}
+
+/* ── F14.5: the streamed OTA upload ────────────────────────────────────
+ *
+ * The decisions (auth, admission, the read loop, progress throttling,
+ * both reply shapes) are all in app_api_handle_ota(); this supplies the
+ * two functions it needs — one that reads the socket, one that gets a
+ * progress frame onto the ws_push task. */
+
+static void ota_push_progress(void *ctx, app_ota_phase_t phase, int pct);
+static esp_err_t ota_handler(httpd_req_t *req, app_api_req_t *creq);
+
+static int ota_body_read(void *ctx, void *buf, size_t cap) {
+    httpd_req_t *req = ctx;
+    const int n = httpd_req_recv(req, (char *)buf, cap);
+    if (n == HTTPD_SOCK_ERR_TIMEOUT) {
+        return 0; /* treated as end-of-body by the core's accounting */
+    }
+    return n;
+}
+
+static esp_err_t ota_handler(httpd_req_t *req, app_api_req_t *creq) {
+    const app_api_ota_ctx_t ota = {
+        .read = ota_body_read,
+        .read_ctx = req,
+        .content_len = (size_t)req->content_len,
+        .session_active = cook_session_is_open(),
+        .flash = app_ota_flash_ops(),
+        .session = app_ota_the_session(),
+        .progress = ota_push_progress,
+        .progress_ctx = NULL,
+    };
+    app_api_out_t out;
+    sink_ctx_t sc = {.req = req};
+    app_api_out_init(&out, http_sink, &sc);
+    sc.out = &out;
+    (void)app_api_handle_ota(creq, &out, &ota);
+    (void)app_api_out_finish(&out);
+    if (!sc.headers_sent) {
+        (void)http_sink(&sc, "", 0);
+    }
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 static esp_err_t common_handler(httpd_req_t *req) {
@@ -218,6 +343,20 @@ static esp_err_t common_handler(httpd_req_t *req) {
     }
     creq.path = path;
 
+    static char auth[64];
+    if (httpd_req_get_hdr_value_str(req, "Authorization", auth,
+                                    sizeof auth) == ESP_OK &&
+        strncmp(auth, "Bearer ", 7) == 0) {
+        creq.bearer = auth + 7;
+    }
+
+    /* F14.5 — THE ONE ROUTE EXEMPT FROM THE 8 KB BODY CAP. Intercepted
+     * here, before the buffer below, because a 1.3 MB image must stream
+     * into flash rather than be materialised. */
+    if (app_api_path_is_ota(creq.path)) {
+        return ota_handler(req, &creq);
+    }
+
     static char body[APP_API_MAX_BODY + 1];
     if (req->content_len > 0) {
         if (req->content_len > APP_API_MAX_BODY) {
@@ -240,13 +379,6 @@ static esp_err_t common_handler(httpd_req_t *req) {
         body[got] = '\0';
         creq.body = body;
         creq.body_len = got;
-    }
-
-    static char auth[64];
-    if (httpd_req_get_hdr_value_str(req, "Authorization", auth,
-                                    sizeof auth) == ESP_OK &&
-        strncmp(auth, "Bearer ", 7) == 0) {
-        creq.bearer = auth + 7;
     }
 
     app_api_out_t out;
@@ -341,12 +473,18 @@ static void ws_broadcast(uint32_t topic_bit_mask,
  * fan-out happen HERE. */
 
 typedef struct {
-    uint8_t kind; /* 0 sample, 1 session, 2 alarm, 3 power */
+    char phase[12];
+    int pct;
+} ota_progress_msg_t;
+
+typedef struct {
+    uint8_t kind; /* 0 sample, 1 session, 2 alarm, 3 power, 4 ota */
     union {
         bridge_evt_sample_t sample;
         bridge_evt_session_t session;
         bridge_evt_alarm_t alarm;
         bridge_evt_power_t power;
+        ota_progress_msg_t ota;
     } u;
 } push_msg_t;
 
@@ -401,6 +539,11 @@ static void build_power_frame(app_api_out_t *out, void *arg) {
     app_api_ws_power(out, (const bridge_evt_power_t *)arg);
 }
 
+static void build_ota_frame(app_api_out_t *out, void *arg) {
+    const ota_progress_msg_t *m = arg;
+    app_api_ws_ota(out, m->phase, m->pct);
+}
+
 static void ws_push_task(void *arg) {
     (void)arg;
     push_msg_t msg;
@@ -419,11 +562,30 @@ static void ws_push_task(void *arg) {
         case 2:
             ws_broadcast(WS_TOPIC_ALARM, build_alarm_frame, &msg.u.alarm);
             break;
+        case 4:
+            ws_broadcast(WS_TOPIC_OTA, build_ota_frame, &msg.u.ota);
+            break;
         default:
             ws_broadcast(WS_TOPIC_POWER, build_power_frame, &msg.u.power);
             break;
         }
     }
+}
+
+/* Runs on the HTTPD task while an image is being written. It must not
+ * fan out from here: ws_broadcast is single-consumer on ws_push, and the
+ * M2 bench sitting proved what happens when that rule is broken (a
+ * stack overflow that trampled pthread TLS and crashed inside lwip). */
+static void ota_push_progress(void *ctx, app_ota_phase_t phase, int pct) {
+    (void)ctx;
+    if (app_api_ws_count() == 0 || !s_push_queue) {
+        return;
+    }
+    push_msg_t msg = {.kind = 4};
+    snprintf(msg.u.ota.phase, sizeof msg.u.ota.phase, "%s",
+             app_ota_phase_str(phase));
+    msg.u.ota.pct = pct;
+    (void)xQueueSend(s_push_queue, &msg, 0);
 }
 
 static void on_sample_evt(void *arg, esp_event_base_t base, int32_t id,
@@ -514,7 +676,9 @@ static esp_err_t ws_open_cb(httpd_req_t *req) {
         app_api_out_init(&out, frame_sink, &fb);
         uint64_t now_unix = 0;
         const bool have = app_time_core_now(uptime_ms(), &now_unix);
-        app_api_ws_hello(&out, "1.0.0", have, now_unix);
+        const esp_app_desc_t *desc = esp_app_get_description();
+        app_api_ws_hello(&out, desc != NULL ? desc->version : "0.0.0", have,
+                         now_unix);
         (void)app_api_out_finish(&out);
         ws_send_text_req(req, fb.buf, fb.len);
 
@@ -676,7 +840,19 @@ int app_api_init(void) {
     (void)bridge_event_handler_register(BRIDGE_EVT_POWER, on_power_evt, NULL,
                                         "api_ws_power");
 
+    /* 01 §1.4's "logged once a minute at debug level". Kept because a
+     * bench session with a serial cable is a real use; the 24 h soak
+     * reads the same numbers from /api/v1/debug/tasks instead. */
+    static esp_timer_handle_t wm_timer;
+    const esp_timer_create_args_t wm_args = {.callback = watermark_log_cb,
+                                             .name = "stack_wm"};
+    if (esp_timer_create(&wm_args, &wm_timer) == ESP_OK) {
+        (void)esp_timer_start_periodic(wm_timer, 60ull * 1000ull * 1000ull);
+    }
+
     ESP_LOGI(TAG, "httpd up on :80 (max_open_sockets=7, ws cap=%d)",
              APP_API_WS_MAX_CLIENTS);
     return 0;
 }
+
+bool app_api_is_listening(void) { return s_server != NULL; }

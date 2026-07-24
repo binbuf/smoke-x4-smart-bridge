@@ -169,6 +169,24 @@ static void ops_ble(app_api_ble_snapshot_t *out) { *out = g_ble; }
 
 static uint64_t ops_uptime(void) { return g_uptime_ms; }
 
+/* F14.8 — /status.ota. Defaults to the honest "nothing to confirm"
+ * rather than a cheerful `passed`. */
+static app_api_ota_snapshot_t g_ota_snap = {
+    .slot = "ota_0",
+    .pending_verify = false,
+    .gate = "not_applicable",
+    .failed = "",
+};
+
+static void ops_ota_status(app_api_ota_snapshot_t *out) {
+    *out = g_ota_snap;
+}
+
+/* V3.1 — /debug/tasks. */
+static app_api_tasks_snapshot_t g_tasks_snap;
+
+static void ops_tasks(app_api_tasks_snapshot_t *out) { *out = g_tasks_snap; }
+
 static const app_api_ops_t g_api_ops = {
     .sysinfo = ops_sysinfo,
     .net_status = ops_net,
@@ -178,6 +196,8 @@ static const app_api_ops_t g_api_ops = {
     .coredump_read = ops_coredump_read,
     .www_available = ops_www,
     .uptime_ms = ops_uptime,
+    .ota_status = ops_ota_status,
+    .tasks_snapshot = ops_tasks,
 };
 
 /* smoke_x_ctrl radio double (pairing endpoints drive the real ctrl). */
@@ -247,9 +267,15 @@ static void test_router_auth_and_errors(void) {
     CHECK_EQ_INT(g_out.status, 404);
     CHECK(strstr(g_body, "\"not_found\"") != NULL);
 
-    /* POST /ota is deliberately unregistered until F14: honest 404. */
+    /* F14.5 retires M2's "deliberately unregistered, honest 404". /ota
+     * is now real, and it never comes through app_api_handle() — the
+     * glue intercepts it BEFORE the 8 KB body buffer and calls
+     * app_api_handle_ota() with a streaming reader. Reaching the router
+     * with a POST means the glue forgot, and saying so beats a 404 that
+     * looks exactly like the stub this replaced. */
     do_req("POST", "/api/v1/ota", "", NULL);
-    CHECK_EQ_INT(g_out.status, 404);
+    CHECK_EQ_INT(g_out.status, 500);
+    CHECK(strstr(g_body, "\"internal\"") != NULL);
 
     /* Auth gate: unset → open. */
     do_req("GET", "/api/v1/pairing", NULL, NULL);
@@ -869,6 +895,375 @@ static void test_vbat_calibration_is_solved_not_merely_recorded(void) {
     CHECK(strstr(g_body, "\"mv\":4020") != NULL);
 }
 
+/* ── F14.5: POST /api/v1/ota, streamed ─────────────────────────────── */
+
+typedef struct {
+    const uint8_t *data;
+    size_t len;
+    size_t off;
+    int fail_at; /* -1 = never; otherwise return -1 past this offset */
+} body_src_t;
+
+static int body_read(void *ctx, void *buf, size_t cap) {
+    body_src_t *b = ctx;
+    if (b->fail_at >= 0 && b->off >= (size_t)b->fail_at) {
+        return -1;
+    }
+    size_t n = b->len - b->off;
+    if (n > cap) {
+        n = cap;
+    }
+    memcpy(buf, b->data + b->off, n);
+    b->off += n;
+    return (int)n;
+}
+
+/* The same fake flash the F14 binary uses, kept minimal here. */
+typedef struct {
+    int begins, writes, ends, set_boots, reboots;
+    size_t written;
+    bool fail_end;
+} ota_flash_t;
+
+static int of_begin(void *c, size_t n) {
+    (void)n;
+    ((ota_flash_t *)c)->begins++;
+    return 0;
+}
+static int of_write(void *c, const void *d, size_t n) {
+    (void)d;
+    ota_flash_t *f = c;
+    f->writes++;
+    f->written += n;
+    return 0;
+}
+static int of_end(void *c) {
+    ota_flash_t *f = c;
+    f->ends++;
+    return f->fail_end ? -1 : 0;
+}
+static int of_set_boot(void *c) {
+    ((ota_flash_t *)c)->set_boots++;
+    return 0;
+}
+static void of_reboot(void *c, uint32_t ms) {
+    (void)ms;
+    ((ota_flash_t *)c)->reboots++;
+}
+static const char *of_slot(void *c) {
+    (void)c;
+    return "ota_1";
+}
+
+static int g_ota_frames;
+static char g_ota_last_phase[16];
+
+static void ota_progress(void *ctx, app_ota_phase_t phase, int pct) {
+    (void)ctx;
+    (void)pct;
+    g_ota_frames++;
+    snprintf(g_ota_last_phase, sizeof g_ota_last_phase, "%s",
+             app_ota_phase_str(phase));
+}
+
+static uint8_t g_ota_header[APP_OTA_HEADER_MIN];
+
+static void load_ota_header(void) {
+    char path[512];
+    snprintf(path, sizeof path, "%s/app-heltec-v3-header.bin",
+             FIXTURES_OTA_DIR);
+    FILE *f = fopen(path, "rb");
+    CHECK(f != NULL);
+    if (!f) {
+        return;
+    }
+    CHECK_EQ_INT(fread(g_ota_header, 1, sizeof g_ota_header, f),
+                 APP_OTA_HEADER_MIN);
+    fclose(f);
+}
+
+static void do_ota(const uint8_t *image, size_t len, const char *query,
+                   bool session_active, ota_flash_t *flash,
+                   app_ota_session_t *sess, int fail_at) {
+    g_body_len = 0;
+    g_ota_frames = 0;
+    g_ota_last_phase[0] = '\0';
+    app_api_req_t req = {0};
+    req.method = "POST";
+    static char path[128];
+    snprintf(path, sizeof path, "/api/v1/ota");
+    req.path = path;
+    if (query) {
+        snprintf(req.query[0].key, sizeof req.query[0].key, "force");
+        snprintf(req.query[0].value, sizeof req.query[0].value, "%s", query);
+        req.query_count = 1;
+    }
+    body_src_t src = {.data = image, .len = len, .off = 0,
+                      .fail_at = fail_at};
+    static app_ota_ops_t ops;
+    ops = (app_ota_ops_t){.begin = of_begin,
+                          .write = of_write,
+                          .end = of_end,
+                          .set_boot = of_set_boot,
+                          .reboot_later = of_reboot,
+                          .slot_name = of_slot,
+                          .ctx = flash};
+    const app_api_ota_ctx_t ota = {
+        .read = body_read,
+        .read_ctx = &src,
+        .content_len = len,
+        .session_active = session_active,
+        .flash = &ops,
+        .session = sess,
+        .progress = ota_progress,
+        .progress_ctx = NULL,
+    };
+    app_api_out_init(&g_out, capture_sink, NULL);
+    CHECK_EQ_INT(app_api_handle_ota(&req, &g_out, &ota), 0);
+    (void)app_api_out_finish(&g_out);
+    g_body[g_body_len] = '\0';
+}
+
+static void test_ota_route(void) {
+    load_ota_header();
+    seed_world();
+    const size_t total = 64u * 1024u;
+    uint8_t *img = malloc(total);
+    CHECK(img != NULL);
+    if (!img) {
+        return;
+    }
+    memcpy(img, g_ota_header, APP_OTA_HEADER_MIN);
+    memset(img + APP_OTA_HEADER_MIN, 0x5A, total - APP_OTA_HEADER_MIN);
+
+    app_ota_session_t sess;
+    ota_flash_t flash;
+
+    /* Happy path: 06 §6.2's OtaAccepted, and the image is what arrived. */
+    app_ota_session_reset(&sess);
+    memset(&flash, 0, sizeof flash);
+    do_ota(img, total, NULL, false, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"accepted\":true") != NULL);
+    CHECK(strstr(g_body, "\"image_size_b\":65536") != NULL);
+    CHECK(strstr(g_body, "\"slot\":\"ota_1\"") != NULL);
+    CHECK(strstr(g_body, "\"version\":\"1.0.0\"") != NULL);
+    CHECK(strstr(g_body, "\"project\":\"smoke_bridge\"") != NULL);
+    CHECK(strstr(g_body, "\"rebooting_in_ms\":500") != NULL);
+    CHECK_EQ_INT(flash.written, total);
+    CHECK_EQ_INT(flash.reboots, 1);
+    /* Progress is emitted, and NOT once per 2 KB read: 32 reads here. */
+    CHECK(g_ota_frames > 0);
+    CHECK(g_ota_frames < 32);
+    CHECK(strcmp(g_ota_last_phase, "rebooting") == 0);
+
+    /* A cook is running: 409, and NOTHING is written. */
+    app_ota_session_reset(&sess);
+    memset(&flash, 0, sizeof flash);
+    const cook_session_params_t guard = {
+        .num_probes = 4,
+        .started_unix_ms = 1774051200000ull,
+        .started_uptime_s = 100,
+        .name = "OTA guard",
+        .device_id = "LMXC[\\",
+    };
+    CHECK_EQ_INT(cook_session_open(&guard), COOK_STORE_OK);
+    CHECK(cook_session_is_open());
+    do_ota(img, total, NULL, true, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 409);
+    CHECK(strstr(g_body, "session_active") != NULL);
+    CHECK_EQ_INT(flash.begins, 0);
+    CHECK_EQ_INT(flash.written, 0);
+
+    /* ?force=1 proceeds — a separate, deliberate act. */
+    app_ota_session_reset(&sess);
+    memset(&flash, 0, sizeof flash);
+    do_ota(img, total, "1", true, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK_EQ_INT(flash.written, total);
+    (void)cook_session_close(1774051200000ull + 200000ull);
+
+    /* The merged image, uploaded by mistake — refused before any write.
+     * This is THE mistake F14.1 exists to catch, and it must not reach
+     * flash. */
+    {
+        char path[512];
+        snprintf(path, sizeof path, "%s/bootloader-header.bin",
+                 FIXTURES_OTA_DIR);
+        FILE *f = fopen(path, "rb");
+        CHECK(f != NULL);
+        if (f) {
+            uint8_t hdr[APP_OTA_HEADER_MIN];
+            CHECK_EQ_INT(fread(hdr, 1, sizeof hdr, f), APP_OTA_HEADER_MIN);
+            fclose(f);
+            uint8_t *bad = malloc(total);
+            CHECK(bad != NULL);
+            if (bad) {
+                memcpy(bad, hdr, sizeof hdr);
+                memset(bad + sizeof hdr, 0, total - sizeof hdr);
+                app_ota_session_reset(&sess);
+                memset(&flash, 0, sizeof flash);
+                do_ota(bad, total, NULL, false, &flash, &sess, -1);
+                CHECK_EQ_INT(g_out.status, 400);
+                CHECK(strstr(g_body, "use_the_ota_bin") != NULL);
+                CHECK_EQ_INT(flash.begins, 0);
+                CHECK_EQ_INT(flash.written, 0);
+                free(bad);
+            }
+        }
+    }
+
+    /* An empty body. */
+    app_ota_session_reset(&sess);
+    memset(&flash, 0, sizeof flash);
+    do_ota(img, 0, NULL, false, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 400);
+
+    /* A concurrent upload. */
+    app_ota_session_reset(&sess);
+    app_ota_session_begin(&sess, NULL, total);
+    memset(&flash, 0, sizeof flash);
+    do_ota(img, total, NULL, false, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 503);
+    CHECK(strstr(g_body, "ota_in_progress") != NULL);
+
+    /* The socket dies mid-upload: no boot partition change, and the
+     * session is reset so the NEXT attempt is admitted rather than
+     * wedged at 503 forever. */
+    app_ota_session_reset(&sess);
+    memset(&flash, 0, sizeof flash);
+    do_ota(img, total, NULL, false, &flash, &sess, 8192);
+    CHECK_EQ_INT(g_out.status, 400);
+    CHECK_EQ_INT(flash.set_boots, 0);
+    CHECK_EQ_INT(flash.reboots, 0);
+    CHECK_EQ_INT(sess.phase, APP_OTA_PHASE_IDLE);
+    memset(&flash, 0, sizeof flash);
+    do_ota(img, total, NULL, false, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 200);
+
+    /* esp_ota_end() rejects the SHA-256: 400, and the boot partition is
+     * NOT touched. */
+    app_ota_session_reset(&sess);
+    memset(&flash, 0, sizeof flash);
+    flash.fail_end = true;
+    do_ota(img, total, NULL, false, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 400);
+    CHECK(strstr(g_body, "image_validation_failed") != NULL);
+    CHECK_EQ_INT(flash.set_boots, 0);
+
+    /* Auth is checked BEFORE admission: a wrong token must not learn
+     * whether a cook is running. */
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_DEV_API_TOKEN,
+                                          "s3cret"),
+                 APP_CONFIG_OK);
+    app_ota_session_reset(&sess);
+    memset(&flash, 0, sizeof flash);
+    do_ota(img, total, NULL, true, &flash, &sess, -1);
+    CHECK_EQ_INT(g_out.status, 401);
+    CHECK_EQ_INT(flash.begins, 0);
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_DEV_API_TOKEN, ""),
+                 APP_CONFIG_OK);
+
+    /* /ota is the ONE route exempt from the 8 KB body cap, and the
+     * router says so if the glue ever forgets to intercept it. */
+    CHECK(app_api_path_is_ota("/api/v1/ota"));
+    CHECK(!app_api_path_is_ota("/api/v1/status"));
+    do_req("POST", "/api/v1/ota", "{}", NULL);
+    CHECK_EQ_INT(g_out.status, 500);
+    CHECK(strstr(g_body, "streamed") != NULL);
+
+    free(img);
+}
+
+static void test_status_ota_object(void) {
+    seed_world();
+    /* A USB-flashed image has nothing to confirm and says so. Reporting
+     * `passed` here would be the /status.ble stub all over again. */
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"ota\":{\"slot\":\"ota_0\"") != NULL);
+    CHECK(strstr(g_body, "\"gate\":\"not_applicable\"") != NULL);
+    CHECK(strstr(g_body, "\"failed\":null") != NULL);
+
+    g_ota_snap = (app_api_ota_snapshot_t){.slot = "ota_1",
+                                          .pending_verify = true,
+                                          .gate = "waiting",
+                                          .failed = ""};
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"pending_verify\":true") != NULL);
+    CHECK(strstr(g_body, "\"gate\":\"waiting\"") != NULL);
+
+    g_ota_snap = (app_api_ota_snapshot_t){.slot = "ota_1",
+                                          .pending_verify = true,
+                                          .gate = "failed",
+                                          .failed = "net,httpd"};
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"gate\":\"failed\"") != NULL);
+    CHECK(strstr(g_body, "\"failed\":\"net,httpd\"") != NULL);
+
+    g_ota_snap = (app_api_ota_snapshot_t){.slot = "ota_0",
+                                          .pending_verify = false,
+                                          .gate = "passed",
+                                          .failed = ""};
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"gate\":\"passed\"") != NULL);
+}
+
+/* ── V3.1: GET /api/v1/debug/tasks ─────────────────────────────────── */
+
+static void test_debug_tasks(void) {
+    seed_world();
+    g_tasks_snap = (app_api_tasks_snapshot_t){0};
+    g_tasks_snap.free_heap = 92160;
+    g_tasks_snap.min_free_heap = 80116;
+    /* R2's actual failure mode: total free heap cannot see fragmentation,
+     * so the largest block travels beside it and must be its own field. */
+    g_tasks_snap.largest_free_block = 40960;
+    g_tasks_snap.count = 3;
+    snprintf(g_tasks_snap.rows[0].name, 16, "ws_push");
+    g_tasks_snap.rows[0].stack_b = 4096;
+    g_tasks_snap.rows[0].high_water_b = 1200;
+    g_tasks_snap.rows[0].margin_b = 1200;
+    g_tasks_snap.rows[0].priority = 4;
+    g_tasks_snap.rows[0].core = 0;
+    /* A task at its declared limit: margin 0 must render as 0, not as
+     * an absent field. */
+    snprintf(g_tasks_snap.rows[1].name, 16, "app_ui");
+    g_tasks_snap.rows[1].stack_b = 4096;
+    g_tasks_snap.rows[1].high_water_b = 0;
+    g_tasks_snap.rows[1].margin_b = 0;
+    g_tasks_snap.rows[1].priority = 3;
+    g_tasks_snap.rows[1].core = 0;
+    /* A task the table does NOT know about — httpd, NimBLE, the event
+     * loop. These are exactly the rows 01 §1.4 had to estimate, and the
+     * reason the trace facility is enabled at all. */
+    snprintf(g_tasks_snap.rows[2].name, 16, "httpd");
+    g_tasks_snap.rows[2].stack_b = 0;
+    g_tasks_snap.rows[2].high_water_b = 2048;
+    g_tasks_snap.rows[2].margin_b = 2048;
+    g_tasks_snap.rows[2].priority = 5;
+    g_tasks_snap.rows[2].core = -1;
+
+    do_req("GET", "/api/v1/debug/tasks", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"largest_free_block_b\":40960") != NULL);
+    CHECK(strstr(g_body, "\"free_b\":92160") != NULL);
+    CHECK(strstr(g_body, "\"min_free_b\":80116") != NULL);
+    CHECK(strstr(g_body, "\"name\":\"ws_push\"") != NULL);
+    CHECK(strstr(g_body, "\"margin_b\":0") != NULL);
+    CHECK(strstr(g_body, "\"name\":\"httpd\"") != NULL);
+    CHECK(strstr(g_body, "\"core\":-1") != NULL);
+
+    /* Bearer-gated like every other API route. */
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_DEV_API_TOKEN, "tok"),
+                 APP_CONFIG_OK);
+    do_req("GET", "/api/v1/debug/tasks", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 401);
+    do_req("GET", "/api/v1/debug/tasks", NULL, "tok");
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_DEV_API_TOKEN, ""),
+                 APP_CONFIG_OK);
+}
+
 int main(void) {
     test_captive_probes_exact_bytes();
     test_router_auth_and_errors();
@@ -890,5 +1285,8 @@ int main(void) {
     test_ws_alarm_and_power_frames();
     test_status_power_is_real_and_honest_about_absence();
     test_vbat_calibration_is_solved_not_merely_recorded();
+    test_ota_route();
+    test_status_ota_object();
+    test_debug_tasks();
     return test_summary("test_app_api");
 }

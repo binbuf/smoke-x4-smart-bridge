@@ -16,6 +16,7 @@
 
 #include "app_api_emit.h"
 #include "app_net_core.h"
+#include "app_ota_core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,6 +71,45 @@ typedef struct {
     uint8_t bonded;
 } app_api_ble_snapshot_t;
 
+/* V3.1 — one row of GET /api/v1/debug/tasks.
+ *
+ * 01 §1.4 asks for stack watermarks "logged once a minute at debug
+ * level"; that is right for a bench session and useless for a 24 h
+ * unattended soak, which cannot hold a serial cable. The soak reads them
+ * over HTTP, so the evidence becomes a committed artifact instead of a
+ * log line nobody captured. */
+#define APP_API_MAX_TASKS 24
+
+typedef struct {
+    char name[16];
+    uint32_t stack_b;      /* declared, 0 when the IDF created the task */
+    uint32_t high_water_b; /* the deepest it has ever been */
+    uint32_t margin_b;     /* computed HERE: it is what the threshold is
+                              stated against, and a reader should not
+                              have to subtract */
+    uint8_t priority;
+    int8_t core; /* -1 = unpinned */
+} app_api_task_row_t;
+
+typedef struct {
+    app_api_task_row_t rows[APP_API_MAX_TASKS];
+    int count;
+    uint32_t free_heap;
+    uint32_t min_free_heap;
+    /* R2's actual failure mode. Total free heap CANNOT see fragmentation:
+     * 80 KB free in 2 KB pieces cannot allocate a TLS buffer, and every
+     * heap number still looks fine. */
+    uint32_t largest_free_block;
+} app_api_tasks_snapshot_t;
+
+/* F14.8 — what /status.ota reports. Filled by the glue from app_ota. */
+typedef struct {
+    char slot[12];    /* "ota_0" */
+    bool pending_verify;
+    char gate[16];    /* not_applicable | waiting | passed | failed */
+    char failed[48];  /* "" or "storage,net" */
+} app_api_ota_snapshot_t;
+
 typedef struct {
     void (*sysinfo)(app_api_sysinfo_t *out);
     void (*net_status)(app_api_net_snapshot_t *out);
@@ -91,6 +131,14 @@ typedef struct {
      * serial cable: M3 could not measure it because the panel was dark
      * except while a passkey was showing. */
     void (*display_counts)(uint32_t *ok, uint32_t *err);
+    /* F14.8 — the running slot and the 03 §3.7 gate. NULL on a build
+     * without app_ota, which /status reports as `not_applicable` rather
+     * than as a cheerful `passed`: the /status.ble lesson, applied before
+     * the board can teach it again. */
+    void (*ota_status)(app_api_ota_snapshot_t *out);
+    /* V3.1 — FreeRTOS task watermarks + heap fragmentation. NULL on a
+     * build without them, which reports an empty list. */
+    void (*tasks_snapshot)(app_api_tasks_snapshot_t *out);
 } app_api_ops_t;
 
 int app_api_core_init(const app_api_ops_t *ops);
@@ -103,6 +151,42 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out);
 /* True when the request may skip the bearer gate (captive probes and the
  * built-in page are never gated). Exposed for tests. */
 bool app_api_path_is_open(const char *path);
+
+/* ── F14.5: POST /api/v1/ota ───────────────────────────────────────────
+ *
+ * THE ONE ROUTE EXEMPT FROM THE 8 KB BODY CAP. Every other request is
+ * buffered whole by the glue and dispatched through app_api_handle(); a
+ * 1.3 MB image must be intercepted before that and streamed in ≤ 4 KB
+ * reads straight into flash. Nothing is ever materialised — the same
+ * structural rule F9 gave responses, now on the request side.
+ *
+ * The decisions still live here rather than in the glue: auth, admission
+ * (06 §6.2's 409/503/400), the read loop, progress throttling, and both
+ * reply shapes. The glue supplies two functions.
+ */
+bool app_api_path_is_ota(const char *path);
+
+/* >0 = bytes read, 0 = end of body, <0 = transport error. */
+typedef int (*app_api_body_read_fn)(void *ctx, void *buf, size_t cap);
+/* One WebSocket `ota` frame's worth. Called from the request task, so the
+ * glue must ENQUEUE rather than fan out (03 §3.2). */
+typedef void (*app_api_ota_progress_fn)(void *ctx, app_ota_phase_t phase,
+                                        int pct);
+
+typedef struct {
+    app_api_body_read_fn read;
+    void *read_ctx;
+    size_t content_len;
+    bool session_active;
+    const app_ota_ops_t *flash;
+    app_ota_session_t *session;
+    app_api_ota_progress_fn progress;
+    void *progress_ctx;
+} app_api_ota_ctx_t;
+
+/* Always produces a complete response. Returns 0. */
+int app_api_handle_ota(const app_api_req_t *req, app_api_out_t *out,
+                       const app_api_ota_ctx_t *ota);
 
 #ifdef __cplusplus
 }

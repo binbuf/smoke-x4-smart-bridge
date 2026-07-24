@@ -254,3 +254,12 @@ void app_api_ws_session(app_api_out_t *out, const char *action, uint32_t id,
     }
     app_api_emit_str(out, "}");
 }
+
+/* F14.5 — 06 §6.3's ota frame. `phase` is one of the spec's enum values;
+ * the device never emits `receiving` because it streams straight to
+ * flash, so `writing` is true from the first chunk. */
+void app_api_ws_ota(app_api_out_t *out, const char *phase, int pct) {
+    app_api_emit_str(out, "{\"type\":\"ota\",\"phase\":");
+    app_api_emit_json_str(out, phase ? phase : "");
+    app_api_emit_fmt(out, ",\"pct\":%d}", pct);
+}

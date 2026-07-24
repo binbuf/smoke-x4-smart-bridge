@@ -3,7 +3,7 @@ idf_component_register(
     # record_gen.h: app_net_get_wire_status speaks the BLE wire enums
     # (F10.6) so app_ble never parses a status string.
     INCLUDE_DIRS "include" "../../../protocol/gen"
-    PRIV_REQUIRES app_config bridge_event esp_wifi esp_netif esp_event
+    PRIV_REQUIRES esp_app_format app_config bridge_event esp_wifi esp_netif esp_event
                   esp_timer lwip
 )
 

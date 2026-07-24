@@ -12,6 +12,8 @@
  */
 #include "app_alarm.h"
 
+#include "app_ota.h"
+
 #include <string.h>
 
 #include "esp_core_dump.h"
@@ -50,7 +52,12 @@ static bool s_storage_known;
 
 static bool op_coredump(void *ctx) {
     (void)ctx;
-    return s_coredump_present;
+    /* F14.8 rides along: a failed OTA health gate is exactly what
+     * `system_fault` means (03 §3.7 — "something is wrong with this
+     * bridge"), and reusing the rule beats adding a tenth one that four
+     * spellings across two languages would have to learn. The op's name
+     * stays narrow; this comment is the widening. */
+    return s_coredump_present || app_ota_gate_failed();
 }
 
 static bool op_storage(void *ctx, uint8_t *pct) {

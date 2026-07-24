@@ -13,6 +13,7 @@
 
 #include "app_config_store.h"
 #include "bridge_event.h"
+#include "esp_app_desc.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -359,13 +360,20 @@ static void dns_task_stop(void) {
 
 static bool s_mdns_up;
 
+/* F14.7 — one version string, from the app descriptor. */
+static const char *app_desc_version(void) {
+    const esp_app_desc_t *d = esp_app_get_description();
+    return d != NULL ? d->version : "0.0.0";
+}
+
 static void mdns_refresh(void) {
     if (!s_mdns_up) {
         return;
     }
     app_net_txt_state_t st = {
         .model = "heltec-v3",
-        .fw = "1.0.0",
+        /* F14.7 — the mDNS TXT record reads the app descriptor too. */
+        .fw = app_desc_version(),
     };
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);

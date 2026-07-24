@@ -77,6 +77,8 @@ void app_api_ws_alarm(app_api_out_t *out, const bridge_evt_alarm_t *e,
 /* F12.5 — 06 §6.3's power frame. soc == BRIDGE_SOC_UNKNOWN emits null
  * rather than a plausible-looking 255. */
 void app_api_ws_power(app_api_out_t *out, const bridge_evt_power_t *e);
+/* F14.5 — 06 §6.3's ota frame, pushed as an upload progresses. */
+void app_api_ws_ota(app_api_out_t *out, const char *phase, int pct);
 
 #ifdef __cplusplus
 }
