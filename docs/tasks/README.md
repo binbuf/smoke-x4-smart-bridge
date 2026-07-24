@@ -10,7 +10,8 @@ Execution plan derived from [`docs/design`](../design/README.md), following the 
 | [M2 — Network and API](M2-network-and-api.md)         | 35 tasks. `app_net`, `app_api`, debug endpoints, HttpTransport, ConnectionManager, the binder |
 | [M3 — BLE and Provisioning](M3-ble-and-provisioning.md) | 28 tasks. GATT contract, `app_ui` passkey half, `app_ble`, BleTransport, onboarding wizard   |
 | [M4 — Flutter MVP](M4-flutter-mvp.md)                 | 28 tasks. Dashboard, chart, sessions, settings, goldens — and the two seams M3 left open      |
-| [M2–M6 — Outline](M2-M6-outline.md)                   | Epic-level placeholders for M5–M6. **Deliberately not detailed** — see §12.1                 |
+| [M5 — Alarms, Display, Insights](M5-alarms-display-insights.md) | 34 tasks. `app_alarm`, the `app_ui` remainder, `app_power`, the Android foreground service |
+| [M2–M6 — Outline](M2-M6-outline.md)                   | Epic-level placeholders for M6. **Deliberately not detailed** — see §12.1                    |
 | [Standing work](standing-work.md)                     | The V2 capture campaign and other recurring obligations                                       |
 
 ## Why M2+ is not planned in detail
@@ -42,7 +43,7 @@ no longer a guess.
 - **C** — observed across a real cook, artifact committed to `protocol/fixtures/` or the PR
 
 Counts: **M0 is 44 `board: no` / 8 `board: yes`. M1 is 39 / 2. M2 is 31 / 4. M3 is 24 / 4. M4 is
-26 / 2.** That
+26 / 2. M5 is 30 / 4.** That
 ratio is the point — roughly 60 % of the interesting firmware logic lives in ESP-IDF-free
 components precisely so it closes without the board
 ([03 §3.1](../design/03-firmware-architecture.md)), and every milestone's board work batches into a
