@@ -28,7 +28,12 @@ static bool s_expect_disconnect;
 static uint8_t s_pending_ip[4];
 
 static void publish(app_net_evt_t evt, const uint8_t ip[4]) {
-    if (s_ops->publish) {
+    /* `s_ops` may be null: esp_wifi raises WIFI_EVENT_AP_START the moment
+     * the softAP comes up, which can beat app_net_core_init in the boot
+     * race (board-found — a null-deref panic at ~987 ms, twice, before the
+     * third boot won the race). Defence in depth; the on_* handlers below
+     * also bail before reaching here. */
+    if (s_ops && s_ops->publish) {
         s_ops->publish(s_ctx, evt, ip);
     }
 }
@@ -153,6 +158,9 @@ app_net_state_t app_net_core_state(void) { return s_state; }
 
 void app_net_core_on_ap_started(uint64_t now_ms) {
     (void)now_ms;
+    if (!s_ops) {
+        return; /* a Wi-Fi event before init — nowhere to send it (boot race) */
+    }
     if (s_state == APP_NET_STATE_AP_STARTING) {
         s_state = APP_NET_STATE_AP_UP;
     }
@@ -161,6 +169,9 @@ void app_net_core_on_ap_started(uint64_t now_ms) {
 }
 
 void app_net_core_on_sta_connected(const uint8_t ip[4], uint64_t now_ms) {
+    if (!s_ops) {
+        return; /* boot race — see app_net_core_on_ap_started */
+    }
     if (s_state == APP_NET_STATE_STA_CONNECTING) {
         s_state = APP_NET_STATE_STA_UP;
         s_retry_attempt = 0;
@@ -180,6 +191,9 @@ void app_net_core_on_sta_connected(const uint8_t ip[4], uint64_t now_ms) {
 }
 
 void app_net_core_on_sta_disconnected(uint64_t now_ms) {
+    if (!s_ops) {
+        return; /* boot race — see app_net_core_on_ap_started */
+    }
     if (s_expect_disconnect) {
         /* Ours: the teardown before a deliberate re-association. The
          * attempt that follows it is what decides success or fallback. */
@@ -210,6 +224,9 @@ void app_net_core_on_sta_disconnected(uint64_t now_ms) {
 }
 
 void app_net_core_on_ap_client_count(int count) {
+    if (!s_ops) {
+        return; /* boot race — see app_net_core_on_ap_started */
+    }
     s_ap_clients = count >= 0 ? count : 0;
 }
 

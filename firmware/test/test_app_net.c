@@ -121,6 +121,30 @@ static void reset_doubles(void) {
 
 static const uint8_t IP[4] = {192, 168, 1, 50};
 
+/* Board-found: esp_wifi raises WIFI_EVENT_AP_START the instant the softAP
+ * comes up, which beat app_net_core_init in the boot race and drove a
+ * null-`s_ops` deref panic (LoadProhibited at publish+12, twice, before the
+ * third boot won). Every on_* handler must be a safe no-op before init.
+ *
+ * MUST run first in main(): `s_ops` is only genuinely null before any test
+ * has called app_net_core_init, and nothing resets it afterward. */
+static void test_events_before_init_are_safe(void) {
+    reset_doubles();
+    /* No app_net_core_init here — s_ops is still NULL. Unfixed, each of
+     * these dereferences it and the process dies before the asserts. */
+    app_net_core_on_ap_started(987);
+    app_net_core_on_sta_connected(IP, 987);
+    app_net_core_on_sta_disconnected(987);
+    app_net_core_on_ap_client_count(1);
+    /* Reaching here at all is the crash test; and nothing was published. */
+    for (int i = 0; i < (int)(sizeof g_evt_counts / sizeof g_evt_counts[0]);
+         i++) {
+        CHECK_EQ_INT(g_evt_counts[i], 0);
+    }
+    CHECK_EQ_INT(g_start_ap, 0);
+    CHECK_EQ_INT(g_sta_disconnect, 0);
+}
+
 static void test_mode_selection_paths(void) {
     /* Stored AP → AP. */
     reset_doubles();
@@ -469,6 +493,7 @@ static void test_txt_builder(void) {
 }
 
 int main(void) {
+    test_events_before_init_are_safe(); /* MUST be first: s_ops still NULL */
     test_mode_selection_paths();
     test_sta_success_and_loss();
     test_budget_timeout_and_retry_ladder();
