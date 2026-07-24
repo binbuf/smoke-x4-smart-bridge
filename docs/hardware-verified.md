@@ -83,6 +83,23 @@ process (`/status.ble`, below). The rows that remain are blocked on inputs
 this session does not have — the Wi-Fi password and a USB cable — rather than
 on work; each says so in its own row.
 
+### A stale cached address crashes the app to the fatal boundary (found 2026-07-23, OPEN)
+
+Provision in AP mode (so the app caches `192.168.4.1`), let the bridge later
+move to STA (so that address goes dead), and relaunch: the app throws an
+**uncaught** `SocketException: Connection attempt cancelled, host: 192.168.4.1`
+straight to the fatal error boundary ("Something went wrong"), instead of doing
+what a dead cached address is supposed to do — re-race, rediscover, and either
+reconnect or fall to offline. Reproduced on the M6 image after the flash moved
+the bridge back onto `landing`.
+
+It is recoverable (clear app data → clean mDNS discovery → connects, shows the
+right elapsed and real battery %), but a crash screen is the wrong outcome for a
+transient any DHCP renewal or AP↔STA transition can cause. Root cause not yet
+isolated: the cancelled-connection exception escapes `_race`/the probe instead
+of being swallowed into `LaunchOffline`. Relevant to an unattended run — an
+address change mid-test could surface it. Fix deferred, recorded not guessed.
+
 ### A fresh install could not onboard (found 2026-07-23, fixed)
 
 `AppConnection.start()` sent a phone to the wizard only when there was **no
