@@ -33,6 +33,13 @@ void main() {
       'android.permission.BLUETOOTH_CONNECT',
       'android.permission.BLUETOOTH',
       'android.permission.BLUETOOTH_ADMIN',
+      // A13.5 (M5). This list is exact on purpose: it is also what stops
+      // a dependency from quietly adding a location prompt, and that only
+      // works if it is maintained deliberately.
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE',
+      'android.permission.POST_NOTIFICATIONS',
+      'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
     ];
     final found = RegExp(
       'android:name="(android\\.permission\\.[^"]+)"',
@@ -75,9 +82,21 @@ void main() {
     }
   });
 
-  test('the foreground-service rows are still absent (they are A13, M5)', () {
-    expect(manifest, isNot(contains('FOREGROUND_SERVICE')));
-    expect(manifest, isNot(contains('POST_NOTIFICATIONS')));
+  test('A13.5 — the foreground-service rows, with the TYPE Android 14 '
+      'requires', () {
+    // M4 pinned their ABSENCE. M5 is where they arrive, and the type is
+    // the load-bearing half: omitting FOREGROUND_SERVICE_CONNECTED_DEVICE
+    // is a crash on Android 14 rather than a warning (09 §9.6).
+    expect(manifest, contains('android.permission.FOREGROUND_SERVICE"'));
+    expect(
+      manifest,
+      contains('android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE'),
+    );
+    expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
+    expect(
+      manifest,
+      contains('android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS'),
+    );
   });
 
   test('cleartext is an NSC decision, never the global manifest flag', () {

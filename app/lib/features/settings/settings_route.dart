@@ -34,11 +34,16 @@ class _SettingsRouteState extends State<SettingsRoute> {
   List<Probe> _probes = const [];
   BridgeStatus? _status;
   String _units = 'F';
+  bool _quietHours = true;
+  bool _monitoring = true;
+  bool _batteryExempt = false;
 
   @override
   void initState() {
     super.initState();
     _units = AppEnv.instance?.prefs.displayUnits ?? 'F';
+    _quietHours = AppEnv.instance?.prefs.quietHoursEnabled ?? true;
+    _monitoring = AppEnv.instance?.prefs.monitoringEnabled ?? true;
     unawaited(_load());
   }
 
@@ -106,6 +111,24 @@ class _SettingsRouteState extends State<SettingsRoute> {
       },
     ),
     SettingsSection.alarms => AlarmSettingsView(
+      quietHours: _quietHours,
+      onQuietHours: (v) async {
+        setState(() => _quietHours = v);
+        await AppEnv.instance?.prefs.setQuietHours(v);
+      },
+      monitoring: _monitoring,
+      onMonitoring: (v) async {
+        setState(() => _monitoring = v);
+        await AppEnv.instance?.prefs.setMonitoringEnabled(v);
+      },
+      batteryExempt: _batteryExempt,
+      onRequestBatteryExempt: () async {
+        final ok = await AppEnv.instance?.foregroundService
+            ?.requestIgnoreBatteryOptimizations();
+        if (mounted) {
+          setState(() => _batteryExempt = ok ?? false);
+        }
+      },
       deviceRules: const {
         'smoke_x_alarm': true,
         'target_reached': true,

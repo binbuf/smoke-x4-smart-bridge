@@ -76,6 +76,10 @@ enums:
   # names: battery_low escalates from warning to critical at its second
   # threshold. Carried on the wire so a client does not have to
   # reimplement the derivation to colour an icon.
+  #
+  # NOTE for Dart consumers: the generated `AlarmSeverity` shares its name
+  # with the domain enum in app/lib/domain/entities. They mean the same
+  # three things; a file that imports both must hide one.
   alarm_severity:
     info: 0
     warning: 1

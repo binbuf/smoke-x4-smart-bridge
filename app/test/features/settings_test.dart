@@ -159,15 +159,70 @@ void main() {
       expect(find.text('Target reached'), findsOneWidget);
     });
 
-    testWidgets('nothing here claims a capability M5 has not built', (
+    testWidgets('A13 landed: the M4 caveat is gone and monitoring is real', (
       tester,
     ) async {
+      // A12.2 shipped "Background monitoring arrives in a later release."
+      // M5 is that release, so this test INVERTS — which is the point of
+      // having pinned the absence rather than leaving it unstated.
       _tall(tester);
       await tester.pumpWidget(
         _wrap(const AlarmSettingsView(deviceRules: {}, alarms: [])),
       );
-      expect(find.byKey(const Key('alarms-delivery-caveat')), findsOneWidget);
-      expect(find.textContaining('later release'), findsOneWidget);
+      expect(find.byKey(const Key('alarms-delivery-caveat')), findsNothing);
+      expect(find.textContaining('later release'), findsNothing);
+      expect(find.byKey(const Key('alarm-monitoring')), findsOneWidget);
+      expect(
+        find.byKey(const Key('alarms-battery-optimisation')),
+        findsOneWidget,
+      );
+      // And the claim that survives every switch on this screen being
+      // off: the bridge keeps logging and keeps sounding its own alarms.
+      expect(find.byKey(const Key('alarms-delivery-note')), findsOneWidget);
+      expect(find.textContaining('bridge keeps logging'), findsOneWidget);
+    });
+
+    testWidgets('the battery-optimisation offer disappears once granted', (
+      tester,
+    ) async {
+      _tall(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const AlarmSettingsView(
+            deviceRules: {},
+            alarms: [],
+            batteryExempt: true,
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const Key('alarms-battery-optimisation')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('quiet hours and monitoring round-trip their callbacks', (
+      tester,
+    ) async {
+      _tall(tester);
+      bool? quiet;
+      bool? monitor;
+      await tester.pumpWidget(
+        _wrap(
+          AlarmSettingsView(
+            deviceRules: const {},
+            alarms: const [],
+            onQuietHours: (v) => quiet = v,
+            onMonitoring: (v) => monitor = v,
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('alarm-quiet-hours')));
+      await tester.pump();
+      expect(quiet, isFalse);
+      await tester.tap(find.byKey(const Key('alarm-monitoring')));
+      await tester.pump();
+      expect(monitor, isFalse);
     });
 
     testWidgets('an alarm raised before the app connected is still latched', (

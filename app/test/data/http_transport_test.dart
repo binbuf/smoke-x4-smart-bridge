@@ -12,9 +12,15 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:smoke_bridge/data/dto/dto.dart';
+// `dto.dart` re-exports the generated `AlarmSeverity` (records.yaml's
+// alarm_severity, added in M5 so C and Dart share the three names). The
+// DOMAIN type of the same name is the one the app uses; hiding the wire
+// one here is the narrower fix, and it is where the two would otherwise
+// collide.
+import 'package:smoke_bridge/data/dto/dto.dart' hide AlarmSeverity;
 import 'package:smoke_bridge/data/transport/bridge_transport.dart';
 import 'package:smoke_bridge/data/transport/http_transport.dart';
+import 'package:smoke_bridge/domain/entities/entities.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'records_parity_test.dart' show repoRoot;
@@ -150,6 +156,33 @@ void main() {
     expect(s.sessionActive, isTrue);
     expect(s.activeSessionId, isNotNull);
     expect(s.storageFreePct, greaterThan(0));
+    await t.close();
+  });
+
+  test('F13.8 — alarm severity comes off the wire, not from a guess', () async {
+    // The app used to default every alarm to `warning`, which quietly
+    // meant a target_reached at 03:40 could be silenced by quiet hours.
+    // The device derives severity from the rule (09 §9.2) and now says
+    // so; an ABSENT or unknown value stays warning, which keeps an older
+    // firmware's alarms visible and audible outside quiet hours.
+    final a = FakeAdapter()
+      ..routes['/api/v1/status'] = (
+        200,
+        '{"device":{"id":"A4F2"},"alarms":['
+            '{"id":1,"rule":"target_reached","severity":"critical",'
+            '"probe":2,"since_unix_ms":null,"acked":false},'
+            '{"id":2,"rule":"base_lost","severity":"warning","probe":0,'
+            '"since_unix_ms":null,"acked":false},'
+            '{"id":3,"rule":"storage_low","probe":0,'
+            '"since_unix_ms":null,"acked":true}]}',
+      );
+    final t = transportWith(a);
+    final s = await t.status();
+    expect(s.alarms.map((x) => x.severity), [
+      AlarmSeverity.critical,
+      AlarmSeverity.warning,
+      AlarmSeverity.warning,
+    ]);
     await t.close();
   });
 

@@ -13,6 +13,7 @@ import '../data/transport/connection_manager.dart';
 import '../data/transport/discovery.dart';
 import '../data/transport/http_transport.dart';
 import '../features/sessions/export.dart';
+import '../platform/notifications.dart';
 import 'connection.dart';
 
 class AppEnv {
@@ -24,6 +25,8 @@ class AppEnv {
     this.discovery,
     this.bleAttempt,
     this.probe,
+    this.notifications,
+    this.foregroundService,
     this.appVersion = '1.0.0',
   }) : transportFor = transportFor ?? HttpTransport.new;
 
@@ -34,6 +37,11 @@ class AppEnv {
   final DiscoverySource? discovery;
   final BleAttempt? bleAttempt;
   final ConnectionProbe? probe;
+
+  /// A13. Null in a build (or a test) with no notification plumbing —
+  /// every consumer degrades to in-app surfacing rather than throwing.
+  final NotificationSink? notifications;
+  final ForegroundServiceHost? foregroundService;
   final String appVersion;
 
   /// A fresh race per route: `ConnectionManager`'s manual-entry completer

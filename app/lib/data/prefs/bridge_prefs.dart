@@ -28,6 +28,14 @@ abstract interface class BridgePrefs {
   /// `F` or `C`. Null = never chosen; D14 makes °F the default.
   String? get displayUnits;
 
+  /// A13.6 — quiet hours and background monitoring (09 §9.5, §9.6).
+  /// Both default ON: the design's defaults, and the ones a user who
+  /// never opens settings should get.
+  bool get quietHoursEnabled;
+  bool get monitoringEnabled;
+  Future<void> setQuietHours(bool enabled);
+  Future<void> setMonitoringEnabled(bool enabled);
+
   /// Recorded on every successful HTTP win. **The BLE lane must not call
   /// this** — there is no address to remember, and blanking the cached
   /// URL would break the next launch's fastest lane (A6.5).
@@ -45,6 +53,8 @@ class InMemoryBridgePrefs implements BridgePrefs {
     this.lastBridgeId,
     this.lastSeenUnixMs,
     this.displayUnits,
+    this.quietHoursEnabled = true,
+    this.monitoringEnabled = true,
   });
 
   @override
@@ -55,6 +65,10 @@ class InMemoryBridgePrefs implements BridgePrefs {
   int? lastSeenUnixMs;
   @override
   String? displayUnits;
+  @override
+  bool quietHoursEnabled;
+  @override
+  bool monitoringEnabled;
 
   @override
   Future<void> recordConnection(
@@ -75,6 +89,16 @@ class InMemoryBridgePrefs implements BridgePrefs {
   }
 
   @override
+  Future<void> setQuietHours(bool enabled) async {
+    quietHoursEnabled = enabled;
+  }
+
+  @override
+  Future<void> setMonitoringEnabled(bool enabled) async {
+    monitoringEnabled = enabled;
+  }
+
+  @override
   Future<void> forgetBridge() async {
     lastBaseUrl = null;
     lastBridgeId = null;
@@ -92,6 +116,8 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
   static const _kBridgeId = 'bridge.id';
   static const _kLastSeen = 'bridge.last_seen_ms';
   static const _kUnits = 'display.units';
+  static const _kQuiet = 'alarms.quiet_hours';
+  static const _kMonitor = 'alarms.monitoring';
 
   final SharedPreferences _prefs;
 
@@ -125,6 +151,14 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
   @override
   String? get displayUnits => _read<String>(_kUnits);
 
+  /// Absent means never chosen, which is ON for both — the §9.5/§9.6
+  /// defaults. `?? true` rather than `?? false` is the whole decision.
+  @override
+  bool get quietHoursEnabled => _read<bool>(_kQuiet) ?? true;
+
+  @override
+  bool get monitoringEnabled => _read<bool>(_kMonitor) ?? true;
+
   @override
   Future<void> recordConnection(
     String baseUrl, {
@@ -147,6 +181,13 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
   @override
   Future<void> setDisplayUnits(String units) =>
       _prefs.setString(_kUnits, units);
+
+  @override
+  Future<void> setQuietHours(bool enabled) => _prefs.setBool(_kQuiet, enabled);
+
+  @override
+  Future<void> setMonitoringEnabled(bool enabled) =>
+      _prefs.setBool(_kMonitor, enabled);
 
   @override
   Future<void> forgetBridge() async {

@@ -17,6 +17,21 @@ import '../dto/dto.dart' show SampleRec;
 import 'bridge_transport.dart';
 import 'wire_reader.dart';
 
+/// F13.8 — `severity` is a device-derived property of the rule
+/// (`protocol/records.yaml`'s `alarm_severity`), carried on the wire so a
+/// client does not have to reimplement §9.2's table to colour an icon or
+/// choose a notification channel.
+///
+/// Defaulting to WARNING for an absent or unknown value is the safe
+/// direction: an older firmware's alarms stay visible and audible outside
+/// quiet hours. Defaulting to critical would make every one of them
+/// bypass quiet hours; defaulting to info would silence them.
+AlarmSeverity severityFromWire(Object? v) => switch (v) {
+  'critical' => AlarmSeverity.critical,
+  'info' => AlarmSeverity.info,
+  _ => AlarmSeverity.warning,
+};
+
 /// The device's error envelope, mapped by `code` so callers switch on
 /// meaning — never on strings or status ints.
 class BridgeApiException implements Exception {
@@ -152,6 +167,7 @@ class HttpTransport implements BridgeTransport {
               probe: (a['probe'] as num?)?.toInt() ?? 0,
               sinceUnixMs: (a['since_unix_ms'] as num?)?.toInt(),
               acked: a['acked'] == true,
+              severity: severityFromWire(a['severity']),
             ),
       ],
     );
@@ -454,6 +470,7 @@ class HttpTransport implements BridgeTransport {
             rule: '${f['rule'] ?? ''}',
             probe: (f['probe'] as num?)?.toInt() ?? 0,
             valueF10: (f['value_f10'] as num?)?.toInt(),
+            severity: severityFromWire(f['severity']),
           ),
           action: switch (f['action']) {
             'cleared' => AlarmAction.cleared,

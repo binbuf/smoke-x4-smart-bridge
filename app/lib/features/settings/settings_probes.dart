@@ -213,6 +213,10 @@ class AlarmSettingsView extends StatelessWidget {
     this.onAck,
     this.quietHours = true,
     this.onQuietHours,
+    this.monitoring = true,
+    this.onMonitoring,
+    this.batteryExempt = false,
+    this.onRequestBatteryExempt,
     super.key,
   });
 
@@ -226,6 +230,19 @@ class AlarmSettingsView extends StatelessWidget {
   final ValueChanged<Alarm>? onAck;
   final bool quietHours;
   final ValueChanged<bool>? onQuietHours;
+
+  /// A13.5 — background monitoring. Off means the foreground service
+  /// stops and every posted notification comes down: leaving them behind
+  /// would imply it is still running.
+  final bool monitoring;
+  final ValueChanged<bool>? onMonitoring;
+
+  /// True once the OS has been asked to exempt us from battery
+  /// optimisation. Several OEM builds kill long-running foreground
+  /// services regardless of type (§9.6), and this is the one-tap
+  /// mitigation — offered, never demanded.
+  final bool batteryExempt;
+  final VoidCallback? onRequestBatteryExempt;
 
   @override
   Widget build(BuildContext context) {
@@ -278,14 +295,41 @@ class AlarmSettingsView extends StatelessWidget {
           value: quietHours,
           onChanged: onQuietHours,
         ),
+        SwitchListTile(
+          // A12.2 shipped a caveat here reading "Background monitoring
+          // arrives in a later release." This is that release, and the
+          // switch below is what replaced it.
+          key: const Key('alarm-monitoring'),
+          title: const Text('Monitor in the background'),
+          subtitle: const Text(
+            'Keeps watching while the app is closed, and writes every '
+            'reading to this phone.',
+          ),
+          value: monitoring,
+          onChanged: onMonitoring,
+        ),
+        if (!batteryExempt)
+          ListTile(
+            key: const Key('alarms-battery-optimisation'),
+            title: const Text('Allow background running'),
+            subtitle: const Text(
+              'Some phones stop background monitoring to save battery. If '
+              'yours does, notifications arrive late or not at all. '
+              'Declining is fine — the app catches up when you open it, '
+              'and the bridge never stops recording.',
+            ),
+            trailing: TextButton(
+              key: const Key('alarms-battery-optimisation-request'),
+              onPressed: onRequestBatteryExempt,
+              child: const Text('Allow'),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Text(
-            // A13 (M5) builds delivery. Implying otherwise here is the
-            // trap this epic's flag names.
-            'Notifications are delivered while the app is open. '
-            'Background monitoring arrives in a later release.',
-            key: const Key('alarms-delivery-caveat'),
+            'Even with all of this switched off, the bridge keeps logging '
+            'and keeps sounding its own alarms.',
+            key: const Key('alarms-delivery-note'),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
