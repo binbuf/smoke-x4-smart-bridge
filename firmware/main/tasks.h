@@ -22,7 +22,10 @@ extern "C" {
     X(lora_rx, 4096, 6, 1)    /* poll SX1262, hand payloads to smoke_x_ctrl */   \
     X(smoke_x, 3072, 5, 0)    /* decode, pairing state machine, publish     */   \
     X(cook_store, 4096, 4, 0) /* drain queue → LittleFS append, retention   */ \
-    X(app_ui, 4096, 3, 0)     /* 4 Hz button sampling, 1 Hz OLED render     */   \
+    X(app_ui, 4096, 3, 0) /* 20 ms button sampling — 07 §7.4, and 4 Hz \
+                             cannot see a 400 ms double-tap — plus a \
+                             DIRTY-DRIVEN render, not the reference's \
+                             unconditional 1 Hz redraw (F11b.11)      */ \
     X(app_alarm, 3072, 4, 0) /* rules on each sample + 10 s tick           */    \
     X(app_net, 3072, 4, 0)   /* Wi-Fi state machine, retry backoff, mDNS   */    \
     X(app_power, 2560, 2, 0) /* battery ADC every 30 s, SoC filter         */    \
