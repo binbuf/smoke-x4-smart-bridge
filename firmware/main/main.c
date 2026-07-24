@@ -6,6 +6,7 @@
  * double-reset token is armed/consumed against RTC SRAM below.
  */
 #include <inttypes.h>
+#include <string.h>
 
 #include "esp_attr.h"
 #include "esp_event.h"
@@ -18,6 +19,7 @@
 #include "app_ble.h"
 #include "app_config.h"
 #include "app_net.h"
+#include "app_ota.h"
 #include "app_power.h"
 #include "app_ui.h"
 #include "app_time.h"
@@ -151,12 +153,39 @@ static int step_recovery_window(void *ctx) {
     return 0;
 }
 
+/* F14.8 — the three facts the gate cannot read for itself. main is the
+ * only place that knows every subsystem came up. */
+
+static bool gate_storage_mounted(void) {
+    /* 03 §3.7 says "both partitions"; taken literally that can NEVER
+     * pass, because D13 declares `www` and leaves it unformatted on
+     * purpose. The clause is `cooks` — the partition the product needs,
+     * and the one whose absence means the bridge stopped recording. */
+    uint32_t total = 0, used = 0;
+    return cook_store_fs_info(&total, &used) == 0 && total > 0;
+}
+
+static bool gate_net_settled(void) {
+    app_net_status_t st;
+    app_net_get_status(&st);
+    if (strcmp(st.mode, "ap") == 0) {
+        return strcmp(st.state, "up") == 0 ||
+               strcmp(st.state, "fallback") == 0;
+    }
+    return strcmp(st.state, "up") == 0 && st.ip[0] != '\0';
+}
+
 static int step_ota_health_gate(void *ctx) {
     (void)ctx;
-    /* esp_ota_mark_app_valid_cancel_rollback() behind the 03 §3.7 health
-     * gate — stubbed until F14. */
-    ESP_LOGI(TAG, "OTA health gate: stub until F14");
-    return 0;
+    /* ARMS the gate and returns: the verdict lands up to 120 s later on
+     * an esp_timer, and blocking the boot for two minutes to find out
+     * would be its own reliability problem. */
+    static const app_ota_gate_hooks_t hooks = {
+        .storage_mounted = gate_storage_mounted,
+        .net_settled = gate_net_settled,
+        .httpd_listening = app_api_is_listening,
+    };
+    return app_ota_init(&hooks);
 }
 
 static void disarm_timer_cb(void *arg) {

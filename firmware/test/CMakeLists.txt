@@ -126,8 +126,12 @@ add_executable(test_app_api
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_svc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_image.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_gate.c
 )
 target_include_directories(test_app_api PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/include
@@ -141,6 +145,7 @@ target_include_directories(test_app_api PRIVATE
 )
 target_compile_definitions(test_app_api PRIVATE
     FIXTURES_HTTP_DIR="${REPO_ROOT}/protocol/fixtures/http"
+    FIXTURES_OTA_DIR="${REPO_ROOT}/protocol/fixtures/ota"
 )
 add_test(NAME app_api COMMAND test_app_api)
 
@@ -405,3 +410,22 @@ target_include_directories(test_tasks_table PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../main
 )
 add_test(NAME tasks_table COMMAND test_tasks_table)
+
+# The OTA path (F14.1–F14.4): the image inspector against the first 288
+# bytes of REAL builds, admission, the phase machine and its throttled
+# progress, the injected flash seam with every failure a board would take
+# a reflash to produce, and 03 §3.7's health gate as a table. Nothing in
+# F14 touches the board before F14.9, and this binary is why.
+add_executable(test_app_ota
+    test_app_ota.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_image.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_core.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_gate.c
+)
+target_include_directories(test_app_ota PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/include
+)
+target_compile_definitions(test_app_ota PRIVATE
+    FIXTURES_OTA_DIR="${REPO_ROOT}/protocol/fixtures/ota"
+)
+add_test(NAME app_ota COMMAND test_app_ota)
