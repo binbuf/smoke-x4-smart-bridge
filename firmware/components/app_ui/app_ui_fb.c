@@ -8,6 +8,7 @@
  */
 #include "app_ui_core.h"
 
+#include <stdint.h>
 #include <string.h>
 
 void app_ui_fb_clear(app_ui_fb_t *fb) { memset(fb->px, 0, sizeof fb->px); }
@@ -208,4 +209,102 @@ int app_ui_draw_text_large_centred(app_ui_fb_t *fb, int y, const char *s) {
     }
     (void)app_ui_draw_text_large(fb, x, y, s);
     return x;
+}
+
+/* ── F11b.2 — the two primitives 07 §7.6 names and F11a did not build ── */
+
+void app_ui_draw_sparkline(app_ui_fb_t *fb, int x, int y, int w, int h,
+                           const int16_t *vals, int n) {
+    if (fb == NULL || vals == NULL || n <= 0 || w <= 0 || h <= 0) {
+        return;
+    }
+    /* Auto-scale to the series' own range, skipping detached samples —
+     * plotting a detached probe at the bottom of the range would draw a
+     * cliff that never happened, which is the graph version of the `0.0`
+     * trap 07 §7.2 spends a paragraph on. */
+    int32_t lo = INT32_MAX;
+    int32_t hi = INT32_MIN;
+    int valid = 0;
+    for (int i = 0; i < n; i++) {
+        if (vals[i] == BRIDGE_TEMP_DETACHED || vals[i] == BRIDGE_TEMP_INVALID) {
+            continue;
+        }
+        if (vals[i] < lo) {
+            lo = vals[i];
+        }
+        if (vals[i] > hi) {
+            hi = vals[i];
+        }
+        valid++;
+    }
+    if (valid == 0) {
+        return; /* nothing honest to draw */
+    }
+    if (hi == lo) {
+        /* A flat series is a flat line, not a division by zero. */
+        app_ui_draw_hline(fb, x, y + h / 2, w, true);
+        return;
+    }
+
+    int prev_px = -1;
+    int prev_py = -1;
+    for (int col = 0; col < w; col++) {
+        /* Bucket rather than drop the tail: 240 ring samples into 21
+         * columns must still end at the newest reading. */
+        const int first = (int)(((int64_t)col * n) / w);
+        int last = (int)(((int64_t)(col + 1) * n) / w);
+        if (last <= first) {
+            last = first + 1;
+        }
+        int32_t sum = 0;
+        int cnt = 0;
+        for (int i = first; i < last && i < n; i++) {
+            if (vals[i] == BRIDGE_TEMP_DETACHED ||
+                vals[i] == BRIDGE_TEMP_INVALID) {
+                continue;
+            }
+            sum += vals[i];
+            cnt++;
+        }
+        if (cnt == 0) {
+            prev_px = -1; /* a hole breaks the line rather than bridging it */
+            continue;
+        }
+        const int32_t avg = sum / cnt;
+        const int py =
+            y + h - 1 - (int)(((avg - lo) * (h - 1)) / (hi - lo));
+        const int px = x + col;
+        if (prev_px >= 0) {
+            /* Join to the previous column so a steep move is a line, not
+             * two disconnected dots on a 16 px tall graph. */
+            const int step = py > prev_py ? 1 : -1;
+            for (int yy = prev_py; yy != py; yy += step) {
+                app_ui_set_pixel(fb, px, yy, true);
+            }
+        }
+        app_ui_set_pixel(fb, px, py, true);
+        prev_px = px;
+        prev_py = py;
+    }
+}
+
+void app_ui_draw_progress(app_ui_fb_t *fb, int x, int y, int w, int h,
+                          int pct) {
+    if (fb == NULL || w <= 2 || h <= 2) {
+        return;
+    }
+    if (pct < 0) {
+        pct = 0;
+    }
+    if (pct > 100) {
+        pct = 100;
+    }
+    app_ui_draw_rect(fb, x, y, w, h, false, true);
+    const int inner = w - 2;
+    /* Round down: a bar that shows a filled pixel at 0 % is lying about
+     * having started. */
+    const int fill = (inner * pct) / 100;
+    if (fill > 0) {
+        app_ui_draw_rect(fb, x + 1, y + 1, fill, h - 2, true, true);
+    }
 }

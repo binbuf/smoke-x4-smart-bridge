@@ -83,11 +83,6 @@ static int step_config(void *ctx) {
     return 0;
 }
 
-static int step_stub(void *ctx) {
-    (void)ctx;
-    return 0;
-}
-
 static int step_cook_store(void *ctx) {
     (void)ctx;
     if (cook_store_init() != 0) {

@@ -1,7 +1,18 @@
-/* app_ui.c — GPIO, i2c_master, event subscription, and the render task
- * (F11a.5). Everything decidable without a panel lives in app_ui_core.c /
- * app_ui_panel.c and is host-tested; this file is the part that can only
- * be proven on the board.
+/* app_ui.c — GPIO, LEDC, i2c_master, event subscription, and the render
+ * task (F11a.5, F11b.11).
+ *
+ * Everything decidable without a panel lives in app_ui_core.c /
+ * app_ui_render.c / app_ui_input.c / app_ui_model.c / app_ui_led.c and is
+ * host-tested; this file is the part that can only be proven on the board:
+ * the pins, the PWM, and the snapshot it assembles from every other
+ * component.
+ *
+ * ONE CORRECTION TO THE TASK TABLE. main/tasks.h's app_ui row reads
+ * "4 Hz button sampling, 1 Hz OLED render". 07 §7.4 specifies 20 ms
+ * sampling with a 30 ms debounce, and 25 Hz is what a 400 ms double-tap
+ * window actually needs — 4 Hz cannot see one. The comment was wrong, not
+ * the design; the task wakes every 20 ms for the button and renders only
+ * when the snapshot changes.
  */
 #include "app_ui.h"
 
@@ -10,13 +21,29 @@
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "driver/ledc.h"
+#include "esp_app_desc.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "app_alarm.h"
+#include "app_config_store.h"
+#include "app_net.h"
+#include "app_power_svc.h"
 #include "app_ui_core.h"
+#include "app_ui_input.h"
+#include "app_ui_led.h"
+#include "app_ui_model.h"
 #include "app_ui_panel.h"
 #include "bridge_event.h"
+#include "cook_ring.h"
+#include "cook_store.h"
+#include "cook_store_core.h"
+#include "smoke_x_ctrl.h"
 
 static const char *TAG = "app_ui";
 
@@ -34,12 +61,20 @@ static const char *TAG = "app_ui";
 #define PIN_OLED_SCL GPIO_NUM_18
 #define PIN_OLED_RST GPIO_NUM_21
 #define PIN_VEXT GPIO_NUM_36
+#define PIN_BUTTON GPIO_NUM_0 /* PRG, active LOW */
+#define PIN_LED GPIO_NUM_35   /* active HIGH, LEDC (V1.4) */
+
+#define LED_TIMER LEDC_TIMER_0
+#define LED_CHANNEL LEDC_CHANNEL_0
 
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
 static app_ui_state_t s_state;
+static app_ui_model_t s_model;
+static app_ui_led_input_t s_led;
 static SemaphoreHandle_t s_lock;
 static TaskHandle_t s_task;
+static uint32_t s_boot_ms;
 
 /* ── the panel seam ───────────────────────────────────────────────── */
 
@@ -104,7 +139,7 @@ static void op_delay_ms(void *ctx, uint32_t ms) {
     vTaskDelay(pdMS_TO_TICKS(ms));
 }
 
-static const app_ui_panel_ops_t k_ops = {
+static const app_ui_panel_ops_t k_panel_ops = {
     .vext_power = op_vext_power,
     .reset_line = op_reset_line,
     .bus_create = op_bus_create,
@@ -112,6 +147,223 @@ static const app_ui_panel_ops_t k_ops = {
     .tx = op_tx,
     .delay_ms = op_delay_ms,
 };
+
+/* ── the model seam ───────────────────────────────────────────────── */
+
+static void op_panel_power(void *ctx, bool on) {
+    (void)ctx;
+    app_ui_panel_set_awake(on);
+}
+
+static void op_perform(void *ctx, app_ui_action_t action) {
+    (void)ctx;
+    switch (action) {
+    case APP_UI_ACTION_TOGGLE_UNITS: {
+        uint8_t u = 0;
+        (void)app_config_store_get_u8(APP_CONFIG_DEV_UNITS, &u);
+        /* Display only; storage stays canonical (04 §4.2). The setting
+         * travels because the app renders the same data. */
+        (void)app_config_store_set_u8(APP_CONFIG_DEV_UNITS, u ? 0 : 1);
+        break;
+    }
+    case APP_UI_ACTION_SESSION_TOGGLE:
+        if (cook_session_is_open()) {
+            (void)cook_store_request_stop();
+        } else {
+            (void)cook_store_request_start();
+        }
+        break;
+    case APP_UI_ACTION_NET_TOGGLE: {
+        /* The context action 07 opens by arguing for: the Network page is
+         * already showing what you are switching FROM, which is what makes
+         * a one-button mode switch safe. */
+        app_net_status_t now;
+        app_net_get_status(&now);
+        app_net_pending_cfg_t cfg;
+        memset(&cfg, 0, sizeof cfg);
+        cfg.mode = strcmp(now.mode, "ap") == 0 ? APP_CONFIG_NET_MODE_STA
+                                               : APP_CONFIG_NET_MODE_AP;
+        (void)app_net_request_config(&cfg);
+        break;
+    }
+    case APP_UI_ACTION_RADIO_TOGGLE:
+        (void)smoke_x_ctrl_unpair();
+        break;
+    case APP_UI_ACTION_SAVER_TOGGLE: {
+        uint8_t v = 0;
+        (void)app_config_store_get_u8(APP_CONFIG_DEV_BATTERY_SAVER, &v);
+        (void)app_config_store_set_u8(APP_CONFIG_DEV_BATTERY_SAVER,
+                                      v ? 0 : 1);
+        break;
+    }
+    case APP_UI_ACTION_ADD_MARK: {
+        const cook_ring_sample_t *newest = cook_ring_get(0);
+        char text[16];
+        snprintf(text, sizeof text, "Mark %u",
+                 (unsigned)s_model.mark_seq);
+        (void)cook_session_mark(newest ? newest->t : 0u,
+                                BRIDGE_MARK_KIND_NOTE, 0, text);
+        break;
+    }
+    case APP_UI_ACTION_ACK_ALARM:
+        /* Silences the LED and the buzzer. The alarm stays in the list
+         * and in /status with acked:true (09 §9.2). */
+        (void)app_alarm_ack_all();
+        break;
+    case APP_UI_ACTION_FACTORY_RESET:
+        (void)app_config_store_factory_reset();
+        esp_restart();
+        break;
+    default:
+        break;
+    }
+}
+
+static const app_ui_model_ops_t k_model_ops = {
+    .perform = op_perform,
+    .panel_power = op_panel_power,
+};
+
+/* ── the snapshot ─────────────────────────────────────────────────── */
+
+static uint32_t now_ms(void) {
+    return (uint32_t)((uint64_t)esp_timer_get_time() / 1000ull);
+}
+
+static void fill_snapshot(app_ui_state_t *st) {
+    static const app_config_key_t name_keys[4] = {
+        APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME,
+        APP_CONFIG_PROBE3_NAME, APP_CONFIG_PROBE4_NAME};
+    static const app_config_key_t role_keys[4] = {
+        APP_CONFIG_PROBE1_ROLE, APP_CONFIG_PROBE2_ROLE,
+        APP_CONFIG_PROBE3_ROLE, APP_CONFIG_PROBE4_ROLE};
+    static const app_config_key_t target_keys[4] = {
+        APP_CONFIG_PROBE1_TARGET, APP_CONFIG_PROBE2_TARGET,
+        APP_CONFIG_PROBE3_TARGET, APP_CONFIG_PROBE4_TARGET};
+
+    uint8_t units = 0;
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_UNITS, &units);
+    st->celsius = units == APP_CONFIG_UNITS_C;
+
+    const cook_ring_sample_t *newest = cook_ring_get(0);
+    const smoke_x_state_t *sx = smoke_x_ctrl_last_state();
+    st->num_probes = sx != NULL ? sx->num_probes : 4;
+    for (int i = 0; i < 4; i++) {
+        app_ui_probe_t *p = &st->probe[i];
+        (void)app_config_store_get_str(name_keys[i], p->name, sizeof p->name);
+        uint8_t role = APP_CONFIG_ROLE_UNUSED;
+        (void)app_config_store_get_u8(role_keys[i], &role);
+        p->role = role == APP_CONFIG_ROLE_PIT     ? BRIDGE_PROBE_ROLE_PIT
+                  : role == APP_CONFIG_ROLE_FOOD  ? BRIDGE_PROBE_ROLE_FOOD
+                  : role == APP_CONFIG_ROLE_AMBIENT
+                      ? BRIDGE_PROBE_ROLE_AMBIENT
+                      : BRIDGE_PROBE_ROLE_UNUSED;
+        int32_t target = 0;
+        (void)app_config_store_get_i32(target_keys[i], &target);
+        p->target_f10 = target;
+        p->temp_f10 =
+            newest != NULL ? newest->temp[i] : (int16_t)BRIDGE_TEMP_DETACHED;
+        if (sx != NULL && i < sx->num_probes && sx->probes[i].alarm_armed) {
+            p->has_band = true;
+            p->band_lo_f10 = (int16_t)(sx->probes[i].alarm_low * 10);
+            p->band_hi_f10 = (int16_t)(sx->probes[i].alarm_high * 10);
+        }
+        float slope = 0.0f;
+        p->slope_valid = cook_ring_slope_f_per_hr(i, &slope);
+        p->slope_f10_per_hr = (int16_t)(slope * 10.0f);
+    }
+
+    /* status strip */
+    const uint64_t ms = (uint64_t)esp_timer_get_time() / 1000ull;
+    const uint64_t last = smoke_x_ctrl_last_valid_ms();
+    st->base_ok = ms > last && (ms - last) < 60000ull;
+    st->session_active = cook_session_is_open();
+    st->elapsed_s = newest != NULL ? newest->t : 0u;
+    st->soc_pct = app_power_svc_soc();
+    st->charging = app_power_svc_charging();
+    st->saver = app_power_svc_saver();
+    st->mv = app_power_svc_mv();
+    st->alarm_unacked = app_alarm_unacked();
+
+    app_net_status_t net;
+    app_net_get_status(&net);
+    st->net_mode = strcmp(net.mode, "ap") == 0    ? APP_UI_NET_AP
+                   : strcmp(net.mode, "sta") == 0 ? APP_UI_NET_STA
+                                                  : APP_UI_NET_OFF;
+    st->net_state = strcmp(net.state, "up") == 0           ? APP_UI_NET_UP
+                    : strcmp(net.state, "connecting") == 0 ? APP_UI_NET_CONNECTING
+                    : strcmp(net.state, "failed") == 0     ? APP_UI_NET_FAILED
+                                                           : APP_UI_NET_IDLE;
+    snprintf(st->ssid, sizeof st->ssid, "%s", net.ssid);
+    snprintf(st->ip, sizeof st->ip, "%s", net.ip);
+    snprintf(st->host, sizeof st->host, "%s", net.host);
+    st->wifi_rssi = net.rssi;
+    st->ap_clients = (uint8_t)(net.ap_clients < 0 ? 0 : net.ap_clients);
+    st->ap_client = st->ap_clients > 0;
+    (void)app_config_store_get_str(APP_CONFIG_NET_AP_PSK, st->psk,
+                                   sizeof st->psk);
+
+    /* cook page */
+    if (st->session_active) {
+        st->session_id = cook_session_active_id();
+        bridge_session_header_t h;
+        if (cook_store_read_header(st->session_id, &h) == COOK_STORE_OK) {
+            /* Truncation is the point: 21 columns and a 16-char field.
+             * `%.*s` says so to the compiler as well as to the reader. */
+            snprintf(st->session_name, sizeof st->session_name, "%.*s",
+                     (int)(sizeof st->session_name - 1), h.name);
+            st->mark_count = (uint16_t)h.mark_count;
+        }
+        st->sample_count = cook_session_sample_count();
+    }
+    /* The sparkline reads the RAM ring and NEVER flash (04 §4.3). */
+    int pit = 0;
+    for (int i = 0; i < 4; i++) {
+        if (st->probe[i].role == BRIDGE_PROBE_ROLE_PIT) {
+            pit = i;
+            break;
+        }
+    }
+    const int have = cook_ring_count();
+    const int want = have < APP_UI_SPARK_MAX ? have : APP_UI_SPARK_MAX;
+    for (int i = 0; i < want; i++) {
+        /* idx 0 is newest; the spark array runs oldest → newest. */
+        const cook_ring_sample_t *s = cook_ring_get(want - 1 - i);
+        st->spark[i] = s != NULL ? s->temp[pit] : (int16_t)BRIDGE_TEMP_DETACHED;
+    }
+    st->spark_n = (uint8_t)want;
+
+    /* radio page */
+    st->paired = smoke_x_ctrl_state() == SMOKE_X_CONFIRMED;
+    if (sx != NULL) {
+        snprintf(st->device_id, sizeof st->device_id, "%s", sx->device_id);
+    }
+    st->frequency_hz = smoke_x_ctrl_frequency_hz();
+    const smoke_x_stats_t *stats = smoke_x_ctrl_stats();
+    st->lora_rssi = stats->last_rssi;
+    st->lora_snr = stats->last_snr;
+    st->last_packet_s = (uint32_t)((ms > last ? ms - last : 0ull) / 1000ull);
+    st->packets_ok = stats->valid;
+    st->packets_bad = stats->parse_fail + stats->crc_fail +
+                      stats->unknown_commas;
+    st->interval_s10 = 300; /* the 02 Q1 nominal until a mean is tracked */
+
+    /* system page */
+    const esp_app_desc_t *desc = esp_app_get_description();
+    snprintf(st->fw, sizeof st->fw, "v%.*s", (int)(sizeof st->fw - 2),
+             desc != NULL ? desc->version : "?");
+    st->uptime_s = (uint32_t)(ms / 1000ull);
+    uint32_t total = 0;
+    uint32_t used = 0;
+    if (cook_store_fs_info(&total, &used) == 0) {
+        st->storage_total_b = total;
+        st->storage_used_b = used;
+    }
+    st->sessions = (uint16_t)cook_store_index_count();
+    st->heap_free = (uint32_t)esp_get_free_heap_size();
+    st->heap_min = (uint32_t)esp_get_minimum_free_heap_size();
+    app_ui_panel_counts(&st->i2c_ok, &st->i2c_err);
+}
 
 /* ── event handling ───────────────────────────────────────────────── */
 
@@ -129,19 +381,66 @@ static void on_ble_event(void *arg, esp_event_base_t base, int32_t id,
     xSemaphoreTake(s_lock, portMAX_DELAY);
     switch (e->action) {
     case BRIDGE_BLE_PASSKEY_SHOW:
-        s_state.passkey_active = true;
+        s_state.overlay = APP_UI_OVERLAY_PASSKEY;
         snprintf(s_state.passkey, sizeof s_state.passkey, "%06u",
                  (unsigned)(e->passkey % 1000000u));
+        app_ui_model_wake(&s_model, now_ms());
         break;
     case BRIDGE_BLE_PASSKEY_CLEAR:
     case BRIDGE_BLE_BONDED:
     case BRIDGE_BLE_DISCONNECTED:
-        s_state.passkey_active = false;
+        if (s_state.overlay == APP_UI_OVERLAY_PASSKEY) {
+            s_state.overlay = APP_UI_OVERLAY_NONE;
+        }
         memset(s_state.passkey, 0, sizeof s_state.passkey);
+        break;
+    case BRIDGE_BLE_CONNECTED:
+        app_ui_model_wake(&s_model, now_ms());
         break;
     default:
         break;
     }
+    s_state.ble_conns = e->conns;
+    s_state.ble_bonds = e->bonds;
+    xSemaphoreGive(s_lock);
+    if (s_task != NULL) {
+        xTaskNotifyGive(s_task);
+    }
+}
+
+static void on_alarm_event(void *arg, esp_event_base_t base, int32_t id,
+                           void *data) {
+    (void)arg;
+    (void)base;
+    (void)id;
+    const bridge_evt_alarm_t *e = data;
+    if (e == NULL) {
+        return;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (e->action == BRIDGE_ALARM_RAISED) {
+        s_state.alarm_rule = e->rule;
+        s_state.alarm_probe = e->probe;
+        s_state.alarm_value_f10 = e->value_f10;
+        app_ui_model_on_alarm(&s_model, &s_state, now_ms());
+    } else {
+        app_ui_model_clear_alarm(&s_model, &s_state);
+    }
+    xSemaphoreGive(s_lock);
+    if (s_task != NULL) {
+        xTaskNotifyGive(s_task);
+    }
+}
+
+static void on_wake_event(void *arg, esp_event_base_t base, int32_t id,
+                          void *data) {
+    (void)arg;
+    (void)base;
+    (void)id;
+    (void)data;
+    /* 07 §7.1's wake list: session start/end and network state change. */
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    app_ui_model_wake(&s_model, now_ms());
     xSemaphoreGive(s_lock);
     if (s_task != NULL) {
         xTaskNotifyGive(s_task);
@@ -153,19 +452,52 @@ static void on_ble_event(void *arg, esp_event_base_t base, int32_t id,
 static void ui_task(void *arg) {
     (void)arg;
     for (;;) {
-        /* Wake on state change, not on a timer: 07 §7.6's "render only
-         * when dirty". The 1 s backstop exists only so a missed
-         * notification cannot leave the glass permanently stale — it
-         * costs nothing, because app_ui_panel_render() compares the
-         * snapshot and returns without touching I²C when it is equal.
-         *
-         * The 1 Hz clock tick the reference redraws for arrives with
-         * F11b's status strip (M5); M3 has no time-varying field. */
-        (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+        /* 20 ms: 07 §7.4's sampling rate, which is what a 400 ms
+         * double-tap window needs. Rendering is still dirty-driven —
+         * app_ui_panel_render() compares the snapshot and returns without
+         * touching I²C when it is equal, so 25 Hz of ticks costs 25 Hz of
+         * memcmp and no I²C at all. */
+        (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(APP_UI_SAMPLE_MS));
+        const uint32_t t = now_ms();
+        const bool pressed = gpio_get_level(PIN_BUTTON) == 0; /* active LOW */
+
+        uint16_t timeout_s = 60;
+        (void)app_config_store_get_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S,
+                                       &timeout_s);
+        if (app_power_svc_saver() && timeout_s > 30) {
+            timeout_s = 30; /* 01 §1.6's saver profile */
+        }
+
         app_ui_state_t snapshot;
         xSemaphoreTake(s_lock, portMAX_DELAY);
+        /* The boot splash owns the glass for the 3 s recovery window
+         * (03 §3.4.1) and then gets out of the way. */
+        if (s_state.overlay == APP_UI_OVERLAY_SPLASH) {
+            const uint32_t age = t - s_boot_ms;
+            if (age >= 3000u) {
+                s_state.overlay = APP_UI_OVERLAY_NONE;
+            } else {
+                s_state.confirm_count = (uint8_t)(3u - age / 1000u);
+            }
+        }
+        fill_snapshot(&s_state);
+        app_ui_model_tick(&s_model, &s_state, pressed, t, timeout_s);
         snapshot = s_state;
+
+        uint8_t led_mode = 1;
+        (void)app_config_store_get_u8(APP_CONFIG_DEV_LED_ENABLED, &led_mode);
+        uint8_t buzzer = 0;
+        (void)app_config_store_get_u8(APP_CONFIG_DEV_BUZZER_ENABLED, &buzzer);
+        s_led.alarm_unacked = snapshot.alarm_unacked;
+        s_led.pairing = !snapshot.paired;
+        s_led.base_lost = !snapshot.base_ok;
+        s_led.mode = led_mode > 2 ? APP_UI_LED_MODE_ALARMS_ONLY : led_mode;
+        s_led.buzzer_enabled = buzzer != 0;
+        const uint8_t duty = app_ui_led_duty(&s_led, t);
         xSemaphoreGive(s_lock);
+
+        (void)ledc_set_duty(LEDC_LOW_SPEED_MODE, LED_CHANNEL, duty);
+        (void)ledc_update_duty(LEDC_LOW_SPEED_MODE, LED_CHANNEL);
         (void)app_ui_panel_render(&snapshot);
     }
 }
@@ -176,6 +508,9 @@ int app_ui_init(void) {
         return -1;
     }
     memset(&s_state, 0, sizeof s_state);
+    s_boot_ms = now_ms();
+    s_state.overlay = APP_UI_OVERLAY_SPLASH;
+    s_state.soc_pct = BRIDGE_SOC_UNKNOWN;
 
     const gpio_config_t out = {
         .pin_bit_mask = (1ULL << PIN_VEXT) | (1ULL << PIN_OLED_RST),
@@ -184,16 +519,51 @@ int app_ui_init(void) {
     if (gpio_config(&out) != ESP_OK) {
         return -1;
     }
-
-    app_ui_panel_init(&k_ops, NULL);
-    const int rc = app_ui_panel_bringup();
-    if (rc != 0) {
-        ESP_LOGE(TAG, "panel bring-up failed (%d) — continuing headless", rc);
+    const gpio_config_t btn = {
+        .pin_bit_mask = 1ULL << PIN_BUTTON,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
+    if (gpio_config(&btn) != ESP_OK) {
         return -1;
     }
 
+    /* GPIO35, active HIGH, under LEDC (V1.4 confirmed it dims). */
+    const ledc_timer_config_t ledt = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_8_BIT,
+        .timer_num = LED_TIMER,
+        .freq_hz = 1000,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
+    (void)ledc_timer_config(&ledt);
+    const ledc_channel_config_t ledc = {
+        .gpio_num = PIN_LED,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = LED_CHANNEL,
+        .timer_sel = LED_TIMER,
+        .duty = 0,
+        .hpoint = 0,
+    };
+    (void)ledc_channel_config(&ledc);
+
+    app_ui_panel_init(&k_panel_ops, NULL);
+    const int rc = app_ui_panel_bringup();
+    if (rc != 0) {
+        /* A bridge with a dead panel still cooks (03 §3.4). */
+        ESP_LOGE(TAG, "panel bring-up failed (%d) — continuing headless", rc);
+        return -1;
+    }
+    app_ui_model_init(&s_model, &k_model_ops);
+
     if (bridge_event_handler_register(BRIDGE_EVT_BLE, on_ble_event, NULL,
-                                      "app_ui.ble") != ESP_OK) {
+                                      "app_ui.ble") != ESP_OK ||
+        bridge_event_handler_register(BRIDGE_EVT_ALARM, on_alarm_event, NULL,
+                                      "app_ui.alarm") != ESP_OK ||
+        bridge_event_handler_register(BRIDGE_EVT_SESSION, on_wake_event, NULL,
+                                      "app_ui.session") != ESP_OK ||
+        bridge_event_handler_register(BRIDGE_EVT_NET, on_wake_event, NULL,
+                                      "app_ui.net") != ESP_OK) {
         return -1;
     }
 
@@ -202,6 +572,8 @@ int app_ui_init(void) {
                                 UI_TASK_CORE) != pdPASS) {
         return -1;
     }
-    ESP_LOGI(TAG, "display up: SSD1306 @400 kHz, passkey overlay only (M3)");
+    ESP_LOGI(TAG,
+             "display up: SSD1306 @400 kHz, 5 pages, 20 ms button, LED on "
+             "GPIO35");
     return 0;
 }

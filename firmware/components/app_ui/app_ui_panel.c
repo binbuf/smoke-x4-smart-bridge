@@ -12,6 +12,8 @@ static bool s_awake; /* panel is displaying (0xAF), not blanked (0xAE) */
 static bool s_shown_valid;
 static app_ui_state_t s_shown;
 static app_ui_fb_t s_fb;
+static uint32_t s_i2c_ok;
+static uint32_t s_i2c_err;
 
 /* The reference's init sequence, unchanged — it is proven on this exact
  * panel and these exact pins (V1.4 rail_on_init=OK). */
@@ -46,6 +48,35 @@ void app_ui_panel_init(const app_ui_panel_ops_t *ops, void *ctx) {
     s_shown_valid = false;
     memset(&s_shown, 0, sizeof s_shown);
     app_ui_fb_clear(&s_fb);
+    s_i2c_ok = 0;
+    s_i2c_err = 0;
+}
+
+/* Every transaction goes through here, so the V3a.1 counters cannot miss
+ * one. Counting the WINDOW commands and the page writes separately would
+ * flatter the error rate; one call, one count. */
+static int tx(const uint8_t *buf, size_t len) {
+    const int err = s_ops->tx(s_ctx, buf, len);
+    if (err == 0) {
+        s_i2c_ok++;
+    } else {
+        s_i2c_err++;
+    }
+    return err;
+}
+
+void app_ui_panel_counts(uint32_t *ok, uint32_t *err) {
+    if (ok != NULL) {
+        *ok = s_i2c_ok;
+    }
+    if (err != NULL) {
+        *err = s_i2c_err;
+    }
+}
+
+void app_ui_panel_reset_counts(void) {
+    s_i2c_ok = 0;
+    s_i2c_err = 0;
 }
 
 static int cmds(const uint8_t *seq, size_t n) {
@@ -54,7 +85,7 @@ static int cmds(const uint8_t *seq, size_t n) {
      * the extra transactions cost nothing that matters. */
     for (size_t i = 0; i < n; i++) {
         const uint8_t buf[2] = {CTRL_CMD, seq[i]};
-        const int err = s_ops->tx(s_ctx, buf, sizeof buf);
+        const int err = tx(buf, sizeof buf);
         if (err != 0) {
             return err;
         }
@@ -120,44 +151,45 @@ static int flush(const app_ui_fb_t *fb) {
     buf[0] = CTRL_DATA;
     for (int page = 0; page < APP_UI_PAGES; page++) {
         memcpy(buf + 1, fb->px + (size_t)page * APP_UI_WIDTH, APP_UI_WIDTH);
-        if ((err = s_ops->tx(s_ctx, buf, sizeof buf)) != 0) {
+        if ((err = tx(buf, sizeof buf)) != 0) {
             return err;
         }
     }
     return 0;
 }
 
+void app_ui_panel_set_awake(bool on) {
+    if (!s_up || s_awake == on) {
+        return;
+    }
+    if (cmd1(on ? SSD1306_DISPLAY_ON : SSD1306_DISPLAY_OFF) != 0) {
+        return;
+    }
+    s_awake = on;
+    if (on) {
+        /* Whatever was on the glass before the sleep is gone as far as we
+         * are concerned; force a redraw rather than trust it. */
+        s_shown_valid = false;
+    }
+}
+
 bool app_ui_panel_render(const app_ui_state_t *st) {
     if (!s_up || st == NULL) {
+        return false;
+    }
+    if (!s_awake) {
+        /* Asleep: ZERO transfers. This is the ~10 mA (07 §7.1, 01 §1.6),
+         * and it only exists if the driver actually stops talking. */
         return false;
     }
     if (s_shown_valid && memcmp(&s_shown, st, sizeof *st) == 0) {
         return false; /* the glass already says this */
     }
 
-    if (!st->passkey_active) {
-        /* Bonding ended: blank the panel rather than leave a stale code
-         * where anyone walking past can read it. */
-        if (s_awake) {
-            (void)cmd1(SSD1306_DISPLAY_OFF);
-            s_awake = false;
-        }
-        s_shown = *st;
-        s_shown_valid = true;
-        return true;
-    }
-
-    app_ui_render_overlay_passkey(st, &s_fb);
+    app_ui_render(st, &s_fb);
     if (flush(&s_fb) != 0) {
         s_shown_valid = false; /* unknown glass state — redraw next time */
         return false;
-    }
-    if (!s_awake) {
-        if (cmd1(SSD1306_DISPLAY_ON) != 0) {
-            s_shown_valid = false;
-            return false;
-        }
-        s_awake = true;
     }
     s_shown = *st;
     s_shown_valid = true;

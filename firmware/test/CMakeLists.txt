@@ -327,9 +327,13 @@ add_executable(test_app_ui
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_font.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_render.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_panel.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_input.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_model.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_led.c
 )
 target_include_directories(test_app_ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
+    ${REPO_ROOT}/protocol/gen
 )
 # Goldens are reviewed as PNGs (tools/oled); rendered copies land in the
 # build dir so CI can upload the picture even when the bytes disagree.

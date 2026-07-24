@@ -68,15 +68,26 @@ int app_ui_panel_bringup(void);
 
 /* Renders `st` and pushes it to the panel ONLY if `st` differs from what
  * is already on the glass. Renderers are pure functions of the snapshot
- * (07 §7.6), so equal state means identical pixels — which is why an
- * 8-byte comparison replaces the reference's unconditional 1 Hz redraw
- * and its I²C traffic.
+ * (07 §7.6), so equal state means identical pixels — which is why one
+ * memcmp replaces the reference's unconditional 1 Hz redraw and its I²C
+ * traffic.
  *
  * Returns true when bytes actually went to the panel. */
 bool app_ui_panel_render(const app_ui_state_t *st);
 
-/* Exposed for tests and for the M5 sleep policy: the panel's power state. */
+/* F11b.9 — the sleep policy's hands. `on=false` sends 0xAE and stops all
+ * traffic; a sleeping panel must do ZERO I²C transfers, because "the
+ * display is off" and "the driver stopped talking to it" are different
+ * claims and only the second one saves the ~10 mA. */
+void app_ui_panel_set_awake(bool on);
 bool app_ui_panel_is_awake(void);
+
+/* F11b.11 — V3a.1's deferred row, made countable. M3 could not measure
+ * the OLED's I²C error rate because the panel was dark except while a
+ * passkey was showing; F11b makes it always-on and this counts what
+ * happens. Surfaced on the System page and in GET /api/v1/status. */
+void app_ui_panel_counts(uint32_t *ok, uint32_t *err);
+void app_ui_panel_reset_counts(void);
 
 #ifdef __cplusplus
 }

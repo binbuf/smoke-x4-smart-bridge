@@ -12,6 +12,9 @@
  * visual change; review the PNGs before committing.
  */
 #include "app_ui_core.h"
+#include "app_ui_input.h"
+#include "app_ui_led.h"
+#include "app_ui_model.h"
 #include "app_ui_panel.h"
 #include "test_util.h"
 
@@ -279,8 +282,10 @@ static void test_large_glyphs_stay_in_their_cell(void) {
 /* ── F11a.4: the passkey overlay ──────────────────────────────────── */
 
 static app_ui_state_t passkey_state(const char *digits) {
-    app_ui_state_t st = {0};
-    st.passkey_active = true;
+    app_ui_state_t st;
+    memset(&st, 0, sizeof st);
+    st.overlay = APP_UI_OVERLAY_PASSKEY;
+    st.soc_pct = BRIDGE_SOC_UNKNOWN;
     snprintf(st.passkey, sizeof st.passkey, "%s", digits);
     return st;
 }
@@ -299,18 +304,20 @@ static void test_passkey_overlay_goldens(void) {
     CHECK_EQ_INT(guard.after, 0x5A5A5A5Au);
     golden("passkey-418302", &guard.fb);
 
-    /* Row 7 is deliberately blank in M3 (the status strip is F11b/M5).
-     * Asserted here so the golden cannot be mistaken for drift. */
+    /* THE PROMISE M3 RECORDED, KEPT. F11a left row 7 blank because the
+     * status strip's sources (battery SoC, the alarm glyph) were M5
+     * components, and said so in app_ui_core.h so the golden would not be
+     * mistaken for drift when it changed. It has changed: the strip is on
+     * every page AND every overlay now, so row 7 has ink. */
+    int strip_pixels = 0;
     for (int x = 0; x < APP_UI_WIDTH; x++) {
         for (int y = 56; y < 64; y++) {
             if (app_ui_get_pixel(&guard.fb, x, y)) {
-                CHECK(!"row 7 must stay blank in M3");
-                x = APP_UI_WIDTH;
-                break;
+                strip_pixels++;
             }
         }
     }
-    CHECK(1);
+    CHECK(strip_pixels > 0);
 
     const app_ui_state_t zeros = passkey_state("000000");
     app_ui_render_overlay_passkey(&zeros, &guard.fb);
@@ -334,6 +341,10 @@ static void test_passkey_grouping(void) {
     app_ui_draw_text_large_centred(&b, 12, "418 302");
     app_ui_draw_text(&b, 2, 5, "enter this code");
     app_ui_draw_text(&b, 2, 6, "in the app");
+    /* F11b.1 put the status strip on every overlay too, so the hand-built
+     * comparison has to include it — which is itself the assertion that
+     * the overlay is not special-cased out of the strip. */
+    app_ui_render_strip(&st, &b);
     CHECK(memcmp(&a, &b, sizeof a) == 0);
 
     /* All-zero and all-nine group the same way, and differ from each
@@ -369,6 +380,7 @@ typedef struct {
     char step[TRACE_MAX][24];
     int n;
     int fail_at_bus_create;
+    int fail_tx;
     int tx_calls;
 } fake_panel_t;
 
@@ -417,7 +429,7 @@ static int fake_tx(void *ctx, const uint8_t *buf, size_t len) {
     } else {
         trace("data:%u", (unsigned)(len - 1));
     }
-    return 0;
+    return g_panel.fail_tx ? -1 : 0;
 }
 
 static void fake_delay(void *ctx, uint32_t ms) {
@@ -493,8 +505,9 @@ static void test_bringup_order(void) {
             CHECK(strcmp(g_panel.step[first_cmd + i], want) == 0);
         }
     }
-    /* Bring-up leaves the glass dark: 0xAF is never sent here. M3's panel
-     * is off until there is a passkey to show. */
+    /* Bring-up leaves the glass dark: 0xAF is never sent here. The sleep
+     * policy (F11b.9) decides when the panel comes on, so bring-up never
+     * lights it on its own. */
     CHECK_EQ_INT(trace_index("cmd:AF"), -1);
     CHECK(!app_ui_panel_is_awake());
 }
@@ -516,13 +529,23 @@ static void test_bringup_failure_leaves_no_half_state(void) {
 static void test_render_only_on_change(void) {
     panel_reset();
     CHECK_EQ_INT(app_ui_panel_bringup(), 0);
-    const int after_init = g_panel.tx_calls;
 
+    /* F11b.9 — a SLEEPING panel does zero I²C. "The display is off" and
+     * "the driver stopped talking to it" are different claims, and only
+     * the second one saves the ~10 mA that makes an AP-mode bridge last a
+     * cook (07 §7.1, 01 §1.6). */
+    const int after_init = g_panel.tx_calls;
     const app_ui_state_t show = passkey_state("418302");
+    CHECK(!app_ui_panel_is_awake());
+    CHECK(!app_ui_panel_render(&show));
+    CHECK_EQ_INT(g_panel.tx_calls, after_init);
+
+    app_ui_panel_set_awake(true);
+    const int after_wake = g_panel.tx_calls;
     CHECK(app_ui_panel_render(&show));
     const int after_first = g_panel.tx_calls;
-    /* 6 window command bytes + 8 page writes + the display-on command. */
-    CHECK_EQ_INT(after_first - after_init, 6 + APP_UI_PAGES + 1);
+    /* 6 window command bytes + 8 page writes. */
+    CHECK_EQ_INT(after_first - after_wake, 6 + APP_UI_PAGES);
     CHECK(app_ui_panel_is_awake());
 
     /* The reference redrew unconditionally at 1 Hz. We do not: an
@@ -536,17 +559,23 @@ static void test_render_only_on_change(void) {
     CHECK(app_ui_panel_render(&other));
     CHECK(g_panel.tx_calls > after_first);
 
-    /* Bonding ends: the panel is blanked so the code does not sit on the
-     * glass for anyone walking past. */
-    const app_ui_state_t done = {0};
+    /* Bonding ends: the overlay clears and the PAGE takes over — M5's
+     * panel is always on, so blanking is now the sleep policy's job and
+     * not the passkey's. */
+    app_ui_state_t done;
+    memset(&done, 0, sizeof done);
+    done.soc_pct = BRIDGE_SOC_UNKNOWN;
     CHECK(app_ui_panel_render(&done));
-    CHECK(!app_ui_panel_is_awake());
+    CHECK(app_ui_panel_is_awake());
+    app_ui_panel_set_awake(false);
     CHECK(trace_index("cmd:AE") >= 0);
     const int after_blank = g_panel.tx_calls;
     CHECK(!app_ui_panel_render(&done));
     CHECK_EQ_INT(g_panel.tx_calls, after_blank);
 
-    /* And a new pairing wakes it again. */
+    /* And waking it redraws from scratch rather than trusting whatever
+     * was on the glass before the sleep. */
+    app_ui_panel_set_awake(true);
     CHECK(app_ui_panel_render(&show));
     CHECK(app_ui_panel_is_awake());
 }
@@ -554,6 +583,7 @@ static void test_render_only_on_change(void) {
 static void test_flush_writes_the_whole_panel(void) {
     panel_reset();
     CHECK_EQ_INT(app_ui_panel_bringup(), 0);
+    app_ui_panel_set_awake(true);
     const app_ui_state_t show = passkey_state("418302");
     CHECK(app_ui_panel_render(&show));
 
@@ -568,6 +598,909 @@ static void test_flush_writes_the_whole_panel(void) {
         }
     }
     CHECK_EQ_INT(pages, APP_UI_PAGES);
+}
+
+/* ══ F11b — the status strip, the five pages, gestures, sleep, LED ══ */
+
+static app_ui_state_t cook_state(void) {
+    /* A plausible mid-cook, and the shape most of the goldens vary from. */
+    app_ui_state_t st;
+    memset(&st, 0, sizeof st);
+    st.num_probes = 4;
+    st.base_ok = true;
+    st.net_mode = APP_UI_NET_STA;
+    st.session_active = true;
+    st.elapsed_s = 4 * 3600 + 12 * 60 + 30;
+    st.soc_pct = 71;
+    snprintf(st.probe[0].name, sizeof st.probe[0].name, "Pit");
+    st.probe[0].role = BRIDGE_PROBE_ROLE_PIT;
+    st.probe[0].temp_f10 = 2430;
+    st.probe[0].target_f10 = 2500;
+    st.probe[0].has_band = true;
+    st.probe[0].band_lo_f10 = 2040;
+    st.probe[0].band_hi_f10 = 2500;
+    st.probe[0].slope_valid = true;
+    st.probe[0].slope_f10_per_hr = -24;
+    snprintf(st.probe[1].name, sizeof st.probe[1].name, "Brisket");
+    st.probe[1].role = BRIDGE_PROBE_ROLE_FOOD;
+    st.probe[1].temp_f10 = 1632;
+    st.probe[1].target_f10 = 2030;
+    st.probe[1].slope_valid = true;
+    st.probe[1].slope_f10_per_hr = 41;
+    snprintf(st.probe[2].name, sizeof st.probe[2].name, "Point");
+    st.probe[2].role = BRIDGE_PROBE_ROLE_FOOD;
+    st.probe[2].temp_f10 = 1594;
+    st.probe[2].slope_valid = true;
+    st.probe[2].slope_f10_per_hr = 38;
+    snprintf(st.probe[3].name, sizeof st.probe[3].name, "Flat");
+    st.probe[3].role = BRIDGE_PROBE_ROLE_FOOD;
+    st.probe[3].temp_f10 = BRIDGE_TEMP_DETACHED;
+    st.session_id = 27;
+    snprintf(st.session_name, sizeof st.session_name, "Brisket");
+    st.sample_count = 1440;
+    st.mark_count = 3;
+    st.eta_valid = true;
+    st.eta_s = 6 * 3600 + 20 * 60;
+    for (int i = 0; i < 48; i++) {
+        st.spark[i] = (int16_t)(2400 + (i % 12) * 8 - (i / 12) * 5);
+    }
+    st.spark_n = 48;
+    snprintf(st.ssid, sizeof st.ssid, "Backyard");
+    snprintf(st.psk, sizeof st.psk, "Gk7mR2xQpT");
+    snprintf(st.ip, sizeof st.ip, "192.168.1.42");
+    snprintf(st.host, sizeof st.host, "smokebridge.local");
+    st.wifi_rssi = -54;
+    st.net_state = APP_UI_NET_UP;
+    st.ble_conns = 1;
+    st.ble_bonds = 2;
+    st.paired = true;
+    snprintf(st.device_id, sizeof st.device_id, "|abCDe");
+    st.frequency_hz = 910500000u;
+    st.lora_rssi = -71;
+    st.lora_snr = 9;
+    st.last_packet_s = 12;
+    st.packets_ok = 4102;
+    st.packets_bad = 3;
+    st.interval_s10 = 300;
+    snprintf(st.fw, sizeof st.fw, "v1.0.0");
+    st.uptime_s = 14 * 3600 + 15 * 60 + 30;
+    st.storage_total_b = 2490368;
+    st.storage_used_b = 214016;
+    st.sessions = 12;
+    st.heap_free = 172032;
+    st.heap_min = 144384;
+    st.mv = 3894;
+    st.i2c_ok = 1160;
+    st.i2c_err = 0;
+    return st;
+}
+
+/* Is row 7 — the status strip's row — inked at all? */
+static bool strip_has_ink(const app_ui_fb_t *fb) {
+    for (int x = 0; x < APP_UI_WIDTH; x++) {
+        for (int y = 56; y < 64; y++) {
+            if (app_ui_get_pixel(fb, x, y)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/* Does any cell in the given range render a DIGIT? The all-detached
+ * invariant this project has enforced end to end since M0 is not "the
+ * slot is empty" — it is "there is no number there". A15.2 asserts the
+ * same thing on the phone; this is its 21x8 equivalent. */
+static bool cells_contain_a_digit(const app_ui_fb_t *fb, int r0, int r1,
+                                  int c0, int c1) {
+    for (int row = r0; row <= r1; row++) {
+        for (int col = c0; col <= c1; col++) {
+            for (char d = '0'; d <= '9'; d++) {
+                app_ui_fb_t probe;
+                app_ui_fb_clear(&probe);
+                app_ui_draw_char(&probe, col, row, d);
+                bool same = true;
+                for (int dx = 0; dx < APP_UI_CELL_W && same; dx++) {
+                    for (int dy = 0; dy < APP_UI_CELL_H; dy++) {
+                        const int x = col * APP_UI_CELL_W + dx;
+                        const int y = row * APP_UI_CELL_H + dy;
+                        if (app_ui_get_pixel(&probe, x, y) !=
+                            app_ui_get_pixel(fb, x, y)) {
+                            same = false;
+                            break;
+                        }
+                    }
+                }
+                if (same) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+static void test_status_strip_shapes(void) {
+    app_ui_fb_t fb;
+    app_ui_state_t st = cook_state();
+
+    /* Every page and every overlay gets the strip from one call — that is
+     * the whole point of F11b.1, and the reason F11a left the row blank
+     * rather than inventing it. */
+    app_ui_render_page_probes(&st, &fb);
+    CHECK(strip_has_ink(&fb));
+    golden("strip-sta-cook", &fb);
+
+    st.base_ok = false;
+    st.alarm_unacked = true;
+    app_ui_render_page_probes(&st, &fb);
+    golden("strip-base-lost-alarm", &fb);
+
+    st = cook_state();
+    st.net_mode = APP_UI_NET_AP;
+    st.ap_client = true;
+    st.charging = true;
+    app_ui_render_page_probes(&st, &fb);
+    golden("strip-ap-charging", &fb);
+
+    /* No session and no battery data: `--:--` and `--%`, never 00:00 and
+     * never 0 % (07 §7.1, P3.2). */
+    st = cook_state();
+    st.session_active = false;
+    st.soc_pct = BRIDGE_SOC_UNKNOWN;
+    app_ui_render_page_probes(&st, &fb);
+    golden("strip-no-session-no-battery", &fb);
+}
+
+static void test_page_probes_goldens(void) {
+    app_ui_fb_t fb;
+    app_ui_state_t st = cook_state();
+    app_ui_render_page_probes(&st, &fb);
+    golden("page-probes", &fb);
+
+    /* °C is a DISPLAY concern; storage stays canonical °F (04 §4.2). */
+    st.celsius = true;
+    app_ui_render_page_probes(&st, &fb);
+    golden("page-probes-celsius", &fb);
+
+    /* All detached. The one that matters most: the reference's `0.0` is a
+     * real trap on a graph and a real confusion on a screen (07 §7.2), so
+     * a detached probe's temperature slot has NO DIGIT in it. */
+    st = cook_state();
+    for (int i = 0; i < 4; i++) {
+        st.probe[i].temp_f10 = BRIDGE_TEMP_DETACHED;
+        st.probe[i].slope_valid = false;
+    }
+    app_ui_render_page_probes(&st, &fb);
+    golden("page-probes-all-detached", &fb);
+    /* NO DIGIT in any temperature slot — not a 0, not a 0.0. The pit's
+     * large block (rows 2-4) and the three compact value slots
+     * (cols 8-13 of rows 4-6) are the places a number could appear. */
+    CHECK(!cells_contain_a_digit(&fb, 2, 3, 0, APP_UI_COLS - 1));
+    CHECK(!cells_contain_a_digit(&fb, 4, 6, 8, 13));
+
+    /* No pit role at all: probe 1 gets the large treatment (07 §7.2). */
+    st = cook_state();
+    for (int i = 0; i < 4; i++) {
+        st.probe[i].role = BRIDGE_PROBE_ROLE_FOOD;
+    }
+    app_ui_render_page_probes(&st, &fb);
+    golden("page-probes-no-pit-role", &fb);
+
+    /* A name long enough to need truncating, pinned so the truncation is
+     * reviewed rather than discovered in a dark yard. */
+    st = cook_state();
+    snprintf(st.probe[1].name, sizeof st.probe[1].name, "Chuck roast big");
+    app_ui_render_page_probes(&st, &fb);
+    golden("page-probes-long-name", &fb);
+}
+
+static void test_page_cook_goldens(void) {
+    app_ui_fb_t fb;
+    app_ui_state_t st = cook_state();
+    app_ui_render_page_cook(&st, &fb);
+    golden("page-cook", &fb);
+
+    /* Stalled: the ETA is suppressed with the reason, not replaced by a
+     * number (09 §9.4). */
+    st.stalled = true;
+    app_ui_render_page_cook(&st, &fb);
+    golden("page-cook-stalled", &fb);
+
+    /* Under 30 minutes of history — the device refuses to guess. */
+    st = cook_state();
+    st.eta_valid = false;
+    app_ui_render_page_cook(&st, &fb);
+    golden("page-cook-no-eta", &fb);
+
+    /* A dropout in the ring: the sparkline breaks rather than bridging a
+     * gap that did not happen. */
+    st = cook_state();
+    for (int i = 16; i < 28; i++) {
+        st.spark[i] = BRIDGE_TEMP_DETACHED;
+    }
+    app_ui_render_page_cook(&st, &fb);
+    golden("page-cook-gap", &fb);
+
+    st = cook_state();
+    st.session_active = false;
+    app_ui_render_page_cook(&st, &fb);
+    golden("page-cook-no-session", &fb);
+}
+
+static void test_page_network_goldens(void) {
+    app_ui_fb_t fb;
+    app_ui_state_t st = cook_state();
+
+    st.net_mode = APP_UI_NET_AP;
+    st.ap_clients = 1;
+    app_ui_render_page_network(&st, &fb);
+    golden("page-network-ap", &fb);
+    /* The AP page exists to put everything needed to join on the glass —
+     * no app, no manual, no default password to look up. If the PSK is
+     * not there, the page has no reason to exist. */
+    app_ui_fb_t psk_only;
+    app_ui_fb_clear(&psk_only);
+    app_ui_draw_text(&psk_only, 0, 4, "  Gk7mR2xQpT");
+    for (int x = 0; x < APP_UI_WIDTH; x++) {
+        for (int y = 32; y < 40; y++) {
+            if (app_ui_get_pixel(&psk_only, x, y)) {
+                CHECK(app_ui_get_pixel(&fb, x, y));
+            }
+        }
+    }
+
+    st = cook_state();
+    app_ui_render_page_network(&st, &fb);
+    golden("page-network-sta", &fb);
+
+    st.net_state = APP_UI_NET_CONNECTING;
+    st.retry_attempt = 3;
+    st.retry_in_s = 292;
+    app_ui_render_page_network(&st, &fb);
+    golden("page-network-connecting", &fb);
+}
+
+static void test_page_radio_and_system_goldens(void) {
+    app_ui_fb_t fb;
+    app_ui_state_t st = cook_state();
+    app_ui_render_page_radio(&st, &fb);
+    golden("page-radio-paired", &fb);
+
+    st.paired = false;
+    app_ui_render_page_radio(&st, &fb);
+    golden("page-radio-unpaired", &fb);
+
+    st = cook_state();
+    app_ui_render_page_system(&st, &fb);
+    golden("page-system", &fb);
+
+    /* No battery data: `n/a`, never `0%` (P3.2, and the M4 header has
+     * rendered this correctly since the MVP). */
+    st.soc_pct = BRIDGE_SOC_UNKNOWN;
+    app_ui_render_page_system(&st, &fb);
+    golden("page-system-no-battery", &fb);
+}
+
+static void test_overlay_goldens(void) {
+    app_ui_fb_t fb;
+    app_ui_state_t st = cook_state();
+
+    st.overlay = APP_UI_OVERLAY_ALARM;
+    st.alarm_rule = BRIDGE_ALARM_RULE_TARGET_REACHED;
+    st.alarm_probe = 2;
+    st.alarm_severity = BRIDGE_ALARM_SEVERITY_CRITICAL;
+    st.alarm_value_f10 = 2031;
+    st.alarm_unacked = true;
+    app_ui_render_overlay_alarm(&st, &fb);
+    golden("overlay-alarm-target", &fb);
+    /* Inverted video on the title bar: most of row 0 is ink. */
+    int row0 = 0;
+    for (int x = 0; x < APP_UI_WIDTH; x++) {
+        for (int y = 0; y < 8; y++) {
+            if (app_ui_get_pixel(&fb, x, y)) {
+                row0++;
+            }
+        }
+    }
+    CHECK(row0 > APP_UI_WIDTH * 4);
+
+    st.alarm_rule = BRIDGE_ALARM_RULE_PIT_CRASH;
+    st.alarm_probe = 1;
+    st.alarm_value_f10 = 1900;
+    app_ui_render_overlay_alarm(&st, &fb);
+    golden("overlay-alarm-pit-crash", &fb);
+
+    st = cook_state();
+    st.overlay = APP_UI_OVERLAY_CONFIRM;
+    snprintf(st.confirm_text, sizeof st.confirm_text, "Switch to hosting?");
+    st.confirm_count = 3;
+    app_ui_render_overlay_confirm(&st, &fb);
+    golden("overlay-confirm-3", &fb);
+    st.confirm_count = 1;
+    app_ui_render_overlay_confirm(&st, &fb);
+    golden("overlay-confirm-1", &fb);
+
+    st = cook_state();
+    st.overlay = APP_UI_OVERLAY_SPLASH;
+    st.confirm_count = 3;
+    app_ui_render_overlay_splash(&st, &fb);
+    golden("overlay-splash", &fb);
+
+    st = cook_state();
+    st.overlay = APP_UI_OVERLAY_OTA;
+    st.ota_pct = 62;
+    snprintf(st.ota_from, sizeof st.ota_from, "1.0.0");
+    snprintf(st.ota_to, sizeof st.ota_to, "1.1.0");
+    app_ui_render_overlay_ota(&st, &fb);
+    golden("overlay-ota", &fb);
+}
+
+static void test_render_dispatch(void) {
+    /* One entry point, so "what is on the glass" has one answer. */
+    app_ui_fb_t a;
+    app_ui_fb_t b;
+    app_ui_state_t st = cook_state();
+    for (uint8_t page = 0; page < APP_UI_PAGE_COUNT; page++) {
+        st.page = page;
+        app_ui_render(&st, &a);
+        switch (page) {
+        case APP_UI_PAGE_COOK:
+            app_ui_render_page_cook(&st, &b);
+            break;
+        case APP_UI_PAGE_NETWORK:
+            app_ui_render_page_network(&st, &b);
+            break;
+        case APP_UI_PAGE_RADIO:
+            app_ui_render_page_radio(&st, &b);
+            break;
+        case APP_UI_PAGE_SYSTEM:
+            app_ui_render_page_system(&st, &b);
+            break;
+        default:
+            app_ui_render_page_probes(&st, &b);
+            break;
+        }
+        CHECK_EQ_INT(memcmp(a.px, b.px, sizeof a.px), 0);
+    }
+    /* An overlay pre-empts whatever page is showing. */
+    st.page = APP_UI_PAGE_SYSTEM;
+    st.overlay = APP_UI_OVERLAY_ALARM;
+    app_ui_render(&st, &a);
+    app_ui_render_overlay_alarm(&st, &b);
+    CHECK_EQ_INT(memcmp(a.px, b.px, sizeof a.px), 0);
+}
+
+/* ── F11b.2 — the sparkline and the progress bar ────────────────────── */
+
+static int ink_columns(const app_ui_fb_t *fb, int x, int w, int y, int h) {
+    int n = 0;
+    for (int col = x; col < x + w; col++) {
+        for (int row = y; row < y + h; row++) {
+            if (app_ui_get_pixel(fb, col, row)) {
+                n++;
+                break;
+            }
+        }
+    }
+    return n;
+}
+
+static void test_sparkline_shapes(void) {
+    app_ui_fb_t fb;
+    int16_t vals[64];
+
+    /* A rising ramp ends higher than it starts — asserted in pixels,
+     * because "it drew something" is not the claim. */
+    app_ui_fb_clear(&fb);
+    for (int i = 0; i < 40; i++) {
+        vals[i] = (int16_t)(1000 + i * 20);
+    }
+    app_ui_draw_sparkline(&fb, 0, 0, 40, 16, vals, 40);
+    int first_y = -1;
+    int last_y = -1;
+    for (int y = 0; y < 16; y++) {
+        if (app_ui_get_pixel(&fb, 0, y) && first_y < 0) {
+            first_y = y;
+        }
+        if (app_ui_get_pixel(&fb, 39, y)) {
+            last_y = y;
+        }
+    }
+    CHECK(first_y > last_y); /* y grows downward */
+
+    /* Flat: a line, not a division by zero. */
+    app_ui_fb_clear(&fb);
+    for (int i = 0; i < 40; i++) {
+        vals[i] = 2000;
+    }
+    app_ui_draw_sparkline(&fb, 0, 0, 40, 16, vals, 40);
+    CHECK_EQ_INT(ink_columns(&fb, 0, 40, 0, 16), 40);
+
+    /* A hole BREAKS the line rather than bridging it or plotting the
+     * detached sample at the bottom of the range. */
+    app_ui_fb_clear(&fb);
+    for (int i = 0; i < 40; i++) {
+        vals[i] = (int16_t)(2000 + (i % 5));
+    }
+    for (int i = 10; i < 20; i++) {
+        vals[i] = BRIDGE_TEMP_DETACHED;
+    }
+    app_ui_draw_sparkline(&fb, 0, 0, 40, 16, vals, 40);
+    CHECK(ink_columns(&fb, 0, 40, 0, 16) < 40);
+    CHECK(ink_columns(&fb, 10, 10, 0, 16) == 0);
+
+    /* Degenerate inputs draw nothing and crash nothing. */
+    app_ui_fb_clear(&fb);
+    app_ui_draw_sparkline(&fb, 0, 0, 40, 16, vals, 0);
+    app_ui_draw_sparkline(&fb, 0, 0, 0, 16, vals, 40);
+    app_ui_draw_sparkline(&fb, 0, 0, 40, 16, NULL, 40);
+    CHECK_EQ_INT(ink_columns(&fb, 0, 128, 0, 64), 0);
+    vals[0] = 2000;
+    app_ui_draw_sparkline(&fb, 0, 0, 40, 16, vals, 1);
+    CHECK(ink_columns(&fb, 0, 40, 0, 16) > 0);
+
+    /* All detached: nothing honest to draw. */
+    app_ui_fb_clear(&fb);
+    for (int i = 0; i < 40; i++) {
+        vals[i] = BRIDGE_TEMP_DETACHED;
+    }
+    app_ui_draw_sparkline(&fb, 0, 0, 40, 16, vals, 40);
+    CHECK_EQ_INT(ink_columns(&fb, 0, 40, 0, 16), 0);
+
+    /* More samples than pixels: it BUCKETS, and still ends at the newest
+     * reading rather than dropping the tail. */
+    app_ui_fb_clear(&fb);
+    for (int i = 0; i < 64; i++) {
+        vals[i] = (int16_t)(1000 + i * 10);
+    }
+    app_ui_draw_sparkline(&fb, 0, 0, 21, 16, vals, 64);
+    CHECK_EQ_INT(ink_columns(&fb, 0, 21, 0, 16), 21);
+
+    /* Clipping, like every other primitive. */
+    app_ui_fb_clear(&fb);
+    app_ui_draw_sparkline(&fb, 120, 60, 40, 16, vals, 64);
+    CHECK(1);
+}
+
+static void test_progress_bar(void) {
+    app_ui_fb_t fb;
+    app_ui_fb_clear(&fb);
+    app_ui_draw_progress(&fb, 0, 0, 20, 8, 0);
+    /* At 0 % the frame is drawn and NOTHING is filled — a bar showing a
+     * lit pixel at zero is lying about having started. */
+    CHECK(!app_ui_get_pixel(&fb, 1, 4));
+    CHECK(app_ui_get_pixel(&fb, 0, 0));
+
+    app_ui_fb_clear(&fb);
+    app_ui_draw_progress(&fb, 0, 0, 20, 8, 100);
+    CHECK(app_ui_get_pixel(&fb, 18, 4));
+
+    app_ui_fb_clear(&fb);
+    app_ui_draw_progress(&fb, 0, 0, 20, 8, 50);
+    CHECK(app_ui_get_pixel(&fb, 5, 4));
+    CHECK(!app_ui_get_pixel(&fb, 17, 4));
+
+    /* Out of range clamps rather than corrupting the buffer. */
+    app_ui_draw_progress(&fb, 0, 0, 20, 8, -10);
+    app_ui_draw_progress(&fb, 0, 0, 20, 8, 500);
+    app_ui_draw_progress(&fb, 0, 0, 1, 1, 50);
+    CHECK(1);
+}
+
+/* ── F11b.7 — the gesture machine ──────────────────────────────────── */
+
+typedef struct {
+    app_ui_input_t_state in;
+    uint32_t t;
+} btn_t;
+
+static void btn_init(btn_t *b) {
+    app_ui_input_reset(&b->in);
+    b->t = 0;
+}
+
+/* Feed `ms` of a held/released level in 20 ms samples, returning the last
+ * gesture that completed. */
+static app_ui_gesture_t btn_feed(btn_t *b, bool pressed, uint32_t ms) {
+    app_ui_gesture_t last = APP_UI_GESTURE_NONE;
+    for (uint32_t i = 0; i < ms; i += APP_UI_SAMPLE_MS) {
+        const app_ui_gesture_t g =
+            app_ui_input_sample(&b->in, pressed, b->t);
+        if (g != APP_UI_GESTURE_NONE) {
+            last = g;
+        }
+        b->t += APP_UI_SAMPLE_MS;
+    }
+    return last;
+}
+
+static void test_gestures(void) {
+    btn_t b;
+
+    /* Tap: a short press, then the double-tap window expiring. */
+    btn_init(&b);
+    CHECK_EQ_INT(btn_feed(&b, true, 200), APP_UI_GESTURE_NONE);
+    CHECK_EQ_INT(btn_feed(&b, false, 600), APP_UI_GESTURE_TAP);
+
+    /* Double-tap: two short presses inside 400 ms. */
+    btn_init(&b);
+    (void)btn_feed(&b, true, 200);
+    (void)btn_feed(&b, false, 200);
+    (void)btn_feed(&b, true, 200);
+    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_DOUBLE_TAP);
+    /* And it does NOT then also emit a tap. */
+    CHECK_EQ_INT(btn_feed(&b, false, 800), APP_UI_GESTURE_NONE);
+
+    /* HOLD COMMITS ON RELEASE. Reaching 2 s emits nothing... */
+    btn_init(&b);
+    CHECK_EQ_INT(btn_feed(&b, true, 3000), APP_UI_GESTURE_NONE);
+    /* ...releasing after it is the commit. */
+    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_HOLD);
+
+    /* Released EARLY: nothing happens at all. That is the visible cancel
+     * path, and it is what makes a one-button UI tolerable (07 §7.4). */
+    btn_init(&b);
+    (void)btn_feed(&b, true, 1500);
+    CHECK_EQ_INT(btn_feed(&b, false, 1000), APP_UI_GESTURE_NONE);
+
+    /* 10 s arms the factory reset, again only on release. */
+    btn_init(&b);
+    CHECK_EQ_INT(btn_feed(&b, true, 11000), APP_UI_GESTURE_NONE);
+    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_FACTORY);
+
+    /* A press that never releases is never a gesture. */
+    btn_init(&b);
+    CHECK_EQ_INT(btn_feed(&b, true, 30000), APP_UI_GESTURE_NONE);
+
+    /* A 25 ms bounce burst debounces to NOTHING: below the 30 ms window,
+     * no level change is ever accepted. */
+    btn_init(&b);
+    for (int i = 0; i < 40; i++) {
+        const app_ui_gesture_t g =
+            app_ui_input_sample(&b.in, i % 2 == 0, b.t);
+        CHECK_EQ_INT(g, APP_UI_GESTURE_NONE);
+        b.t += 20;
+    }
+
+    /* THE WAKE PRESS IS CONSUMED. Waking a sleeping display never also
+     * changes the page — the user always sees the state they left. */
+    btn_init(&b);
+    app_ui_input_consume_next(&b.in);
+    (void)btn_feed(&b, true, 200);
+    CHECK_EQ_INT(btn_feed(&b, false, 800), APP_UI_GESTURE_NONE);
+    /* The NEXT press is a real one. */
+    (void)btn_feed(&b, true, 200);
+    CHECK_EQ_INT(btn_feed(&b, false, 800), APP_UI_GESTURE_TAP);
+
+    /* D3's vocabulary, so the three-button variant is a driver. */
+    CHECK_EQ_INT(app_ui_input_vocabulary(APP_UI_GESTURE_TAP),
+                 APP_UI_INPUT_NEXT);
+    CHECK_EQ_INT(app_ui_input_vocabulary(APP_UI_GESTURE_DOUBLE_TAP),
+                 APP_UI_INPUT_BACK);
+    CHECK_EQ_INT(app_ui_input_vocabulary(APP_UI_GESTURE_HOLD),
+                 APP_UI_INPUT_SELECT);
+}
+
+/* ── F11b.8/F11b.9 — the page model and the sleep policy ────────────── */
+
+static app_ui_action_t g_performed[16];
+static int g_performed_n;
+static int g_power_calls;
+static bool g_power_last;
+
+static void mop_perform(void *ctx, app_ui_action_t a) {
+    (void)ctx;
+    if (g_performed_n < 16) {
+        g_performed[g_performed_n++] = a;
+    }
+}
+static void mop_power(void *ctx, bool on) {
+    (void)ctx;
+    g_power_calls++;
+    g_power_last = on;
+}
+static const app_ui_model_ops_t k_model_ops = {.perform = mop_perform,
+                                               .panel_power = mop_power};
+
+typedef struct {
+    app_ui_model_t m;
+    app_ui_state_t st;
+    uint32_t t;
+} model_t;
+
+static void model_init(model_t *w) {
+    g_performed_n = 0;
+    g_power_calls = 0;
+    memset(&w->st, 0, sizeof w->st);
+    w->st.soc_pct = BRIDGE_SOC_UNKNOWN;
+    w->t = 0;
+    app_ui_model_init(&w->m, &k_model_ops);
+}
+
+static void model_feed(model_t *w, bool pressed, uint32_t ms,
+                       uint16_t timeout_s) {
+    for (uint32_t i = 0; i < ms; i += APP_UI_SAMPLE_MS) {
+        app_ui_model_tick(&w->m, &w->st, pressed, w->t, timeout_s);
+        w->t += APP_UI_SAMPLE_MS;
+    }
+}
+
+static void model_tap(model_t *w) {
+    model_feed(w, true, 200, 0);
+    model_feed(w, false, 600, 0);
+}
+
+static void test_page_navigation_and_actions(void) {
+    model_t w;
+    model_init(&w);
+    /* Page 1 on boot (07 §7.2). */
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
+
+    for (int i = 1; i < APP_UI_PAGE_COUNT; i++) {
+        model_tap(&w);
+        CHECK_EQ_INT(app_ui_model_page(&w.m), i);
+    }
+    model_tap(&w); /* wraps */
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
+
+    /* Every (page × hold) pair reaches ITS action and no other. */
+    static const app_ui_action_t expect[APP_UI_PAGE_COUNT] = {
+        APP_UI_ACTION_TOGGLE_UNITS, APP_UI_ACTION_SESSION_TOGGLE,
+        APP_UI_ACTION_NET_TOGGLE, APP_UI_ACTION_RADIO_TOGGLE,
+        APP_UI_ACTION_SAVER_TOGGLE};
+    for (int page = 0; page < APP_UI_PAGE_COUNT; page++) {
+        model_init(&w);
+        for (int i = 0; i < page; i++) {
+            model_tap(&w);
+        }
+        model_feed(&w, true, 2500, 0);
+        /* The countdown is on the glass while the hold is in progress. */
+        CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_CONFIRM);
+        CHECK(w.st.confirm_text[0] != '\0');
+        model_feed(&w, false, 100, 0);
+        CHECK_EQ_INT(g_performed_n, 1);
+        CHECK_EQ_INT(g_performed[0], expect[page]);
+        CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
+    }
+
+    /* A hold RELEASED EARLY performs NOTHING, on every page. */
+    for (int page = 0; page < APP_UI_PAGE_COUNT; page++) {
+        model_init(&w);
+        for (int i = 0; i < page; i++) {
+            model_tap(&w);
+        }
+        model_feed(&w, true, 1500, 0);
+        model_feed(&w, false, 1000, 0);
+        CHECK_EQ_INT(g_performed_n, 0);
+    }
+
+    /* Double-tap adds a mark, from any page. */
+    model_init(&w);
+    model_feed(&w, true, 200, 0);
+    model_feed(&w, false, 200, 0);
+    model_feed(&w, true, 200, 0);
+    model_feed(&w, false, 600, 0);
+    CHECK_EQ_INT(g_performed_n, 1);
+    CHECK_EQ_INT(g_performed[0], APP_UI_ACTION_ADD_MARK);
+
+    /* Factory reset needs all three KEEP HOLDING confirmations. */
+    model_init(&w);
+    for (int i = 0; i < APP_UI_FACTORY_CONFIRMS - 1; i++) {
+        model_feed(&w, true, 11000, 0);
+        model_feed(&w, false, 200, 0);
+        CHECK_EQ_INT(g_performed_n, 0);
+    }
+    model_feed(&w, true, 11000, 0);
+    model_feed(&w, false, 200, 0);
+    CHECK_EQ_INT(g_performed_n, 1);
+    CHECK_EQ_INT(g_performed[0], APP_UI_ACTION_FACTORY_RESET);
+}
+
+static void test_alarm_forces_page_one_and_consumes_the_ack(void) {
+    model_t w;
+    model_init(&w);
+    model_tap(&w);
+    model_tap(&w);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_NETWORK);
+
+    app_ui_model_on_alarm(&w.m, &w.st, w.t);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
+    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_ALARM);
+
+    /* The acknowledging tap is CONSUMED: it silences, and it does not
+     * also advance the page. */
+    g_performed_n = 0;
+    model_tap(&w);
+    CHECK_EQ_INT(g_performed_n, 1);
+    CHECK_EQ_INT(g_performed[0], APP_UI_ACTION_ACK_ALARM);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
+    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
+
+    /* And the 60 s revert: the PAGE comes back, and nothing here touches
+     * alarm state. Silencing the screen is not dealing with it. */
+    model_init(&w);
+    app_ui_model_on_alarm(&w.m, &w.st, w.t);
+    model_feed(&w, false, APP_UI_ALARM_OVERLAY_MS + 1000, 0);
+    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
+    CHECK_EQ_INT(g_performed_n, 0); /* no ack was invented */
+}
+
+static void test_sleep_and_wake(void) {
+    model_t w;
+    model_init(&w);
+    CHECK(app_ui_model_awake(&w.m));
+
+    /* 60 s of nothing puts the panel out. */
+    model_feed(&w, false, 61000, 60);
+    CHECK(!app_ui_model_awake(&w.m));
+    CHECK(!g_power_last);
+
+    /* A press wakes it, and that press is CONSUMED — no page change. */
+    const uint8_t page_before = app_ui_model_page(&w.m);
+    model_feed(&w, true, 200, 60);
+    model_feed(&w, false, 800, 60);
+    CHECK(app_ui_model_awake(&w.m));
+    CHECK_EQ_INT(app_ui_model_page(&w.m), page_before);
+
+    /* An alarm wakes it, and the overlay is what appears. */
+    model_feed(&w, false, 61000, 60);
+    CHECK(!app_ui_model_awake(&w.m));
+    app_ui_model_on_alarm(&w.m, &w.st, w.t);
+    CHECK(app_ui_model_awake(&w.m));
+    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_ALARM);
+
+    /* Any of 07 §7.1's other wake sources. */
+    model_init(&w);
+    model_feed(&w, false, 61000, 60);
+    CHECK(!app_ui_model_awake(&w.m));
+    app_ui_model_wake(&w.m, w.t);
+    CHECK(app_ui_model_awake(&w.m));
+
+    /* A timeout of 0 is the documented always-on setting, not a bug. */
+    model_init(&w);
+    model_feed(&w, false, 600000, 0);
+    CHECK(app_ui_model_awake(&w.m));
+}
+
+/* ── F11b.10 — the LED ─────────────────────────────────────────────── */
+
+static void test_led_patterns(void) {
+    app_ui_led_input_t in;
+    memset(&in, 0, sizeof in);
+    in.mode = APP_UI_LED_MODE_ALL;
+
+    /* A blink asserted at ONE instant is not a blink: sample across two
+     * full periods and require both states. */
+    in.alarm_unacked = true;
+    int on = 0;
+    int off = 0;
+    for (uint32_t t = 0; t < 1000; t += 10) {
+        if (app_ui_led_duty(&in, t) > 0) {
+            on++;
+        } else {
+            off++;
+        }
+    }
+    CHECK(on > 30 && off > 30);
+    CHECK_EQ_INT(app_ui_led_duty(&in, 0), APP_UI_LED_DUTY_MAX);
+    CHECK_EQ_INT(app_ui_led_duty(&in, 300), 0);
+
+    /* Precedence: alarm outranks base-lost outranks heartbeat. */
+    in.base_lost = true;
+    in.packet_flash = true;
+    CHECK_EQ_INT(app_ui_led_pattern(&in, 0), APP_UI_LED_ALARM);
+    in.alarm_unacked = false;
+    CHECK_EQ_INT(app_ui_led_pattern(&in, 0), APP_UI_LED_BASE_LOST);
+    in.base_lost = false;
+    CHECK_EQ_INT(app_ui_led_pattern(&in, 0), APP_UI_LED_HEARTBEAT);
+    in.pairing = true;
+    in.base_lost = true;
+    CHECK_EQ_INT(app_ui_led_pattern(&in, 0), APP_UI_LED_PAIRING);
+    CHECK_EQ_INT(app_ui_led_duty(&in, 0), APP_UI_LED_DUTY_MAX);
+
+    /* base_lost really is a DOUBLE blink: two on-runs per 2 s period. */
+    memset(&in, 0, sizeof in);
+    in.mode = APP_UI_LED_MODE_ALL;
+    in.base_lost = true;
+    int runs = 0;
+    bool prev = false;
+    for (uint32_t t = 0; t < 2000; t += 10) {
+        const bool lit = app_ui_led_duty(&in, t) > 0;
+        if (lit && !prev) {
+            runs++;
+        }
+        prev = lit;
+    }
+    CHECK_EQ_INT(runs, 2);
+
+    /* OTA breathes: it takes several distinct duty values. */
+    memset(&in, 0, sizeof in);
+    in.mode = APP_UI_LED_MODE_ALL;
+    in.ota = true;
+    int distinct = 0;
+    uint8_t seen[8];
+    for (int i = 0; i < 8; i++) {
+        seen[i] = app_ui_led_duty(&in, (uint32_t)i * 250u);
+    }
+    for (int i = 1; i < 8; i++) {
+        if (seen[i] != seen[i - 1]) {
+            distinct++;
+        }
+    }
+    CHECK(distinct >= 5);
+
+    /* identify returns to the previous pattern after 5 s — it does not
+     * latch. */
+    memset(&in, 0, sizeof in);
+    in.mode = APP_UI_LED_MODE_ALL;
+    in.base_lost = true;
+    in.identify_until_ms = 5000;
+    CHECK_EQ_INT(app_ui_led_pattern(&in, 1000), APP_UI_LED_IDENTIFY);
+    CHECK_EQ_INT(app_ui_led_pattern(&in, 6000), APP_UI_LED_BASE_LOST);
+
+    /* The DEFAULT is alarms-only: a light blinking all night on a bedside
+     * bridge is a reason to unplug it (07 §7.5). */
+    memset(&in, 0, sizeof in);
+    in.mode = APP_UI_LED_MODE_ALARMS_ONLY;
+    in.base_lost = true;
+    for (uint32_t t = 0; t < 2000; t += 10) {
+        CHECK_EQ_INT(app_ui_led_duty(&in, t), 0);
+    }
+    in.alarm_unacked = true;
+    CHECK_EQ_INT(app_ui_led_duty(&in, 0), APP_UI_LED_DUTY_MAX);
+
+    /* OFF is zero in EVERY state, including alarm. */
+    in.mode = APP_UI_LED_MODE_OFF;
+    for (uint32_t t = 0; t < 2000; t += 10) {
+        CHECK_EQ_INT(app_ui_led_duty(&in, t), 0);
+    }
+
+    /* The buzzer mirrors the ALARM pattern only, and is silent unfitted. */
+    memset(&in, 0, sizeof in);
+    in.alarm_unacked = true;
+    CHECK(!app_ui_buzzer_on(&in, 0)); /* buzzer_enabled false */
+    in.buzzer_enabled = true;
+    CHECK(app_ui_buzzer_on(&in, 0));
+    CHECK(!app_ui_buzzer_on(&in, 300));
+    in.alarm_unacked = false;
+    in.base_lost = true;
+    for (uint32_t t = 0; t < 2000; t += 10) {
+        CHECK(!app_ui_buzzer_on(&in, t));
+    }
+}
+
+/* ── F11b.11 — the panel's I²C counters (V3a.1's deferred row) ─────── */
+
+static void test_i2c_counters_count_both_ways(void) {
+    panel_reset();
+    uint32_t ok = 0;
+    uint32_t err = 0;
+    app_ui_panel_counts(&ok, &err);
+    CHECK_EQ_INT(ok, 0);
+    CHECK_EQ_INT(err, 0);
+
+    CHECK_EQ_INT(app_ui_panel_bringup(), 0);
+    app_ui_panel_counts(&ok, &err);
+    CHECK(ok > 0);
+    CHECK_EQ_INT(err, 0);
+
+    app_ui_panel_set_awake(true);
+    const app_ui_state_t st = passkey_state("418302");
+    CHECK(app_ui_panel_render(&st));
+    uint32_t ok2 = 0;
+    app_ui_panel_counts(&ok2, &err);
+    CHECK(ok2 > ok);
+    CHECK_EQ_INT(err, 0);
+
+    /* Errors are counted SEPARATELY, which is the whole point: an error
+     * count with no denominator is not a measurement (V3a.1). */
+    g_panel.fail_tx = 1;
+    const app_ui_state_t other = passkey_state("000000");
+    (void)app_ui_panel_render(&other);
+    uint32_t err2 = 0;
+    app_ui_panel_counts(&ok, &err2);
+    CHECK(err2 > 0);
 }
 
 int main(int argc, char **argv) {
@@ -588,5 +1521,20 @@ int main(int argc, char **argv) {
     test_bringup_failure_leaves_no_half_state();
     test_render_only_on_change();
     test_flush_writes_the_whole_panel();
+    test_status_strip_shapes();
+    test_page_probes_goldens();
+    test_page_cook_goldens();
+    test_page_network_goldens();
+    test_page_radio_and_system_goldens();
+    test_overlay_goldens();
+    test_render_dispatch();
+    test_sparkline_shapes();
+    test_progress_bar();
+    test_gestures();
+    test_page_navigation_and_actions();
+    test_alarm_forces_page_one_and_consumes_the_ack();
+    test_sleep_and_wake();
+    test_led_patterns();
+    test_i2c_counters_count_both_ways();
     return test_summary("test_app_ui");
 }

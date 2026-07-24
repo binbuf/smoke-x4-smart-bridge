@@ -1280,9 +1280,14 @@ static void test_passkey_reaches_the_renderer(void) {
     reset_all();
     app_ble_passkey_set(418302);
 
-    /* Exactly what app_ui's BRIDGE_EVT_BLE handler does with the event. */
-    app_ui_state_t st = {0};
-    st.passkey_active = app_ble_passkey_active();
+    /* Exactly what app_ui's BRIDGE_EVT_BLE handler does with the event.
+     * M5 replaced F11a's `passkey_active` bool with the overlay enum, so
+     * this mirrors the current handler rather than the M3 one. */
+    app_ui_state_t st;
+    memset(&st, 0, sizeof st);
+    st.overlay = app_ble_passkey_active() ? APP_UI_OVERLAY_PASSKEY
+                                          : APP_UI_OVERLAY_NONE;
+    st.soc_pct = BRIDGE_SOC_UNKNOWN;
     snprintf(st.passkey, sizeof st.passkey, "%06u",
              (unsigned)app_ble_passkey());
     CHECK(strcmp(st.passkey, "418302") == 0);
@@ -1310,8 +1315,7 @@ static void test_passkey_reaches_the_renderer(void) {
 
     /* And bonding ending takes it off the glass. */
     app_ble_passkey_clear();
-    st.passkey_active = app_ble_passkey_active();
-    CHECK(!st.passkey_active);
+    CHECK(!app_ble_passkey_active());
 }
 
 /* F13.8 — live_state.alarm_active was a hardcoded `false` from F10 until
