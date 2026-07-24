@@ -83,6 +83,56 @@ process (`/status.ble`, below). The rows that remain are blocked on inputs
 this session does not have — the Wi-Fi password and a USB cable — rather than
 on work; each says so in its own row.
 
+### A fresh install could not onboard (found 2026-07-23, fixed)
+
+`AppConnection.start()` sent a phone to the wizard only when there was **no
+remembered bridge AND no BLE radio**:
+
+```dart
+if (prefs.lastBaseUrl == null && bleAttempt == null) { ...onboarding... }
+```
+
+`bootstrap.dart` always wires a BLE lane, so `bleAttempt` is **never null in
+production** and the second half of that condition never held. A phone that
+had never met a bridge therefore raced, lost, and landed on `LaunchOffline` —
+"Cannot reach the bridge", a dead end with no control anywhere in the app that
+navigates to `/onboarding`. Clearing app data on the bench reproduced it every
+time.
+
+The unit test that should have caught it — *"never provisioned goes straight to
+the wizard"* — passed `bleAttempt: null`, the one shape production never has.
+Both the production shape and its counterpart (a *remembered* bridge that is
+merely unreachable must stay offline, not be dragged back through the wizard)
+are now covered, and the fix was verified to fail without it.
+
+### The BLE lane never engages when Wi-Fi cannot reach the bridge (found 2026-07-23, OPEN)
+
+The condition A6.7 asks for arrived on its own: during A8.4 the bridge dropped
+off the LAN. The phone kept a valid bond (`bonded:1`), the bridge kept
+advertising (verified from an independent BLE central at the same moment), and
+the app still showed "Cannot reach the bridge" for over two minutes — no BLE
+lane, no degraded-capability notice.
+
+**The cause was not isolated and is deliberately not guessed at here.** One
+confounder is recorded so the next session does not chase it: `pm clear`
+revokes `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT`, and the app never re-requests
+them, so *part* of what was seen after a data wipe is a permissions problem —
+but the first observation, before any wipe, had both permissions granted.
+A dedicated session with the app's debug breadcrumbs is owed.
+
+### The dashboard's elapsed header can count from app launch (found 2026-07-23, OPEN)
+
+With the bridge reporting `session.elapsed_s = 64575` and the app's own cache
+holding a complete 0 → 64424 (verified by pulling the sqlite file), the header
+read `00:12:20` and grew at wall-clock rate — the time since the app process
+started. The same header had read `16:46:04` correctly earlier in the day when
+the app connected via a *cached IP* rather than via mDNS discovery.
+
+Not the sync engine: the cache is provably complete. Not the firmware: the
+device serves `t` 0 → 64575 over `format=csv`. Root cause unisolated; recorded
+with the reproduction (clear app data, let it discover by mDNS) rather than
+theorised about.
+
 ### `/status.ble` was hardcoded (found 2026-07-23, fixed)
 
 `GET /api/v1/status` reported `{"advertising":false,"connections":0,"bonded":0}`
@@ -121,11 +171,11 @@ Flash: `idf.py -B build/heltec-v3 '-DSDKCONFIG=sdkconfig.heltec-v3' -p COMx flas
 | **F10.10** record the negotiated ATT MTU and any OEM oddity, with the phone's OEM + Android version | ⏳ |
 | **A6.7** the scan list shows the blob-decorated entry (`pit … °F · … h … m`) before connecting | ⏳ |
 | **A6.7** `live_state` notifications arrive at the sample cadence; `control(set_units)` round-trips `ok` | ✅ 2026-07-23 (set_units) — F → C → readback `C` → F → readback `F`, each `{"ok":true}`. The wire stayed canonical throughout (`units_source: "F"`, values in tenths °F), confirming units are a **display** concern and never a transport one. Note the field is `display_units`; a body naming it `units` returns `ok:true` and changes nothing, which is ordinary merge-patch semantics rather than a defect |
-| **A6.7** kill Wi-Fi on the phone → the ConnectionManager race falls through to the BLE lane, degraded-capability notice surfaces | ⏳ **blocked on the harness, not the work.** `adb` reaches the phone over adb-tls on the same Wi-Fi, so disabling Wi-Fi to force the BLE lane also severs the only channel for driving and observing the phone. Needs a USB cable, or a self-restoring on-device script — deliberately not attempted unattended, since a failed restore strands the phone off the network |
+| **A6.7** kill Wi-Fi on the phone → the ConnectionManager race falls through to the BLE lane, degraded-capability notice surfaces | ❌ **FAILS.** Observed without needing to touch the phone's Wi-Fi at all: the *bridge* left the LAN during A8.4, which is the same condition. With the bridge advertising (confirmed by an independent BLE central) and the phone holding a valid bond (`bonded:1`), the app sat on **"Cannot reach the bridge"** for over two minutes and never engaged the BLE lane or showed the degraded-capability notice. Root cause not isolated — recorded rather than guessed. See the two app defects below |
 | **A8.4** the wizard provisions a **working STA connection entirely over BLE** | ✅ 2026-07-22 — `net_status up ip=10.50.50.38 ssid=Home_WiFi` over BLE, then a real `GET /api/v1/status` → **200** from the phone, 4.9 s from config write to verified. The exit gate's first clause. (The full A8.4 row still needs the factory-reset start and the wrong-password branch.) |
-| **A8.4** factory-reset (10 s PRG), run the wizard, **enter a wrong Wi-Fi password first**, recover over the still-connected BLE link, correct it, finish on the **real home network** | ⏳ **blocked on the owner's Wi-Fi password.** Every branch of this row destroys the stored credential: `apply_pending_cfg` writes the STA SSID/PSK on any STA-mode config, and a factory reset clears them outright. Finishing *on the real home network* therefore requires re-entering the real password, which is the owner's to type. Note the reset itself is **not** the obstacle — `device_control` op 8 does it over BLE, so the 10 s PRG hold is not actually required |
+| **A8.4** factory-reset (10 s PRG), run the wizard, **enter a wrong Wi-Fi password first**, recover over the still-connected BLE link, correct it, finish on the **real home network** | ⚠️ **wrong-password branch PASSED 2026-07-23; the recovery lane used was the AP, not BLE.** Against a dedicated test router (`landing`), `POST /config/wifi` with a deliberately wrong PSK: STA failed, the ladder engaged, and the bridge reported `{"mode":"ap","state":"fallback","ip":"192.168.4.1"}` while *keeping the STA intent* (`config/wifi` still read `sta / landing`) so the retry ladder could carry on. Correcting the credential over that AP brought it up on the test network at `192.168.8.197`. **Not proven: recovery over the still-connected BLE link** — the app could not offer it, see A6.7 below. The factory-reset start is still owed |
 | **A8.4** closes F8.8's deferred real-credential STA join — the row M2 deferred to exactly this flow | ⏳ |
-| **A8.4** with STA genuinely up: `smokebridge.local` and `dns-sd -B _smokebridge._tcp` from a LAN machine (the mDNS-from-LAN rider) | ⏳ |
+| **A8.4** with STA genuinely up: `smokebridge.local` and `dns-sd -B _smokebridge._tcp` from a LAN machine (the mDNS-from-LAN rider) | ✅ 2026-07-23 — browsed from the PC: `smokebridge._smokebridge._tcp.local.` → `192.168.8.197:80`, TXT complete (`id=8274 model=heltec-v3 fw=1.0.0 api=v1 mode=sta paired=1 probes=4 session=1`), service target `smokebridge.local.` resolving to the right address. Windows' own `ping`/`curl` do **not** resolve `.local` (they bypass the mDNS responder) — a client-side quirk, not a bridge defect, and precisely why the app threads the settled IP through rather than trusting the name |
 | **A8.4** the hardware is never touched between factory reset and STA-up except to hold PRG at the start | ⏳ — and worth re-scoping: `device_control` op 8 performs the reset over BLE, so this row can be run **without touching the hardware at all** |
 | **V3a.1** OLED I²C error count with BLE active, ≥ 10 min (the V1.4 method) | ⏳ **not measurable in the product image** — M3's panel is dark except while a passkey is showing (F11a scope), so there is no sustained I²C traffic to count errors against, and `app_ui` has no error counter. Either re-run the V1.4 bench image with BLE enabled, or defer to M5/F11b when the display is always on. Recorded rather than silently ticked. |
 | **V3a.1** LoRa RX cadence unaffected with BLE advertising **and** a WebSocket client streaming | ✅ 2026-07-22 — 165 s soak with a phone bonded+connected over BLE, a WebSocket client streaming, and STA up: **5 packets, one per ~33 s**, `last_packet_s_ago` cycling 7→23 s. Sub-GHz is independent of the 2.4 GHz contention, confirmed rather than assumed. A separate 111 s run saw samples at 0/20/50/80/111 s — steady 30 s cadence through an interleaved HTTP request. |
