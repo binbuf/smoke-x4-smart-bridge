@@ -18,6 +18,7 @@
 #include "app_ble.h"
 #include "app_config.h"
 #include "app_net.h"
+#include "app_power.h"
 #include "app_ui.h"
 #include "app_time.h"
 #include "bench.h"
@@ -120,6 +121,14 @@ static int step_api(void *ctx) {
     return app_api_init();
 }
 
+/* F12: early, because the OLED status strip, the saver profile and
+ * app_alarm's battery_low rule all read what it publishes. Not fatal —
+ * a bridge that cannot measure its pack says SOC_UNKNOWN and cooks. */
+static int step_power(void *ctx) {
+    (void)ctx;
+    return app_power_init();
+}
+
 /* F11a: the display comes up BEFORE BLE, because the passkey is shown on
  * it — §12.6 rule 4, as an ordering in the boot table rather than a note.
  * Neither is fatal: a bridge with a dead panel or no BLE still cooks. */
@@ -179,7 +188,7 @@ void app_main(void) {
                 [BRIDGE_BOOT_BOOT_REASON - 1] = step_boot_reason,
                 [BRIDGE_BOOT_CONFIG - 1] = step_config,
                 [BRIDGE_BOOT_EVENT_LOOP - 1] = step_event_loop,
-                [BRIDGE_BOOT_POWER - 1] = step_stub, /* F12 */
+                [BRIDGE_BOOT_POWER - 1] = step_power,
                 [BRIDGE_BOOT_UI - 1] = step_ui,
                 [BRIDGE_BOOT_RECOVERY_WINDOW - 1] = step_recovery_window,
                 [BRIDGE_BOOT_COOK_STORE - 1] = step_cook_store,
