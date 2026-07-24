@@ -163,6 +163,34 @@ that is a **design conversation before M4** (buffer counts, concurrency caps, or
 the target itself), opened as its own recorded question. Shrinking things ad hoc
 at the bench is explicitly not this task.
 
+## M4 exit gate (A15.5, A14.4b) — ⏳ the sitting is owed
+
+All 26 board-free M4 tasks are done (app suite 448/448, firmware untouched
+at 21/21). These two rows are the whole remainder and are **one sitting**
+([§12.6 rule 7](design/12-task-planning-notes.md)), A15.5 first because
+A14.4b observes the screens it installs.
+
+Nothing in M4 was verifiable on hardware from this session: **the test
+phone was unplugged and `adb` unavailable**, so no APK was built,
+installed, or run. Everything below is therefore genuinely open, and the
+app-side claims it will check are the ones `flutter test` cannot make —
+that a real phone renders these screens, that a real BLE handoff lands on
+the dashboard, and that an exported CSV survives the trip to a real file
+system.
+
+| Check | Result |
+| --- | --- |
+| **A15.5** install the APK on the real phone and reach the dashboard | ⏳ |
+| **A15.5** onboard from a factory reset over BLE, choose a mode, and land on a live dashboard (not the wizard's own success screen) | ⏳ |
+| **A15.5** watch a live cook update at the sample cadence, with the pit and food tiles readable at arm's length | ⏳ |
+| **A15.5** scroll 15 hours of **real** history — chips, pan, pinch, double-tap, and the jump-to-now pill | ⏳ |
+| **A15.5** export a CSV and open it off the phone; it must match the device's `format=csv` for the same range | ⏳ **note:** the export writes a real file to the app's documents directory and the UI names the path. **There is no share sheet** — handing the file to another app needs a platform intent, and a platform intent needs a device to test it on, so it is this row's first job rather than an untested guess committed now |
+| **A15.5** record the phone's OEM, Android version, and time to first render | ⏳ |
+| **A14.4b** binder-on / shim-on in AP mode: does the dashboard route? | ⏳ |
+| **A14.4b** binder-off / shim-on | ⏳ |
+| **A14.4b** binder-on / shim-off | ⏳ |
+| **A14.4b** closes A14.4's *partial by design* row above (§5.8.1 predicts neither mitigation alone is sufficient — confirm or correct it) | ⏳ |
+
 ## V2 — capture campaign results
 
 | Capture | Status |
