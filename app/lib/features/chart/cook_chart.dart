@@ -64,6 +64,9 @@ class CookChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final brightness = theme.brightness;
+    // Read eagerly: the axis label builders run during layout, and the
+    // collision test below measures a label at the scale it will paint at.
+    final textScaler = MediaQuery.textScalerOf(context);
 
     if (model.isEmpty) {
       return _EmptyChart(fullHistory: fullHistory);
@@ -193,12 +196,20 @@ class CookChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 44,
-              getTitlesWidget: (v, meta) => Text(
-                '${v.round()}',
-                style: theme.textTheme.labelSmall?.copyWith(
+              getTitlesWidget: (v, meta) {
+                final style = theme.textTheme.labelSmall?.copyWith(
                   color: ProbePalette.axisInk(brightness),
-                ),
-              ),
+                );
+                String fmt(double x) => '${x.round()}';
+                if (!showAxisLabel(
+                  v,
+                  meta,
+                  measure: (x) => measureAxisLabel(fmt(x), style, textScaler),
+                )) {
+                  return const SizedBox.shrink();
+                }
+                return Text(fmt(v), style: style);
+              },
             ),
           ),
           bottomTitles: AxisTitles(
@@ -206,15 +217,24 @@ class CookChart extends StatelessWidget {
               showTitles: true,
               reservedSize: 28,
               interval: _axisInterval(viewport.spanS),
-              getTitlesWidget: (v, meta) => Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  formatAxisTime(v.round(), startedUnixMs),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: ProbePalette.axisInk(brightness),
-                  ),
-                ),
-              ),
+              getTitlesWidget: (v, meta) {
+                final style = theme.textTheme.labelSmall?.copyWith(
+                  color: ProbePalette.axisInk(brightness),
+                );
+                String fmt(double x) =>
+                    formatAxisTime(x.round(), startedUnixMs);
+                if (!showAxisLabel(
+                  v,
+                  meta,
+                  measure: (x) => measureAxisLabel(fmt(x), style, textScaler),
+                )) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(fmt(v), style: style),
+                );
+              },
             ),
           ),
         ),
@@ -237,6 +257,93 @@ class CookChart extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The first interval tick at or after [min] — fl_chart's own
+/// `Utils.getBestInitialIntervalValue` against a baseline of 0, which is
+/// what `LineChartData` uses when `baselineX`/`baselineY` are left unset.
+/// Returns [min] itself when the bound *is* a tick, and also when the span
+/// is too short to contain one.
+double _firstTick(double min, double max, double interval) {
+  final mod = (0.0 - min) % interval;
+  if (mod == 0 || (max - min).abs() <= mod) {
+    return min;
+  }
+  return min + mod;
+}
+
+/// The size [text] will paint at, so the collision test below measures the
+/// label instead of assuming a width for it. Costs one layout per *bound*
+/// label — two per axis per frame, and never for interior ticks.
+Size measureAxisLabel(String text, TextStyle? style, TextScaler scaler) {
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+    textScaler: scaler,
+  )..layout();
+  return painter.size;
+}
+
+/// Whether an axis label should be drawn at all.
+///
+/// fl_chart emits a label at each axis *bound* on top of the interval ticks
+/// and never checks that the two land in different places
+/// (`AxisChartHelper.iterateThroughAxis`). A session whose bounds are ragged
+/// — which is every real session — then draws the last tick and the end
+/// bound as one smear. Measured on the bench cook: `5:30` and `5:32` 0.8 px
+/// apart on the time axis, and `59` over `60` on the temperature axis.
+///
+/// The test is in **pixels**, not in fractions of the interval, because the
+/// interval is only a proxy for distance and a bad one at the edges: when
+/// fl_chart's auto-interval is wider than the whole visible range the two
+/// bounds are the only labels there are, they sit a full axis apart, and a
+/// fraction-of-interval rule throws one of them away for no reason.
+///
+/// Two labels clear each other exactly when their centres are half of each
+/// label apart, so [measure] is called for the bound *and* for the tick it
+/// is crowding — `4:29` next to `4p` needs less room than next to `11:30`,
+/// and assuming one size for both would either drop labels that fit or keep
+/// ones that do not. Interior ticks return before measuring anything.
+///
+/// A bound that *is* a tick is always kept, and so is one on a span too
+/// short to hold any tick — suppressing collisions can never empty an axis.
+bool showAxisLabel(
+  double v,
+  TitleMeta meta, {
+  required Size Function(double value) measure,
+}) {
+  final interval = meta.appliedInterval;
+  final span = meta.max - meta.min;
+  if (interval <= 0 || span <= 0 || meta.parentAxisSize <= 0) {
+    return true;
+  }
+  final eps = interval / 100000;
+  final first = _firstTick(meta.min, meta.max, interval);
+
+  final double gap;
+  final double neighbour;
+  if ((v - meta.min).abs() <= eps) {
+    if ((first - meta.min).abs() <= eps) {
+      return true;
+    }
+    gap = first - meta.min;
+    neighbour = first;
+  } else if ((v - meta.max).abs() <= eps) {
+    final last = first + ((meta.max - first) / interval).floor() * interval;
+    if ((last - meta.max).abs() <= eps) {
+      return true;
+    }
+    gap = meta.max - last;
+    neighbour = last;
+  } else {
+    return true;
+  }
+
+  final vertical =
+      meta.axisSide == AxisSide.left || meta.axisSide == AxisSide.right;
+  double extent(Size s) => vertical ? s.height : s.width;
+  final needPx = (extent(measure(v)) + extent(measure(neighbour))) / 2 * 1.15;
+  return gap * (meta.parentAxisSize / span) >= needPx;
 }
 
 /// Axis tick spacing that keeps labels from colliding at every window.

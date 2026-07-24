@@ -220,6 +220,21 @@ class SampleDao extends DatabaseAccessor<AppDatabase> with _$SampleDaoMixin {
     return row.read(maxExpr);
   }
 
+  /// Lowest cached `t` for a session, or null when nothing is cached.
+  ///
+  /// A non-zero value means the cache starts partway into the cook, which
+  /// the [maxT] cursor alone can never repair — see `SyncEngine`.
+  Future<int?> minT(String bridgeId, int sessionId) async {
+    final minExpr = samples.t.min();
+    final q = selectOnly(samples)
+      ..addColumns([minExpr])
+      ..where(
+        samples.bridgeId.equals(bridgeId) & samples.sessionId.equals(sessionId),
+      );
+    final row = await q.getSingle();
+    return row.read(minExpr);
+  }
+
   Future<int> count(String bridgeId, int sessionId) async {
     final countExpr = samples.t.count();
     final q = selectOnly(samples)

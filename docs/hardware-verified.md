@@ -163,29 +163,79 @@ that is a **design conversation before M4** (buffer counts, concurrency caps, or
 the target itself), opened as its own recorded question. Shrinking things ad hoc
 at the bench is explicitly not this task.
 
-## M4 exit gate (A15.5, A14.4b) — ⏳ the sitting is owed
+## M4 exit gate (A15.5, A14.4b) — A15.5 PASSED on the board 2026-07-23
 
-All 26 board-free M4 tasks are done (app suite 448/448, firmware untouched
-at 21/21). These two rows are the whole remainder and are **one sitting**
-([§12.6 rule 7](design/12-task-planning-notes.md)), A15.5 first because
-A14.4b observes the screens it installs.
+All 26 board-free M4 tasks are done. **A15.5 was run end to end on the real
+phone on 2026-07-23 and passed**; A14.4b is still owed, and is deliberately
+left for a sitting of its own because it needs the bridge put into AP mode,
+which would interrupt a live 16 h cook.
 
-Nothing in M4 was verifiable on hardware from this session: **the test
-phone was unplugged and `adb` unavailable**, so no APK was built,
-installed, or run. Everything below is therefore genuinely open, and the
-app-side claims it will check are the ones `flutter test` cannot make —
-that a real phone renders these screens, that a real BLE handoff lands on
-the dashboard, and that an exported CSV survives the trip to a real file
-system.
+Bench conditions: Samsung SM-A166U (Android 15), bridge at `10.50.50.38`
+after an 8.4 h uptime, driving a real Smoke X4 through a 16 h 19 m session
+of 1969 samples — `packets_ok 1002 / 0 bad`. The app was reached over
+adb-tls; every check below is a screenshot or a pulled file, not an
+inference.
+
+**Two defects were found by running it, and both are fixed:**
+
+### A15.5-1 — axis labels drew on top of each other
+
+The 15 h chart drew `5:30` and `6:29` as one smear on the time axis, and
+`59` over `60` on the temperature axis; the top bound label was painted
+partly outside the plot. The cause is in fl_chart rather than in our data:
+`AxisChartHelper.iterateThroughAxis` yields a label at each axis **bound**
+in addition to the interval ticks and never checks that the two land in
+different places. Every real session has ragged bounds, so this fired on
+the first cook a human ever saw. Measured, not guessed: `5:30 @ dx=336.2`
+against `5:32 @ dx=337.0` — **0.8 px apart**.
+
+Fixed in `cook_chart.dart` with `showAxisLabel`, which drops a bound label
+only when it lacks the room to clear its neighbouring tick. The test is in
+pixels rather than in fractions of the interval, because when fl_chart's
+auto-interval is wider than the visible range the two bounds are the only
+labels there are and a fraction rule discards one for no reason. Both
+labels are measured, so `4:29` beside `4p` is judged differently from
+`4:29` beside `11:30`. A bound that *is* a tick, or one on a span too short
+to hold any tick, is always kept — suppression can never empty an axis.
+
+The golden suite could not have caught this: it pins `targetPoints` and a
+320 px box precisely so goldens describe data rather than layout, and at
+that size the bounds happened to land on tick multiples. `chart_axis_test.dart`
+covers it at the phone's real geometry, asserting that no two painted label
+rects overlap.
+
+### A15.5-2 — the dashboard read 8 h for a 16 h cook
+
+The header showed `08:25:46` elapsed while the bridge reported `t = 58790`
+(16 h 19 m) and the sessions list said 16 h 15 m. It was tracking live
+samples at wall-clock rate above a **hole in the local cache** — the earlier
+half of the cook had never been fetched.
+
+`SyncEngine` resumed from `fromT = cachedMax + 1`, which is right for the
+case it was written for (reconnecting mid-cook) and silently wrong for a
+cache that starts partway in: the cursor begins above the hole and never
+looks down. Its completeness check (`cachedCount >= session.sampleCount`)
+only guards **closed** sessions, so an active cook was never checked at all.
+
+The BLE lane is a documented producer of exactly this shape — it serves the
+last two hours only — so onboarding over Bluetooth and then reaching the
+bridge over Wi-Fi, which is the path this bench actually took, strands
+everything below the mark. Fixed by refetching from 0 when the cache's
+lowest `t` is non-zero. That is safe rather than merely tolerable: inserts
+are keyed on `(bridge, session, t)` and idempotent, so the cost of being
+wrong is bandwidth, against a header that lies.
+
+Both fixes carry tests verified to fail without them.
 
 | Check | Result |
 | --- | --- |
-| **A15.5** install the APK on the real phone and reach the dashboard | ⏳ |
-| **A15.5** onboard from a factory reset over BLE, choose a mode, and land on a live dashboard (not the wizard's own success screen) | ⏳ |
-| **A15.5** watch a live cook update at the sample cadence, with the pit and food tiles readable at arm's length | ⏳ |
-| **A15.5** scroll 15 hours of **real** history — chips, pan, pinch, double-tap, and the jump-to-now pill | ⏳ |
-| **A15.5** export a CSV and open it off the phone; it must match the device's `format=csv` for the same range | ⏳ **note:** the export writes a real file to the app's documents directory and the UI names the path. **There is no share sheet** — handing the file to another app needs a platform intent, and a platform intent needs a device to test it on, so it is this row's first job rather than an untested guess committed now |
-| **A15.5** record the phone's OEM, Android version, and time to first render | ⏳ |
+| **A15.5** install the APK on the real phone and reach the dashboard | ✅ installs and launches; restores its bridge from `BridgePrefs` + drift across a relaunch with no re-onboarding |
+| **A15.5** onboard from a factory reset over BLE, choose a mode, and land on a live dashboard (not the wizard's own success screen) | ✅ proven in the M3 sitting (bond, scan, provision, STA verified) and the dashboard is where it lands. **The factory-reset leg is still owed** — it is A8.4 below, held back because it wipes the X4 pairing and this cook |
+| **A15.5** watch a live cook update at the sample cadence, with the pit and food tiles readable at arm's length | ✅ four tiles, rate-of-change and trend arrows, per-probe sparklines, colour **and** stroke pattern carrying identity |
+| **A15.5** scroll 15 hours of **real** history — chips, pan, pinch, double-tap, and the jump-to-now pill | ✅ after A15.5-1. 15 h of genuine overnight data, window chips `15m/1h/6h/15h/All` |
+| **A15.5** export a CSV and open it off the phone; it must match the device's `format=csv` for the same range | ✅ `cook-0001-cook-1.csv`, 111,993 B, pulled off the phone and parsed: **1970 lines = 1 header + 1969 samples**, matching the statistics panel exactly; 8 columns on every row; peak 134.8° matching the list's "peak 135°"; **no literal `0` in any temperature column** — sentinels stayed absent rather than becoming fake readings. **Still no share sheet** — the file is written and its path named, and handing it to another app remains owed |
+| **A15.5** record the phone's OEM, Android version, and time to first render | ✅ Samsung SM-A166U, Android 15. First render is immediate; the dashboard then shows a spinner for a few seconds while 15 h of history syncs |
+| **A15.5** the sentinels survive the whole trip | ✅ `battery n/a` rather than 0 %, `Pit mean —` rather than 0 with no probe roled as pit |
 | **A14.4b** binder-on / shim-on in AP mode: does the dashboard route? | ⏳ |
 | **A14.4b** binder-off / shim-on | ⏳ |
 | **A14.4b** binder-on / shim-off | ⏳ |

@@ -12,6 +12,7 @@ import 'package:smoke_bridge/data/dto/dto.dart';
 import 'package:smoke_bridge/data/local/database.dart';
 import 'package:smoke_bridge/data/repos/sync_engine.dart';
 import 'package:smoke_bridge/data/transport/mock_transport.dart';
+import 'package:smoke_bridge/domain/entities/entities.dart';
 
 import 'records_parity_test.dart' show repoRoot;
 
@@ -85,6 +86,48 @@ void main() {
     expect(await db.sampleDao.count(status.deviceId, 27), fullCount);
 
     // No duplicates: every (session, t) appears exactly once.
+    final dupes = await db
+        .customSelect(
+          'SELECT COUNT(*) AS n FROM (SELECT session_id, t, COUNT(*) c '
+          'FROM samples GROUP BY bridge_id, session_id, t HAVING c > 1)',
+        )
+        .getSingle();
+    expect(dupes.data['n'], 0);
+  });
+
+  test('a cache that starts partway into a cook is repaired', () async {
+    // Board-found on the A15.5 bench sitting. The BLE lane serves the last
+    // two hours only, so onboarding over Bluetooth and then reaching the
+    // bridge over Wi-Fi leaves a cache whose lowest `t` is hours into the
+    // cook. `cachedMax + 1` starts above the hole and never looks down, so
+    // the dashboard read 8 h for a 16 h cook and would have kept doing so.
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final transport = MockTransport.fromSmkBytes(fullBytes);
+    final status = await transport.status();
+
+    // Seed the cache the way the BLE lane leaves it: the tail only.
+    final tail = <Sample>[];
+    await for (final batch in transport.samples(27, fromT: 0)) {
+      tail.addAll(batch);
+    }
+    final recent = tail.sublist(tail.length - 240);
+    await db.sessionDao.upsertBridge(status.deviceId);
+    await db.sessionDao.upsertSessions(status.deviceId, [
+      ...await transport.sessions(),
+    ]);
+    await db.sampleDao.insertSamples(status.deviceId, 27, recent);
+    expect(await db.sampleDao.minT(status.deviceId, 27), greaterThan(0));
+
+    final report = await SyncEngine(db, transport).sync();
+
+    // A full refetch, not a delta: the batches carry every sample, and the
+    // upsert reports what it wrote rather than what was new.
+    expect(report.samplesInserted, fullCount);
+    expect(await db.sampleDao.count(status.deviceId, 27), fullCount);
+    expect(await db.sampleDao.minT(status.deviceId, 27), 0);
+
+    // Repairing the hole must not double any row it already had.
     final dupes = await db
         .customSelect(
           'SELECT COUNT(*) AS n FROM (SELECT session_id, t, COUNT(*) c '
