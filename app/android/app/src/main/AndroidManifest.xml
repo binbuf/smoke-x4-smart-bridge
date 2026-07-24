@@ -30,6 +30,21 @@
         android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30"/>
+    <!-- A13.5 — the foreground-service rows (09 §9.6). The TYPE is
+         required from Android 14 and omitting it is a CRASH rather than
+         a warning; ours is connectedDevice because that is what the
+         service does. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+    <!-- API 33+. Requested when the FIRST cook starts, not at launch: a
+         prompt before the user has seen anything work is the classic way
+         to get it denied permanently. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- The §9.6 opt-in. Several OEM builds kill long-running foreground
+         services regardless of type; declining degrades the app to
+         "reconnects and catches up when you open it", which still works
+         because the DEVICE never stopped recording. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
         android:label="smoke_bridge"
         android:name="${applicationName}"

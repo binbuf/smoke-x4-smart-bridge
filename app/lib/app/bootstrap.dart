@@ -14,6 +14,7 @@ import '../data/transport/ble_gatt_fbp.dart';
 import '../data/transport/ble_transport.dart';
 import '../data/transport/nsd_discovery.dart';
 import '../features/sessions/export.dart';
+import '../platform/notifications_plugin.dart';
 import 'app.dart';
 import 'app_env.dart';
 import 'error_boundary.dart';
@@ -37,6 +38,11 @@ void bootstrap() {
       exportSink: FileExportSink(await getApplicationDocumentsDirectory()),
       discovery: NsdDiscoverySource(),
       bleAttempt: _bleLane,
+      // A13. Both are seams: everything that DECIDES anything about a
+      // notification is pure and host-tested, and these two are the
+      // plugin plumbing the bench proves.
+      notifications: PluginNotificationSink(),
+      foregroundService: PluginForegroundServiceHost(),
     );
 
     runApp(const ProviderScope(child: SmokeBridgeApp()));
