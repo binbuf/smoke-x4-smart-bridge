@@ -230,7 +230,22 @@ static uint32_t now_ms(void) {
     return (uint32_t)((uint64_t)esp_timer_get_time() / 1000ull);
 }
 
-static void fill_snapshot(app_ui_state_t *st) {
+/* The config half of the snapshot, read from NVS. It lives in its own
+ * struct and is read OUTSIDE s_lock (see ui_task), because s_lock MUST NEVER
+ * wrap flash I/O: a bridge_event handler waiting on the lock runs on the
+ * event loop under a 5 ms budget (F1.3), and a contended flash bus made
+ * these 13 reads blow it and panic-loop the board (found 2026-07-23).
+ * Anything added here must stay lock-free — keep flash out of s_lock. */
+typedef struct {
+    bool celsius;
+    struct {
+        char name[APP_UI_NAME_LEN + 1];
+        int32_t target_f10;
+        uint8_t role; /* raw app_config role; mapped in fill_snapshot */
+    } probe[4];
+} ui_cfg_read_t;
+
+static void read_ui_cfg(ui_cfg_read_t *c) {
     static const app_config_key_t name_keys[4] = {
         APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME,
         APP_CONFIG_PROBE3_NAME, APP_CONFIG_PROBE4_NAME};
@@ -243,24 +258,39 @@ static void fill_snapshot(app_ui_state_t *st) {
 
     uint8_t units = 0;
     (void)app_config_store_get_u8(APP_CONFIG_DEV_UNITS, &units);
-    st->celsius = units == APP_CONFIG_UNITS_C;
+    c->celsius = units == APP_CONFIG_UNITS_C;
+    for (int i = 0; i < 4; i++) {
+        c->probe[i].name[0] = '\0';
+        (void)app_config_store_get_str(name_keys[i], c->probe[i].name,
+                                       sizeof c->probe[i].name);
+        uint8_t role = APP_CONFIG_ROLE_UNUSED;
+        (void)app_config_store_get_u8(role_keys[i], &role);
+        c->probe[i].role = role;
+        int32_t target = 0;
+        (void)app_config_store_get_i32(target_keys[i], &target);
+        c->probe[i].target_f10 = target;
+    }
+}
+
+/* Populate the render snapshot. Everything here is in-memory — cook ring,
+ * smoke_x, power, net — EXCEPT the config, which arrives pre-read in [cfg]
+ * so this runs under s_lock without touching flash. */
+static void fill_snapshot(app_ui_state_t *st, const ui_cfg_read_t *cfg) {
+    st->celsius = cfg->celsius;
 
     const cook_ring_sample_t *newest = cook_ring_get(0);
     const smoke_x_state_t *sx = smoke_x_ctrl_last_state();
     st->num_probes = sx != NULL ? sx->num_probes : 4;
     for (int i = 0; i < 4; i++) {
         app_ui_probe_t *p = &st->probe[i];
-        (void)app_config_store_get_str(name_keys[i], p->name, sizeof p->name);
-        uint8_t role = APP_CONFIG_ROLE_UNUSED;
-        (void)app_config_store_get_u8(role_keys[i], &role);
+        snprintf(p->name, sizeof p->name, "%s", cfg->probe[i].name);
+        const uint8_t role = cfg->probe[i].role;
         p->role = role == APP_CONFIG_ROLE_PIT     ? BRIDGE_PROBE_ROLE_PIT
                   : role == APP_CONFIG_ROLE_FOOD  ? BRIDGE_PROBE_ROLE_FOOD
                   : role == APP_CONFIG_ROLE_AMBIENT
                       ? BRIDGE_PROBE_ROLE_AMBIENT
                       : BRIDGE_PROBE_ROLE_UNUSED;
-        int32_t target = 0;
-        (void)app_config_store_get_i32(target_keys[i], &target);
-        p->target_f10 = target;
+        p->target_f10 = cfg->probe[i].target_f10;
         p->temp_f10 =
             newest != NULL ? newest->temp[i] : (int16_t)BRIDGE_TEMP_DETACHED;
         if (sx != NULL && i < sx->num_probes && sx->probes[i].alarm_armed) {
@@ -468,17 +498,18 @@ static void ui_task(void *arg) {
             timeout_s = 30; /* 01 §1.6's saver profile */
         }
 
-        /* Read config BEFORE taking s_lock. These are NVS reads, and NVS
-         * shares the SPI-flash bus with LittleFS (cook + power log): under
-         * boot or write contention one can block ~17 ms. Holding s_lock
-         * across that stalls the event-bus handlers (on_alarm/on_ble/on_wake
-         * all take this lock), and a handler over 5 ms trips the F1.3 guard —
-         * board-found as an `app_ui.alarm` panic at 17 ms. The lock must wrap
-         * only in-memory model work; timeout_s was already read out here. */
+        /* ALL config/NVS reads happen BEFORE s_lock. NVS shares the SPI-flash
+         * bus with LittleFS (cook + power log): under write contention a read
+         * blocks ~17 ms. Holding s_lock across that stalls the event-bus
+         * handlers (on_alarm/on_ble/on_wake all take this lock), and a handler
+         * over 5 ms trips the F1.3 guard — board-found as an `app_ui.alarm`
+         * panic that looped the board. The lock wraps only in-memory work. */
         uint8_t led_mode = 1;
         (void)app_config_store_get_u8(APP_CONFIG_DEV_LED_ENABLED, &led_mode);
         uint8_t buzzer = 0;
         (void)app_config_store_get_u8(APP_CONFIG_DEV_BUZZER_ENABLED, &buzzer);
+        ui_cfg_read_t cfg;
+        read_ui_cfg(&cfg); /* the 13 probe/units reads — lock-free */
 
         app_ui_state_t snapshot;
         xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -492,7 +523,7 @@ static void ui_task(void *arg) {
                 s_state.confirm_count = (uint8_t)(3u - age / 1000u);
             }
         }
-        fill_snapshot(&s_state);
+        fill_snapshot(&s_state, &cfg);
         app_ui_model_tick(&s_model, &s_state, pressed, t, timeout_s);
         snapshot = s_state;
 
