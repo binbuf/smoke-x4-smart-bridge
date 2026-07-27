@@ -20,6 +20,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -31,6 +32,7 @@ import '../../data/transport/ble_transport.dart'
     show BridgeControlException, BridgeUnsupportedException;
 import '../../data/transport/bridge_transport.dart';
 import '../../data/transport/http_transport.dart' show BridgeApiException;
+import '../../domain/plan/plan.dart';
 import '../../features/dashboard/dashboard_snapshot.dart';
 import '../../ui/probe/probe_freshness.dart';
 
@@ -59,7 +61,15 @@ class RefreshFailure {
 
 class ShellSession extends ChangeNotifier {
   /// The production session: reads the ambient [AppEnv] and boots on [start].
-  ShellSession({AppEnv? env}) : _env = env ?? AppEnv.instance;
+  ///
+  /// The stored cook plan is read **in the constructor**, not in [start]:
+  /// the shell picks instrument-versus-guided on its very first frame, and a
+  /// plan that landed one await later would render the wrong mode and snap.
+  ShellSession({AppEnv? env})
+    : _env = env ?? AppEnv.instance,
+      _seededCelsius = false {
+    _plan = _readStoredPlan();
+  }
 
   /// Test seam: a session that never boots, pre-loaded with a snapshot and a
   /// launch state. `start()` is a no-op, so no radio, socket or database is
@@ -67,10 +77,14 @@ class ShellSession extends ChangeNotifier {
   ShellSession.seeded({
     DashboardSnapshot? snapshot,
     LaunchState launch = const LaunchConnecting(),
+    CookPlan? plan,
+    bool celsius = false,
   }) : _env = null,
-       _booted = true {
+       _booted = true,
+       _seededCelsius = celsius {
     _snapshot = snapshot;
     _launch = launch;
+    _plan = plan;
   }
 
   final AppEnv? _env;
@@ -99,6 +113,50 @@ class ShellSession extends ChangeNotifier {
 
   LaunchState get launch => _launch;
   DashboardSnapshot? get snapshot => _snapshot;
+
+  // ── the guided cook (13 §13.3.1) ─────────────────────────────────────
+
+  CookPlan? _plan;
+
+  /// Only consulted on a seeded (test) session, which has no [AppEnv] to read
+  /// the real preference from.
+  final bool _seededCelsius;
+
+  /// The running guided cook, or null for instrument mode. Survives a process
+  /// death: it is read from prefs in the constructor and written on every
+  /// change, so an OS kill at hour nine of an eighteen-hour brisket comes back
+  /// to the same gauges rather than silently to instrument mode.
+  CookPlan? get plan => _plan;
+
+  /// Whether to render temperatures in °C. Read from the one pref the setup
+  /// flow already writes (`finish_screens.dart`) so a user who picked Celsius
+  /// gets Celsius everywhere the shell feeds, not only on the bridge's OLED.
+  bool get celsius =>
+      _env == null ? _seededCelsius : _env.prefs.displayUnits == 'C';
+
+  CookPlan? _readStoredPlan() {
+    final raw = _env?.prefs.cookPlanJson;
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map<String, Object?>
+          ? CookPlan.fromJson(decoded)
+          : null;
+    } on Object {
+      return null; // unreadable → instrument mode, never a failed launch
+    }
+  }
+
+  /// Start, replace, or end the guided cook. Null ends it.
+  Future<void> setPlan(CookPlan? plan) async {
+    _plan = plan;
+    notifyListeners();
+    await _env?.prefs.setCookPlanJson(
+      plan == null ? null : jsonEncode(plan.toJson()),
+    );
+  }
 
   /// The supervisor's latest link, for the header chip's live health: which
   /// transport, whether it is degraded (on BLE), and the background-upgrade

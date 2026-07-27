@@ -86,7 +86,9 @@ void main() {
       ),
     );
     await tester.pumpWidget(_wrap(BridgeTab(session: session)));
-    expect(find.text('Wi-Fi — hosted network'), findsOneWidget);
+    // "hosted" was the last piece of network vocabulary in the primary flow;
+    // §13.3.7's reading-level gate is US grade 6.
+    expect(find.text('Wi-Fi — the bridge’s own network'), findsOneWidget);
     expect(find.textContaining('192.168.4.1'), findsWidgets);
   });
 

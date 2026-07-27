@@ -50,7 +50,18 @@ class CookView extends StatelessWidget {
     this.onAck,
     this.onPair,
     this.onRefresh,
+    this.showChrome = true,
   });
+
+  /// Whether to draw this screen's own transport chip and alarm bar.
+  ///
+  /// False inside the shell, which owns one of each for all four tabs. With
+  /// Cook drawing its own and the other three getting the shell's, the
+  /// transport indicator changed position, container and scroll behaviour
+  /// depending on which tab you were looking at — and a ringing alarm raised
+  /// two bars and buzzed twice (§13.5.7). Defaults true so this widget still
+  /// stands alone in its own tests and goldens.
+  final bool showChrome;
 
   final DashboardSnapshot snapshot;
 
@@ -144,6 +155,20 @@ class CookView extends StatelessWidget {
   /// Mounted on every branch: an alarm can ring with no probes plugged in.
   Widget _topChrome(BuildContext context) {
     final alarm = _topAlarm;
+    if (!showChrome) {
+      // The shell carries the chip and the alarm bar. The BLE capability
+      // notice stays — it is about *this* screen's readings, not about the
+      // link in the abstract, and the shell bar has nowhere to say it.
+      return snapshot.link == LinkKind.ble
+          ? const Padding(
+              padding: EdgeInsets.only(bottom: SmokeTokens.s4),
+              child: CapabilityNotice(
+                message: 'On Bluetooth — live readings only.',
+                icon: Icons.bluetooth_rounded,
+              ),
+            )
+          : const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -344,10 +369,14 @@ class CookView extends StatelessWidget {
               ],
             ),
           ),
+          // "Stop" read as *stop recording*, which this has never done — the
+          // bridge logs regardless (§13.7.6). What it actually ends is the
+          // guided overlay, so that is what it now says, and the caller puts
+          // a cost sheet behind it.
           OutlinedButton(
             onPressed: onStop,
             style: OutlinedButton.styleFrom(foregroundColor: t.textHi),
-            child: const Text('Stop'),
+            child: const Text('End cook'),
           ),
         ],
       ),

@@ -92,7 +92,7 @@ void main() {
           ),
         ),
       );
-      expect(find.textContaining('no clock'), findsOneWidget);
+      expect(find.textContaining('Time not set'), findsOneWidget);
       expect(find.textContaining('1970'), findsNothing);
     });
   });

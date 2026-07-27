@@ -17,6 +17,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/router.dart';
 import '../../data/transport/bridge_transport.dart';
 import '../dashboard/dashboard_snapshot.dart';
+import '../settings/settings_screen.dart' show SettingsSection;
 import 'shell_session.dart';
 
 /// Presents the connection sheet bound to [session]. The sheet REBUILDS on
@@ -45,7 +46,7 @@ Future<void> showConnectionSheet(BuildContext context, ShellSession session) {
           onHoldBleChanged: session.setHoldBleWhenOnWifi,
           onReachDirectly: () {
             Navigator.of(sheetContext).pop();
-            context.go(AppRoutes.settings);
+            context.go('${AppRoutes.bridge}/${SettingsSection.network.slug}');
           },
         );
       },
@@ -110,8 +111,8 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
           ? 'Reconnecting to Wi-Fi…'
           : 'Full history and settings over Wi-Fi. '
                 '${_holdBle ? "Bluetooth is held as backup, so a dropped "
-                    "network won’t stop your cook." : "Bluetooth backup is "
-                    "off — turn it on for instant fallback if Wi-Fi drops."}',
+                          "network won’t stop your cook." : "Bluetooth backup is "
+                          "off — turn it on for instant fallback if Wi-Fi drops."}',
     LinkKind.offline =>
       'Saved cooks are still here. The app reconnects on its own when the '
           'bridge is back.',
@@ -227,13 +228,19 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
               },
             ),
             const Divider(height: 24),
+            // One label used to hide two unrelated destinations, and the
+            // visible one was the less important: "Reach it directly by
+            // address" sounded like a manual-IP field and actually opened the
+            // entire settings tree — which was the *only* way in, so probes,
+            // units and alarm rules had no discoverable entry point at all.
+            // Settings now lives on the Bridge tab; this says where it went.
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 key: const Key('connection-reach-directly'),
                 onPressed: widget.onReachDirectly,
-                icon: const Icon(Icons.lan_rounded),
-                label: const Text('Reach it directly by address'),
+                icon: const Icon(Icons.settings_ethernet_rounded),
+                label: const Text('Network settings'),
               ),
             ),
           ],

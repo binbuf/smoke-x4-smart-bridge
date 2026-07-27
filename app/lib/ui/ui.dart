@@ -24,4 +24,5 @@ export 'setup/setup_rail.dart';
 export 'setup/setup_scaffold.dart';
 export 'state/stale_veil.dart';
 export 'state/states.dart';
+export 'surface/cost_sheet.dart';
 export 'surface/smoke_card.dart';

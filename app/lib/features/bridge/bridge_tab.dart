@@ -53,7 +53,9 @@ import '../../design/design.dart';
 import '../../domain/entities/entities.dart';
 import '../../ui/ui.dart';
 import '../dashboard/dashboard_snapshot.dart';
+import '../settings/settings_screen.dart' show SettingsSection;
 import '../shell/connection_sheet.dart';
+import '../shell/shell_scope.dart';
 import '../shell/shell_session.dart';
 
 class BridgeTab extends StatefulWidget {
@@ -65,9 +67,12 @@ class BridgeTab extends StatefulWidget {
     this.session,
     this.prefs,
     this.transport,
-    this.active = true,
+    this.active,
   });
 
+  /// Injected by tests. In the app it is null and the tab reads the one live
+  /// session from [ShellScope] — the router builds this widget, so it can no
+  /// longer be handed a session through its constructor.
   final ShellSession? session;
   final BridgePrefs? prefs;
 
@@ -76,11 +81,11 @@ class BridgeTab extends StatefulWidget {
   /// failing that, the remembered address) exactly as it always has.
   final BridgeTransport? transport;
 
-  /// Whether this tab is the one on screen. All four shell tabs stay mounted
-  /// in an [IndexedStack], so "mounted" is not "visible" — and the signal
-  /// poll must not run against a bridge nobody is looking at. Defaults to
-  /// true so a bare `BridgeTab()` (tests, a direct route) still refreshes.
-  final bool active;
+  /// Whether this tab is the one on screen. All four shell branches stay
+  /// mounted, so "mounted" is not "visible" — and the signal poll must not run
+  /// against a bridge nobody is looking at. Null reads it from [ShellScope]
+  /// (and is true with no shell above, as in a bare test).
+  final bool? active;
 
   @override
   State<BridgeTab> createState() => _BridgeTabState();
@@ -116,7 +121,17 @@ class _BridgeTabState extends State<BridgeTab> {
   static const Duration _pollEvery = Duration(seconds: 20);
 
   BridgePrefs? get _prefs => widget.prefs ?? AppEnv.instance?.prefs;
-  DashboardSnapshot? get _snapshot => widget.session?.snapshot;
+
+  /// The live session: injected (tests) or the shell's. Resolved per build
+  /// because the scope is only reachable from a [BuildContext].
+  ShellSession? _session;
+  ShellSession? get _live => widget.session ?? _session;
+  DashboardSnapshot? get _snapshot => _live?.snapshot;
+
+  /// Visible right now — the poll's gate. Null until first resolved, which is
+  /// what lets the initial arm happen exactly once whichever way it lands.
+  bool? _activeResolved;
+  bool get _active => _activeResolved ?? true;
 
   /// The one question every section of this screen keys off: is the bridge
   /// reachable right now?
@@ -134,19 +149,38 @@ class _BridgeTabState extends State<BridgeTab> {
   void initState() {
     super.initState();
     unawaited(_fetchDeviceInfo());
-    _syncPoll();
   }
 
+  /// Both the session and the visibility come from [ShellScope], which is only
+  /// reachable once dependencies are available — so the poll is (re)armed here
+  /// rather than in `initState`.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _session = ShellScope.maybeOf(context);
+    _syncActive();
+  }
+
+  /// An explicitly passed `active` (tests) changes through here.
   @override
   void didUpdateWidget(BridgeTab old) {
     super.didUpdateWidget(old);
-    if (widget.active != old.active) {
-      _syncPoll();
-      if (widget.active) {
-        // Whatever is on screen was last measured while the tab was hidden;
-        // land a fresh reading before the first tick.
-        unawaited(_fetchDeviceInfo());
-      }
+    _syncActive();
+  }
+
+  void _syncActive() {
+    final active = widget.active ?? ShellScope.isActive(context, 3);
+    if (active == _activeResolved) {
+      return;
+    }
+    final first = _activeResolved == null;
+    _activeResolved = active;
+    _syncPoll();
+    // Whatever is on screen was last measured while the tab was hidden; land
+    // a fresh reading before the first tick. Not on the first resolve —
+    // `initState` already asked once.
+    if (active && !first) {
+      unawaited(_fetchDeviceInfo());
     }
   }
 
@@ -159,7 +193,7 @@ class _BridgeTabState extends State<BridgeTab> {
   /// The signal poll runs only while this tab is the visible one.
   void _syncPoll() {
     _poll?.cancel();
-    _poll = widget.active
+    _poll = _active
         ? Timer.periodic(_pollEvery, (_) => unawaited(_fetchDeviceInfo()))
         : null;
   }
@@ -167,8 +201,7 @@ class _BridgeTabState extends State<BridgeTab> {
   /// The transport this screen asks, in preference order: an injected one
   /// (tests), the shell session's open link (no second socket), then nothing —
   /// the remembered-address fallback is built per read in [_fetchDeviceInfo].
-  BridgeTransport? get _open =>
-      widget.transport ?? widget.session?.bridge?.transport;
+  BridgeTransport? get _open => widget.transport ?? _live?.bridge?.transport;
 
   void _maybeRefetch() {
     if (_status == null && !_fetching && _open != null) {
@@ -242,7 +275,7 @@ class _BridgeTabState extends State<BridgeTab> {
   /// re-read this screen's own rows. The session reports its own failure
   /// through the shell's top bar; the device rows just refill or stay `—`.
   Future<void> _onRefresh() async {
-    await widget.session?.refresh();
+    await _live?.refresh();
     await _fetchDeviceInfo();
   }
 
@@ -251,7 +284,7 @@ class _BridgeTabState extends State<BridgeTab> {
   /// send goes through the shared session when present; otherwise a
   /// per-command transport that also serves as the probe.
   Future<void> _runVerb(DisruptiveVerb verb, ControlCommand cmd) async {
-    final session = widget.session;
+    final session = _live;
     final bridge = session?.bridge;
     Future<void> Function() send;
     Future<void> Function() probe;
@@ -298,6 +331,19 @@ class _BridgeTabState extends State<BridgeTab> {
     await fallback?.close();
   }
 
+  /// The diagnostics gate. Five taps on the firmware row — the convention
+  /// every Android user already knows from Build number.
+  int _fwTaps = 0;
+
+  void _tapFirmware() {
+    _fwTaps++;
+    if (_fwTaps < 5) {
+      return;
+    }
+    _fwTaps = 0;
+    context.push('${AppRoutes.bridge}/${SettingsSection.advanced.slug}');
+  }
+
   Future<void> _forget() async {
     await _prefs?.forgetBridge();
     if (mounted) {
@@ -311,8 +357,8 @@ class _BridgeTabState extends State<BridgeTab> {
 
   String get _deviceId => _status?.deviceId.isNotEmpty == true
       ? _status!.deviceId
-      : (widget.session?.bridge?.bridgeId.isNotEmpty == true
-            ? widget.session!.bridge!.bridgeId
+      : (_live?.bridge?.bridgeId.isNotEmpty == true
+            ? _live!.bridge!.bridgeId
             : (_prefs?.lastBridgeId ?? noValue));
 
   /// The address the app is USING, never a stale one presented as live: the
@@ -383,12 +429,14 @@ class _BridgeTabState extends State<BridgeTab> {
 
   ({IconData icon, String title, String caption}) get _connectionState {
     final link = _snapshot?.link;
-    final upgrading = widget.session?.liveLink?.upgrading ?? false;
+    final upgrading = _live?.liveLink?.upgrading ?? false;
     if (link == LinkKind.http) {
       final hosted = _snapshot?.netMode == 'ap';
       return (
         icon: hosted ? Icons.wifi_tethering_rounded : Icons.wifi_rounded,
-        title: hosted ? 'Wi-Fi — hosted network' : 'Wi-Fi — joined network',
+        title: hosted
+            ? 'Wi-Fi — the bridge’s own network'
+            : 'Wi-Fi — your network',
         caption: hosted
             ? 'Connected on the bridge’s own network at $_address. '
                   'Full history, settings, and updates are available.'
@@ -427,7 +475,7 @@ class _BridgeTabState extends State<BridgeTab> {
 
   Widget _connectionCard(SmokeTokens t) {
     final s = _connectionState;
-    final session = widget.session;
+    final session = _live;
     return SmokeCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -610,7 +658,17 @@ class _BridgeTabState extends State<BridgeTab> {
         const SizedBox(height: SmokeTokens.s2),
         StatRow(label: 'Device ID', value: _deviceId, mono: true),
         StatRow(label: 'Address', value: _address, mono: true),
-        StatRow(label: 'Firmware', value: _firmware, mono: true),
+        // Five taps on the firmware row opens the diagnostics console —
+        // packet log, novelty log, app log. It is a real support tool and it
+        // must stay reachable in the field without a cable (08 §8.2), but it
+        // is not a peer of "Probes" in a production settings list, which is
+        // where it used to sit.
+        GestureDetector(
+          key: const Key('bridge-diagnostics-gate'),
+          behavior: HitTestBehavior.opaque,
+          onTap: _tapFirmware,
+          child: StatRow(label: 'Firmware', value: _firmware, mono: true),
+        ),
         StatRow(label: 'Last reading', value: _lastReading),
         StatRow(
           label: 'Smoke X base',
@@ -622,22 +680,29 @@ class _BridgeTabState extends State<BridgeTab> {
     ),
   );
 
+  /// The safe actions, and the way into every device settings page.
+  ///
+  /// The permanently-disabled "Identify" row that used to lead this card is
+  /// gone. Present-and-disabled-with-a-reason is the right discipline for a
+  /// control the user is *looking for* — battery calibration, which they came
+  /// to settings to find — and the wrong one for a control they never knew
+  /// existed: there it is just a dead row at the top of the card, teaching
+  /// that the card cannot be trusted. There is no identify verb in this
+  /// firmware, so there is no row.
   Widget _actionsCard(SmokeTokens t) => SmokeCard(
     padding: const EdgeInsets.symmetric(vertical: SmokeTokens.s1),
     child: Column(
       children: [
-        _TileRow(
-          key: const Key('bridge-identify'),
-          icon: Icons.lightbulb_outline_rounded,
-          title: 'Identify',
-          // Present-and-disabled with its reason, not a button that lies: this
-          // build has no identify control verb (rail R2).
-          subtitle:
-              'Not available yet — this bridge’s firmware has no '
-              '“flash the screen” command.',
-          onTap: null,
-        ),
-        Divider(height: 1, color: t.hairline),
+        for (final s in SettingsSection.deviceSections) ...[
+          _TileRow(
+            key: Key('bridge-section-${s.name}'),
+            icon: s.icon,
+            title: s.title,
+            subtitle: s.subtitle,
+            onTap: () => context.push('${AppRoutes.bridge}/${s.slug}'),
+          ),
+          Divider(height: 1, color: t.hairline),
+        ],
         _TileRow(
           key: const Key('bridge-rerun-wifi'),
           icon: Icons.wifi_rounded,
@@ -659,8 +724,10 @@ class _BridgeTabState extends State<BridgeTab> {
           left: SmokeTokens.s2,
           bottom: SmokeTokens.s2,
         ),
+        // "DANGER ZONE" is a sysadmin idiom, shouted. The four cost sheets
+        // underneath already carry the weight, and they do it calmly.
         child: Text(
-          'DANGER ZONE',
+          'RESET AND POWER',
           style: SmokeType.label.copyWith(color: t.textMuted),
         ),
       ),
@@ -684,6 +751,7 @@ class _BridgeTabState extends State<BridgeTab> {
                           'reboots, then reconnects by itself.',
                       keeps: 'Everything.',
                       confirmLabel: 'Restart',
+                      cancelLabel: 'Leave it running',
                       run: () => _runVerb(
                         DisruptiveVerb.restart,
                         const ControlCommand.reboot(),
@@ -704,6 +772,7 @@ class _BridgeTabState extends State<BridgeTab> {
                     'again later.',
                 loses: 'The cooks cached on this phone.',
                 confirmLabel: 'Forget',
+                cancelLabel: 'Keep this bridge',
                 run: _forget,
               ),
             ),
@@ -728,6 +797,7 @@ class _BridgeTabState extends State<BridgeTab> {
                           'Its pairing, its Wi-Fi, every cook on the bridge, '
                           'and this phone’s saved connection to it.',
                       confirmLabel: 'Erase everything',
+                      cancelLabel: 'Don’t erase',
                       run: () => _runVerb(
                         DisruptiveVerb.factoryReset,
                         const ControlCommand.factoryReset(),
@@ -754,6 +824,7 @@ class _BridgeTabState extends State<BridgeTab> {
                           'bridge for about five seconds.',
                       loses: 'Remote access until someone walks over to it.',
                       confirmLabel: 'Power off',
+                      cancelLabel: 'Leave it on',
                       run: () => _runVerb(
                         DisruptiveVerb.powerOff,
                         const ControlCommand.powerOff(),
@@ -773,21 +844,19 @@ class _BridgeTabState extends State<BridgeTab> {
     String? keeps,
     String? loses,
     required String confirmLabel,
+    required String cancelLabel,
     required Future<void> Function() run,
   }) async {
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CostSheet(
-        title: title,
-        body: body,
-        keeps: keeps,
-        loses: loses,
-        confirmLabel: confirmLabel,
-      ),
+    final ok = await showCostSheet(
+      context,
+      title: title,
+      body: body,
+      keeps: keeps,
+      loses: loses,
+      confirmLabel: confirmLabel,
+      cancelLabel: cancelLabel,
     );
-    if (ok ?? false) {
+    if (ok) {
       await run();
     }
   }
@@ -967,140 +1036,6 @@ class _TileRow extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// The confirm surface every disruptive verb opens (§13.5.6): the consequence
-/// spelled out as what it *keeps* and what it *loses*, then Cancel / confirm.
-/// The confirm is a plain destructive `FilledButton`, never the ember
-/// [PrimaryAction] — the one ember button on a screen is a *forward* action,
-/// not an erase (rail R1).
-class _CostSheet extends StatelessWidget {
-  const _CostSheet({
-    required this.title,
-    required this.body,
-    required this.confirmLabel,
-    this.keeps,
-    this.loses,
-  });
-
-  final String title;
-  final String body;
-  final String confirmLabel;
-  final String? keeps;
-  final String? loses;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(SmokeTokens.radiusCard),
-          ),
-          border: Border.all(color: t.hairline),
-        ),
-        padding: const EdgeInsets.all(SmokeTokens.s5),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(title, style: SmokeType.displayS.copyWith(color: t.textHi)),
-            const SizedBox(height: SmokeTokens.s2),
-            Text(body, style: SmokeType.body.copyWith(color: t.textBody)),
-            if (keeps != null) ...[
-              const SizedBox(height: SmokeTokens.s3),
-              _CostLine(
-                icon: Icons.check_circle_outline_rounded,
-                lead: 'Keeps',
-                text: keeps!,
-                tint: StatusPalette.positive,
-              ),
-            ],
-            if (loses != null) ...[
-              const SizedBox(height: SmokeTokens.s2),
-              _CostLine(
-                icon: Icons.remove_circle_outline_rounded,
-                lead: 'Loses',
-                text: loses!,
-                tint: StatusPalette.critical,
-              ),
-            ],
-            const SizedBox(height: SmokeTokens.s5),
-            FilledButton(
-              key: const Key('cost-confirm'),
-              onPressed: () => Navigator.of(context).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: StatusPalette.critical,
-                foregroundColor: t.textHi,
-                minimumSize: const Size(64, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    SmokeTokens.radiusControl,
-                  ),
-                ),
-              ),
-              child: Text(confirmLabel, style: SmokeType.title),
-            ),
-            const SizedBox(height: SmokeTokens.s2),
-            TextButton(
-              key: const Key('cost-cancel'),
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Cancel',
-                style: SmokeType.title.copyWith(color: t.textMuted),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CostLine extends StatelessWidget {
-  const _CostLine({
-    required this.icon,
-    required this.lead,
-    required this.text,
-    required this.tint,
-  });
-
-  final IconData icon;
-  final String lead;
-  final String text;
-  final Color tint;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: tint),
-        const SizedBox(width: SmokeTokens.s2),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: SmokeType.bodySm.copyWith(color: t.textBody),
-              children: [
-                TextSpan(
-                  text: '$lead ',
-                  style: SmokeType.bodySm.copyWith(
-                    color: t.textHi,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                TextSpan(text: text),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

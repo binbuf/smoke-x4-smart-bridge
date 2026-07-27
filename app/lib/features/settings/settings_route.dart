@@ -24,7 +24,16 @@ import 'settings_probes.dart';
 import 'settings_screen.dart';
 
 class SettingsRoute extends StatefulWidget {
-  const SettingsRoute({super.key});
+  const SettingsRoute({super.key, this.initialSection, this.embedded = false});
+
+  /// Open straight onto one section — how `/bridge/:section` reaches these
+  /// pages now that settings has been folded into the Bridge branch
+  /// (13 §13.3.2). Null keeps the old section-list behaviour.
+  final SettingsSection? initialSection;
+
+  /// True when pushed inside the Bridge branch: back is a branch pop, and
+  /// there is no section list to return to.
+  final bool embedded;
 
   @override
   State<SettingsRoute> createState() => _SettingsRouteState();
@@ -64,6 +73,7 @@ class _SettingsRouteState extends State<SettingsRoute> {
   @override
   void initState() {
     super.initState();
+    _section = widget.initialSection;
     _units = AppEnv.instance?.prefs.displayUnits ?? 'F';
     _quietHours = AppEnv.instance?.prefs.quietHoursEnabled ?? true;
     _monitoring = AppEnv.instance?.prefs.monitoringEnabled ?? true;
@@ -212,16 +222,21 @@ class _SettingsRouteState extends State<SettingsRoute> {
   @override
   Widget build(BuildContext context) {
     final section = _section;
+    // Deep-linked at a section (`/bridge/:section`): there is no section list
+    // behind it, so back is a branch pop and go_router supplies the button.
+    final pinned = widget.initialSection != null;
     return Scaffold(
       appBar: AppBar(
         title: Text(section?.title ?? 'Settings'),
-        leading: IconButton(
-          key: const Key('settings-back'),
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => section == null
-              ? context.go(AppRoutes.home)
-              : setState(() => _section = null),
-        ),
+        leading: pinned
+            ? null
+            : IconButton(
+                key: const Key('settings-back'),
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => section == null
+                    ? context.go(AppRoutes.bridge)
+                    : setState(() => _section = null),
+              ),
       ),
       body: SafeArea(child: _body(section)),
     );

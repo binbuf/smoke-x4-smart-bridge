@@ -22,9 +22,11 @@ Future<void> _expectShellChrome(
   Brightness brightness,
 ) async {
   expect(find.byType(AppShell), findsOneWidget);
-  // The four tabs (§13.3.3).
-  for (final tab in ['Cook', 'History', 'Alarms', 'Bridge']) {
-    expect(find.text(tab), findsOneWidget, reason: 'nav tab "$tab"');
+  // The four branches (§13.3.3). `findsWidgets` rather than `findsOneWidget`
+  // because the shell is adaptive: a rail may render a label per destination
+  // in a different tree shape than the bar does.
+  for (final tab in ['Cook', 'History', 'Alerts', 'Bridge']) {
+    expect(find.text(tab), findsWidgets, reason: 'nav destination "$tab"');
   }
   final context = tester.element(find.byType(AppShell));
   expect(Theme.of(context).brightness, brightness);
@@ -45,6 +47,16 @@ void main() {
     await tester.pumpWidget(_appWith(SmokeTheme.light));
     await tester.pump();
     await _expectShellChrome(tester, Brightness.light);
+  });
+
+  testWidgets('/ redirects into the Cook branch', (tester) async {
+    final router = createRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      MaterialApp.router(theme: SmokeTheme.dark, routerConfig: router),
+    );
+    await tester.pump();
+    expect(router.routerDelegate.currentConfiguration.uri.path, AppRoutes.cook);
   });
 
   testWidgets('with no environment it waits rather than throwing', (

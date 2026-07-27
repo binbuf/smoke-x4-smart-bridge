@@ -18,19 +18,19 @@ import '../../domain/entities/entities.dart';
 
 /// The sections, in the §8.6 order.
 enum SettingsSection {
-  probes('Probes', 'Names, roles, targets', Icons.thermostat),
+  probes('Probes', 'Names, roles and targets', Icons.thermostat),
   alarms(
     'Alarms',
     'What wakes you, and what only tells you',
     Icons.notifications_outlined,
   ),
-  network('Network', 'Hosted or joined, and how to reach it', Icons.wifi),
-  device('Device', 'Units, display, retention', Icons.developer_board),
-  advanced('Advanced', 'Radio, raw packets, logs', Icons.tune),
+  network('Network', 'Which Wi-Fi it uses, and how to reach it', Icons.wifi),
+  device('Device', 'Units, screen and storage', Icons.developer_board),
+  advanced('Diagnostics', 'Radio, packet log, app log', Icons.tune),
   firmware('Firmware', 'Version and updates', Icons.system_update_alt),
   homeAssistant(
     'Home Assistant',
-    'Publish to MQTT over Wi-Fi',
+    'Publish readings to MQTT over Wi-Fi',
     Icons.home_outlined,
   ),
   power('Power', 'Restart, sleep, and factory reset', Icons.power_settings_new),
@@ -40,6 +40,27 @@ enum SettingsSection {
   final String title;
   final String subtitle;
   final IconData icon;
+
+  /// The URL slug under `/bridge/`.
+  String get slug => name.toLowerCase();
+
+  /// The sections that belong to the **device**, and therefore to the Bridge
+  /// tab (13 §13.3.2).
+  ///
+  /// Two are deliberately absent. [alarms] moved to the Alerts branch, where
+  /// delivery and rules belong together. [power] is not listed because the
+  /// Bridge tab already carries those verbs in its own danger zone, each
+  /// behind a cost sheet — two routes to a factory reset is one too many.
+  /// [advanced] is absent because it is a diagnostics console reached by a
+  /// deliberate gesture, not a peer of "Probes" (see `BridgeTab`).
+  static const List<SettingsSection> deviceSections = [
+    probes,
+    network,
+    device,
+    homeAssistant,
+    firmware,
+    about,
+  ];
 }
 
 class SettingsHomeView extends StatelessWidget {
@@ -140,16 +161,18 @@ class DeviceSettingsView extends StatelessWidget {
         ),
         const _SectionLabel('Storage'),
         ListTile(
-          title: const Text('Keep at most'),
-          subtitle: Text('$maxSessions cooks on the bridge'),
+          // The old phrasing ("Keep at most" / "64 cooks on the bridge") never
+          // said what happens when it fills up.
+          title: const Text('Cooks kept on the bridge'),
+          subtitle: Text('$maxSessions — the oldest are deleted first'),
         ),
         const _SectionLabel('Battery'),
         ListTile(
           title: const Text('Battery saver'),
           subtitle: Text(switch (batterySaver) {
-            'off' => 'Never throttle — full performance on mains power',
-            'on' => 'Always throttled: slower CPU, dimmer screen, less radio',
-            _ => 'Engages below 20 % and releases at 30 %',
+            'off' => 'Never slow down — full performance on mains power',
+            'on' => 'Always saving: slower chip, dimmer screen, less radio',
+            _ => 'Turns on below 20%, and off again at 30%',
           }),
         ),
         Padding(
@@ -278,7 +301,7 @@ class AdvancedSettingsView extends StatelessWidget {
               dense: true,
               title: Text(p, style: theme.textTheme.bodySmall),
             ),
-        const _SectionLabel('Novelty log'),
+        const _SectionLabel('Unrecognised packets'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(

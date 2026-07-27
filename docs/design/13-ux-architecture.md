@@ -961,6 +961,51 @@ wake someone up and tell them one number cannot ship colour-only status.
   merge gate; the failure copy *is* the product in this app.
   **OWNER: TBD — assign before W6.**
 
+### 13.3.8 Form factors
+
+This document specified one form factor. The app shipped with none: five `LayoutBuilder`s existed
+and all five sized a widget against its own parent, so on a 7.6" unfolded Fold the shell rendered a
+stretched phone — a 240 px chart marooned in the middle of a tablet.
+
+**The strategic premise, because it decides everything below: this app is a monitor, not a task
+app.** It is watched from across a room, propped on a counter, for fourteen hours. Extra width must
+therefore buy *one screen that answers everything without navigating*, not density. Two rules fall
+out and are enforced in `design/breakpoints.dart`:
+
+- the **chart** is what grows — it is the artifact people read and share;
+- the **probe readouts do not**. A 90 dp temperature stretched across 900 dp reads as a broken
+  layout, not a big number, so content columns cap at `SmokeWindow.readableMax` (480 dp) and the
+  remainder goes to the chart.
+
+| | Compact (< 600) | Medium (600–839) | Expanded (≥ 840) |
+|---|---|---|---|
+| navigation | bottom `NavigationBar` | `NavigationRail` | rail, `extended` past 1240 |
+| status bar | full-width strip | rail footer | rail footer |
+| **Cook** | readouts scroll, chart pinned under at `clamp(200, 32vh, 320)` | supporting pane: readouts left (capped), chart right | same, heroes side-by-side |
+| **History** | list; detail is a **branch push** | list-detail; opening a cook is a **selection** | same, stats table two-column |
+| **Alerts / Bridge** | list; sections push | list-detail | list-detail |
+
+The destinations and their indices never change with the chrome — that is what keeps the rail swap
+a layout change and not an IA change.
+
+**Posture.** Read from `MediaQuery.displayFeatures`, which is real on a Fold and empty everywhere
+else, so every non-foldable path takes the `flat` branch with no cost.
+
+- **Tabletop** (half-open, horizontal hinge) is this product's best physical posture and gets its
+  own Cook layout: chart above the fold, readouts below. A half-folded phone on a counter becomes a
+  purpose-built pit monitor with no stand.
+- **Book** (half-open, vertical hinge) snaps the list-detail split to the hinge rather than to a
+  percentage. A brisket chart bisected by a crease is the most obvious "never opened on the device"
+  tell a foldable app can ship, and it costs one branch to avoid.
+- **Continuity** is free from the branch stacks, *provided selection state is hoisted*: History
+  holds `selectedSessionId` on the list, not inside the detail, so unfolding while reading cook #27
+  lands in the split view with #27 already open.
+
+**Input.** The chart is gesture-only today. Keyboard crosshair stepping, `+`/`-` zoom, `Home`/`End`,
+stylus hover-follow, and focus rings on probe rows are **not built** — the one adaptive obligation
+this wave leaves open. Destructive confirms already autofocus *cancel*, so a trackpad user is never
+one Enter away from an erase they were only reading about.
+
 ---
 
 ## 13.4 Design system

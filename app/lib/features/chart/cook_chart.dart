@@ -23,6 +23,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/palette.dart';
+import '../../core/format.dart';
 import '../../domain/analysis/analysis.dart';
 import '../../domain/entities/entities.dart';
 import 'chart_viewport.dart';
@@ -38,6 +39,7 @@ class CookChart extends StatelessWidget {
     this.onCrosshair,
     this.onViewport,
     this.fullHistory = true,
+    this.celsius = false,
     super.key,
   });
 
@@ -58,7 +60,22 @@ class CookChart extends StatelessWidget {
   final ValueChanged<ChartViewport>? onViewport;
   final bool fullHistory;
 
+  /// Render the temperature axis and the crosshair in °C (13 §13.3.5).
+  ///
+  /// **Only the labels convert.** Storage, the series model, the viewport and
+  /// every threshold stay in tenths of °F (04 §4.2), so a cook recorded in °F
+  /// renders in °C with no migration and no second code path through the
+  /// maths. The visible consequence is that gridlines fall on round °F rather
+  /// than round °C values — `225°F` labels as `107°`. That is a real cosmetic
+  /// cost, and it is the right trade against converting the plotted data,
+  /// which would put two units into the analysis layer.
+  final bool celsius;
+
   Probe? _cfg(int n) => probes.where((p) => p.n == n).firstOrNull;
+
+  /// A raw °F axis value as the label the user's unit calls it.
+  static String axisTemp(double f, {required bool celsius}) =>
+      '${(celsius ? f10ToC10((f * 10).round()) / 10 : f).round()}';
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +217,7 @@ class CookChart extends StatelessWidget {
                 final style = theme.textTheme.labelSmall?.copyWith(
                   color: ProbePalette.axisInk(brightness),
                 );
-                String fmt(double x) => '${x.round()}';
+                String fmt(double x) => axisTemp(x, celsius: celsius);
                 if (!showAxisLabel(
                   v,
                   meta,
@@ -560,6 +577,7 @@ class CrosshairReadout extends StatelessWidget {
     required this.atT,
     this.startedUnixMs,
     this.probes = const [],
+    this.celsius = false,
     super.key,
   });
 
@@ -567,6 +585,7 @@ class CrosshairReadout extends StatelessWidget {
   final int atT;
   final int? startedUnixMs;
   final List<Probe> probes;
+  final bool celsius;
 
   @override
   Widget build(BuildContext context) {
@@ -602,7 +621,7 @@ class CrosshairReadout extends StatelessWidget {
                 ),
                 Text(
                   '${_name(r.probe)}  '
-                  '${r.f == null ? '—' : '${r.f!.toStringAsFixed(1)}°'}'
+                  '${formatTempPrecise(r.f == null ? null : (r.f! * 10).round(), celsius: celsius)}'
                   '${r.f != null && r.deltaS > 30 ? ' (${r.deltaS}s away)' : ''}',
                   style: theme.textTheme.bodyMedium,
                 ),

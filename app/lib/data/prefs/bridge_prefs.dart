@@ -70,6 +70,16 @@ abstract interface class BridgePrefs {
 
   Future<void> setDisplayUnits(String units);
 
+  /// The running guided cook, as `CookPlan.toJson` text, or null for none
+  /// (13 §13.3.1).
+  ///
+  /// It lives here rather than in drift because it is one small flat record
+  /// that must be readable **synchronously at boot** — the shell decides
+  /// instrument-versus-guided on its first frame, and a plan that arrives an
+  /// await later would render the wrong mode and then snap.
+  String? get cookPlanJson;
+  Future<void> setCookPlanJson(String? json);
+
   /// Onboarding a second bridge replaces the first (D12).
   Future<void> forgetBridge();
 }
@@ -85,6 +95,7 @@ class InMemoryBridgePrefs implements BridgePrefs {
     this.preferredTransport = PreferredTransport.auto,
     this.holdBleWhenOnWifi = true,
     this.lastBleDeviceId,
+    this.cookPlanJson,
   });
 
   @override
@@ -105,6 +116,13 @@ class InMemoryBridgePrefs implements BridgePrefs {
   bool holdBleWhenOnWifi;
   @override
   String? lastBleDeviceId;
+  @override
+  String? cookPlanJson;
+
+  @override
+  Future<void> setCookPlanJson(String? json) async {
+    cookPlanJson = json;
+  }
 
   @override
   bool get hasBridge =>
@@ -160,12 +178,16 @@ class InMemoryBridgePrefs implements BridgePrefs {
     holdBleWhenOnWifi = enabled;
   }
 
+  /// Forgetting the bridge ends the cook it was recording: a guided plan for a
+  /// device this phone no longer talks to would render targets against
+  /// readings that can never arrive.
   @override
   Future<void> forgetBridge() async {
     lastBaseUrl = null;
     lastBridgeId = null;
     lastBleDeviceId = null;
     lastSeenUnixMs = null;
+    cookPlanJson = null;
   }
 }
 
@@ -184,6 +206,7 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
   static const _kPreferredTransport = 'transport.preferred';
   static const _kHoldBle = 'transport.hold_ble';
   static const _kBleDeviceId = 'bridge.ble_device_id';
+  static const _kCookPlan = 'cook.plan';
 
   final SharedPreferences _prefs;
 
@@ -249,6 +272,21 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
   }
 
   @override
+  String? get cookPlanJson {
+    final v = _read<String>(_kCookPlan);
+    return v == null || v.isEmpty ? null : v;
+  }
+
+  @override
+  Future<void> setCookPlanJson(String? json) async {
+    if (json == null || json.isEmpty) {
+      await _prefs.remove(_kCookPlan);
+      return;
+    }
+    await _prefs.setString(_kCookPlan, json);
+  }
+
+  @override
   bool get hasBridge =>
       (lastBaseUrl ?? '').isNotEmpty || (lastBleDeviceId ?? '').isNotEmpty;
 
@@ -303,12 +341,14 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
       _prefs.setBool(_kHoldBle, enabled);
 
   /// The transport preference is a device-agnostic user choice, so
-  /// forgetting a bridge deliberately leaves it untouched.
+  /// forgetting a bridge deliberately leaves it untouched. The running cook
+  /// is not: it belonged to the bridge that just went away.
   @override
   Future<void> forgetBridge() async {
     await _prefs.remove(_kBaseUrl);
     await _prefs.remove(_kBridgeId);
     await _prefs.remove(_kBleDeviceId);
     await _prefs.remove(_kLastSeen);
+    await _prefs.remove(_kCookPlan);
   }
 }

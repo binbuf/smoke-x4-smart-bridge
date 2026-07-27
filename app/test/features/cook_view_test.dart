@@ -94,7 +94,7 @@ void main() {
     expect(find.text('Set up a cook'), findsOneWidget);
   });
 
-  testWidgets('guided mode shows the plan title, elapsed, and Stop', (
+  testWidgets('guided mode shows the plan title, elapsed, and End cook', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -110,7 +110,7 @@ void main() {
 
     expect(find.text('Texas brisket'), findsOneWidget);
     expect(find.textContaining('04:12'), findsOneWidget);
-    expect(find.text('Stop'), findsOneWidget);
+    expect(find.text('End cook'), findsOneWidget);
     // A target pill on the food hero.
     expect(find.textContaining('Target'), findsWidgets);
   });

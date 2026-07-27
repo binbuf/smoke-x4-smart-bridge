@@ -41,12 +41,18 @@ class SessionsListView extends StatelessWidget {
     required this.rows,
     this.onOpen,
     this.celsius = false,
+    this.selectedId,
     super.key,
   });
 
   final List<SessionListRow> rows;
   final ValueChanged<CookSession>? onOpen;
   final bool celsius;
+
+  /// The row showing in the detail pane, on a window wide enough to have one.
+  /// Null on compact, where opening a cook is a navigation and there is no
+  /// persistent selection to show.
+  final int? selectedId;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +96,10 @@ class SessionsListView extends StatelessWidget {
         final running = !s.closed;
         return ListTile(
           key: Key('session-row-${s.id}'),
+          selected: selectedId == s.id,
+          selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+            alpha: 0.28,
+          ),
           onTap: onOpen == null ? null : () => onOpen!(s),
           title: Row(
             children: [
@@ -111,8 +121,11 @@ class SessionsListView extends StatelessWidget {
                     color: theme.colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  // "cooking" claimed a state the app may not have: the
+                  // bridge records whether or not a cook was ever set up
+                  // (§13.7.6), and an open session only means recording.
                   child: Text(
-                    'cooking',
+                    'Recording',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onPrimaryContainer,
                     ),
@@ -128,7 +141,7 @@ class SessionsListView extends StatelessWidget {
                   if (formatSessionDate(s.startedUnixMs).isNotEmpty)
                     formatSessionDate(s.startedUnixMs)
                   else
-                    'no clock',
+                    'Time not set',
                   formatDuration(row.summary?.durationS ?? 0),
                   'peak ${formatTemp(row.summary?.peakF10, celsius: celsius)}',
                   '${s.numProbes} probes',
@@ -251,6 +264,7 @@ class _SessionDetailViewState extends State<SessionDetailView> {
             probes: widget.probes,
             marks: widget.marks,
             startedUnixMs: widget.session.startedUnixMs,
+            celsius: widget.celsius,
             crosshairT: _crosshairT,
             onCrosshair: (t) => setState(() => _crosshairT = t),
             onViewport: (v) => setState(() => _viewport = v),
@@ -263,6 +277,7 @@ class _SessionDetailViewState extends State<SessionDetailView> {
             atT: _crosshairT!,
             startedUnixMs: widget.session.startedUnixMs,
             probes: widget.probes,
+            celsius: widget.celsius,
           ),
         ],
         const SizedBox(height: 20),
@@ -321,7 +336,7 @@ class _SessionDetailViewState extends State<SessionDetailView> {
           FilledButton(
             key: const Key('session-rename-save'),
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('Save'),
+            child: const Text('Rename'),
           ),
         ],
       ),
@@ -347,16 +362,20 @@ class _StatsTable extends StatelessWidget {
     final theme = Theme.of(context);
     final rows = <(String, String)>[
       ('Total time', formatDuration(stats.durationS)),
-      ('Samples', '${stats.sampleCount}'),
+      ('Readings', '${stats.sampleCount}'),
       (
-        'Dropouts',
+        // "Dropouts" is radio jargon for what the reader experiences as a
+        // hole in the graph.
+        'Gaps in recording',
         stats.gaps.isEmpty
             ? 'none'
             : '${stats.gaps.length} · ${formatDuration(stats.gapSecondsTotal)} missing',
       ),
       ('Pit mean', _t(stats.pitMeanF)),
       (
-        'Pit σ',
+        // σ is a statistics symbol in a barbecue app. Same number, and the
+        // label stops being a filter on who gets to read it.
+        'Pit steadiness',
         stats.pitStdDevF == null
             ? noValue
             : '±${stats.pitStdDevF!.toStringAsFixed(1)}°',

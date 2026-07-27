@@ -42,10 +42,20 @@ Widget _host(ShellSession session) => MaterialApp(
   home: AppShell(session: session),
 );
 
+/// The shell is adaptive now, so every test has to say which device it is
+/// standing on — the default 800×600 test surface is a *medium* window and
+/// renders the rail, not the bar. A phone is 400×800.
+Future<void> _sized(WidgetTester tester, Size size) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+}
+
 void main() {
   setUpAll(loadAppFonts);
 
-  testWidgets('the four tabs are present', (tester) async {
+  testWidgets('the four tabs are present on a phone', (tester) async {
+    await _sized(tester, const Size(400, 800));
     final session = _session();
     addTearDown(session.dispose);
 
@@ -53,23 +63,44 @@ void main() {
     await tester.pump();
 
     expect(find.byType(NavigationBar), findsOneWidget);
-    for (final tab in ['Cook', 'History', 'Alarms', 'Bridge']) {
+    expect(find.byType(NavigationRail), findsNothing);
+    for (final tab in ['Cook', 'History', 'Alerts', 'Bridge']) {
       expect(find.text(tab), findsOneWidget, reason: 'nav tab "$tab"');
     }
   });
 
-  testWidgets('switching selects the tab and reveals the shell chrome', (
+  testWidgets('a medium window swaps the bar for a rail, same destinations', (
     tester,
   ) async {
+    // An unfolded Pixel Fold, roughly.
+    await _sized(tester, const Size(840, 1000));
     final session = _session();
     addTearDown(session.dispose);
 
     await tester.pumpWidget(_host(session));
     await tester.pump();
 
-    // Cook (tab 0) carries its own chrome inside CookView, so the shell does
-    // not add its bar there.
-    expect(find.byType(SystemStatusBar), findsNothing);
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    // The destinations and their order do not change with the chrome — that
+    // is what keeps this a layout change and not an IA change.
+    for (final tab in ['Cook', 'History', 'Alerts', 'Bridge']) {
+      expect(find.text(tab), findsWidgets, reason: 'rail destination "$tab"');
+    }
+  });
+
+  testWidgets('the shell owns one transport chip on every tab', (tester) async {
+    await _sized(tester, const Size(400, 800));
+    final session = _session();
+    addTearDown(session.dispose);
+
+    await tester.pumpWidget(_host(session));
+    await tester.pump();
+
+    // Cook used to be the exception — it drew its own chip inside CookView
+    // while the other three got the shell's, so the indicator moved when you
+    // changed tabs. There is exactly one, everywhere, now.
+    expect(find.byType(SystemStatusBar), findsOneWidget);
 
     await tester.tap(find.text('History'));
     // Not pumpAndSettle: the live TransportChip's PulseDot animates forever.
@@ -80,7 +111,6 @@ void main() {
       tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
       1,
     );
-    // On a non-Cook tab the shell owns the chrome.
     expect(find.byType(SystemStatusBar), findsOneWidget);
   });
 

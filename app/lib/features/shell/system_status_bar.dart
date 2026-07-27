@@ -75,6 +75,17 @@ class SystemStatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final chip = TransportChip(
+      state: _state,
+      label: _label,
+      live: _live,
+      attempt: attempt,
+      onTap: onTap,
+    );
+    final battery = batteryKnown && socPct != null
+        ? _battery(context, t)
+        : null;
+
     return Material(
       color: t.surface,
       child: SafeArea(
@@ -84,19 +95,7 @@ class SystemStatusBar extends StatelessWidget {
             horizontal: SmokeTokens.s4,
             vertical: SmokeTokens.s2,
           ),
-          child: Row(
-            children: [
-              TransportChip(
-                state: _state,
-                label: _label,
-                live: _live,
-                attempt: attempt,
-                onTap: onTap,
-              ),
-              const Spacer(),
-              if (batteryKnown && socPct != null) _battery(context, t),
-            ],
-          ),
+          child: Row(children: [chip, const Spacer(), ?battery]),
         ),
       ),
     );
