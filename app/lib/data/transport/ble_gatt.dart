@@ -138,6 +138,13 @@ abstract interface class BleGattClient {
   Future<int> requestMtu(int mtu);
   int get mtu;
 
+  /// A26 — the connected link's RSSI in dBm, read from the phone's own
+  /// radio. This is the *phone ↔ bridge* hop and the only one the app can
+  /// measure directly; nothing on the GATT contract carries it, because it
+  /// is a property of the link rather than of the peer. Throws
+  /// [BleStateException] when there is no connection to measure.
+  Future<int> readRssi();
+
   Future<Uint8List> read(int slot);
   Future<void> write(int slot, Uint8List value);
 

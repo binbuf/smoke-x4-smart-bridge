@@ -301,6 +301,23 @@ class FlutterBlueGattClient implements BleGattClient {
 
   // ── attributes ─────────────────────────────────────────────────────
 
+  /// Routed through the same bond-aware mapping as every other GATT op: a
+  /// stale-bond stall must read as "re-pair", not as "no signal" (A24.11).
+  @override
+  Future<int> readRssi() async {
+    final device = _device;
+    if (device == null || _conn != BleConnectionState.connected) {
+      throw const BleStateException('readRssi() while disconnected');
+    }
+    try {
+      return await device.readRssi().timeout(_opTimeout);
+    } on TimeoutException {
+      _mapStall();
+    } on FlutterBluePlusException catch (e) {
+      _mapGattFailure(e);
+    }
+  }
+
   BluetoothCharacteristic _charFor(int slot) {
     final c = _chars[slot];
     if (c == null) {

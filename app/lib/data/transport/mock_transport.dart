@@ -91,6 +91,13 @@ class MockTransport implements BridgeTransport {
     );
   }
 
+  /// Settable, because "what does a weak link look like" is a screen the
+  /// widget tests have to be able to drive without a radio.
+  LinkSignal signalValue = const LinkSignal(wifiDbm: -54, ssid: 'Backyard');
+
+  @override
+  Future<LinkSignal> signal() async => signalValue;
+
   @override
   Future<LiveState> live({Duration window = const Duration(hours: 1)}) async {
     final samples = _archive.toSamples();

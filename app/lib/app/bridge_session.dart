@@ -314,6 +314,33 @@ class BridgeSession {
     _emit();
   }
 
+  /// A26 — an explicit, user-driven refresh: the pull-to-refresh gesture.
+  ///
+  /// **This one throws**, unlike [refreshStatus] and [_pollLive], which
+  /// swallow failure because they run off events nobody asked for. A gesture
+  /// that silently does nothing is indistinguishable from one that worked and
+  /// found nothing new — and that is exactly how an app teaches people it is
+  /// broken. The caller turns the throw into the shell's top bar.
+  ///
+  /// The **live** read comes first because "get me a new value from the unit"
+  /// is literally what the pull means. The status read that follows is a
+  /// bonus: it refreshes alarms, pairing and battery, and a failure there
+  /// must not discard a reading we already have in hand.
+  Future<void> refreshNow() async {
+    _live = await transport.live(window: const Duration(hours: 2));
+    try {
+      _status = await transport.status();
+      if ((_status?.deviceId ?? '').isNotEmpty) {
+        _bridgeId = _status!.deviceId;
+      }
+      await _reloadCache();
+    } on Object {
+      // The unit answered with a reading; a stumbled status read is not a
+      // failed refresh.
+    }
+    _emit();
+  }
+
   void _emit() {
     final snap = buildDashboard(
       status: _status,

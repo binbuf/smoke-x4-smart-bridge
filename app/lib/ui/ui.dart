@@ -4,6 +4,7 @@ library;
 
 export 'chrome/alarm_bar.dart';
 export 'chrome/pulse_dot.dart';
+export 'chrome/signal_bars.dart';
 export 'chrome/transport_chip.dart';
 export 'controls/action_row.dart';
 export 'controls/mono_well.dart';

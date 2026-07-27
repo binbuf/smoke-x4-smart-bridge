@@ -55,6 +55,48 @@ class MqttConfig {
   final bool connected;
 }
 
+/// A26 — how strong the link is, as the transport in use can *actually*
+/// measure it.
+///
+/// **Two different hops, never conflated**, because a phone can only measure
+/// one of them and the bridge can only measure the other:
+///
+///   * [linkDbm] — **phone ↔ bridge**. Only Bluetooth answers this: the GATT
+///     connection has an RSSI the phone reads directly. On Wi-Fi the phone's
+///     own radio sits behind a location-permission-gated Android API this app
+///     deliberately does not hold (A6.6 promised `neverForLocation`), so it
+///     stays null rather than being guessed at.
+///   * [wifiDbm] — **bridge ↔ router**, from `net.rssi`. Meaningful only while
+///     the bridge is a Wi-Fi *client*; when it hosts its own network there is
+///     no upstream AP at all and the firmware reports 0.
+///   * [apClients] — devices joined to the bridge's hosted network. In AP mode
+///     this is the only thing the bridge can say about the link, because the
+///     signal it would need to report is the *phone's*, which it cannot see.
+///
+/// Every field is nullable and **absent means unknown, never zero** — the same
+/// rule the battery percentage and the detached probe have followed since M0.
+class LinkSignal {
+  const LinkSignal({
+    this.linkDbm,
+    this.wifiDbm,
+    this.ssid = '',
+    this.apClients,
+  });
+
+  /// A reachable bridge that can measure nothing. Distinct from a failed
+  /// read, which throws.
+  static const LinkSignal unknown = LinkSignal();
+
+  final int? linkDbm;
+  final int? wifiDbm;
+
+  /// The network the bridge is on — the one it joined, or the one it hosts.
+  final String ssid;
+  final int? apClients;
+
+  bool get isEmpty => linkDbm == null && wifiDbm == null && apClients == null;
+}
+
 /// Push events, as a sealed union so a `switch` over variants is exhaustive —
 /// adding a variant without handling it everywhere fails analysis.
 @freezed
@@ -183,6 +225,15 @@ abstract interface class BridgeTransport {
   Stream<BridgeEvent> get events;
 
   Future<BridgeStatus> status();
+
+  /// A26 — the strength of the link this transport is using (05 §5.7).
+  ///
+  /// Throws exactly like [status] when the bridge cannot be reached — a
+  /// signal read is a round trip and a screen that renders a stale dBm as
+  /// current is the same lie as a stale IP address. A bridge that answers but
+  /// can measure nothing returns [LinkSignal.unknown], which is a state the
+  /// Bridge tab renders in words rather than an error.
+  Future<LinkSignal> signal();
 
   Future<LiveState> live({Duration window = const Duration(hours: 1)});
 

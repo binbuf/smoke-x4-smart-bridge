@@ -49,6 +49,7 @@ class CookView extends StatelessWidget {
     this.onProbeTap,
     this.onAck,
     this.onPair,
+    this.onRefresh,
   });
 
   final DashboardSnapshot snapshot;
@@ -76,6 +77,14 @@ class CookView extends StatelessWidget {
   /// Start pairing the base station, from the `unpaired` empty state. Absent
   /// (no button) when there is no pairing flow to run.
   final VoidCallback? onPair;
+
+  /// A26 — pull-to-refresh: ask the unit for a new value now (13 §13.5.2).
+  ///
+  /// Null wraps nothing, so this widget's existing tests and goldens see the
+  /// same tree they always did. Failure is **not** this widget's to report —
+  /// the future must complete either way or the spinner never stops, and the
+  /// shell's top bar carries the reason.
+  final Future<void> Function()? onRefresh;
 
   bool get _guided => plan != null;
 
@@ -115,10 +124,18 @@ class CookView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final motion = SmokeMotion.of(context);
-    return ListView(
+    final list = ListView(
       padding: const EdgeInsets.all(SmokeTokens.s4),
+      // The empty and unpaired branches are shorter than the screen, and a
+      // page that cannot scroll cannot be pulled — which is exactly the
+      // branch where a manual refresh matters most.
+      physics: onRefresh == null ? null : const AlwaysScrollableScrollPhysics(),
       children: [_topChrome(context), _content(context, motion)],
     );
+    final refresh = onRefresh;
+    return refresh == null
+        ? list
+        : RefreshIndicator(onRefresh: refresh, child: list);
   }
 
   // ── chrome ──────────────────────────────────────────────────────────

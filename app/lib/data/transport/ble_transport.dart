@@ -322,6 +322,33 @@ class BleTransport implements BridgeTransport {
     );
   }
 
+  /// A26 — the one lane that can measure the hop the user is standing in.
+  ///
+  /// The GATT connection's RSSI *is* phone↔bridge, read from the phone's own
+  /// radio, so this is the only place in the app where "how far away am I"
+  /// has a real answer. `net_status` rides along for free (§5.2 is Read as
+  /// well as Notify) so the screen can also say how the bridge is doing on
+  /// Wi-Fi while we are talking to it over Bluetooth.
+  @override
+  Future<LinkSignal> signal() async {
+    final linkDbm = await client.readRssi();
+    try {
+      final n = await readNetStatus();
+      return LinkSignal(
+        linkDbm: linkDbm,
+        // 0 is "not applicable" (hosting, or never joined), not a reading.
+        wifiDbm: (n.modeEnum == dto.NetMode.ap || n.wifiRssi == 0)
+            ? null
+            : n.wifiRssi,
+        ssid: n.ssid,
+      );
+    } on Object {
+      // The link answered for itself; the bridge's Wi-Fi picture is a bonus
+      // this lane can do without rather than a reason to report nothing.
+      return LinkSignal(linkDbm: linkDbm);
+    }
+  }
+
   @override
   Future<LiveState> live({Duration window = const Duration(hours: 1)}) async {
     final s = dto.LiveState.decode(await client.read(BridgeChar.liveState));

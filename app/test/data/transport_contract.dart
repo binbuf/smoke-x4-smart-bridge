@@ -90,6 +90,26 @@ void runTransportContract({
       await t.close();
     });
 
+    test('signal() reports dBm or nothing — never a fabricated zero', () async {
+      final t = await create();
+      final s = await t.signal();
+      // The whole contract of LinkSignal: absent means unknown. A 0 dBm
+      // reading is physically absurd (that is a transmitter in your hand)
+      // and is how the firmware spells "not applicable" — a transport that
+      // passes it through would draw four bars for a link with no AP at all.
+      expect(s.linkDbm, isNot(0));
+      expect(s.wifiDbm, isNot(0));
+      // dBm is negative by construction; a positive one means a sign bug in
+      // the unpacking, which is exactly the i8/u8 mistake this catches.
+      for (final v in [s.linkDbm, s.wifiDbm]) {
+        if (v != null) {
+          expect(v, lessThan(0), reason: 'dBm must be negative');
+          expect(v, greaterThan(-127), reason: 'dBm must be plausible');
+        }
+      }
+      await t.close();
+    });
+
     test('mqttConfig() honours the mqtt capability', () async {
       final t = await create();
       if (t.capabilities.mqtt) {
@@ -98,7 +118,9 @@ void runTransportContract({
         try {
           expect(await t.mqttConfig(), isA<MqttConfig>());
         } on BridgeUnsupportedException {
-          fail('a transport that claims mqtt must not refuse it as unsupported');
+          fail(
+            'a transport that claims mqtt must not refuse it as unsupported',
+          );
         } on Object {
           // A backend/transport error is fine here — capability, not wiring.
         }

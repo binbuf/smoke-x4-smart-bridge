@@ -439,6 +439,10 @@ class _FakeGattClient implements BleGattClient {
   @override
   int get mtu => _mtu;
 
+  /// A scripted lab bridge sits on the bench beside you.
+  @override
+  Future<int> readRssi() async => -52;
+
   @override
   Future<Uint8List> read(int slot) async => Uint8List(0);
 

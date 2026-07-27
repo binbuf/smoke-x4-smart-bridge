@@ -81,6 +81,11 @@ class ConnectionSupervisor {
   final _links = StreamController<LiveLink>.broadcast();
   Stream<LiveLink> get links => _links.stream;
 
+  /// Cuts a backoff wait short. Fed by [retryNow] — the user pulling to
+  /// refresh means *now*, not "in eight seconds when the timer fires".
+  final _kick = StreamController<void>.broadcast();
+  Future<bool>? _retryInFlight;
+
   BridgeTransport? _active;
   LinkKind _activeLink = LinkKind.offline;
   String _activeAddress = '';
@@ -243,7 +248,9 @@ class ConnectionSupervisor {
       if (ble != null) {
         _closeQuietly(ble);
       }
-      unawaited(httpF.then((h) => h == null ? null : _closeQuietly(h.transport)));
+      unawaited(
+        httpF.then((h) => h == null ? null : _closeQuietly(h.transport)),
+      );
       return;
     }
     if (ble != null) {
@@ -297,6 +304,52 @@ class ConnectionSupervisor {
       _goOffline(closePrevious: true);
       _startRecovery();
     }
+  }
+
+  /// A26 — "try now", the connect half of pull-to-refresh (13 §13.5.2).
+  ///
+  /// The background loop already retries on a backoff; this is the user
+  /// saying *now*. Two things it does that the loop alone does not:
+  ///
+  ///   * it cuts the current backoff wait short, and
+  ///   * it brings **Bluetooth** up as well — [_upgradeLoop] only ever races
+  ///     Wi-Fi, so an offline phone whose one path back is a bonded BLE link
+  ///     would pull forever and never reconnect.
+  ///
+  /// Answers whether a link is up when it finishes, because a gesture has to
+  /// be able to report failure. Concurrent pulls share one attempt: pulling
+  /// three times costs one round of radio work, not three.
+  Future<bool> retryNow({Duration timeout = const Duration(seconds: 12)}) {
+    if (_disposed) {
+      return Future<bool>.value(false);
+    }
+    if (_active != null) {
+      return Future<bool>.value(true);
+    }
+    return _retryInFlight ??= _retryOnce(timeout).whenComplete(() {
+      _retryInFlight = null;
+    });
+  }
+
+  Future<bool> _retryOnce(Duration timeout) async {
+    // Subscribe BEFORE kicking anything off, so a link that comes up on the
+    // very next microtask is not missed between the kick and the wait.
+    final settled = _links.stream.firstWhere((l) => !l.offline);
+    // Detached immediately: if the timeout below wins, this future is
+    // abandoned and its "No element" on stream close must not surface as an
+    // unhandled zone error (the same trap A24.11 fixed on the GATT results).
+    unawaited(settled.then((_) {}, onError: (Object _) {}));
+    _startUpgradeLoop();
+    if (!_kick.isClosed) {
+      _kick.add(null);
+    }
+    _startRecovery();
+    try {
+      await settled.timeout(timeout);
+    } on Object {
+      return false;
+    }
+    return !_disposed && _active != null;
   }
 
   void _goActiveHttp(LaunchConnected http, {bool closePrevious = false}) {
@@ -536,13 +589,19 @@ class ConnectionSupervisor {
 
   Future<void> _backoffWaitOrKick(int attempt) async {
     final kick = Completer<void>();
-    final sub = _connectivity.listen((_) {
+    void wake(void _) {
       if (!kick.isCompleted) {
         kick.complete();
       }
-    });
+    }
+
+    // Two things cut the wait short: the phone's network changed under us,
+    // and the user asked for it (retryNow).
+    final subs = [_connectivity.listen(wake), _kick.stream.listen(wake)];
     await Future.any<void>([_delay(backoffDelay(attempt)), kick.future]);
-    await sub.cancel();
+    for (final s in subs) {
+      await s.cancel();
+    }
   }
 
   /// Fire-and-forget close for the many spots that discard a losing/dropped
@@ -575,6 +634,7 @@ class ConnectionSupervisor {
     // sees the sockets actually released.
     await _closeAwait(active);
     await _closeAwait(standby);
+    await _kick.close();
     await _links.close();
   }
 

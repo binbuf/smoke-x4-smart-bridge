@@ -25,6 +25,16 @@
 /// **No dead controls** (`settings_screen.dart:5-11`, rail R2): Identify has no
 /// wire verb in this build, so it is present-and-disabled *with its reason on
 /// screen*, the same discipline the settings epic used for battery calibration.
+///
+/// **Signal (A26).** The connection card names not just *which* link but *how
+/// strong* it is, from [BridgeTransport.signal]. The two hops are labelled
+/// separately and never conflated, because only one of them is measurable on
+/// each lane: Bluetooth reads the phone↔bridge RSSI off the phone's own radio,
+/// Wi-Fi can only report the bridge's uplink to the router, and on the
+/// bridge's own hosted network neither end can see the other's radio at all —
+/// so that state says so and shows the client count instead of inventing bars.
+/// The rows poll only while this tab is the visible one; a signal meter is not
+/// worth waking the radio behind three other screens.
 library;
 
 import 'dart:async';
@@ -36,7 +46,7 @@ import 'verb_progress.dart';
 
 import '../../app/app_env.dart';
 import '../../app/router.dart';
-import '../../core/format.dart';
+import '../../core/core.dart';
 import '../../data/prefs/bridge_prefs.dart';
 import '../../data/transport/bridge_transport.dart';
 import '../../design/design.dart';
@@ -50,10 +60,27 @@ class BridgeTab extends StatefulWidget {
   /// [session] and [prefs] are both optional so the shell's `const BridgeTab()`
   /// keeps compiling: a one-line import swap lands the real screen, and passing
   /// `session:` later lights up its live data. Tests inject a seeded session.
-  const BridgeTab({super.key, this.session, this.prefs});
+  const BridgeTab({
+    super.key,
+    this.session,
+    this.prefs,
+    this.transport,
+    this.active = true,
+  });
 
   final ShellSession? session;
   final BridgePrefs? prefs;
+
+  /// Test seam: the transport the identity and signal rows read from.
+  /// Production passes nothing and the tab reaches through the session (or,
+  /// failing that, the remembered address) exactly as it always has.
+  final BridgeTransport? transport;
+
+  /// Whether this tab is the one on screen. All four shell tabs stay mounted
+  /// in an [IndexedStack], so "mounted" is not "visible" — and the signal
+  /// poll must not run against a bridge nobody is looking at. Defaults to
+  /// true so a bare `BridgeTab()` (tests, a direct route) still refreshes.
+  final bool active;
 
   @override
   State<BridgeTab> createState() => _BridgeTabState();
@@ -65,7 +92,28 @@ class _BridgeTabState extends State<BridgeTab> {
   /// the shell rebuilds on every session change, so a late link still fills
   /// the rows.
   BridgeStatus? _status;
+
+  /// A26 — the live signal, or null when it has not landed (or the last read
+  /// failed). Never carried over from a previous link: a dBm from the Wi-Fi
+  /// lane rendered under a Bluetooth heading is the same class of lie as the
+  /// stale-IP bug this screen was rebuilt to kill.
+  LinkSignal? _signal;
+
+  /// Distinguishes "we have not measured this yet" from "we tried and could
+  /// not" — two states that must never read the same.
+  bool _signalFailed = false;
+
+  /// The link the value in [_signal] was measured on. A dBm from the Wi-Fi
+  /// lane rendered under a Bluetooth heading is the same class of lie as the
+  /// stale-IP bug this screen was rebuilt to kill, so a swap discards it.
+  LinkKind? _signalLink;
+
   bool _fetching = false;
+  Timer? _poll;
+
+  /// A signal that is older than this is not worth showing; the poll keeps it
+  /// fresher than that whenever the tab is visible.
+  static const Duration _pollEvery = Duration(seconds: 20);
 
   BridgePrefs? get _prefs => widget.prefs ?? AppEnv.instance?.prefs;
   DashboardSnapshot? get _snapshot => widget.session?.snapshot;
@@ -86,38 +134,78 @@ class _BridgeTabState extends State<BridgeTab> {
   void initState() {
     super.initState();
     unawaited(_fetchDeviceInfo());
+    _syncPoll();
   }
+
+  @override
+  void didUpdateWidget(BridgeTab old) {
+    super.didUpdateWidget(old);
+    if (widget.active != old.active) {
+      _syncPoll();
+      if (widget.active) {
+        // Whatever is on screen was last measured while the tab was hidden;
+        // land a fresh reading before the first tick.
+        unawaited(_fetchDeviceInfo());
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  /// The signal poll runs only while this tab is the visible one.
+  void _syncPoll() {
+    _poll?.cancel();
+    _poll = widget.active
+        ? Timer.periodic(_pollEvery, (_) => unawaited(_fetchDeviceInfo()))
+        : null;
+  }
+
+  /// The transport this screen asks, in preference order: an injected one
+  /// (tests), the shell session's open link (no second socket), then nothing —
+  /// the remembered-address fallback is built per read in [_fetchDeviceInfo].
+  BridgeTransport? get _open =>
+      widget.transport ?? widget.session?.bridge?.transport;
 
   void _maybeRefetch() {
-    if (_status == null &&
-        !_fetching &&
-        widget.session?.bridge?.transport != null) {
-      _fetching = true;
-      unawaited(
-        _fetchDeviceInfo().whenComplete(() => _fetching = false),
-      );
+    if (_status == null && !_fetching && _open != null) {
+      unawaited(_fetchDeviceInfo());
     }
   }
 
-  /// One `status()` read for the firmware/id rows. Reuses the shell session's
-  /// open transport when present (no second socket); otherwise builds one from
-  /// the remembered address and closes it straight after — the same
-  /// build-ask-close shape `AppConnection` uses to probe a lane.
+  /// One `status()` + one `signal()` read, for the identity rows and the
+  /// signal rows. Reuses the shell session's open transport when present (no
+  /// second socket); otherwise builds one from the remembered address and
+  /// closes it straight after — the same build-ask-close shape `AppConnection`
+  /// uses to probe a lane.
   Future<void> _fetchDeviceInfo() async {
-    final live = widget.session?.bridge?.transport;
-    if (live != null) {
-      await _statusInto(live, close: false);
-      return;
+    if (_fetching) {
+      return; // a pull landing on top of a tick must not double the reads
     }
-    final env = AppEnv.instance;
-    final url = env?.prefs.lastBaseUrl;
-    if (env == null || url == null || url.isEmpty) {
-      return; // BLE, a fresh install, or a bare test — rows fall back to prefs
+    _fetching = true;
+    try {
+      final live = _open;
+      if (live != null) {
+        await _readInto(live, close: false);
+        return;
+      }
+      final env = AppEnv.instance;
+      final url = env?.prefs.lastBaseUrl;
+      if (env == null || url == null || url.isEmpty) {
+        // BLE, a fresh install, or a bare test — the rows fall back to prefs
+        // and the signal block stays absent rather than showing a stale dBm.
+        return;
+      }
+      await _readInto(env.transportFor(url), close: true);
+    } finally {
+      _fetching = false;
     }
-    await _statusInto(env.transportFor(url), close: true);
   }
 
-  Future<void> _statusInto(BridgeTransport t, {required bool close}) async {
+  Future<void> _readInto(BridgeTransport t, {required bool close}) async {
     try {
       final s = await t.status();
       if (mounted) {
@@ -125,11 +213,37 @@ class _BridgeTabState extends State<BridgeTab> {
       }
     } on Object {
       // The device page still renders; the rows that needed it say `—`.
-    } finally {
-      if (close) {
-        await t.close();
+    }
+    try {
+      final sig = await t.signal();
+      if (mounted) {
+        setState(() {
+          _signal = sig;
+          _signalFailed = false;
+          _signalLink = _snapshot?.link;
+        });
+      }
+    } on Object {
+      // Unreachable, or a link that dropped between the two reads. Drop the
+      // old reading rather than keep presenting it as current.
+      if (mounted) {
+        setState(() {
+          _signal = null;
+          _signalFailed = true;
+        });
       }
     }
+    if (close) {
+      await t.close();
+    }
+  }
+
+  /// Pull-to-refresh (13 §13.5.2): ask the unit for a new value, then
+  /// re-read this screen's own rows. The session reports its own failure
+  /// through the shell's top bar; the device rows just refill or stay `—`.
+  Future<void> _onRefresh() async {
+    await widget.session?.refresh();
+    await _fetchDeviceInfo();
   }
 
   /// Runs a disruptive verb inside the completion sheet (A24.9): send, then
@@ -195,12 +309,11 @@ class _BridgeTabState extends State<BridgeTab> {
 
   // ── identity values ───────────────────────────────────────────────────
 
-  String get _deviceId =>
-      _status?.deviceId.isNotEmpty == true
-          ? _status!.deviceId
-          : (widget.session?.bridge?.bridgeId.isNotEmpty == true
-                ? widget.session!.bridge!.bridgeId
-                : (_prefs?.lastBridgeId ?? noValue));
+  String get _deviceId => _status?.deviceId.isNotEmpty == true
+      ? _status!.deviceId
+      : (widget.session?.bridge?.bridgeId.isNotEmpty == true
+            ? widget.session!.bridge!.bridgeId
+            : (_prefs?.lastBridgeId ?? noValue));
 
   /// The address the app is USING, never a stale one presented as live: the
   /// snapshot's address while on Wi-Fi, an explicit "none — via Bluetooth"
@@ -239,30 +352,29 @@ class _BridgeTabState extends State<BridgeTab> {
     _maybeRefetch();
     // A phone with no bridge at all gets ONE clear card and its one action —
     // not a page of dashes pretending there is something to manage.
-    if (!_remembered && !_connected) {
-      return SafeArea(
-        top: false,
-        child: ListView(
-          key: const Key('bridge-tab'),
-          padding: const EdgeInsets.all(SmokeTokens.s4),
-          children: [_connectionCard(t)],
-        ),
-      );
-    }
+    final children = (!_remembered && !_connected)
+        ? [_connectionCard(t)]
+        : [
+            _connectionCard(t),
+            const SizedBox(height: SmokeTokens.s4),
+            _identityCard(t),
+            const SizedBox(height: SmokeTokens.s4),
+            _actionsCard(t),
+            const SizedBox(height: SmokeTokens.s4),
+            _dangerCard(t),
+          ];
     return SafeArea(
       top: false,
-      child: ListView(
-        key: const Key('bridge-tab'),
-        padding: const EdgeInsets.all(SmokeTokens.s4),
-        children: [
-          _connectionCard(t),
-          const SizedBox(height: SmokeTokens.s4),
-          _identityCard(t),
-          const SizedBox(height: SmokeTokens.s4),
-          _actionsCard(t),
-          const SizedBox(height: SmokeTokens.s4),
-          _dangerCard(t),
-        ],
+      child: RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: ListView(
+          key: const Key('bridge-tab'),
+          // The short "no bridge yet" page has nothing to scroll, and a page
+          // that cannot scroll cannot be pulled.
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(SmokeTokens.s4),
+          children: children,
+        ),
       ),
     );
   }
@@ -299,14 +411,16 @@ class _BridgeTabState extends State<BridgeTab> {
       return (
         icon: Icons.cloud_off_rounded,
         title: 'Not connected',
-        caption: 'Can’t reach the bridge right now. The app keeps trying '
+        caption:
+            'Can’t reach the bridge right now. The app keeps trying '
             'and reconnects on its own — Bluetooth first, then Wi-Fi.',
       );
     }
     return (
       icon: Icons.add_link_rounded,
       title: 'No bridge set up',
-      caption: 'This phone isn’t linked to a bridge yet. Setup takes a few '
+      caption:
+          'This phone isn’t linked to a bridge yet. Setup takes a few '
           'minutes and starts over Bluetooth.',
     );
   }
@@ -326,7 +440,11 @@ class _BridgeTabState extends State<BridgeTab> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(s.icon, size: 26, color: _connected ? t.textHi : t.textMuted),
+              Icon(
+                s.icon,
+                size: 26,
+                color: _connected ? t.textHi : t.textMuted,
+              ),
               const SizedBox(width: SmokeTokens.s3),
               Expanded(
                 child: Column(
@@ -348,6 +466,12 @@ class _BridgeTabState extends State<BridgeTab> {
               ),
             ],
           ),
+          if (_connected) ...[
+            const SizedBox(height: SmokeTokens.s3),
+            Divider(height: 1, color: t.hairline),
+            const SizedBox(height: SmokeTokens.s3),
+            _signalSection(t),
+          ],
           const SizedBox(height: SmokeTokens.s3),
           if (!_remembered && !_connected)
             FilledButton.icon(
@@ -359,13 +483,111 @@ class _BridgeTabState extends State<BridgeTab> {
           else if (session != null)
             OutlinedButton.icon(
               key: const Key('bridge-manage-connection'),
-              onPressed: () =>
-                  unawaited(showConnectionSheet(context, session)),
+              onPressed: () => unawaited(showConnectionSheet(context, session)),
               icon: const Icon(Icons.swap_horiz_rounded),
               label: const Text('Manage connection'),
             ),
         ],
       ),
+    );
+  }
+
+  // ── signal: how strong, and between which two things ──────────────────
+
+  /// Only ever rendered while [_connected] — a dBm from a link that is down
+  /// is a number about the past presented as the present.
+  Widget _signalSection(SmokeTokens t) {
+    // A transport swap (BLE → Wi-Fi, or a failover back) makes the last
+    // reading a fact about a different radio. Hide it until the next poll
+    // rather than relabel it.
+    final sig = _signalLink == _snapshot?.link ? _signal : null;
+    final onBle = _snapshot?.link == LinkKind.ble;
+    final hosted =
+        _snapshot?.link == LinkKind.http && _snapshot?.netMode == 'ap';
+    final rows = <Widget>[];
+
+    // 1. The hop the user is standing in. Bluetooth is the only lane that can
+    //    measure it, and it measures it exactly.
+    if (onBle) {
+      rows.add(
+        _SignalRow(
+          key: const Key('bridge-signal-ble'),
+          icon: Icons.bluetooth_rounded,
+          title: 'Phone to bridge',
+          dbm: sig?.linkDbm,
+          kind: SignalKind.bluetooth,
+          // Absent, never faked — and a read that failed must not go on
+          // saying "measuring" as if it were still trying this instant.
+          unknownWhy: _signalFailed
+              ? 'Couldn’t measure it just now.'
+              : 'Measuring…',
+        ),
+      );
+    } else if (hosted) {
+      // The bridge is the access point. It cannot see the phone's radio and
+      // the phone will not report its own, so there is no number to show —
+      // say that, and show the one fact the bridge does have.
+      final n = sig?.apClients;
+      rows.add(
+        _SignalNote(
+          key: const Key('bridge-signal-hosted'),
+          icon: Icons.wifi_tethering_rounded,
+          title: 'Phone to bridge',
+          body: n == null
+              ? 'On the bridge’s own network. Neither end can measure this '
+                    'link’s strength.'
+              : 'On the bridge’s own network — '
+                    '${n == 1 ? "1 device" : "$n devices"} connected. Neither '
+                    'end can measure this link’s strength.',
+        ),
+      );
+    } else {
+      // Joined Wi-Fi: the phone reaches the bridge through the router, and
+      // Android will not hand this app its own RSSI without the location
+      // permission the manifest promises never to take (A6.6).
+      rows.add(
+        const _SignalNote(
+          key: Key('bridge-signal-wifi-phone'),
+          icon: Icons.wifi_rounded,
+          title: 'Phone to bridge',
+          body:
+              'Through your network. Android only reports this phone’s '
+              'Wi-Fi strength to apps that ask for location, which this one '
+              'does not.',
+        ),
+      );
+    }
+
+    // 2. The bridge's own uplink, on whichever lane could learn it. Over
+    //    Bluetooth this still works — net_status carries it — which is how
+    //    you find out the bridge has drifted out of Wi-Fi range while you
+    //    are standing next to it.
+    if (sig?.wifiDbm != null) {
+      rows.add(
+        _SignalRow(
+          key: const Key('bridge-signal-wifi'),
+          icon: Icons.router_rounded,
+          title: (sig!.ssid.isEmpty)
+              ? 'Bridge to your network'
+              : 'Bridge to ${sig.ssid}',
+          dbm: sig.wifiDbm,
+          kind: SignalKind.wifi,
+          unknownWhy: '',
+        ),
+      );
+    }
+
+    return Column(
+      key: const Key('bridge-signal'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('SIGNAL', style: SmokeType.label.copyWith(color: t.textMuted)),
+        const SizedBox(height: SmokeTokens.s2),
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: SmokeTokens.s3),
+          rows[i],
+        ],
+      ],
     );
   }
 
@@ -571,6 +793,119 @@ class _BridgeTabState extends State<BridgeTab> {
   }
 }
 
+/// One measured hop: the two ends it spans, the bars, the dBm, and the word.
+///
+/// A null [dbm] renders [unknownWhy] rather than bars — "we have not measured
+/// this yet" and "this link is weak" must never look the same.
+class _SignalRow extends StatelessWidget {
+  const _SignalRow({
+    required this.icon,
+    required this.title,
+    required this.dbm,
+    required this.kind,
+    required this.unknownWhy,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final int? dbm;
+  final SignalKind kind;
+  final String unknownWhy;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final value = dbm;
+    final level = value == null ? null : signalLevel(value, kind: kind);
+    final advice = level == null ? '' : signalAdvice(level, kind: kind);
+    return Semantics(
+      label: value == null
+          ? '$title, not measured'
+          : '$title, ${signalLabel(level!)}, ${value.abs()} dBm below zero',
+      excludeSemantics: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: t.textMuted),
+          const SizedBox(width: SmokeTokens.s3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: SmokeType.body.copyWith(color: t.textBody)),
+                if (value == null)
+                  Text(
+                    unknownWhy.isEmpty ? 'Not measured yet.' : unknownWhy,
+                    style: SmokeType.bodySm.copyWith(color: t.textMuted),
+                  )
+                else ...[
+                  Row(
+                    children: [
+                      SignalBars(bars: signalBars(value, kind: kind)),
+                      const SizedBox(width: SmokeTokens.s2),
+                      Text(
+                        signalLabel(level!),
+                        style: SmokeType.title.copyWith(color: t.textHi),
+                      ),
+                      const SizedBox(width: SmokeTokens.s2),
+                      Text(
+                        formatDbm(value),
+                        style: SmokeType.mono.copyWith(color: t.textMuted),
+                      ),
+                    ],
+                  ),
+                  if (advice.isNotEmpty)
+                    Text(
+                      advice,
+                      style: SmokeType.bodySm.copyWith(color: t.textMuted),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A hop nobody can measure, stated plainly. This is the honest alternative
+/// to drawing four grey bars and letting the user read them as "no signal".
+class _SignalNote extends StatelessWidget {
+  const _SignalNote({
+    required this.icon,
+    required this.title,
+    required this.body,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: t.textMuted),
+        const SizedBox(width: SmokeTokens.s3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: SmokeType.body.copyWith(color: t.textBody)),
+              Text(body, style: SmokeType.bodySm.copyWith(color: t.textMuted)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// One device-page row: an icon, a title, a supporting line, and (when tappable)
 /// a chevron. A null [onTap] renders it dimmed — the honest look of a control
 /// that cannot act, kept visible with its reason rather than hidden.
@@ -607,11 +942,7 @@ class _TileRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color: enabled ? tint : t.chromeDim,
-            ),
+            Icon(icon, size: 22, color: enabled ? tint : t.chromeDim),
             const SizedBox(width: SmokeTokens.s3),
             Expanded(
               child: Column(

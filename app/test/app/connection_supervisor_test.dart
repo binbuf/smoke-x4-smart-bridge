@@ -32,8 +32,7 @@ class _FakeTransport implements BridgeTransport {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// Time, compressed rather than removed: the upgrade/backoff loop yields to the
@@ -66,24 +65,27 @@ void main() {
   ConnectionSupervisor supervise(AppConnection conn) =>
       ConnectionSupervisor(connection: conn, delay: _fast);
 
-  test('auto, Wi-Fi up: leads with Bluetooth, then upgrades to Wi-Fi', () async {
-    final ble = _FakeTransport('ble');
-    final sup = supervise(makeConn(wifiUp: true, ble: ble));
-    final links = <LiveLink>[];
-    sup.links.listen(links.add);
+  test(
+    'auto, Wi-Fi up: leads with Bluetooth, then upgrades to Wi-Fi',
+    () async {
+      final ble = _FakeTransport('ble');
+      final sup = supervise(makeConn(wifiUp: true, ble: ble));
+      final links = <LiveLink>[];
+      sup.links.listen(links.add);
 
-    await sup.start();
-    await Future<void>.delayed(const Duration(milliseconds: 40));
+      await sup.start();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
 
-    // Bluetooth showed first (instant data), Wi-Fi took over as the active
-    // path, and the BLE link is kept warm rather than closed.
-    expect(links.map((l) => l.link), contains(LinkKind.ble));
-    expect(links.last.link, LinkKind.http);
-    expect(links.last.degraded, isFalse);
-    expect(ble.closed, isFalse);
+      // Bluetooth showed first (instant data), Wi-Fi took over as the active
+      // path, and the BLE link is kept warm rather than closed.
+      expect(links.map((l) => l.link), contains(LinkKind.ble));
+      expect(links.last.link, LinkKind.http);
+      expect(links.last.degraded, isFalse);
+      expect(ble.closed, isFalse);
 
-    await sup.dispose();
-  });
+      await sup.dispose();
+    },
+  );
 
   test('auto, Wi-Fi down: settles on a degraded Bluetooth link', () async {
     final ble = _FakeTransport('ble');
@@ -103,31 +105,33 @@ void main() {
     await sup.dispose();
   });
 
-  test('failover: a Wi-Fi loss swaps to the warm standby, then climbs back',
-      () async {
-    final ble = _FakeTransport('ble');
-    final sup = supervise(makeConn(wifiUp: true, ble: ble));
-    final links = <LiveLink>[];
-    sup.links.listen(links.add);
+  test(
+    'failover: a Wi-Fi loss swaps to the warm standby, then climbs back',
+    () async {
+      final ble = _FakeTransport('ble');
+      final sup = supervise(makeConn(wifiUp: true, ble: ble));
+      final links = <LiveLink>[];
+      sup.links.listen(links.add);
 
-    await sup.start();
-    await Future<void>.delayed(const Duration(milliseconds: 40));
-    expect(links.last.link, LinkKind.http, reason: 'settled on Wi-Fi first');
+      await sup.start();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(links.last.link, LinkKind.http, reason: 'settled on Wi-Fi first');
 
-    links.clear();
-    sup.reportLinkLost();
-    // The swap is synchronous+silent: the very next emitted link is Bluetooth.
-    await Future<void>.delayed(Duration.zero);
-    expect(links.first.link, LinkKind.ble);
-    expect(links.first.degraded, isTrue);
+      links.clear();
+      sup.reportLinkLost();
+      // The swap is synchronous+silent: the very next emitted link is Bluetooth.
+      await Future<void>.delayed(Duration.zero);
+      expect(links.first.link, LinkKind.ble);
+      expect(links.first.degraded, isTrue);
 
-    // Wi-Fi is still reachable, so the background upgrade climbs back onto it.
-    await Future<void>.delayed(const Duration(milliseconds: 40));
-    expect(links.last.link, LinkKind.http);
-    expect(ble.closed, isFalse, reason: 'BLE returns to standby, not closed');
+      // Wi-Fi is still reachable, so the background upgrade climbs back onto it.
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(links.last.link, LinkKind.http);
+      expect(ble.closed, isFalse, reason: 'BLE returns to standby, not closed');
 
-    await sup.dispose();
-  });
+      await sup.dispose();
+    },
+  );
 
   test('preferred = Wi-Fi: leads with Wi-Fi, no Bluetooth flash', () async {
     final ble = _FakeTransport('ble');
@@ -147,29 +151,30 @@ void main() {
     await sup.dispose();
   });
 
-  test('preferred = Bluetooth: leads with — and stays on — Bluetooth', () async {
-    final ble = _FakeTransport('ble');
-    final sup = supervise(
-      makeConn(wifiUp: true, ble: ble, preferred: PreferredTransport.ble),
-    );
-    final links = <LiveLink>[];
-    sup.links.listen(links.add);
+  test(
+    'preferred = Bluetooth: leads with — and stays on — Bluetooth',
+    () async {
+      final ble = _FakeTransport('ble');
+      final sup = supervise(
+        makeConn(wifiUp: true, ble: ble, preferred: PreferredTransport.ble),
+      );
+      final links = <LiveLink>[];
+      sup.links.listen(links.add);
 
-    await sup.start();
-    await Future<void>.delayed(const Duration(milliseconds: 40));
+      await sup.start();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
 
-    // Even though Wi-Fi was reachable, it never climbed off Bluetooth.
-    expect(links.last.link, LinkKind.ble);
-    expect(links.every((l) => l.link != LinkKind.http), isTrue);
+      // Even though Wi-Fi was reachable, it never climbed off Bluetooth.
+      expect(links.last.link, LinkKind.ble);
+      expect(links.every((l) => l.link != LinkKind.http), isTrue);
 
-    await sup.dispose();
-  });
+      await sup.dispose();
+    },
+  );
 
   test('hold-BLE off: the standby is dropped once on Wi-Fi', () async {
     final ble = _FakeTransport('ble');
-    final sup = supervise(
-      makeConn(wifiUp: true, ble: ble, holdBle: false),
-    );
+    final sup = supervise(makeConn(wifiUp: true, ble: ble, holdBle: false));
     final links = <LiveLink>[];
     sup.links.listen(links.add);
 
@@ -235,5 +240,99 @@ void main() {
 
     await sup.dispose();
     expect(ble.closed, isTrue);
+  });
+
+  // ── A26: retryNow — the connect half of pull-to-refresh ──────────────
+
+  test(
+    'retryNow on a healthy link answers yes without touching the radios',
+    () async {
+      final ble = _FakeTransport('ble');
+      final sup = supervise(makeConn(wifiUp: true, ble: ble));
+      sup.links.listen((_) {});
+      await sup.start();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      expect(await sup.retryNow(), isTrue);
+      await sup.dispose();
+    },
+  );
+
+  test('retryNow brings Bluetooth up — the upgrade loop only ever races '
+      'Wi-Fi, so a BLE-only path back would never be found', () async {
+    // The bridge is off: neither lane answers, so the boot lands offline.
+    _FakeTransport? ble;
+    final conn = AppConnection(
+      prefs: InMemoryBridgePrefs(lastBaseUrl: 'http://10.0.0.7'),
+      transportFor: (_) => _FakeTransport('http'),
+      probe: (_) async => false, // Wi-Fi is down and stays down
+      bleAttempt: () async => ble,
+      delay: _fast,
+    );
+    final sup = ConnectionSupervisor(connection: conn, delay: _fast);
+    final links = <LiveLink>[];
+    sup.links.listen(links.add);
+
+    await sup.start();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(links.last.offline, isTrue);
+
+    // Someone switches the bridge back on. Bluetooth can answer now; Wi-Fi
+    // still cannot — which is exactly the case the Wi-Fi-only climb misses.
+    ble = _FakeTransport('ble');
+    expect(await sup.retryNow(timeout: const Duration(seconds: 2)), isTrue);
+    expect(links.last.link, LinkKind.ble);
+
+    await sup.dispose();
+  });
+
+  test(
+    'retryNow with nothing reachable answers no, and answers promptly',
+    () async {
+      final sup = supervise(makeConn(wifiUp: false));
+      sup.links.listen((_) {});
+      await sup.start();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      // The gesture has to end. A pull that spins forever is worse than one
+      // that reports failure.
+      expect(
+        await sup.retryNow(timeout: const Duration(milliseconds: 150)),
+        isFalse,
+      );
+      await sup.dispose();
+    },
+  );
+
+  test('overlapping retries share one round of radio work', () async {
+    var bleAttempts = 0;
+    final conn = AppConnection(
+      prefs: InMemoryBridgePrefs(lastBaseUrl: 'http://10.0.0.7'),
+      transportFor: (_) => _FakeTransport('http'),
+      probe: (_) async => false,
+      bleAttempt: () async {
+        bleAttempts++;
+        return null;
+      },
+      delay: _fast,
+    );
+    final sup = ConnectionSupervisor(connection: conn, delay: _fast);
+    sup.links.listen((_) {});
+    await sup.start();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final afterBoot = bleAttempts;
+
+    const short = Duration(milliseconds: 150);
+    final results = await Future.wait([
+      sup.retryNow(timeout: short),
+      sup.retryNow(timeout: short),
+      sup.retryNow(timeout: short),
+    ]);
+
+    expect(results, everyElement(isFalse));
+    // Three pulls, one attempt: a user drumming on the screen must not cost
+    // three rounds of radio.
+    expect(bleAttempts, afterBoot + 1);
+    await sup.dispose();
   });
 }

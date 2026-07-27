@@ -174,6 +174,29 @@ class HttpTransport implements BridgeTransport {
     );
   }
 
+  /// A26 — `status.net` is the only signal this lane can honestly report.
+  ///
+  /// The phone's own Wi-Fi RSSI would be the *nearest* hop, and it is not
+  /// available: reading it on Android needs the location permission the
+  /// manifest promises never to take (A6.6). So this returns the bridge's
+  /// uplink — and in AP mode, where the bridge has no uplink, the number of
+  /// devices on its network instead. Neither is dressed up as the other.
+  @override
+  Future<LinkSignal> signal() async {
+    final j = await _getJson('/api/v1/status') as Map;
+    final net = (j['net'] as Map?) ?? {};
+    final hosting = '${net['mode'] ?? ''}' == 'ap';
+    final rssi = (net['rssi'] as num?)?.toInt();
+    return LinkSignal(
+      // 0 is the firmware's "not applicable" (AP mode has no upstream AP),
+      // never a real reading — an antenna touching the router still reads
+      // around −20.
+      wifiDbm: (hosting || rssi == null || rssi == 0) ? null : rssi,
+      ssid: '${net['ssid'] ?? ''}',
+      apClients: hosting ? (net['ap_clients'] as num?)?.toInt() : null,
+    );
+  }
+
   @override
   Future<LiveState> live({Duration window = const Duration(hours: 1)}) async {
     final j = await _getJson('/api/v1/live?window=${window.inSeconds}') as Map;

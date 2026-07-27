@@ -59,6 +59,9 @@ class _FakeTransport implements BridgeTransport {
       const LiveState(t: 0, tempsF10: [null, null, null, null]);
 
   @override
+  Future<LinkSignal> signal() async => const LinkSignal(wifiDbm: -54);
+
+  @override
   Future<List<CookSession>> sessions() async => const [];
 
   @override

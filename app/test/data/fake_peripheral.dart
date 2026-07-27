@@ -38,11 +38,15 @@ class FakePeripheralConfig {
     this.advertiseMalformed = false,
     this.advertiseNothing = false,
     this.continuousScan = false,
+    this.rssi = -58,
   });
 
   /// 23 is the value to fear: it is what a failed negotiation leaves, and
   /// the one `live_state` was designed at 16 B to survive (R7).
   final int negotiatedMtu;
+
+  /// The connected link's RSSI in dBm, for the Bridge tab's signal rows.
+  final int rssi;
   final bool rejectBond;
 
   /// The link drops in the middle of a write — the wizard must not hang.
@@ -354,6 +358,14 @@ class FakePeripheral implements BleGattClient {
   @override
   int get mtu => _mtu;
 
+  /// The link's own RSSI, which needs a link — reading it while
+  /// disconnected must fail the same way every other op does.
+  @override
+  Future<int> readRssi() async {
+    _requireConnected();
+    return config.rssi;
+  }
+
   // ── attribute access ───────────────────────────────────────────────
 
   void _requireConnected() {
@@ -369,7 +381,8 @@ class FakePeripheral implements BleGattClient {
     if (slot == BridgeChar.deviceInfo) {
       return; // open: identify a bridge before bonding
     }
-    if (config.staleBond && !_staleBondCleared &&
+    if (config.staleBond &&
+        !_staleBondCleared &&
         _bond == BleBondState.bonded) {
       // We think we are bonded; the peer disagrees. This is what a
       // factory-reset bridge does, and it must be distinguishable.

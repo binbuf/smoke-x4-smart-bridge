@@ -27,9 +27,35 @@ import '../../app/app_env.dart';
 import '../../app/bridge_session.dart';
 import '../../app/connection.dart';
 import '../../app/connection_supervisor.dart';
+import '../../data/transport/ble_transport.dart'
+    show BridgeControlException, BridgeUnsupportedException;
 import '../../data/transport/bridge_transport.dart';
+import '../../data/transport/http_transport.dart' show BridgeApiException;
 import '../../features/dashboard/dashboard_snapshot.dart';
 import '../../ui/probe/probe_freshness.dart';
+
+/// A26 — why the last pull-to-refresh could not produce a new reading.
+///
+/// A refresh that fails **must say so**. Leaving the previous number on screen
+/// is indistinguishable from a successful refresh that found nothing new, and
+/// on this app the difference is "your brisket is at 165 °F" versus "your
+/// brisket was at 165 °F an hour ago and the bridge has been off since".
+///
+/// [notConnected] separates the two failures that need different words and a
+/// different action: the bridge was never reached (retry, check power/range)
+/// versus it answered and then refused or stalled (wait, try again).
+@immutable
+class RefreshFailure {
+  const RefreshFailure({
+    required this.title,
+    required this.detail,
+    this.notConnected = false,
+  });
+
+  final String title;
+  final String detail;
+  final bool notConnected;
+}
 
 class ShellSession extends ChangeNotifier {
   /// The production session: reads the ambient [AppEnv] and boots on [start].
@@ -163,6 +189,11 @@ class ShellSession extends ChangeNotifier {
   Future<void> _handleLink(LiveLink link) async {
     _liveLink = link;
     final t = link.transport;
+    if (t != null) {
+      // A "not connected" banner over a screen that just reconnected is its
+      // own lie — the link coming back retires the last failure.
+      _refreshFailure = null;
+    }
     // The supervisor re-emits on every health change — upgrade retries, the
     // attempt counter, degraded/upgrading flips — usually with the SAME
     // transport. Those are chip updates, not switches: rebinding the session
@@ -225,6 +256,113 @@ class ShellSession extends ChangeNotifier {
     }
   }
 
+  // ── pull-to-refresh (A26, 13 §13.5.2) ────────────────────────────────
+
+  bool _refreshing = false;
+  RefreshFailure? _refreshFailure;
+
+  /// True while a pull is in flight. The [RefreshIndicator] owns its own
+  /// spinner; this exists so the banner can say "trying again…" instead of
+  /// leaving the previous failure on screen while we work.
+  bool get refreshing => _refreshing;
+
+  /// The last pull's failure, or null when the last one worked (or none has
+  /// run). Cleared automatically the moment a link comes back — a stale
+  /// "not connected" over a live screen is its own lie.
+  RefreshFailure? get refreshFailure => _refreshFailure;
+
+  void dismissRefreshFailure() {
+    if (_refreshFailure != null) {
+      _refreshFailure = null;
+      notifyListeners();
+    }
+  }
+
+  /// The gesture: **get a new value from the unit**, or say why not.
+  ///
+  /// Disconnected, it is a reconnect first ([ConnectionSupervisor.retryNow] —
+  /// both radios, no backoff wait) and only then a read. Connected, it goes
+  /// straight to [BridgeSession.refreshNow], whose throw becomes the banner.
+  ///
+  /// Never throws: the caller is a [RefreshIndicator], whose future ending in
+  /// an error would leave the spinner spinning forever.
+  Future<void> refresh() async {
+    if (_refreshing) {
+      return;
+    }
+    _refreshing = true;
+    _refreshFailure = null;
+    notifyListeners();
+    try {
+      await _refreshOnce();
+    } on Object catch (e) {
+      _refreshFailure = _classify(e);
+    } finally {
+      _refreshing = false;
+      if (!_disposed) {
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> _refreshOnce() async {
+    if (_session == null || (_liveLink?.offline ?? true)) {
+      final supervisor = _supervisor;
+      final up = supervisor == null ? false : await supervisor.retryNow();
+      if (!up) {
+        _refreshFailure = const RefreshFailure(
+          title: 'Not connected',
+          detail:
+              'Couldn’t reach your bridge. Check it is powered on and in '
+              'range — the app keeps trying on its own.',
+          notConnected: true,
+        );
+        return;
+      }
+      // The link is up but [_handleLink] builds/rebinds the session on its
+      // own turn. That path already reads status, history and live, so
+      // there is nothing left for this pull to ask for.
+      if (_session == null) {
+        return;
+      }
+    }
+    try {
+      await _session!.refreshNow();
+    } on Object catch (e) {
+      _refreshFailure = _classify(e);
+    }
+  }
+
+  /// Failures the user can act on get their own words; everything else gets
+  /// one honest sentence rather than a stack trace or an error code.
+  RefreshFailure _classify(Object e) => switch (e) {
+    BridgeApiException(:final message, :final code) => RefreshFailure(
+      title: 'The bridge refused',
+      detail: message.isEmpty ? code : message,
+    ),
+    BridgeControlException(:final detail) => RefreshFailure(
+      title: 'The bridge refused',
+      detail: detail.isEmpty ? 'It could not answer that right now.' : detail,
+    ),
+    BridgeUnsupportedException(:final what) => RefreshFailure(
+      title: 'Not over Bluetooth',
+      detail:
+          '$what needs Wi-Fi. Connect the bridge to your network for the '
+          'full picture.',
+    ),
+    TimeoutException() => const RefreshFailure(
+      title: 'The bridge didn’t answer',
+      detail: 'It is there but slow to reply. Try again in a moment.',
+    ),
+    _ => const RefreshFailure(
+      title: 'Couldn’t refresh',
+      detail:
+          'The bridge stopped answering. The app keeps trying and reconnects '
+          'on its own.',
+      notConnected: true,
+    ),
+  };
+
   /// Passes a control command to the device and refreshes status. A no-op
   /// before the session connects (an offline tab has nothing to command).
   Future<void> control(ControlCommand cmd) async {
@@ -241,8 +379,7 @@ class ShellSession extends ChangeNotifier {
   PreferredTransport get preferredTransport =>
       _connection?.prefs.preferredTransport ?? PreferredTransport.auto;
 
-  bool get holdBleWhenOnWifi =>
-      _connection?.prefs.holdBleWhenOnWifi ?? true;
+  bool get holdBleWhenOnWifi => _connection?.prefs.holdBleWhenOnWifi ?? true;
 
   Future<void> setPreferredTransport(PreferredTransport t) async {
     await _connection?.prefs.setPreferredTransport(t);

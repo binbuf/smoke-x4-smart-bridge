@@ -20,6 +20,13 @@ class _ControllableTransport implements BridgeTransport {
 
   /// Flip true to make the next status read fail — "the bridge is unreachable".
   bool failStatus = false;
+
+  /// The same, for the live read pull-to-refresh leads with.
+  bool failLive = false;
+
+  /// Seconds into the session the unit will report next — "the bridge has a
+  /// newer reading than the screen".
+  int liveT = 0;
   bool closed = false;
   final _events = StreamController<BridgeEvent>.broadcast();
 
@@ -41,8 +48,12 @@ class _ControllableTransport implements BridgeTransport {
   }
 
   @override
-  Future<LiveState> live({Duration window = const Duration(hours: 1)}) async =>
-      const LiveState(t: 0, tempsF10: <int?>[]);
+  Future<LiveState> live({Duration window = const Duration(hours: 1)}) async {
+    if (failLive) {
+      throw Exception('unreachable');
+    }
+    return LiveState(t: liveT, tempsF10: const <int?>[]);
+  }
 
   @override
   Future<void> close() async {
@@ -51,8 +62,7 @@ class _ControllableTransport implements BridgeTransport {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -99,15 +109,18 @@ void main() {
     await session.dispose();
   });
 
-  test('with no onLinkLost a push error is simply swallowed (legacy)', () async {
-    final t = _ControllableTransport();
-    final session = BridgeSession(db: db, transport: t, link: LinkKind.http);
-    await session.start();
-    // Must not throw or fail the zone — the old behaviour.
-    t.pushError(StateError('stream closed'));
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-    await session.dispose();
-  });
+  test(
+    'with no onLinkLost a push error is simply swallowed (legacy)',
+    () async {
+      final t = _ControllableTransport();
+      final session = BridgeSession(db: db, transport: t, link: LinkKind.http);
+      await session.start();
+      // Must not throw or fail the zone — the old behaviour.
+      t.pushError(StateError('stream closed'));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await session.dispose();
+    },
+  );
 
   test('switchTransport rebinds live and never closes the old link', () async {
     final a = _ControllableTransport(deviceId: 'A');
@@ -157,4 +170,48 @@ void main() {
 
     await session.dispose();
   });
+
+  // ── A26: refreshNow — the read behind pull-to-refresh ────────────────
+
+  test('refreshNow gets a new value from the unit and emits it', () async {
+    final t = _ControllableTransport();
+    final session = BridgeSession(db: db, transport: t, link: LinkKind.http);
+    await session.start();
+    expect(session.snapshot!.elapsedS, 0);
+
+    t.liveT = 900; // fifteen minutes have passed on the bridge
+    await session.refreshNow();
+
+    expect(session.snapshot!.elapsedS, 900);
+    await session.dispose();
+  });
+
+  test(
+    'refreshNow THROWS when the unit cannot be reached — a gesture that '
+    'silently does nothing is how an app teaches people it is broken',
+    () async {
+      final t = _ControllableTransport()..failLive = true;
+      final session = BridgeSession(db: db, transport: t, link: LinkKind.http);
+      await session.start();
+
+      await expectLater(session.refreshNow(), throwsA(isA<Exception>()));
+      await session.dispose();
+    },
+  );
+
+  test(
+    'a stumbled status read does not discard a reading already in hand',
+    () async {
+      final t = _ControllableTransport();
+      final session = BridgeSession(db: db, transport: t, link: LinkKind.http);
+      await session.start();
+
+      t.liveT = 900;
+      t.failStatus = true; // alarms/battery go stale; the temperature does not
+      await session.refreshNow();
+
+      expect(session.snapshot!.elapsedS, 900);
+      await session.dispose();
+    },
+  );
 }
