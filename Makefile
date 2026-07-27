@@ -15,12 +15,14 @@
 #   IDF_EXPORT=/path/to/esp-idf/export.sh  Override ESP-IDF location
 #                                          (also honors IDF_PATH; defaults to ~/esp/esp-idf)
 #
-# NOTE for T5 (M6): the reference's `dist` targets merge bootloader, partition
-# table, app, and storage with esptool merge_bin at offsets 0x0/0x8000/0x10000/
-# 0x210000. Those offsets do NOT transfer here — our partition table differs
-# (8 MB, dual OTA slots, coredump, www, cooks; see docs/design/03 §3.5 and
-# firmware/partitions.csv). Recompute every offset from our partitions.csv when
-# writing the merged-image target.
+# The reference's `dist` targets merge bootloader, partition table, app, and
+# storage with esptool merge_bin at fixed offsets 0x0/0x8000/0x10000/0x210000.
+# Those offsets do NOT transfer here — our partition table differs (8 MB, dual
+# OTA slots, coredump, www, cooks; see docs/design/03 §3.5 and
+# firmware/partitions.csv). Settled in T5.1: `make dist` shells out to
+# tools/flash, which reads every offset from the build's own flasher_args.json
+# rather than transcribing any of them, so a moved partition cannot silently
+# produce a mis-merged image.
 
 .DEFAULT_GOAL := help
 
@@ -84,7 +86,8 @@ TEST_BUILD := firmware/test/build
 PORT_ARG := $(if $(PORT),-p $(PORT),)
 
 .PHONY: help check-python check-idf setup build flash flash-monitor monitor \
-	menuconfig test-host oled-preview sim clean clean-test
+	menuconfig test-host oled-preview sim clean clean-test \
+	doctor deploy-bridge deploy-app dist
 
 # help: Show available targets and usage
 help:
@@ -180,6 +183,35 @@ endef
 setup:
 	git submodule update --init --recursive
 	dart pub get
+
+# --- Deploy (no toolchain required) ---
+#
+# The targets above BUILD, which is why they need ESP-IDF. These three only
+# WRITE an already-built image, so a user who just wants the bridge running
+# never installs a compiler. Same bytes, same board — see scripts/deploy.sh.
+
+# doctor: Report which deploy prerequisites are present and what each is for
+#
+# `|| true` because the script exits non-zero when something is missing — which
+# is right for CI and wrong here, where a missing ESP-IDF is the expected state
+# for anyone who only wants to flash. A report is not a failure.
+doctor:
+	@./scripts/deploy.sh doctor || true
+
+# deploy-bridge: Flash a prebuilt merged image over USB (needs only esptool)
+deploy-bridge:
+	./scripts/deploy.sh bridge $(DEPLOY_ARGS)
+
+# deploy-app: Build and install the Android app on a connected phone
+deploy-app:
+	./scripts/deploy.sh app $(DEPLOY_ARGS)
+
+# dist: Pack the merged image, the OTA image, and the installer manifest
+dist: build
+	dart run flash --build $(FW_DIR)/$(FW_BUILD) \
+		--version $$(sed -n 's/^CONFIG_APP_PROJECT_VER="\(.*\)"$$/\1/p' \
+			$(FW_DIR)/sdkconfig.defaults) \
+		--out dist
 
 # --- Firmware (Heltec WiFi LoRa 32 V3) ---
 
