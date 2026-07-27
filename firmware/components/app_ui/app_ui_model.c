@@ -1,5 +1,9 @@
-/* app_ui_model.c — page navigation, context actions, and the sleep policy
- * (F11b.8, F11b.9; design 07 §7.1, §7.2, §7.4).
+/* app_ui_model.c — view navigation, the power-off hold, and the sleep
+ * policy (design 07 §7.1, §7.2, §7.4).
+ *
+ * The bridge is a passthrough: every control lives in the app, so this owns
+ * only which view is on the glass, the power-off confirm, and when the panel
+ * sleeps. An alarm is displayed here and never silenced here.
  */
 #include "app_ui_model.h"
 
@@ -8,43 +12,11 @@
 
 static const app_ui_model_ops_t *s_ops_default;
 
-static app_ui_action_t action_for_page(uint8_t page) {
-    switch (page) {
-    case APP_UI_PAGE_PROBES:
-        return APP_UI_ACTION_TOGGLE_UNITS;
-    case APP_UI_PAGE_COOK:
-        return APP_UI_ACTION_SESSION_TOGGLE;
-    case APP_UI_PAGE_NETWORK:
-        return APP_UI_ACTION_NET_TOGGLE;
-    case APP_UI_PAGE_RADIO:
-        return APP_UI_ACTION_RADIO_TOGGLE;
-    case APP_UI_PAGE_SYSTEM:
-        return APP_UI_ACTION_SAVER_TOGGLE;
-    default:
-        return APP_UI_ACTION_NONE;
-    }
-}
-
 const char *app_ui_action_prompt(app_ui_action_t a, const app_ui_state_t *st) {
+    (void)st;
     switch (a) {
-    case APP_UI_ACTION_TOGGLE_UNITS:
-        return st != NULL && st->celsius ? "Switch to F?" : "Switch to C?";
-    case APP_UI_ACTION_SESSION_TOGGLE:
-        return st != NULL && st->session_active ? "Stop this cook?"
-                                                : "Start a cook?";
-    case APP_UI_ACTION_NET_TOGGLE:
-        /* Naming the TARGET is the point: the screen already shows what
-         * you are switching from, and this says what you get. */
-        return st != NULL && st->net_mode == APP_UI_NET_AP
-                   ? "Switch to joining?"
-                   : "Switch to hosting?";
-    case APP_UI_ACTION_RADIO_TOGGLE:
-        return st != NULL && st->paired ? "Unpair the base?"
-                                        : "Re-scan for a base?";
-    case APP_UI_ACTION_SAVER_TOGGLE:
-        return st != NULL && st->saver ? "Turn saver off?" : "Turn saver on?";
-    case APP_UI_ACTION_FACTORY_RESET:
-        return "ERASE EVERYTHING?";
+    case APP_UI_ACTION_POWER_OFF:
+        return "Power off?";
     default:
         return "";
     }
@@ -56,7 +28,7 @@ void app_ui_model_init(app_ui_model_t *m, const app_ui_model_ops_t *ops) {
     }
     memset(m, 0, sizeof *m);
     app_ui_input_reset(&m->input);
-    /* "It resets to page 1 on boot" (07 §7.2). */
+    /* "It resets to view 1 on boot" (07 §7.2). */
     m->page = APP_UI_PAGE_PROBES;
     m->awake = true;
     s_ops_default = ops;
@@ -99,10 +71,9 @@ void app_ui_model_on_alarm(app_ui_model_t *m, app_ui_state_t *st,
     if (m == NULL) {
         return;
     }
-    /* "The current page ... resets to page 1 ... whenever an alarm fires"
+    /* "The current view ... resets to view 1 ... whenever an alarm fires"
      * (07 §7.2), and an alarm outranks anything else on the glass. */
     m->page = APP_UI_PAGE_PROBES;
-    m->pending = APP_UI_ACTION_NONE;
     m->alarm_overlay = true;
     m->alarm_shown_ms = now_ms;
     app_ui_model_wake(m, now_ms);
@@ -136,7 +107,7 @@ void app_ui_model_tick(app_ui_model_t *m, app_ui_state_t *st, bool pressed,
     }
 
     /* A press while asleep wakes and is CONSUMED — waking never also
-     * changes the page (07 §7.4). */
+     * changes the view (07 §7.4). */
     if (!m->awake && pressed) {
         app_ui_input_consume_next(&m->input);
         app_ui_model_wake(m, now_ms);
@@ -148,70 +119,52 @@ void app_ui_model_tick(app_ui_model_t *m, app_ui_state_t *st, bool pressed,
         m->last_activity_ms = now_ms;
     }
 
-    /* ── the hold countdown ────────────────────────────────────────────
-     * The overlay appears at the 2 s threshold; the ACTION happens on
-     * release. Letting go early cancels, and the glass says so. */
+    /* ── the power-off hold ────────────────────────────────────────────
+     * The only thing this button commits. The overlay names it once the
+     * press is past tap length, counts down to the threshold, and then
+     * reads `release to confirm` — holds COMMIT ON RELEASE, so letting go
+     * early is the cancel path. */
     const uint32_t held = app_ui_input_held_ms(&m->input, now_ms);
-    if (held >= APP_UI_HOLD_MS && m->alarm_overlay == false) {
-        const app_ui_action_t a = held >= APP_UI_FACTORY_MS
-                                      ? APP_UI_ACTION_FACTORY_RESET
-                                      : action_for_page(m->page);
-        m->pending = a;
+    if (held >= APP_UI_TAP_MAX_MS && !m->alarm_overlay) {
         st->overlay = APP_UI_OVERLAY_CONFIRM;
         snprintf(st->confirm_text, sizeof st->confirm_text, "%s",
-                 app_ui_action_prompt(a, st));
-        /* 3 → 2 → 1 across the second second of the hold. */
-        const uint32_t into = held - APP_UI_HOLD_MS;
-        const uint32_t remaining = into >= 3000u ? 0u : 3u - (into / 1000u);
-        st->confirm_count = (uint8_t)remaining;
+                 app_ui_action_prompt(APP_UI_ACTION_POWER_OFF, st));
+        /* Whole seconds left before a release would commit; 0 = armed. */
+        st->confirm_count =
+            held >= APP_UI_HOLD_MS
+                ? 0u
+                : (uint8_t)((APP_UI_HOLD_MS - held + 999u) / 1000u);
     } else if (st->overlay == APP_UI_OVERLAY_CONFIRM) {
         st->overlay = APP_UI_OVERLAY_NONE;
-        m->pending = APP_UI_ACTION_NONE;
+        st->confirm_count = 0;
     }
 
     switch (g) {
     case APP_UI_GESTURE_TAP:
+        /* The next info view. If the alarm overlay is up it is dismissed —
+         * and dismissing is NOT silencing: the alarm stays active and the
+         * strip keeps its glyph until the receiver or the app clears it. */
         if (m->alarm_overlay) {
-            /* A tap on the alarm overlay ACKNOWLEDGES it and is consumed:
-             * it does not also advance the page. */
             m->alarm_overlay = false;
             st->overlay = APP_UI_OVERLAY_NONE;
-            perform(APP_UI_ACTION_ACK_ALARM);
-        } else {
-            m->page = (uint8_t)((m->page + 1) % APP_UI_PAGE_COUNT);
         }
-        break;
-    case APP_UI_GESTURE_DOUBLE_TAP:
-        m->mark_seq++;
-        perform(APP_UI_ACTION_ADD_MARK);
+        m->page = (uint8_t)((m->page + 1) % APP_UI_PAGE_COUNT);
         break;
     case APP_UI_GESTURE_HOLD:
-        if (!m->alarm_overlay) {
-            perform(action_for_page(m->page));
-        }
         st->overlay = APP_UI_OVERLAY_NONE;
-        m->pending = APP_UI_ACTION_NONE;
-        break;
-    case APP_UI_GESTURE_FACTORY:
-        /* Three separate KEEP HOLDING prompts before it commits
-         * (07 §7.4). Each 10 s hold advances one. */
-        m->factory_confirms++;
-        if (m->factory_confirms >= APP_UI_FACTORY_CONFIRMS) {
-            m->factory_confirms = 0;
-            perform(APP_UI_ACTION_FACTORY_RESET);
-        }
-        st->overlay = APP_UI_OVERLAY_NONE;
-        m->pending = APP_UI_ACTION_NONE;
+        st->confirm_count = 0;
+        /* op_perform enters deep sleep on the device: this never returns. */
+        perform(APP_UI_ACTION_POWER_OFF);
         break;
     default:
         break;
     }
 
     /* ── the alarm overlay's own timeout ──────────────────────────────
-     * "Persists until acknowledged (tap) or 60 s, after which the page
-     * reverts but the LED keeps signalling and the alarm stays
-     * unacknowledged in the API" (07 §7.3). Nothing here touches alarm
-     * state; silencing the screen is not the same as dealing with it. */
+     * "Persists until dismissed or 60 s, after which the view reverts but
+     * the LED keeps signalling and the alarm stays unsilenced in the API"
+     * (07 §7.3). Nothing here touches alarm state; clearing the screen is
+     * not the same as dealing with it. */
     if (m->alarm_overlay &&
         now_ms - m->alarm_shown_ms >= APP_UI_ALARM_OVERLAY_MS) {
         m->alarm_overlay = false;

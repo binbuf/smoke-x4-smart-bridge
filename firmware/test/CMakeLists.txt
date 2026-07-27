@@ -41,6 +41,17 @@ target_include_directories(test_bridge_event_guard PRIVATE
 )
 add_test(NAME bridge_event_guard COMMAND test_bridge_event_guard)
 
+# MQTT / Home Assistant publisher core (A16, 05 §5.7).
+add_executable(test_app_mqtt
+    test_app_mqtt.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_mqtt/app_mqtt_core.c
+)
+target_include_directories(test_app_mqtt PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_mqtt/include
+    ${REPO_ROOT}/protocol/gen
+)
+add_test(NAME app_mqtt COMMAND test_app_mqtt)
+
 # Boot sequence + double-reset token (F1.5).
 add_executable(test_boot_seq
     test_boot_seq.c

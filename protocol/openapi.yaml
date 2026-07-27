@@ -558,6 +558,79 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  # ── v1.1 destructive verbs ────────────────────────────────────────────────
+  # The PRG button is display + power only, so these have to be reachable from
+  # the app. Each answers 200 FIRST and acts ~500 ms later, so the client can
+  # tell success from a dropped connection.
+  /api/v1/restart:
+    post:
+      tags: [system]
+      operationId: restartBridge
+      summary: Reboot the bridge
+      description: >
+        Answers before it acts. The socket dies with the reboot, so a client
+        that never receives this 200 should treat the outcome as unknown.
+      responses:
+        "200":
+          description: Reboot scheduled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeferredAction"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          description: This build has no restart support.
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/factory-reset:
+    post:
+      tags: [system]
+      operationId: factoryResetBridge
+      summary: Wipe config, sessions and BLE bonds, then reboot
+      description: >
+        Irreversible. The wipe happens immediately; the reboot is deferred so
+        this 200 reaches the client. Every bond is forgotten, so the phone must
+        pair again.
+      responses:
+        "200":
+          description: Wiped; reboot scheduled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeferredAction"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          description: This build has no factory reset support.
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/power-off:
+    post:
+      tags: [system]
+      operationId: powerOffBridge
+      summary: Enter deep sleep
+      description: >
+        The bridge stops responding on every transport. **Waking it requires a
+        physical PRG hold on the device** — nothing remote can undo this, which
+        is why the response carries `wake_requires_button`. Confirm with the
+        user before calling it.
+      responses:
+        "200":
+          description: Deep sleep scheduled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PowerOffAccepted"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          description: This build has no power-off support.
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/config/wifi:
     get:
       tags: [config]
@@ -1969,6 +2042,37 @@ components:
           description: UTF-8; truncated to 24 bytes at a character boundary.
 
     # ── Pairing ──────────────────────────────────────────────────────────────
+    DeferredAction:
+      type: object
+      required: [ok, rebooting_in_ms]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        rebooting_in_ms:
+          type: integer
+          description: >
+            Delay before the bridge actually reboots. The reply is sent first so
+            the client can distinguish success from a dropped connection.
+          example: 500
+
+    PowerOffAccepted:
+      type: object
+      required: [ok, sleeping_in_ms, wake_requires_button]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        sleeping_in_ms:
+          type: integer
+          example: 500
+        wake_requires_button:
+          type: boolean
+          description: >
+            Always true. No remote transport can wake a sleeping bridge; only a
+            physical PRG hold does. Clients should warn before calling.
+          example: true
+
     PairingState:
       type: object
       required: [paired, state]

@@ -6,6 +6,7 @@
 
 #include "app_alarm.h"
 #include "app_ota.h"
+#include "app_power.h"
 #include "app_ui_panel.h"
 #include "app_config_store.h"
 
@@ -16,6 +17,7 @@
 #include "app_api_core.h"
 #include "app_api_ws.h"
 #include "app_ble.h"
+#include "app_mqtt.h"
 #include "app_net.h"
 #include "app_time_core.h"
 #include "bridge_event.h"
@@ -215,6 +217,59 @@ static void watermark_log_cb(void *arg) {
     }
 }
 
+/* ── the destructive verbs (v1.1) ──────────────────────────────────────
+ * All three kill the socket that carries the reply, so each is deferred by
+ * the same 500 ms one-shot the OTA reboot uses. The core answers, the glue
+ * waits for the flush, and only then does the irreversible thing. */
+#define API_DESTRUCT_DELAY_MS 500
+
+static void restart_cb(void *arg) {
+    (void)arg;
+    ESP_LOGW(TAG, "restarting on API request");
+    esp_restart();
+}
+
+static void power_off_cb(void *arg) {
+    (void)arg;
+    ESP_LOGW(TAG, "deep sleep on API request — PRG wakes it");
+    app_power_enter_deep_sleep();
+}
+
+/* One shared timer per callback: a second request while one is pending just
+ * re-arms it rather than leaking a handle. */
+static void defer_once(esp_timer_handle_t *slot, esp_timer_cb_t cb,
+                       const char *name) {
+    if (*slot == NULL) {
+        const esp_timer_create_args_t args = {.callback = cb, .name = name};
+        if (esp_timer_create(&args, slot) != ESP_OK) {
+            cb(NULL); /* no timer to defer with: do it now rather than never */
+            return;
+        }
+    }
+    (void)esp_timer_start_once(*slot, (uint64_t)API_DESTRUCT_DELAY_MS * 1000ull);
+}
+
+static void ops_reboot(void) {
+    static esp_timer_handle_t timer;
+    defer_once(&timer, restart_cb, "api_restart");
+}
+
+static void ops_power_off(void) {
+    static esp_timer_handle_t timer;
+    defer_once(&timer, power_off_cb, "api_poweroff");
+}
+
+static int ops_factory_reset(void) {
+    /* Wipe first — it must survive even if the deferred restart is lost —
+     * then reboot into the cleared config. Bonds go too (03 §3.6.1). */
+    if (app_config_store_factory_reset() != APP_CONFIG_OK) {
+        return -1;
+    }
+    (void)app_ble_forget_bonds();
+    ops_reboot();
+    return 0;
+}
+
 static const app_api_ops_t k_ops = {
     .sysinfo = ops_sysinfo,
     .net_status = ops_net_status,
@@ -227,6 +282,11 @@ static const app_api_ops_t k_ops = {
     .display_counts = ops_display_counts,
     .ota_status = ops_ota_status,
     .tasks_snapshot = ops_tasks_snapshot,
+    .reboot = ops_reboot,
+    .factory_reset = ops_factory_reset,
+    .power_off = ops_power_off,
+    .mqtt_status = app_mqtt_is_connected,
+    .mqtt_reconfigure = app_mqtt_reconfigure,
 };
 
 /* ── request adaptation ────────────────────────────────────────────────── */

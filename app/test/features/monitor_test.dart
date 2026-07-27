@@ -76,10 +76,31 @@ class _FakeTransport implements BridgeTransport {
   Future<void> configure(BridgeConfig cfg) async {}
 
   @override
+  Future<String> applyNetwork({
+    required NetworkMode mode,
+    String ssid = '',
+    String psk = '',
+  }) async => '';
+
+  @override
   Future<void> uploadFirmware(
     Stream<List<int>> image, {
     required int lengthBytes,
     bool force = false,
+  }) async {}
+
+  @override
+  Future<MqttConfig> mqttConfig() async => const MqttConfig();
+
+  @override
+  Future<void> setMqttConfig({
+    bool? enabled,
+    String? host,
+    int? port,
+    String? user,
+    String? password,
+    String? prefix,
+    bool? haDiscovery,
   }) async {}
 
   @override
@@ -367,15 +388,16 @@ void main() {
     test('renders a normal cook', () {
       final snap = _snapshot();
       expect(ongoingTitle(snap), 'Smoke Bridge · Brisket · 04:12');
-      expect(ongoingBody(snap), contains('Pit 243°F'));
-      expect(ongoingBody(snap), contains('Brisket 163°F'));
+      expect(ongoingBody(snap), contains('Pit 243.0°F'));
+      expect(ongoingBody(snap), contains('Brisket 163.2°F'));
     });
 
     test('renders detached probes as — and never as 0', () {
       final snap = _snapshot(pitTemp: null, foodTemp: null);
       final body = ongoingBody(snap);
       expect(body, contains('—'));
-      expect(body, isNot(contains('0°F')));
+      expect(body, isNot(contains('—0°F')));
+      expect(body, isNot(contains(' 0.0°F')));
     });
 
     test('a stall suppresses the ETA with the reason, not a number', () {

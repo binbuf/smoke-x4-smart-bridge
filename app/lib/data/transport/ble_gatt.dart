@@ -124,6 +124,14 @@ abstract interface class BleGattClient {
   /// *observes* rather than prompts.
   Future<void> bond();
 
+  /// Drops the OS-level bond for this device (A24.11). The stale-bond heal:
+  /// a factory-reset bridge no longer holds our key, and Android will retry
+  /// the dead key forever rather than show a new passkey dialog — the only
+  /// way to pair fresh is to forget the old bond first. May throw where the
+  /// platform refuses; callers fall back to sending the user to Bluetooth
+  /// settings.
+  Future<void> removeBond();
+
   /// Requests [mtu] and returns what was actually negotiated. Never
   /// throws for a refusal: 23 is a valid answer, and the whole payload
   /// design survives it (ble-gatt §4).

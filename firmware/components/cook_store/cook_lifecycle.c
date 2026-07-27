@@ -21,10 +21,12 @@ void cook_lifecycle_note_ended(cook_lifecycle_t *lc) {
 cook_lc_action_t cook_lifecycle_step(cook_lifecycle_t *lc,
                                      const cook_lc_input_t *in) {
     if (!lc->session_open) {
-        /* Start: paired ∧ receiving ∧ ≥1 probe attached ∧ (hot OR asked). */
-        if (in->paired && in->sample && in->any_attached &&
-            (in->max_attached_temp_x10 >= COOK_LC_START_TEMP_X10 ||
-             in->explicit_start)) {
+        /* Start: paired ∧ receiving ∧ ≥1 probe attached — at ANY temperature
+         * (A25). Recording begins the moment the bridge and base are powered
+         * and synced, so lighting the fire and getting stable are in the
+         * history when the cook opens the app hours later. The old 90 °F
+         * "something is actually cooking" gate lost exactly that stretch. */
+        if (in->paired && in->sample && in->any_attached) {
             return COOK_LC_START;
         }
         return COOK_LC_NONE;

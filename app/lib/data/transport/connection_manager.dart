@@ -126,44 +126,20 @@ class ConnectionManager {
     // hatch must not share a failure mode with what it escapes from.
     unawaited(
       _manual.future.then((c) async {
-        final ok = await probe(c.baseUrl);
+        final ok = await _guardedProbe(c.baseUrl);
         if (winner.isCompleted) {
           return;
         }
         if (ok) {
           winner.complete(Connected(c.baseUrl, c.lane));
-          await writeCache(c.baseUrl);
+          await _guardedWriteCache(c.baseUrl);
         } else {
           winner.complete(const Offline());
         }
       }),
     );
 
-    final lanes = <Future<ConnectionCandidate?>>[
-      if (cachedBaseUrl != null)
-        Future.value(
-          ConnectionCandidate(cachedBaseUrl!, ConnectionLane.cachedIp),
-        ),
-      if (discovery != null)
-        discovery!
-            .discover()
-            .map((b) => ConnectionCandidate(b.baseUrl, ConnectionLane.mdns))
-            .first
-            .then<ConnectionCandidate?>((c) => c)
-            .catchError((Object _) => null),
-      Future.value(
-        const ConnectionCandidate(
-          'http://smokebridge.local',
-          ConnectionLane.mdnsName,
-        ),
-      ),
-      Future.value(
-        const ConnectionCandidate(
-          'http://192.168.4.1',
-          ConnectionLane.apDefault,
-        ),
-      ),
-    ];
+    final lanes = _httpLanes();
 
     // A6.5: BLE is a FALLBACK, not a competitor. It engages only once
     // every HTTP lane has failed — a bridge reachable over Wi-Fi must
@@ -171,30 +147,36 @@ class ConnectionManager {
     // first. (Which it would: bonded reconnects are fast.)
     var pending = lanes.length;
     for (final f in lanes) {
-      f
-          .then((candidate) async {
-            if (candidate == null || winner.isCompleted) {
-              return;
-            }
-            final ok = await probe(candidate.baseUrl);
-            if (ok && !winner.isCompleted) {
-              winner.complete(Connected(candidate.baseUrl, candidate.lane));
-              await writeCache(candidate.baseUrl);
-            }
-          })
-          .whenComplete(() {
-            pending--;
-            if (pending != 0 || winner.isCompleted) {
-              return;
-            }
-            unawaited(
-              _tryBle().then((outcome) {
-                if (!winner.isCompleted) {
-                  winner.complete(outcome);
-                }
-              }),
-            );
-          });
+      unawaited(
+        f
+            .then((candidate) async {
+              if (candidate == null || winner.isCompleted) {
+                return;
+              }
+              final ok = await _guardedProbe(candidate.baseUrl);
+              if (ok && !winner.isCompleted) {
+                winner.complete(Connected(candidate.baseUrl, candidate.lane));
+                await _guardedWriteCache(candidate.baseUrl);
+              }
+            })
+            .whenComplete(() {
+              pending--;
+              if (pending != 0 || winner.isCompleted) {
+                return;
+              }
+              unawaited(
+                _tryBle().then((outcome) {
+                  if (!winner.isCompleted) {
+                    winner.complete(outcome);
+                  }
+                }),
+              );
+            })
+            // Stale-address hardening (A9.5): a synchronous throw from
+            // building or closing a probe transport must not escape to the
+            // zone as an uncaught error — it is just a lane that lost.
+            .catchError((Object _) {}),
+      );
     }
 
     unawaited(
@@ -205,6 +187,129 @@ class ConnectionManager {
       }),
     );
     return winner.future;
+  }
+
+  /// The Wi-Fi half of the race, with no BLE lane at all: the first HTTP
+  /// lane to answer `GET /status` 200 wins, or `null` when every lane fails
+  /// or the timeout fires. Manual entry still pre-empts.
+  ///
+  /// Two callers, both from [ConnectionSupervisor] (05 §5.7): the initial
+  /// Wi-Fi attempt raced *beside* a single warm BLE link — so a bridge on
+  /// Wi-Fi is never demoted, yet BLE shows data the instant it reconnects —
+  /// and the background *upgrade* race that climbs back onto Wi-Fi after a
+  /// failover. BLE is deliberately absent here because the supervisor owns
+  /// the one BLE handle; racing it a second time would open a duplicate
+  /// link only to discard it.
+  Future<Connected?> raceHttpOnly({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final winner = Completer<Connected?>();
+
+    unawaited(
+      _manual.future.then((c) async {
+        final ok = await _guardedProbe(c.baseUrl);
+        if (winner.isCompleted) {
+          return;
+        }
+        // The escape hatch ends the race whichever way it resolves.
+        winner.complete(ok ? Connected(c.baseUrl, c.lane) : null);
+        if (ok) {
+          await _guardedWriteCache(c.baseUrl);
+        }
+      }),
+    );
+
+    final lanes = _httpLanes();
+    var pending = lanes.length;
+    for (final f in lanes) {
+      unawaited(
+        f
+            .then((candidate) async {
+              if (candidate == null || winner.isCompleted) {
+                return;
+              }
+              final ok = await _guardedProbe(candidate.baseUrl);
+              if (ok && !winner.isCompleted) {
+                winner.complete(Connected(candidate.baseUrl, candidate.lane));
+                await _guardedWriteCache(candidate.baseUrl);
+              }
+            })
+            .whenComplete(() {
+              pending--;
+              if (pending == 0 && !winner.isCompleted) {
+                winner.complete(null);
+              }
+            })
+            .catchError((Object _) {}),
+      );
+    }
+
+    unawaited(
+      _delay(timeout).then((_) {
+        if (!winner.isCompleted) {
+          winner.complete(null);
+        }
+      }),
+    );
+    return winner.future;
+  }
+
+  /// The four HTTP candidate lanes, in the §8.4 order. Shared by [race] and
+  /// [raceHttpOnly]. The discovery lane is guarded so a browse that throws
+  /// or yields nothing degrades to "no candidate", never an escaped error.
+  List<Future<ConnectionCandidate?>> _httpLanes() =>
+      <Future<ConnectionCandidate?>>[
+        if (cachedBaseUrl != null)
+          Future.value(
+            ConnectionCandidate(cachedBaseUrl!, ConnectionLane.cachedIp),
+          ),
+        if (discovery != null) _discoveryLane(),
+        Future.value(
+          const ConnectionCandidate(
+            'http://smokebridge.local',
+            ConnectionLane.mdnsName,
+          ),
+        ),
+        Future.value(
+          const ConnectionCandidate(
+            'http://192.168.4.1',
+            ConnectionLane.apDefault,
+          ),
+        ),
+      ];
+
+  Future<ConnectionCandidate?> _discoveryLane() async {
+    try {
+      return await discovery!
+          .discover()
+          .map((b) => ConnectionCandidate(b.baseUrl, ConnectionLane.mdns))
+          .first;
+    } on Object {
+      // An empty browse (`.first` on no elements) or a channel error both
+      // mean "mDNS found nothing" — a silent degrade, not a failure.
+      return null;
+    }
+  }
+
+  /// The injected [probe] "must not throw" by contract — but a stale cached
+  /// address building a transport that throws synchronously (A9.5, the
+  /// board-found `SocketException` after an AP→STA move) must be a lost
+  /// lane, not an uncaught error. Belt to that brace.
+  Future<bool> _guardedProbe(String baseUrl) async {
+    try {
+      return await probe(baseUrl);
+    } on Object {
+      return false;
+    }
+  }
+
+  /// A cache write failing must never take down a race that already won.
+  Future<void> _guardedWriteCache(String baseUrl) async {
+    try {
+      await writeCache(baseUrl);
+    } on Object {
+      // Losing the fast lane next launch is a slower start, not a bug.
+    }
   }
 
   /// The BLE fallback. Never throws: an unavailable radio, an unbonded

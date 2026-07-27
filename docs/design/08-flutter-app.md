@@ -3,6 +3,12 @@
 Android first (Flutter target `android`, `minSdk 24`, `targetSdk 35`). iOS is not in v1 scope but
 nothing here precludes it — all platform-specific code sits behind two narrow channels.
 
+> **[13 — UX Architecture](13-ux-architecture.md) supersedes the screen inventory and navigation
+> here**, and [14 — Design System](14-design-system.md) supersedes anything this document says about
+> visual treatment. The transport abstraction, the sync engine, the local schema and the charting
+> approach below stand. See [13 §13.9.1 U6](13-ux-architecture.md) for what an iOS port would have to
+> redesign rather than port.
+
 ## 8.1 The one idea that shapes everything
 
 **The UI never knows how it is talking to the bridge.**
@@ -122,6 +128,18 @@ multi-device support later is screens, not a migration.
 
 Reconnect uses exponential backoff (1, 2, 4, 8, 15, 30 s, capped) and immediately retries on
 `ConnectivityChanged`, so walking back into Wi-Fi range reconnects without user action.
+
+> **Superseded for the shell (A16).** The race above still describes the HTTP lanes, but the
+> production shell no longer *takes the first winner and stops*. `ConnectionSupervisor`
+> (`lib/app/connection_supervisor.dart`) owns one BLE handle and the HTTP race together: it **leads
+> with Bluetooth** so data shows the instant the app opens, **upgrades to Wi-Fi** in the background
+> (`AppConnection.raceHttpUpgrade` over `ConnectionManager.raceHttpOnly` — the BLE-less race), **holds
+> the BLE link as a warm standby**, and **fails over to it silently** when the active Wi-Fi link drops
+> (`BridgeSession.onLinkLost` → `switchTransport`), then climbs back. `BridgeCapabilities.mqtt` joins
+> the honesty record; a `preferredTransport` (auto/Wi-Fi/Bluetooth) and a "keep Bluetooth as backup"
+> pref (`BridgePrefs`) steer it from the header-chip connection sheet. The single-transport
+> `BridgeSession` invariant is unchanged — one *active* transport, honest capabilities — the supervisor
+> just swaps which one it is.
 
 ## 8.5 Sync and the local cache
 

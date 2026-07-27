@@ -36,6 +36,10 @@ class FakeAdapter implements HttpClientAdapter {
   /// assert the whole image reached the wire.
   int lastRequestBodyLength = 0;
 
+  /// The last non-streamed request body, so a test can assert *what* was
+  /// sent and not merely which route was hit.
+  Object? lastRequestBody;
+
   void json(String prefix, String fixtureName, {int status = 200}) {
     final body = File(
       '${repoRoot()}/protocol/fixtures/http/$fixtureName',
@@ -53,6 +57,7 @@ class FakeAdapter implements HttpClientAdapter {
         options.uri.path +
         (options.uri.query.isEmpty ? '' : '?${options.uri.query}');
     requests.add('${options.method} $pathQ');
+    lastRequestBody = options.data;
     if (requestStream != null) {
       lastRequestBodyLength = 0;
       await for (final chunk in requestStream) {
@@ -359,5 +364,108 @@ void main() {
         throwsA(isA<UnsupportedError>()),
       );
     });
+  });
+
+  // D15 — the button can only cycle views and sleep, so every one of these
+  // now has to reach the bridge over the wire or it cannot happen at all.
+  group('D15 — the controls that left the button', () {
+    const deferred = '{"accepted":true,"acting_in_ms":500}';
+
+    test('reboot, factory reset and power off hit their own routes', () async {
+      final a = FakeAdapter();
+      a.routes['/api/v1/restart'] = (200, deferred);
+      a.routes['/api/v1/factory-reset'] = (200, deferred);
+      a.routes['/api/v1/power-off'] = (
+        200,
+        '{"accepted":true,"acting_in_ms":500,"wake_requires_button":true}',
+      );
+      final t = transportWith(a);
+
+      await t.control(const ControlCommand.reboot());
+      await t.control(const ControlCommand.factoryReset());
+      await t.control(const ControlCommand.powerOff());
+
+      expect(a.requests, [
+        'POST /api/v1/restart',
+        'POST /api/v1/factory-reset',
+        'POST /api/v1/power-off',
+      ]);
+      await t.close();
+    });
+
+    test('a refused verb surfaces as a typed error, not silence', () async {
+      final a = FakeAdapter();
+      a.routes['/api/v1/power-off'] = (
+        501,
+        '{"error":{"code":"unsupported","message":"no power control"}}',
+      );
+      final t = transportWith(a);
+      await expectLater(
+        t.control(const ControlCommand.powerOff()),
+        throwsA(isA<BridgeApiException>()),
+      );
+      await t.close();
+    });
+
+    test('battery saver travels as the tri-state, not a bool', () async {
+      final a = FakeAdapter();
+      a.routes['/api/v1/config/device'] = (200, '{}');
+      final t = transportWith(a);
+
+      await t.configure(
+        const BridgeConfig(batterySaver: BatterySaverMode.auto),
+      );
+      expect(a.requests.last, 'POST /api/v1/config/device');
+      expect((a.lastRequestBody! as Map)['battery_saver'], 'auto');
+
+      await t.configure(const BridgeConfig(batterySaver: BatterySaverMode.off));
+      expect((a.lastRequestBody! as Map)['battery_saver'], 'off');
+      await t.close();
+    });
+
+    test(
+      'switching to AP returns the generated key to show the user',
+      () async {
+        final a = FakeAdapter();
+        a.routes['/api/v1/config/wifi'] = (
+          200,
+          '{"accepted":true,"applying_in_ms":500,"expect":'
+              '{"mode":"ap","ssid":"SmokeBridge-A4F2","psk":"Gk7mR2xQpT",'
+              '"ip":"192.168.4.1"}}',
+        );
+        final t = transportWith(a);
+        final psk = await t.applyNetwork(mode: NetworkMode.ap);
+        expect(a.requests.single, 'POST /api/v1/config/wifi');
+        expect((a.lastRequestBody! as Map)['mode'], 'ap');
+        // The phone has to leave its own network to rejoin, so it needs this.
+        expect(psk, 'Gk7mR2xQpT');
+        await t.close();
+      },
+    );
+
+    test(
+      'joining a network sends the credentials and keeps no secret',
+      () async {
+        final a = FakeAdapter();
+        a.routes['/api/v1/config/wifi'] = (
+          200,
+          '{"accepted":true,"applying_in_ms":500,'
+              '"expect":{"mode":"sta","host":"smokebridge.local"}}',
+        );
+        final t = transportWith(a);
+        final psk = await t.applyNetwork(
+          mode: NetworkMode.sta,
+          ssid: 'Backyard',
+          psk: 'hunter2',
+        );
+        final body = a.lastRequestBody! as Map;
+        expect(body['mode'], 'sta');
+        expect(body['ssid'], 'Backyard');
+        expect(body['psk'], 'hunter2');
+        // STA answers with a host, not a key — nothing to hand back.
+        expect(psk, '');
+        await t.close();
+      },
+    );
   });
 }

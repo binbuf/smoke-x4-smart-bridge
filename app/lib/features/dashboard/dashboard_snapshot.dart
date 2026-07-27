@@ -81,12 +81,14 @@ class DashboardSnapshot {
     this.elapsedS = 0,
     this.startedUnixMs,
     this.address = '',
+    this.netMode,
     this.socPct,
     this.charging = false,
     this.batteryKnown = false,
     this.baseLost = false,
     this.lastPacketSAgo,
     this.fullHistory = true,
+    this.paired = true,
     this.alarms = const [],
     this.marks = const [],
     this.samples = const [],
@@ -108,6 +110,12 @@ class DashboardSnapshot {
   /// Empty on the BLE lane — there is no address to speak to (A6.5).
   final String address;
 
+  /// `'ap'` (hosting its own network) or `'sta'` (joined yours) while on
+  /// Wi-Fi; null on BLE/offline. Lets the header chip name *which* Wi-Fi
+  /// mode instead of a generic label (05 §5.7). Inferred from the address
+  /// (`192.168.4.1` = hosting) until a `net` push refines it.
+  final String? netMode;
+
   /// Null until F12 (M5) gives `soc_pct` something true to say. [socPct]
   /// null with [batteryKnown] false means "this device cannot report a
   /// battery", which is not the same as "the battery is empty" — and a
@@ -123,6 +131,12 @@ class DashboardSnapshot {
 
   /// False on BLE — drives A10.5's "full history needs Wi-Fi" notice.
   final bool fullHistory;
+
+  /// Whether the bridge is paired to a Smoke X base. Defaults to `true` so an
+  /// offline/cache snapshot with no `/status` does not cry wolf; a live
+  /// `status.paired == false` drives the "hasn't met your Smoke X yet" state
+  /// (13 §13.5.2) — the exact case a fresh or re-flashed bridge presents.
+  final bool paired;
 
   final List<Alarm> alarms;
   final List<Mark> marks;
@@ -168,6 +182,10 @@ DashboardSnapshot buildDashboard({
   String address = '',
   bool fullHistory = true,
 
+  /// The explicit Wi-Fi mode from a `net` push, or null to infer it from
+  /// the address. Only meaningful on the HTTP link.
+  String? netMode,
+
   /// The cached session header. `BridgeStatus` carries the active id but
   /// not the name, and the cache has both — so the caller passes it
   /// rather than this function guessing.
@@ -179,6 +197,12 @@ DashboardSnapshot buildDashboard({
   final samples = _merge(history, live);
   final config = _config(live, status);
   final nowT = live?.t ?? (samples.isNotEmpty ? samples.last.t : 0);
+
+  // Only Wi-Fi has an AP/STA distinction; a net push is authoritative, and
+  // absent one the AP's fixed 192.168.4.1 is a reliable tell.
+  final resolvedNetMode = link != LinkKind.http
+      ? null
+      : (netMode ?? (address == 'http://192.168.4.1' ? 'ap' : 'sta'));
 
   final views = <ProbeView>[];
   for (var n = 1; n <= 4; n++) {
@@ -258,12 +282,17 @@ DashboardSnapshot buildDashboard({
         session?.startedUnixMs ??
         (live?.unixMs == null ? null : live!.unixMs! - nowT * 1000),
     address: address,
+    netMode: resolvedNetMode,
     socPct: status?.socPct,
     charging: status?.charging ?? false,
     batteryKnown: status?.socPct != null,
     baseLost: status?.baseLost ?? false,
     lastPacketSAgo: status?.lastPacketSAgo,
     fullHistory: fullHistory,
+    // Unknown (no /status, e.g. the BLE lane or a cache read) stays paired so
+    // the UI does not cry wolf; a real status.paired == false surfaces the
+    // "hasn't met your Smoke X yet" state.
+    paired: status?.paired ?? true,
     alarms: status?.alarms ?? const [],
     marks: marks,
     samples: samples,

@@ -52,6 +52,7 @@ class MockTransport implements BridgeTransport {
     historyPreview: true,
     config: true,
     ota: false,
+    mqtt: true,
   );
 
   @override
@@ -160,6 +161,20 @@ class MockTransport implements BridgeTransport {
     }
   }
 
+  /// Recorded like every other write. A switch to AP answers with a fixed
+  /// PSK so a test can assert the screen shows the key back to the user.
+  final List<({NetworkMode mode, String ssid, String psk})> networkLog = [];
+
+  @override
+  Future<String> applyNetwork({
+    required NetworkMode mode,
+    String ssid = '',
+    String psk = '',
+  }) async {
+    networkLog.add((mode: mode, ssid: ssid, psk: psk));
+    return mode == NetworkMode.ap ? 'MockApPsk1' : '';
+  }
+
   @override
   Future<void> uploadFirmware(
     Stream<List<int>> image, {
@@ -169,6 +184,36 @@ class MockTransport implements BridgeTransport {
     // The mock has no OTA (capabilities.ota is false); a call here is a
     // wiring bug the analyzer cannot see, so surface it loudly.
     throw UnsupportedError('MockTransport does not do OTA');
+  }
+
+  /// In-memory MQTT config, recorded like every other write so the settings
+  /// page and the contract suite can drive it with no broker.
+  MqttConfig mqtt = const MqttConfig();
+
+  @override
+  Future<MqttConfig> mqttConfig() async => mqtt;
+
+  @override
+  Future<void> setMqttConfig({
+    bool? enabled,
+    String? host,
+    int? port,
+    String? user,
+    String? password,
+    String? prefix,
+    bool? haDiscovery,
+  }) async {
+    mqtt = MqttConfig(
+      enabled: enabled ?? mqtt.enabled,
+      host: host ?? mqtt.host,
+      port: port ?? mqtt.port,
+      user: user ?? mqtt.user,
+      prefix: prefix ?? mqtt.prefix,
+      haDiscovery: haDiscovery ?? mqtt.haDiscovery,
+      // The password is write-only; the mock just accepts and forgets it, and
+      // "connected" reflects whether it is enabled with a host.
+      connected: (enabled ?? mqtt.enabled) && (host ?? mqtt.host).isNotEmpty,
+    );
   }
 
   @override

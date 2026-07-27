@@ -381,8 +381,30 @@ class BleTransport implements BridgeTransport {
         dto.ControlOp.ackAlarm,
         dto.CtrlAckAlarm(alarmId: alarmId).encode(),
       ),
+      // The device answers these before it acts, then drops the link — the
+      // result notify is flushed first, which is why they are ordinary
+      // awaited writes here rather than fire-and-forget.
+      RebootCommand() => (dto.ControlOp.reboot, Uint8List(0)),
+      FactoryResetCommand() => (dto.ControlOp.factoryReset, Uint8List(0)),
+      PowerOffCommand() => (dto.ControlOp.powerOff, Uint8List(0)),
     };
     await _writeAndAwaitResult(op, body);
+  }
+
+  @override
+  Future<String> applyNetwork({
+    required NetworkMode mode,
+    String ssid = '',
+    String psk = '',
+  }) async {
+    final r = await applyWifiConfig(
+      mode: mode == NetworkMode.ap ? dto.NetMode.ap : dto.NetMode.sta,
+      ssid: ssid,
+      psk: psk,
+    );
+    // On a switch to AP the generated PSK rides back in `detail` (§5.5) —
+    // the phone has to leave its own network to rejoin, so it needs the key.
+    return mode == NetworkMode.ap ? r.detail : '';
   }
 
   @override
@@ -398,6 +420,24 @@ class BleTransport implements BridgeTransport {
       throw const BridgeUnsupportedException('firmware update');
 
   @override
+  Future<MqttConfig> mqttConfig() =>
+      // The broker lives on the Wi-Fi LAN the bridge joins; there is no BLE
+      // op for it, and capabilities.mqtt is false so the page explains rather
+      // than offers a dead form.
+      throw const BridgeUnsupportedException('Home Assistant');
+
+  @override
+  Future<void> setMqttConfig({
+    bool? enabled,
+    String? host,
+    int? port,
+    String? user,
+    String? password,
+    String? prefix,
+    bool? haDiscovery,
+  }) => throw const BridgeUnsupportedException('Home Assistant');
+
+  @override
   Future<void> configure(BridgeConfig cfg) async {
     if (cfg.probes != null) {
       // No `device_control` op sets probe names or roles — that surface is
@@ -405,17 +445,31 @@ class BleTransport implements BridgeTransport {
       throw const BridgeUnsupportedException('probe configuration');
     }
     final units = cfg.displayUnits;
-    if (units == null) {
-      return;
+    if (units != null) {
+      await _writeAndAwaitResult(
+        dto.ControlOp.setUnits,
+        dto.CtrlSetUnits(
+          units: units.toUpperCase() == 'C'
+              ? dto.TempUnits.celsius.wire
+              : dto.TempUnits.fahrenheit.wire,
+        ).encode(),
+      );
     }
-    await _writeAndAwaitResult(
-      dto.ControlOp.setUnits,
-      dto.CtrlSetUnits(
-        units: units.toUpperCase() == 'C'
-            ? dto.TempUnits.celsius.wire
-            : dto.TempUnits.fahrenheit.wire,
-      ).encode(),
-    );
+    final saver = cfg.batterySaver;
+    if (saver != null) {
+      // Spelled out rather than indexed off the enum's position: these are
+      // two independently-declared orderings and a silent drift would set
+      // the wrong profile.
+      final wire = switch (saver) {
+        BatterySaverMode.off => dto.BatterySaver.off,
+        BatterySaverMode.on => dto.BatterySaver.on,
+        BatterySaverMode.auto => dto.BatterySaver.auto,
+      }.wire;
+      await _writeAndAwaitResult(
+        dto.ControlOp.setBatterySaver,
+        dto.CtrlSetBatterySaver(saver: wire).encode(),
+      );
+    }
   }
 
   /// A pending correlation whose write then failed will never be answered,
@@ -434,18 +488,19 @@ class BleTransport implements BridgeTransport {
     Duration timeout = const Duration(seconds: 10),
   }) async {
     await start();
+    // The correlation is pre-abandoned the moment it exists: if it errors
+    // while the WRITE below is still in flight (a stalled link — the write
+    // itself can outlive this timeout), there must already be a listener,
+    // or the error surfaces as an uncaught zone fault on the crash page.
+    // Board-found (A24.11): a stale-bond stall did exactly that.
     final answer = _results.stream
         .firstWhere((r) => r.opEcho == op.wire)
         .timeout(timeout);
-    try {
-      await client.write(
-        BridgeChar.deviceControl,
-        dto.DeviceControl(op: op.wire, bodyRaw: body).pack(),
-      );
-    } on Object {
-      _abandon(answer);
-      rethrow;
-    }
+    _abandon(answer);
+    await client.write(
+      BridgeChar.deviceControl,
+      dto.DeviceControl(op: op.wire, bodyRaw: body).pack(),
+    );
     final r = await answer;
     if (r.statusEnum != dto.ResultStatus.ok) {
       throw BridgeControlException(
@@ -465,15 +520,11 @@ class BleTransport implements BridgeTransport {
   Future<void> startWifiScan() async {
     await start();
     final ack = _results.stream.firstWhere((r) => r.opEcho == 0);
-    try {
-      await client.write(
-        BridgeChar.wifiScanCtrl,
-        dto.WifiScanCtrl(cmd: dto.ScanCmd.start.wire).encode(),
-      );
-    } on Object {
-      _abandon(ack);
-      rethrow;
-    }
+    _abandon(ack); // pre-attached: see _writeAndAwaitResult (A24.11)
+    await client.write(
+      BridgeChar.wifiScanCtrl,
+      dto.WifiScanCtrl(cmd: dto.ScanCmd.start.wire).encode(),
+    );
     final r = await ack.timeout(const Duration(seconds: 10));
     if (r.statusEnum != dto.ResultStatus.ok) {
       throw BridgeControlException(
@@ -503,21 +554,17 @@ class BleTransport implements BridgeTransport {
   }) async {
     await start();
     final answer = _results.stream.firstWhere((r) => r.opEcho == 0);
-    try {
-      await client.write(
-        BridgeChar.wifiConfig,
-        dto.WifiConfig(
-          mode: mode.wire,
-          auth: auth,
-          ssidRaw: Uint8List.fromList(utf8.encode(ssid)),
-          pskRaw: Uint8List.fromList(utf8.encode(psk)),
-          userRaw: Uint8List.fromList(utf8.encode(user)),
-        ).pack(),
-      );
-    } on Object {
-      _abandon(answer);
-      rethrow;
-    }
+    _abandon(answer); // pre-attached: see _writeAndAwaitResult (A24.11)
+    await client.write(
+      BridgeChar.wifiConfig,
+      dto.WifiConfig(
+        mode: mode.wire,
+        auth: auth,
+        ssidRaw: Uint8List.fromList(utf8.encode(ssid)),
+        pskRaw: Uint8List.fromList(utf8.encode(psk)),
+        userRaw: Uint8List.fromList(utf8.encode(user)),
+      ).pack(),
+    );
     final r = await answer.timeout(timeout);
     if (r.statusEnum != dto.ResultStatus.ok) {
       throw BridgeControlException(

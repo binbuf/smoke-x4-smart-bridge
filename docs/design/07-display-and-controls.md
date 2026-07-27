@@ -3,6 +3,13 @@
 The 128×64 OLED and the single PRG button, designed so the bridge is genuinely useful **standing
 next to it with no phone in your hand**.
 
+> **[13 §13.7](13-ux-architecture.md) supersedes the page copy, the LED table and the overlay rules
+> here.** It adds a Welcome page and a setup-stance overlay, an overlay priority stack, and a table
+> of user-facing state names that replaces wire identifiers on the glass. The button model, the
+> panel/framebuffer design and the power rules below stand. §7.5's rule that `led_enabled = OFF`
+> means zero duty *in every state* is deliberately **not** overridden by 13 — it is raised as an
+> open question there instead.
+
 Two questions from the brief, answered up front:
 
 > **Should the button switch modes?**
@@ -295,42 +302,50 @@ dealing with it.
 
 ## 7.4 The button
 
-One button — GPIO0, active LOW, sampled at 20 ms with a 30 ms debounce.
+One button — GPIO0, active LOW, sampled at 20 ms with a 30 ms debounce. It carries **two
+meanings and nothing else**, because the bridge is a passthrough: every *control* lives in the
+app (D15). The device shows information, and it can be switched off.
 
-| Gesture                | Timing                  | Action                                                                                                                                      |
-| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Tap**                | < 400 ms                | Next page. Wakes the display (and that press is consumed by the wake, not by page-advance). Acknowledges an alarm overlay                   |
-| **Double-tap**         | two taps < 400 ms apart | Add a mark at the current instant, named `Mark N`. Toast: `Mark 4 added`                                                                    |
-| **Hold 2 s**           | 2 s                     | The current page's context action, always behind a 3 s release-to-cancel confirm                                                            |
-| **Hold 10 s**          | 10 s                    | Factory reset — wipes pairing, network config, BLE bonds, and **all cook history**. Countdown from 5, three separate `KEEP HOLDING` prompts |
-| **Hold during splash** | 3 s at boot             | Force AP mode for this boot                                                                                                                 |
+| Gesture          | Timing                 | Action                                                                                                                                                                                                                              |
+| ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tap**          | < 400 ms               | Next info view. Emitted on release **immediately** — with no double-tap to disambiguate against, nothing waits out a 400 ms window. Wakes the display (that press is consumed by the wake, not the view-advance). Dismisses an alarm overlay — **dismissing is not silencing** |
+| **Hold**         | ≥ 2 s                  | Power off → deep sleep. Past tap length the overlay names it and counts down; at the threshold it reads `release to confirm`                                                                                                          |
+| **Hold to wake** | ≥ 5 s from deep sleep  | Power on. The GPIO0 wake is confirmed by a sustained hold so a pocket-press cannot power the bridge on; released early it goes straight back to sleep ([03 §3.4.1](03-firmware-architecture.md))                                      |
+
+There is deliberately **no double-tap, no hold ladder, and no on-device menu**. Units, sessions,
+marks, pairing, network mode, battery saver, factory reset and alarm silence are app concerns,
+reachable over HTTP and BLE ([06](06-device-api.md), [05](05-connectivity-and-provisioning.md)).
 
 ### Gesture state machine
 
 ```
-        ┌──────┐  press   ┌─────────┐  release <400ms   ┌────────────┐
-        │ IDLE │─────────►│ PRESSED │──────────────────►│ TAP_WAIT   │
-        └──────┘          └────┬────┘                   └─────┬──────┘
-            ▲                  │ held ≥2s                     │
-            │                  ▼                              │ 2nd press <400ms
-            │           ┌─────────────┐                       ▼
-            │           │ HOLD_CONFIRM│                 ┌────────────┐
-            │           │ (countdown) │                 │ DOUBLE_TAP │
-            │           └──────┬──────┘                 └─────┬──────┘
-            │        release◄──┤ held ≥10s                    │
-            │        =commit   ▼                              │
-            │           ┌─────────────┐                       │
-            └───────────┤ FACTORY_ARM │                       │
-                        └─────────────┘◄──────────────────────┘
-                              timeout / release
+        ┌──────┐  press    ┌─────────┐  release <400 ms   ┌─────┐
+        │ IDLE │──────────►│ PRESSED │───────────────────►│ TAP │─► next view
+        └──────┘           └────┬────┘                    └─────┘
+            ▲                   │ held ≥ 2 s
+            │                   ▼
+            │            ┌──────────────┐
+            │            │ HOLD_CONFIRM │   release <2 s ─► nothing (cancel)
+            │            │  (countdown) │
+            │            └──────┬───────┘
+            └───────────────────┴─ release ≥2 s = commit ─► POWER OFF
 ```
 
 Two properties worth stating because they are what make a one-button UI tolerable:
 
-1. **Hold actions commit on _release_, not on reaching the threshold.** The countdown gives a
-   visible cancel path: let go early and nothing happens.
-2. **A wake press is consumed.** Waking a sleeping display never also changes the page, so the user
-   always sees the state they left before acting on it.
+1. **The hold commits on _release_, not on reaching the threshold.** The countdown gives a
+   visible cancel path: let go early and nothing happens. On a device whose only action is
+   "switch off", that is the difference between a deliberate act and one pocket-press taking a
+   bridge down 12 hours into a cook.
+2. **A wake press is consumed.** Waking a sleeping display never also changes the view, so the
+   user always sees the state they left.
+
+### The alarm is displayed, never silenced here
+
+An alarm takes over the glass (§7.3) and forces view 1, because it has to read across a dark
+yard. A tap **dismisses the overlay and moves to the next view** — the alarm itself stays active
+and the strip keeps its glyph. Silencing belongs to the Smoke X receiver or to the app. The
+bridge reports; it does not resolve.
 
 ### Designed for three buttons
 
@@ -340,10 +355,10 @@ Per D3, the input layer is abstracted now even though only one button ships:
 typedef enum { UI_INPUT_BACK, UI_INPUT_NEXT, UI_INPUT_SELECT } ui_input_t;
 ```
 
-With one button, gestures map onto that vocabulary (tap→NEXT, hold→SELECT, double-tap→BACK-ish).
-Fitting tactile switches on **GPIO47 (NEXT)** and **GPIO48 (SELECT)** — both free and safe
-([01 §1.2](01-hardware.md)) — becomes a Kconfig flag and a driver, not a UI rewrite. The page model,
-the confirm flow, and the overlays are all unchanged.
+With one button, gestures map onto that vocabulary (tap→NEXT, hold→SELECT; **BACK has no gesture**
+now that double-tap is gone). Fitting tactile switches on **GPIO47 (NEXT)** and **GPIO48 (SELECT)**
+— both free and safe ([01 §1.2](01-hardware.md)) — becomes a Kconfig flag and a driver, not a UI
+rewrite. The view model and the overlays are unchanged.
 
 ## 7.5 LED
 

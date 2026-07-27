@@ -49,12 +49,22 @@ void bootstrap() {
   }, AppErrors.reportFatal);
 }
 
-/// A6.5's lane, wired for real. It engages only after every HTTP lane has
-/// failed — a bridge reachable over Wi-Fi must never be demoted to a
-/// degraded transport just because a bonded BLE reconnect answered first.
+/// A6.5's lane, wired for real (A25: it now *connects*).
+///
+/// It used to build a client, call `transport.start()` and hope: but `start()`
+/// only SUBSCRIBES to characteristics, so with nothing connected it threw on
+/// the first subscribe and the lane returned null every single time. That is
+/// why the BLE lane never engaged on the bench (the long-open A6.7 defect) —
+/// the lane had no device to dial, because the bonded address was never
+/// remembered. Setup now records it, and this connects to it.
 Future<BleTransport?> _bleLane() async {
+  final deviceId = AppEnv.instance?.prefs.lastBleDeviceId;
+  if (deviceId == null || deviceId.isEmpty) {
+    return null; // never bonded on this phone — the scan belongs to setup
+  }
   final client = FlutterBlueGattClient();
   try {
+    await client.connect(deviceId);
     final transport = BleTransport(client);
     await transport.start();
     return transport;

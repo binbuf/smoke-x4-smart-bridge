@@ -86,3 +86,11 @@ CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096
 # open path (registry add, hello, current sample) runs in the post-
 # handshake callback instead.
 CONFIG_HTTPD_WS_POST_HANDSHAKE_CB_SUPPORT=y
+
+# MQTT / Home Assistant (05 §5.7): keep the client small on a no-PSRAM
+# part. app_mqtt also sets these per-client (buffer 1024/512, task 4096),
+# but trimming the compile-time defaults keeps any other esp-mqtt use lean
+# and documents the intent. Plaintext only — no mqtts:// / esp-tls here.
+CONFIG_MQTT_BUFFER_SIZE=1024
+CONFIG_MQTT_OUTBOX_EXPIRED_TIMEOUT_MS=15000
+CONFIG_MQTT_TASK_STACK_SIZE=4096

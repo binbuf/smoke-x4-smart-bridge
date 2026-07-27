@@ -934,6 +934,15 @@ static void test_overlay_goldens(void) {
     snprintf(st.ota_to, sizeof st.ota_to, "1.1.0");
     app_ui_render_overlay_ota(&st, &fb);
     golden("overlay-ota", &fb);
+
+    /* The power-off hold, armed: confirm_count 0 flips the copy from
+     * "release to cancel" to "release to confirm" (07 §7.4). */
+    st = cook_state();
+    st.overlay = APP_UI_OVERLAY_CONFIRM;
+    snprintf(st.confirm_text, sizeof st.confirm_text, "Power off?");
+    st.confirm_count = 0;
+    app_ui_render_overlay_confirm(&st, &fb);
+    golden("overlay-confirm-armed", &fb);
 }
 
 static void test_render_dispatch(void) {
@@ -969,6 +978,7 @@ static void test_render_dispatch(void) {
     app_ui_render(&st, &a);
     app_ui_render_overlay_alarm(&st, &b);
     CHECK_EQ_INT(memcmp(a.px, b.px, sizeof a.px), 0);
+
 }
 
 /* ── F11b.2 — the sparkline and the progress bar ────────────────────── */
@@ -1118,36 +1128,32 @@ static app_ui_gesture_t btn_feed(btn_t *b, bool pressed, uint32_t ms) {
 static void test_gestures(void) {
     btn_t b;
 
-    /* Tap: a short press, then the double-tap window expiring. */
+    /* Tap: emitted the moment it is RELEASED. With double-tap gone there is
+     * no window to wait out, so view-cycling has no lag. */
     btn_init(&b);
     CHECK_EQ_INT(btn_feed(&b, true, 200), APP_UI_GESTURE_NONE);
-    CHECK_EQ_INT(btn_feed(&b, false, 600), APP_UI_GESTURE_TAP);
+    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_TAP);
 
-    /* Double-tap: two short presses inside 400 ms. */
+    /* Two quick taps are just two taps — two views forward, never one
+     * special gesture. */
     btn_init(&b);
     (void)btn_feed(&b, true, 200);
-    (void)btn_feed(&b, false, 200);
+    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_TAP);
     (void)btn_feed(&b, true, 200);
-    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_DOUBLE_TAP);
-    /* And it does NOT then also emit a tap. */
-    CHECK_EQ_INT(btn_feed(&b, false, 800), APP_UI_GESTURE_NONE);
+    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_TAP);
 
-    /* HOLD COMMITS ON RELEASE. Reaching 2 s emits nothing... */
+    /* HOLD (power off) COMMITS ON RELEASE. Reaching the 2 s threshold
+     * emits nothing... */
     btn_init(&b);
     CHECK_EQ_INT(btn_feed(&b, true, 3000), APP_UI_GESTURE_NONE);
     /* ...releasing after it is the commit. */
     CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_HOLD);
 
-    /* Released EARLY: nothing happens at all. That is the visible cancel
-     * path, and it is what makes a one-button UI tolerable (07 §7.4). */
+    /* Released EARLY (past tap length, before 2 s): nothing at all — the
+     * visible cancel path for power-off. */
     btn_init(&b);
-    (void)btn_feed(&b, true, 1500);
+    (void)btn_feed(&b, true, 1000);
     CHECK_EQ_INT(btn_feed(&b, false, 1000), APP_UI_GESTURE_NONE);
-
-    /* 10 s arms the factory reset, again only on release. */
-    btn_init(&b);
-    CHECK_EQ_INT(btn_feed(&b, true, 11000), APP_UI_GESTURE_NONE);
-    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_FACTORY);
 
     /* A press that never releases is never a gesture. */
     btn_init(&b);
@@ -1171,13 +1177,11 @@ static void test_gestures(void) {
     CHECK_EQ_INT(btn_feed(&b, false, 800), APP_UI_GESTURE_NONE);
     /* The NEXT press is a real one. */
     (void)btn_feed(&b, true, 200);
-    CHECK_EQ_INT(btn_feed(&b, false, 800), APP_UI_GESTURE_TAP);
+    CHECK_EQ_INT(btn_feed(&b, false, 100), APP_UI_GESTURE_TAP);
 
-    /* D3's vocabulary, so the three-button variant is a driver. */
+    /* D3's vocabulary; BACK has no gesture on the one-button board. */
     CHECK_EQ_INT(app_ui_input_vocabulary(APP_UI_GESTURE_TAP),
                  APP_UI_INPUT_NEXT);
-    CHECK_EQ_INT(app_ui_input_vocabulary(APP_UI_GESTURE_DOUBLE_TAP),
-                 APP_UI_INPUT_BACK);
     CHECK_EQ_INT(app_ui_input_vocabulary(APP_UI_GESTURE_HOLD),
                  APP_UI_INPUT_SELECT);
 }
@@ -1244,86 +1248,64 @@ static void test_page_navigation_and_actions(void) {
     model_tap(&w); /* wraps */
     CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
 
-    /* Every (page × hold) pair reaches ITS action and no other. */
-    static const app_ui_action_t expect[APP_UI_PAGE_COUNT] = {
-        APP_UI_ACTION_TOGGLE_UNITS, APP_UI_ACTION_SESSION_TOGGLE,
-        APP_UI_ACTION_NET_TOGGLE, APP_UI_ACTION_RADIO_TOGGLE,
-        APP_UI_ACTION_SAVER_TOGGLE};
-    for (int page = 0; page < APP_UI_PAGE_COUNT; page++) {
-        model_init(&w);
-        for (int i = 0; i < page; i++) {
-            model_tap(&w);
-        }
-        model_feed(&w, true, 2500, 0);
-        /* The countdown is on the glass while the hold is in progress. */
-        CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_CONFIRM);
-        CHECK(w.st.confirm_text[0] != '\0');
-        model_feed(&w, false, 100, 0);
-        CHECK_EQ_INT(g_performed_n, 1);
-        CHECK_EQ_INT(g_performed[0], expect[page]);
-        CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
-    }
-
-    /* A hold RELEASED EARLY performs NOTHING, on every page. */
-    for (int page = 0; page < APP_UI_PAGE_COUNT; page++) {
-        model_init(&w);
-        for (int i = 0; i < page; i++) {
-            model_tap(&w);
-        }
-        model_feed(&w, true, 1500, 0);
-        model_feed(&w, false, 1000, 0);
-        CHECK_EQ_INT(g_performed_n, 0);
-    }
-
-    /* Double-tap adds a mark, from any page. */
-    model_init(&w);
-    model_feed(&w, true, 200, 0);
-    model_feed(&w, false, 200, 0);
-    model_feed(&w, true, 200, 0);
-    model_feed(&w, false, 600, 0);
-    CHECK_EQ_INT(g_performed_n, 1);
-    CHECK_EQ_INT(g_performed[0], APP_UI_ACTION_ADD_MARK);
-
-    /* Factory reset needs all three KEEP HOLDING confirmations. */
-    model_init(&w);
-    for (int i = 0; i < APP_UI_FACTORY_CONFIRMS - 1; i++) {
-        model_feed(&w, true, 11000, 0);
-        model_feed(&w, false, 200, 0);
-        CHECK_EQ_INT(g_performed_n, 0);
-    }
-    model_feed(&w, true, 11000, 0);
-    model_feed(&w, false, 200, 0);
-    CHECK_EQ_INT(g_performed_n, 1);
-    CHECK_EQ_INT(g_performed[0], APP_UI_ACTION_FACTORY_RESET);
+    /* A tap only navigates — it performs no action. Every control moved to
+     * the app; the bridge is a passthrough (07 §7.4). */
+    CHECK_EQ_INT(g_performed_n, 0);
 }
 
-static void test_alarm_forces_page_one_and_consumes_the_ack(void) {
+static void test_power_off_and_alarm_display(void) {
     model_t w;
+
+    /* Holding past 2 s arms power-off: the glass names it and counts down,
+     * then reads armed (confirm_count 0). Releasing is the commit. */
+    model_init(&w);
+    model_feed(&w, true, 1000, 0);
+    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_CONFIRM);
+    CHECK(w.st.confirm_text[0] != 0);
+    CHECK(w.st.confirm_count > 0);       /* still counting down */
+    model_feed(&w, true, 1500, 0);       /* now past the 2 s threshold */
+    CHECK_EQ_INT(w.st.confirm_count, 0); /* armed: release to confirm */
+    model_feed(&w, false, 100, 0);
+    CHECK_EQ_INT(g_performed_n, 1);
+    CHECK_EQ_INT(g_performed[0], APP_UI_ACTION_POWER_OFF);
+    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
+
+    /* Released before the threshold: nothing commits, the overlay clears. */
+    model_init(&w);
+    model_feed(&w, true, 1000, 0);
+    model_feed(&w, false, 200, 0);
+    CHECK_EQ_INT(g_performed_n, 0);
+    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
+
+    /* A tap only cycles views and commits nothing — the app owns control. */
+    model_init(&w);
+    model_tap(&w);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_COOK);
+    CHECK_EQ_INT(g_performed_n, 0);
+
+    /* AN ALARM IS DISPLAYED, NEVER SILENCED HERE. It forces view 1; a tap
+     * dismisses the overlay and moves on, but performs NO action — the
+     * Smoke X receiver or the app silences it. */
     model_init(&w);
     model_tap(&w);
     model_tap(&w);
     CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_NETWORK);
-
     app_ui_model_on_alarm(&w.m, &w.st, w.t);
     CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
     CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_ALARM);
-
-    /* The acknowledging tap is CONSUMED: it silences, and it does not
-     * also advance the page. */
     g_performed_n = 0;
     model_tap(&w);
-    CHECK_EQ_INT(g_performed_n, 1);
-    CHECK_EQ_INT(g_performed[0], APP_UI_ACTION_ACK_ALARM);
-    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
-    CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
+    CHECK_EQ_INT(g_performed_n, 0); /* nothing was acked */
+    CHECK(w.st.overlay != APP_UI_OVERLAY_ALARM);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_COOK);
 
-    /* And the 60 s revert: the PAGE comes back, and nothing here touches
-     * alarm state. Silencing the screen is not dealing with it. */
+    /* And the 60 s revert: the view comes back on its own, and nothing here
+     * touches alarm state. Clearing the screen is not dealing with it. */
     model_init(&w);
     app_ui_model_on_alarm(&w.m, &w.st, w.t);
     model_feed(&w, false, APP_UI_ALARM_OVERLAY_MS + 1000, 0);
     CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_NONE);
-    CHECK_EQ_INT(g_performed_n, 0); /* no ack was invented */
+    CHECK_EQ_INT(g_performed_n, 0);
 }
 
 static void test_sleep_and_wake(void) {
@@ -1503,8 +1485,42 @@ static void test_i2c_counters_count_both_ways(void) {
     CHECK(err2 > 0);
 }
 
+/* F17.6 — the small font renders the degree sign as one glyph in one cell, the
+ * same rule the large font already followed. Before this every small-font
+ * temperature read "163??F": the degree is emitted as UTF-8 0xC2 0xB0 and each
+ * byte fell back to '?'. */
+static void test_small_font_degree_glyph(void) {
+    app_ui_fb_t fb;
+    app_ui_fb_clear(&fb);
+    /* '1', UTF-8 degree, 'F' — three visible cells. The split literal stops
+     * the compiler folding 0xB0 and 'F' into one \x escape. */
+    CHECK_EQ_INT(app_ui_draw_text(&fb, 0, 0, "1\xC2\xB0" "F"), 3);
+    /* The degree ring sits in cell 1: top row has ink at x = CELL_W+1 and +3,
+     * and the ring is hollow at its centre. */
+    CHECK(app_ui_get_pixel(&fb, APP_UI_CELL_W + 1, 0));
+    CHECK(app_ui_get_pixel(&fb, APP_UI_CELL_W + 3, 0));
+    CHECK(!app_ui_get_pixel(&fb, APP_UI_CELL_W + 2, 1));
+    /* 'F' lands in cell 2 — proof the degree took ONE cell, not two. Had both
+     * UTF-8 bytes drawn '?', the 'F' would be in cell 3 and cell 2 would carry
+     * a '?'. */
+    bool cell2_ink = false;
+    for (int gx = 0; gx < 5; gx++) {
+        for (int gy = 0; gy < 7; gy++) {
+            if (app_ui_get_pixel(&fb, 2 * APP_UI_CELL_W + gx, gy)) {
+                cell2_ink = true;
+            }
+        }
+    }
+    CHECK(cell2_ink);
+    /* Bare Latin-1 degree also collapses to a single cell. */
+    app_ui_fb_clear(&fb);
+    CHECK_EQ_INT(app_ui_draw_text(&fb, 0, 0, "9\xB0"), 2);
+}
+
 int main(int argc, char **argv) {
     g_write_goldens = argc > 1 && strcmp(argv[1], "--write-goldens") == 0;
+
+    test_small_font_degree_glyph();
 
     test_pixels_and_pages();
     test_out_of_bounds_is_a_no_op();
@@ -1532,7 +1548,7 @@ int main(int argc, char **argv) {
     test_progress_bar();
     test_gestures();
     test_page_navigation_and_actions();
-    test_alarm_forces_page_one_and_consumes_the_ack();
+    test_power_off_and_alarm_display();
     test_sleep_and_wake();
     test_led_patterns();
     test_i2c_counters_count_both_ways();

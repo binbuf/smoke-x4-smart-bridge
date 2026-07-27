@@ -13,25 +13,40 @@ import '../domain/analysis/analysis.dart';
 /// The em dash, once, so the goldens and the tests agree on which one.
 const String noValue = '—';
 
-/// Tenths-°F → `243°` (or `117°` in °C). Whole degrees: 0.1 °F of
-/// precision on a 88-point display slot is noise with a decimal point on
-/// it, and it makes the digits jitter as the value ticks.
+/// Tenths-°F → `243.4°` (or `117.4°` in °C). **A25: one decimal, always.**
+///
+/// The Smoke X base and its receiver both read to a tenth, and an app that
+/// says `82°` while the device in your hand says `81.8°` reads as a different
+/// number, not a rounded one — the whole-degree rule this file used to hold
+/// cost more trust than the jitter it saved. The wire, the firmware and the
+/// cache have carried tenths since M0; this is the display finally telling
+/// the truth they hold. Where the digit would dominate (the headline slot),
+/// [AnimatedTemp] renders it typographically subordinate rather than dropping
+/// it.
 String formatTemp(int? f10, {bool celsius = false}) {
   if (f10 == null) {
     return noValue;
   }
   final v = celsius ? f10ToC10(f10) : f10;
-  return '${(v / 10).round()}°';
+  return '${(v / 10).toStringAsFixed(1)}°';
 }
 
-/// One decimal, for the places where the tenth is genuinely meaningful —
-/// a target, an export, a crosshair readout.
-String formatTempPrecise(int? f10, {bool celsius = false}) {
+/// Explicit alias of [formatTemp], kept for the call sites that always meant
+/// "the tenth matters here" (exports, crosshair readouts, alarm values).
+String formatTempPrecise(int? f10, {bool celsius = false}) =>
+    formatTemp(f10, celsius: celsius);
+
+/// A **setpoint** — a target or an alarm band — which the user typed rather
+/// than the probe measured. `203°`, not `203.0°`; a tenth appears only when
+/// one was actually set (`203.5°`). Precision the user did not ask for reads
+/// as noise on a number they chose.
+String formatSetpoint(int? f10, {bool celsius = false}) {
   if (f10 == null) {
     return noValue;
   }
   final v = celsius ? f10ToC10(f10) : f10;
-  return '${(v / 10).toStringAsFixed(1)}°';
+  final whole = (v / 10).truncate();
+  return v % 10 == 0 ? '$whole°' : '${(v / 10).toStringAsFixed(1)}°';
 }
 
 /// °F/hr, to one decimal. §9.4: the underlying resolution is 0.1 °F over

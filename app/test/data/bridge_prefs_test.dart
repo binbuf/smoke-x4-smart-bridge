@@ -9,6 +9,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smoke_bridge/data/prefs/bridge_prefs.dart';
+import 'package:smoke_bridge/data/transport/bridge_transport.dart';
 
 void main() {
   group('in memory (what the suite runs on)', () {
@@ -92,6 +93,39 @@ void main() {
       final reloaded = await SharedPrefsBridgePrefs.load();
       expect(reloaded.lastBaseUrl, isNull);
       expect(reloaded.lastBridgeId, isNull);
+    });
+
+    test('transport preferences default sensibly and round-trip', () async {
+      final p = await SharedPrefsBridgePrefs.load();
+      // 05 §5.7 defaults: auto (BLE-instant, Wi-Fi upgrade) and hold-BLE on.
+      expect(p.preferredTransport, PreferredTransport.auto);
+      expect(p.holdBleWhenOnWifi, isTrue);
+
+      await p.setPreferredTransport(PreferredTransport.ble);
+      await p.setHoldBleWhenOnWifi(false);
+      final reloaded = await SharedPrefsBridgePrefs.load();
+      expect(reloaded.preferredTransport, PreferredTransport.ble);
+      expect(reloaded.holdBleWhenOnWifi, isFalse);
+    });
+
+    test('an unknown stored preference degrades to auto, not a throw', () async {
+      SharedPreferences.setMockInitialValues({
+        'transport.preferred': 'satellite', // an older/newer build's value
+      });
+      final p = await SharedPrefsBridgePrefs.load();
+      expect(p.preferredTransport, PreferredTransport.auto);
+    });
+
+    test('the transport preference survives forgetting a bridge', () async {
+      final p = await SharedPrefsBridgePrefs.load();
+      await p.setPreferredTransport(PreferredTransport.wifi);
+      await p.recordConnection('http://a');
+      await p.forgetBridge();
+      // It is a device-agnostic user choice, not per-bridge state.
+      expect(
+        (await SharedPrefsBridgePrefs.load()).preferredTransport,
+        PreferredTransport.wifi,
+      );
     });
   });
 }

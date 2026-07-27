@@ -31,7 +31,6 @@ static void on_sample(const smoke_x_sample_t *s) {
     int16_t temps[4];
     uint8_t flags = 0;
     bool any_attached = false;
-    int16_t max_temp = 0;
     for (int i = 0; i < 4; i++) {
         temps[i] = i < s->state.num_probes
                        ? to_f10(s->state.probes[i].temp_x10, s->state.units)
@@ -42,9 +41,6 @@ static void on_sample(const smoke_x_sample_t *s) {
         if (temps[i] != BRIDGE_TEMP_DETACHED &&
             temps[i] != BRIDGE_TEMP_INVALID) {
             any_attached = true;
-            if (temps[i] > max_temp) {
-                max_temp = temps[i];
-            }
         }
     }
     if (s->state.billows_attached) {
@@ -63,7 +59,6 @@ static void on_sample(const smoke_x_sample_t *s) {
         .paired = true,
         .sample = true,
         .any_attached = any_attached,
-        .max_attached_temp_x10 = max_temp,
     };
     if (cook_lifecycle_step(&g_lc, &in) == COOK_LC_START) {
         app_config_pairing_t p;

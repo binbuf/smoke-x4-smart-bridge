@@ -360,7 +360,8 @@ String ongoingBody(DashboardSnapshot s) {
   return extras.isEmpty ? line1 : '$line1\n${extras.join(' · ')}';
 }
 
-String _temp(int? f10) => f10 == null ? '—' : '${(f10 / 10).round()}°F';
+String _temp(int? f10) =>
+    f10 == null ? '—' : '${(f10 / 10).toStringAsFixed(1)}°F';
 
 String _trend(double? rate) {
   if (rate == null) {

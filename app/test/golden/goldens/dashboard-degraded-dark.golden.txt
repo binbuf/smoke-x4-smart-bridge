@@ -12,7 +12,7 @@
   [probe-tile-headline-1]
     paint _StrokePainter
     text "PIT"
-    text "247°" semantics "Pit, 247 degrees, falling 17.1 per hour"
+    text "246.7°" semantics "Pit, 246.7 degrees, falling 17.1 per hour"
     icon 57495
     text "target 250°"
     text "-17.1°/hr"
@@ -20,7 +20,7 @@
   [probe-tile-headline-2]
     paint _StrokePainter
     text "BRISKET"
-    text "108°" semantics "Brisket, 108 degrees, rising 24.0 per hour"
+    text "107.8°" semantics "Brisket, 107.8 degrees, rising 24.0 per hour"
     icon 57504
     text "target 203°"
     text "+24.0°/hr"

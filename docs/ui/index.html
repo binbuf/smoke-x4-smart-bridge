@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smoke X4 Smart Bridge - Interactive Master UI Showcase</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <style>
+    :root {
+      /* Color Palette - Obsidian Dark BBQ Theme */
+      --bg-darkest: #07090E;
+      --bg-surface: #0F131D;
+      --bg-card: #161C2A;
+      --bg-card-hover: #1E2638;
+      --bg-card-subtle: #121824;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(255, 107, 0, 0.35);
+      
+      /* Thermal & Role Colors */
+      --color-pit: #FF6B00; /* Thermal Fire Orange */
+      --color-pit-glow: rgba(255, 107, 0, 0.25);
+      --color-food-1: #FF9500; /* Warm Amber */
+      --color-food-2: #06B6D4; /* Electric Cyan */
+      --color-food-3: #A855F7; /* Deep Violet */
+      --color-food-4: #84CC16; /* Fresh Lime */
+      
+      /* Status Colors */
+      --color-success: #10B981; /* Emerald Green */
+      --color-warning: #F59E0B; /* Honey Amber */
+      --color-danger: #EF4444; /* Crimson Red */
+      --color-info: #3B82F6; /* Sapphire Blue */
+
+      /* Text Colors */
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+
+      /* Radii & Shadows */
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 8px;
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      --shadow-glow-pit: 0 0 24px rgba(255, 107, 0, 0.2);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-darkest);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-x: hidden;
+      padding: 16px;
+    }
+
+    /* Master Toolbar */
+    .master-toolbar {
+      width: 100%;
+      max-width: 1240px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .master-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.15rem;
+    }
+
+    .master-title i { color: var(--color-pit); font-size: 1.5rem; }
+
+    .master-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .btn-tool {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-tool:hover, .btn-tool.active {
+      background: var(--bg-card-hover);
+      color: var(--text-main);
+      border-color: var(--color-pit);
+    }
+
+    /* App Container Layout */
+    .app-container {
+      width: 100%;
+      max-width: 440px; /* Phone frame default */
+      transition: max-width 0.3s ease;
+    }
+
+    .app-container.expanded-mode { max-width: 1100px; }
+
+    .device-frame {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 36px;
+      padding: 16px 16px 24px 16px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* System Status Bar */
+    .system-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg-card-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+
+    .transport-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .transport-wifi-sta { background: rgba(16, 185, 129, 0.15); color: var(--color-success); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .transport-wifi-ap { background: rgba(255, 107, 0, 0.15); color: var(--color-pit); border: 1px solid rgba(255, 107, 0, 0.3); }
+    .transport-ble { background: rgba(6, 182, 212, 0.15); color: var(--color-food-2); border: 1px solid rgba(6, 182, 212, 0.3); }
+    .transport-offline { background: rgba(239, 68, 68, 0.15); color: var(--color-danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } 100% { opacity: 1; transform: scale(1); } }
+
+    .telemetry-icons { display: flex; align-items: center; gap: 12px; font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
+
+    /* Navigation Bar */
+    .app-nav {
+      display: flex;
+      background: var(--bg-card-subtle);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      border: 1px solid var(--border-subtle);
+      overflow-x: auto;
+    }
+
+    .nav-tab {
+      flex: 1;
+      min-width: 65px;
+      text-align: center;
+      padding: 10px 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+
+    .nav-tab i { font-size: 1.15rem; }
+
+    .nav-tab.active {
+      background: var(--bg-card);
+      color: var(--color-pit);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Screen Container */
+    .screen { display: none; animation: fadeIn 0.2s ease forwards; }
+    .screen.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Welcome / Hardware Provisioning Wizard */
+    .onboarding-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .wizard-steps { display: flex; justify-content: space-between; margin-bottom: 20px; position: relative; }
+    .wizard-steps::before { content: ''; position: absolute; top: 14px; left: 10%; right: 10%; height: 2px; background: var(--border-subtle); z-index: 1; }
+    .step-circle {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--bg-card-subtle);
+      border: 2px solid var(--border-subtle); color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; z-index: 2;
+    }
+    .step-circle.active { border-color: var(--color-pit); color: var(--color-pit); background: var(--bg-surface); box-shadow: 0 0 12px var(--color-pit-glow); }
+    .step-circle.done { background: var(--color-pit); border-color: var(--color-pit); color: #FFF; }
+
+    .pin-display {
+      font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 800; letter-spacing: 12px;
+      color: var(--color-pit); background: var(--bg-darkest); border: 1px solid var(--border-glow);
+      padding: 14px; border-radius: var(--radius-md); margin: 16px 0; text-align: center;
+    }
+
+    .network-option-card {
+      background: var(--bg-card-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 10px;
+    }
+
+    .network-option-card:hover, .network-option-card.selected {
+      border-color: var(--color-pit);
+      background: var(--bg-card-hover);
+    }
+
+    .network-option-card h4 { font-size: 0.9rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+    .network-option-card p { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* Live Dashboard Cards */
+    .cook-header-card {
+      background: linear-gradient(135deg, rgba(255, 107, 0, 0.15) 0%, rgba(15, 19, 29, 0.7) 100%);
+      border: 1px solid rgba(255, 107, 0, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cook-title-group h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cook-title-group p { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+
+    .timer-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--color-pit);
+      background: rgba(0, 0, 0, 0.5);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255, 107, 0, 0.35);
+    }
+
+    /* Probe Hero Cards */
+    .probe-hero-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .app-container.expanded-mode .probe-hero-grid { grid-template-columns: 1fr 1fr; }
+
+    .probe-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .probe-card.pit-card { border-color: rgba(255, 107, 0, 0.35); box-shadow: var(--shadow-glow-pit); }
+    .probe-card.food-card { border-color: rgba(255, 149, 0, 0.35); }
+
+    .probe-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+
+    .probe-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .probe-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-pit { background: var(--color-pit); box-shadow: 0 0 8px var(--color-pit); }
+    .dot-food1 { background: var(--color-food-1); box-shadow: 0 0 8px var(--color-food-1); }
+    .dot-food2 { background: var(--color-food-2); box-shadow: 0 0 8px var(--color-food-2); }
+    .dot-food3 { background: var(--color-food-3); box-shadow: 0 0 8px var(--color-food-3); }
+
+    .probe-target-pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .probe-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+
+    .giant-temp {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 900;
+      font-size: 3.2rem;
+      line-height: 1;
+      letter-spacing: -1px;
+      color: var(--text-main);
+    }
+
+    .giant-temp span { font-size: 1.6rem; font-weight: 600; color: var(--text-muted); vertical-align: top; margin-left: 2px; }
+
+    .probe-trend { font-size: 0.8rem; font-weight: 600; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+    .trend-up { color: var(--color-pit); }
+    .trend-down { color: var(--color-info); }
+    .trend-flat { color: var(--text-muted); }
+
+    /* SVG Radial Gauge Arc */
+    .gauge-wrapper { position: relative; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; }
+    .gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .gauge-bg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 8; }
+    .gauge-fill { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease; }
+    .gauge-pit { stroke: var(--color-pit); stroke-dasharray: 226; stroke-dashoffset: 45; }
+    .gauge-food { stroke: var(--color-food-1); stroke-dasharray: 226; stroke-dashoffset: 70; }
+    .gauge-center-icon { position: absolute; font-size: 1.4rem; color: var(--text-muted); }
+
+    /* Insight Banners */
+    .insight-banner {
+      margin-top: 12px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .stall-banner { background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); color: #FBBF24; }
+    .eta-banner { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--color-success); }
+    .lid-banner { background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.35); color: #F87171; }
+
+    /* Secondary Grid */
+    .secondary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .compact-probe-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; }
+    .compact-probe-card .giant-temp { font-size: 2rem; }
+
+    /* Chart Section */
+    .chart-section { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 16px; }
+    .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .chart-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.9rem; color: var(--text-main); display: flex; align-items: center; gap: 6px; }
+    .chart-ranges { display: flex; gap: 4px; }
+    .range-chip { background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; font-weight: 600; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+    .range-chip.active { background: var(--color-pit); color: #FFF; border-color: var(--color-pit); }
+    .chart-canvas-container { position: relative; height: 210px; width: 100%; }
+
+    /* Action Bar */
+    .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .btn-action {
+      background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-main);
+      padding: 12px 8px; border-radius: var(--radius-md); font-size: 0.8rem; font-weight: 600;
+      display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-action i { font-size: 1.2rem; color: var(--color-pit); }
+    .btn-action:hover { background: var(--bg-card-hover); border-color: var(--color-pit); }
+
+    /* Form Inputs & Switches */
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; display: block; }
+    .form-input {
+      width: 100%; background: var(--bg-darkest); border: 1px solid var(--border-subtle);
+      color: var(--text-main); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; font-family: inherit;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); width: 100%; max-width: 440px; padding: 22px; max-height: 90vh; overflow-y: auto; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .modal-header h3 { font-family: 'Outfit', sans-serif; font-size: 1.15rem; }
+    .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.3rem; cursor: pointer; }
+
+    /* Sim Dock */
+    .sim-dock { width: 100%; max-width: 1240px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px 20px; margin-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .sim-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; color: var(--color-warning); }
+    .sim-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+  <!-- Master Control Header -->
+  <div class="master-toolbar">
+    <div class="master-title">
+      <i class="ph-fill ph-flame"></i>
+      <span>Smoke X4 Smart Bridge — Interactive Master UI Showcase</span>
+    </div>
+    <div class="master-controls">
+      <button class="btn-tool active" id="btnPhoneView" onclick="setDeviceView('phone')">
+        <i class="ph ph-device-mobile"></i> Mobile Frame
+      </button>
+      <button class="btn-tool" id="btnExpandedView" onclick="setDeviceView('expanded')">
+        <i class="ph ph-desktop"></i> Expanded View
+      </button>
+      <button class="btn-tool" onclick="switchTab('welcome')">
+        <i class="ph ph-bluetooth-connect"></i> Hardware Setup
+      </button>
+    </div>
+  </div>
+
+  <!-- App Main Frame Container -->
+  <div class="app-container" id="appContainer">
+    <div class="device-frame">
+
+      <!-- System Status Bar -->
+      <div class="system-status-bar">
+        <div class="transport-badge transport-wifi-sta" id="transportBadge" onclick="openBridgeModal()">
+          <div class="pulse-dot"></div>
+          <span id="transportLabel">Wi-Fi STA · smokebridge.local</span>
+        </div>
+        <div class="telemetry-icons">
+          <span><i class="ph ph-wifi-high" style="color: var(--color-success)"></i> 100%</span>
+          <span><i class="ph ph-battery-charging" style="color: var(--color-pit)"></i> 78%</span>
+          <span><i class="ph ph-radio"></i> -82 dBm</span>
+        </div>
+      </div>
+
+      <!-- App Navigation Bar -->
+      <div class="app-nav">
+        <div class="nav-tab active" onclick="switchTab('welcome', this)">
+          <i class="ph-fill ph-bluetooth-connect"></i>
+          <span>Welcome</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('dashboard', this)">
+          <i class="ph-fill ph-gauge"></i>
+          <span>Raw Probes</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('presets', this)">
+          <i class="ph-fill ph-cooking-pot"></i>
+          <span>Presets</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('history', this)">
+          <i class="ph-fill ph-chart-line-up"></i>
+          <span>History</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('alarms', this)">
+          <i class="ph-fill ph-bell-simple-ringing"></i>
+          <span>Alarms</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('settings', this)">
+          <i class="ph-fill ph-gear"></i>
+          <span>Settings</span>
+        </div>
+      </div>
+
+      <!-- 1. WELCOME & HARDWARE PROVISIONING WIZARD SCREEN -->
+      <div class="screen active" id="screen-welcome">
+        <div style="margin-bottom: 14px; text-align:center;">
+          <h2 style="font-family:'Outfit', sans-serif; font-size:1.3rem;">Welcome to Smoke Bridge</h2>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Pair your Heltec V3 hardware bridge over BLE & provision network mode.</p>
+        </div>
+
+        <div class="wizard-steps">
+          <div class="step-circle done" id="wStep1">1</div>
+          <div class="step-circle active" id="wStep2">2</div>
+          <div class="step-circle" id="wStep3">3</div>
+          <div class="step-circle" id="wStep4">4</div>
+          <div class="step-circle" id="wStep5">5</div>
+        </div>
+
+        <div class="onboarding-card" id="wizardCard">
+          <i class="ph-fill ph-shield-check" style="font-size: 2.4rem; color: var(--color-pit);"></i>
+          <h3 style="margin-top:10px; font-family:'Outfit', sans-serif; font-size:1.1rem;">Step 2: Enter OLED Passkey</h3>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+            Check the 0.96" OLED screen on your bridge and verify the 6-digit passkey:
+          </p>
+          
+          <div class="pin-display">849 201</div>
+
+          <button class="btn-tool active" style="width:100%; justify-content:center; padding:12px; font-size:0.9rem;" onclick="wizardNextStep(3)">
+            Confirm Passkey & Set Clock
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. LIVE DASHBOARD & RAW PROBES MONITOR SCREEN -->
+      <div class="screen" id="screen-dashboard">
+        
+        <!-- Dashboard Top Header Bar with Cook Setup Trigger -->
+        <div class="cook-header-card">
+          <div class="cook-title-group">
+            <h2 id="dashboardTitle"><i class="ph-fill ph-thermometer" style="color: var(--color-pit)"></i> Raw Probes Monitor</h2>
+            <p id="dashboardSubtext">Live Telemetry · 4 Probes Logged to Flash</p>
+          </div>
+          <button class="btn-tool active" style="padding:8px 12px; border-color:var(--color-pit);" onclick="openCookSetupModal()">
+            <i class="ph-fill ph-plus-circle"></i> Setup Cook
+          </button>
+        </div>
+
+        <!-- Probe Hero Cards Grid -->
+        <div class="probe-hero-grid" id="probesGrid">
+          
+          <!-- Pit Thermometer Hero Card -->
+          <div class="probe-card pit-card">
+            <div class="probe-card-header">
+              <div class="probe-label" style="color: var(--color-pit)">
+                <div class="probe-dot dot-pit"></div>
+                <span id="labelPit">Pit Temp</span>
+              </div>
+              <div class="probe-target-pill" id="pillPit">Target 250°F (±25°)</div>
+            </div>
+            <div class="probe-body">
+              <div class="temp-readout">
+                <div class="giant-temp" id="valPit">245<span>°F</span></div>
+                <div class="probe-trend trend-down">
+                  <i class="ph ph-trend-down"></i> -1.8 °F/hr
+                </div>
+              </div>
+              <div class="gauge-wrapper">
+                <svg class="gauge-svg" viewBox="0 0 100 100">
+                  <circle class="gauge-bg" cx="50" cy="50" r="36" />
+                  <circle class="gauge-fill gauge-pit" id="gaugePitArc" cx="50" cy="50" r="36" />
+                </svg>
+                <i class="ph-fill ph-fire gauge-center-icon" style="color: var(--color-pit)"></i>
+              </div>
+            </div>
+            <div class="insight-banner eta-banner" id="bannerPitStatus">
+              <span><i class="ph ph-check-circle"></i> Fire Stable · Time in Band 96%</span>
+              <span style="font-size:0.7rem; opacity:0.8;">225-275°F</span>
+            </div>
+          </div>
+
+          <!-- Probe 1 Hero Card -->
+          <div class="probe-card food-card">
+            <div class="probe-card-header">
+              <div class="probe-label" style="color: var(--color-food-1)">
+                <div class="probe-dot dot-food1"></div>
+                <span id="nameFood1">Probe 1</span>
+              </div>
+              <div class="probe-target-pill" id="targetFood1">Target 160°F</div>
+            </div>
+            <div class="probe-body">
+              <div class="temp-readout">
+                <div class="giant-temp" id="valFood1">165<span>°F</span></div>
+                <div class="probe-trend trend-up">
+                  <i class="ph ph-trend-up"></i> +1.2 °F/hr
+                </div>
+              </div>
+              <div class="gauge-wrapper">
+                <svg class="gauge-svg" viewBox="0 0 100 100">
+                  <circle class="gauge-bg" cx="50" cy="50" r="36" />
+                  <circle class="gauge-fill gauge-food" id="gaugeFoodArc" cx="50" cy="50" r="36" />
+                </svg>
+                <i class="ph-fill ph-knife gauge-center-icon" style="color: var(--color-food-1)"></i>
+              </div>
+            </div>
+            <div class="insight-banner stall-banner" id="bannerStall" style="display:none;">
+              <span><i class="ph ph-warning-diamond"></i> BBQ Stall Detected (~165°F)</span>
+              <span>ETA 5h 45m</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Secondary Probes Grid -->
+        <div class="secondary-grid">
+          <div class="compact-probe-card">
+            <div class="probe-card-header">
+              <div class="probe-label" style="color: var(--color-food-2); font-size:0.8rem;">
+                <div class="probe-dot dot-food2"></div>
+                <span id="nameFood2">Probe 2</span>
+              </div>
+            </div>
+            <div class="giant-temp" id="valFood2">172<span>°F</span></div>
+            <div class="probe-trend trend-up" style="font-size:0.75rem;">
+              Target 160°F · +3.8 °F/hr
+            </div>
+          </div>
+
+          <div class="compact-probe-card">
+            <div class="probe-card-header">
+              <div class="probe-label" style="color: var(--color-food-3); font-size:0.8rem;">
+                <div class="probe-dot dot-food3"></div>
+                <span id="nameFood3">Probe 3</span>
+              </div>
+            </div>
+            <div class="giant-temp" id="valFood3">154<span>°F</span></div>
+            <div class="probe-trend trend-up" style="font-size:0.75rem;">
+              Target 160°F · +4.5 °F/hr
+            </div>
+          </div>
+        </div>
+
+        <!-- Cook Chart -->
+        <div class="chart-section">
+          <div class="chart-header">
+            <div class="chart-title">
+              <i class="ph-fill ph-chart-line" style="color: var(--color-pit)"></i>
+              <span>Telemetry History</span>
+            </div>
+            <div class="chart-ranges">
+              <div class="range-chip" onclick="setChartRange('15m')">15m</div>
+              <div class="range-chip" onclick="setChartRange('1h')">1h</div>
+              <div class="range-chip active" onclick="setChartRange('6h')">6h</div>
+              <div class="range-chip" onclick="setChartRange('all')">All</div>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="cookChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="action-bar">
+          <div class="btn-action" onclick="openMarkModal()">
+            <i class="ph-fill ph-bookmark-simple"></i>
+            <span>Add Mark</span>
+          </div>
+          <div class="btn-action" onclick="triggerAlarmTest()">
+            <i class="ph-fill ph-bell"></i>
+            <span>Test Alarm</span>
+          </div>
+          <div class="btn-action" onclick="exportCookSession()">
+            <i class="ph-fill ph-export"></i>
+            <span>Export Cook</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. PRESETS & SMART PULL LIBRARY SCREEN -->
+      <div class="screen" id="screen-presets">
+        <div style="margin-bottom: 14px;">
+          <h2 style="font-family:'Outfit', sans-serif; font-size:1.3rem;">Protein & Doneness Library</h2>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Chef & USDA target temperatures with Newton cooling rest calculator.</p>
+        </div>
+
+        <div style="background:var(--bg-card); border:1px solid var(--color-pit); border-radius:var(--radius-md); padding:16px; margin-bottom:12px;">
+          <h3 style="font-size:0.95rem; font-weight:800;">Texas Beef Brisket</h3>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">Collagen Breakdown · Recommended Pit 225-250°F</p>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <span style="font-family:'Outfit', sans-serif; font-weight:900; font-size:1.4rem; color:var(--color-pit);">203°F</span>
+            <span style="font-size:0.75rem; color:var(--color-success); font-weight:700;">Pull at 198°F (+5° rest)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. HISTORY SCREEN -->
+      <div class="screen" id="screen-history">
+        <div style="margin-bottom: 16px;">
+          <h2 style="font-family:'Outfit', sans-serif; font-size:1.3rem;">Cook History</h2>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Stored on local SQLite database.</p>
+        </div>
+      </div>
+
+      <!-- 5. ALARMS SCREEN -->
+      <div class="screen" id="screen-alarms">
+        <div style="margin-bottom: 16px;">
+          <h2 style="font-family:'Outfit', sans-serif; font-size:1.3rem;">Alarm Rules</h2>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Hardware latched rules & warning alerts.</p>
+        </div>
+      </div>
+
+      <!-- 6. SETTINGS SCREEN -->
+      <div class="screen" id="screen-settings">
+        <div style="margin-bottom: 16px;">
+          <h2 style="font-family:'Outfit', sans-serif; font-size:1.3rem;">Settings</h2>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Network mode & display options.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Smart Cook Setup Modal (Triggered from Dashboard) -->
+  <div class="modal-overlay" id="cookSetupModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="ph-fill ph-plus-circle" style="color:var(--color-pit)"></i> Setup Guided Cook Session</h3>
+        <button class="btn-close" onclick="closeCookSetupModal()">&times;</button>
+      </div>
+
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:14px;">Select your cut and doneness level to assign probe names, target temps, and pull rest alarms.</p>
+
+      <div style="margin-bottom:14px;">
+        <label class="form-label">Protein Cut</label>
+        <select class="form-input" id="setupProteinSelect" onchange="updateSetupModalOptions(this.value)">
+          <option value="brisket">Texas Beef Brisket (Pitmaster 203°F)</option>
+          <option value="ribeye" selected>Prime Ribeye Steak (Med-Rare 135°F)</option>
+          <option value="porkbutt">Pork Shoulder / Boston Butt (201°F)</option>
+          <option value="turkey">Smoked Whole Turkey (165°F Breast)</option>
+        </select>
+      </div>
+
+      <div style="background:var(--bg-darkest); border:1px solid var(--border-glow); border-radius:var(--radius-md); padding:14px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+          <span style="color:var(--text-muted);">Target Internal:</span>
+          <span style="font-weight:800; color:var(--color-pit);" id="setupTargetTempVal">135°F</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-top:4px;">
+          <span style="color:var(--text-muted);">Pull Rest Temp:</span>
+          <span style="font-weight:800; color:var(--color-success);" id="setupPullTempVal">130°F (+5° rest)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-top:4px;">
+          <span style="color:var(--text-muted);">Recommended Pit:</span>
+          <span style="font-weight:700;" id="setupPitTempVal">225°F (Band 200-250°F)</span>
+        </div>
+      </div>
+
+      <button class="btn-tool active" style="width:100%; justify-content:center; padding:12px; font-size:0.9rem;" onclick="confirmCookSetup()">
+        Start Cook Session & Activate Alarms
+      </button>
+    </div>
+  </div>
+
+  <!-- Interactive Dock -->
+  <div class="sim-dock">
+    <div class="sim-title">
+      <i class="ph-fill ph-game-controller"></i>
+      <span>Interactive State Switcher</span>
+    </div>
+    <div class="sim-group">
+      <button class="btn-tool" onclick="switchTab('welcome')">Welcome / Hardware Setup</button>
+      <button class="btn-tool" onclick="switchTab('dashboard')">Raw Probes Dashboard</button>
+      <button class="btn-tool" onclick="openCookSetupModal()">Setup Cook Session</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => { initChart(); });
+
+    function setDeviceView(mode) {
+      const container = document.getElementById('appContainer');
+      const btnP = document.getElementById('btnPhoneView');
+      const btnE = document.getElementById('btnExpandedView');
+
+      if (mode === 'expanded') {
+        container.classList.add('expanded-mode');
+        btnE.classList.add('active');
+        btnP.classList.remove('active');
+      } else {
+        container.classList.remove('expanded-mode');
+        btnP.classList.add('active');
+        btnE.classList.remove('active');
+      }
+    }
+
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+
+      if (el) el.classList.add('active');
+      const target = document.getElementById(`screen-${tabId}`);
+      if (target) target.classList.add('active');
+    }
+
+    function wizardNextStep(step) {
+      if (step === 3) {
+        document.getElementById('wizardCard').innerHTML = `
+          <i class="ph-fill ph-wifi-high" style="font-size: 2.4rem; color: var(--color-pit);"></i>
+          <h3 style="margin-top:10px; font-family:'Outfit', sans-serif; font-size:1.1rem;">Step 4: Select Wi-Fi Mode</h3>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Choose network mode for the bridge:</p>
+          <div style="margin:16px 0;">
+            <div class="network-option-card selected" onclick="finishWizard('sta')">
+              <h4><i class="ph ph-wifi-high" style="color:var(--color-success)"></i> Joined Home Wi-Fi (STA Mode)</h4>
+              <p>Connects to your home Wi-Fi network. Modem sleep enabled (~70 mA). Ideal for home cooks.</p>
+            </div>
+            <div class="network-option-card" onclick="finishWizard('ap')">
+              <h4><i class="ph ph-broadcast" style="color:var(--color-pit)"></i> Hosted Bridge Network (AP Mode)</h4>
+              <p>Bridge creates its own Wi-Fi network (192.168.4.1). AP stays awake (~145 mA). Ideal for tailgating.</p>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function finishWizard(mode) {
+      alert('Hardware Provisioning Complete! Connected to Smoke Bridge.');
+      switchTab('dashboard');
+    }
+
+    function openCookSetupModal() { document.getElementById('cookSetupModal').classList.add('active'); }
+    function closeCookSetupModal() { document.getElementById('cookSetupModal').classList.remove('active'); }
+
+    function updateSetupModalOptions(val) {
+      if (val === 'brisket') {
+        document.getElementById('setupTargetTempVal').innerText = '203°F';
+        document.getElementById('setupPullTempVal').innerText = '198°F (+5° rest)';
+        document.getElementById('setupPitTempVal').innerText = '250°F (Band 225-275°F)';
+      } else if (val === 'ribeye') {
+        document.getElementById('setupTargetTempVal').innerText = '135°F';
+        document.getElementById('setupPullTempVal').innerText = '130°F (+5° rest)';
+        document.getElementById('setupPitTempVal').innerText = '225°F (Band 200-250°F)';
+      } else if (val === 'porkbutt') {
+        document.getElementById('setupTargetTempVal').innerText = '201°F';
+        document.getElementById('setupPullTempVal').innerText = '196°F (+5° rest)';
+        document.getElementById('setupPitTempVal').innerText = '250°F (Band 225-275°F)';
+      } else if (val === 'turkey') {
+        document.getElementById('setupTargetTempVal').innerText = '165°F';
+        document.getElementById('setupPullTempVal').innerText = '161°F (+4° rest)';
+        document.getElementById('setupPitTempVal').innerText = '300°F (Band 275-325°F)';
+      }
+    }
+
+    function confirmCookSetup() {
+      closeCookSetupModal();
+      document.getElementById('dashboardTitle').innerHTML = `<i class="ph-fill ph-fire" style="color:var(--color-pit)"></i> Guided Prime Ribeye Cook`;
+      document.getElementById('dashboardSubtext').innerText = `Active Session #42 · Smart Targets & Pull Alarms Engaged`;
+      document.getElementById('nameFood1').innerText = `Ribeye Steak (P1)`;
+      document.getElementById('targetFood1').innerText = `Target 135°F (Pull 130°)`;
+      document.getElementById('bannerStall').style.display = 'none';
+      switchTab('dashboard');
+      alert('Cook Session Initialized! Target temperatures and dynamic pull alarms activated.');
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('cookChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['12:00', '13:00', '14:00', '15:00', '16:00', '16:18'],
+          datasets: [
+            { label: 'Pit Temp', data: [230, 248, 252, 240, 246, 245], borderColor: '#FF6B00', fill: true, backgroundColor: 'rgba(255,107,0,0.08)', tension: 0.3, borderWidth: 3 },
+            { label: 'Probe 1', data: [65, 110, 142, 158, 163, 165], borderColor: '#FF9500', tension: 0.3, borderWidth: 3 },
+            { label: 'Probe 2', data: [65, 115, 148, 164, 170, 172], borderColor: '#06B6D4', tension: 0.3, borderWidth: 2 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748B', font: { size: 10 } } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748B', font: { size: 10 } }, min: 50, max: 300 }
+          }
+        }
+      });
+    }
+
+    function setChartRange() {}
+    function openMarkModal() {}
+    function triggerAlarmTest() { alert('Alarm test triggered!'); }
+    function exportCookSession() { alert('Session exported!'); }
+    function openBridgeModal() {}
+  </script>
+</body>
+</html>

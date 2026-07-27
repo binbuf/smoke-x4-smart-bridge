@@ -80,7 +80,7 @@ class HeadlineProbeTile extends StatelessWidget {
           // job is to say "no reading".
           if (view.attached && view.targetF10 != null)
             Text(
-              'target ${formatTemp(view.targetF10, celsius: celsius)}',
+              'target ${formatSetpoint(view.targetF10, celsius: celsius)}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -384,6 +384,6 @@ String _semantics(ProbeView v, {bool celsius = false}) {
       : 'falling ${(-v.rateFPerHr!).toStringAsFixed(1)} per hour';
   final unit = celsius ? 'Celsius' : 'degrees';
   return '${v.name}, '
-      '${((celsius ? f10ToC10(v.tempF10!) : v.tempF10!) / 10).round()} '
+      '${((celsius ? f10ToC10(v.tempF10!) : v.tempF10!) / 10).toStringAsFixed(1)} '
       '$unit, $trend';
 }

@@ -215,6 +215,44 @@ void main() {
       await t.close();
     });
 
+    // D15 — these three left the button entirely, so BLE has to carry them
+    // for a phone that has no Wi-Fi route to the bridge.
+    test('the destructive verbs map onto ops 7, 8 and 13', () async {
+      final (t, fake) = await bonded();
+      final sent = <ControlOp?>[];
+      for (final cmd in <ControlCommand>[
+        const ControlCommand.reboot(),
+        const ControlCommand.factoryReset(),
+        const ControlCommand.powerOff(),
+      ]) {
+        await t.control(cmd);
+        sent.add(DeviceControl.unpack(fake.writes.last.$2).opEnum);
+      }
+      expect(sent, [
+        ControlOp.reboot,
+        ControlOp.factoryReset,
+        ControlOp.powerOff,
+      ]);
+      await t.close();
+    });
+
+    test('battery saver rides op 12 as the tri-state', () async {
+      final (t, fake) = await bonded();
+      for (final (mode, wire) in <(BatterySaverMode, BatterySaver)>[
+        (BatterySaverMode.off, BatterySaver.off),
+        (BatterySaverMode.on, BatterySaver.on),
+        (BatterySaverMode.auto, BatterySaver.auto),
+      ]) {
+        await t.configure(BridgeConfig(batterySaver: mode));
+        final ctrl = DeviceControl.unpack(fake.writes.last.$2);
+        expect(ctrl.opEnum, ControlOp.setBatterySaver);
+        // `auto` is the whole reason this is not a bool — it must survive
+        // the trip rather than collapsing to on/off.
+        expect(CtrlSetBatterySaver.decode(ctrl.bodyRaw).saverEnum, wire);
+      }
+      await t.close();
+    });
+
     test(
       'configure() sets units and refuses probes with a typed condition',
       () async {

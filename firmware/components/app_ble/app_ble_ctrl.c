@@ -259,6 +259,25 @@ static int op_set_units(const uint8_t *body, size_t body_len) {
                : APP_BLE_ERR_FAILED;
 }
 
+static int op_set_battery_saver(const uint8_t *body, size_t body_len) {
+    if (body_len < BRIDGE_CTRL_SET_BATTERY_SAVER_SIZE) {
+        return APP_BLE_ERR_INVALID;
+    }
+    bridge_ctrl_set_battery_saver_t s;
+    bridge_ctrl_set_battery_saver_decode(body, &s);
+    /* off/on/auto — the same tri-state POST /config/device accepts, so the
+     * two transports cannot disagree about what "auto" means. */
+    if (s.saver != BRIDGE_BATTERY_SAVER_OFF &&
+        s.saver != BRIDGE_BATTERY_SAVER_ON &&
+        s.saver != BRIDGE_BATTERY_SAVER_AUTO) {
+        return APP_BLE_ERR_INVALID;
+    }
+    return app_config_store_set_u8(APP_CONFIG_DEV_BATTERY_SAVER, s.saver) ==
+                   APP_CONFIG_OK
+               ? APP_BLE_OK
+               : APP_BLE_ERR_FAILED;
+}
+
 static int op_ack_alarm(const uint8_t *body, size_t body_len) {
     if (body_len < BRIDGE_CTRL_ACK_ALARM_SIZE) {
         return APP_BLE_ERR_INVALID;
@@ -301,6 +320,8 @@ static int dispatch_op(uint8_t op, const uint8_t *body, size_t body_len) {
         return op_set_units(body, body_len);
     case BRIDGE_CONTROL_OP_ACK_ALARM:
         return op_ack_alarm(body, body_len);
+    case BRIDGE_CONTROL_OP_SET_BATTERY_SAVER:
+        return op_set_battery_saver(body, body_len);
     case BRIDGE_CONTROL_OP_IDENTIFY:
         /* Wakes the display and flashes what exists; the LED driver is
          * M5's F11b. Noted as partial rather than faked. */
@@ -308,6 +329,7 @@ static int dispatch_op(uint8_t op, const uint8_t *body, size_t body_len) {
                                            : APP_BLE_ERR_FAILED;
     case BRIDGE_CONTROL_OP_REBOOT:
     case BRIDGE_CONTROL_OP_FACTORY_RESET:
+    case BRIDGE_CONTROL_OP_POWER_OFF:
         return APP_BLE_OK; /* answered first, executed after — see below */
     default:
         return APP_BLE_ERR_INVALID;
@@ -328,8 +350,8 @@ static int handle_device_control(const uint8_t *data, size_t len) {
     const int rc = dispatch_op(c.op, c.body, c.body_len);
     const int answered = app_ble_answer(c.op, status_of(rc), NULL);
 
-    /* Reboot and factory reset destroy the link that carries the answer,
-     * so they run only after it has been pushed. */
+    /* Reboot, factory reset and power off all destroy the link that carries
+     * the answer, so they run only after it has been pushed. */
     if (rc == APP_BLE_OK) {
         if (c.op == BRIDGE_CONTROL_OP_FACTORY_RESET) {
             if (g_ble_ops->factory_reset != NULL) {
@@ -338,6 +360,10 @@ static int handle_device_control(const uint8_t *data, size_t len) {
         } else if (c.op == BRIDGE_CONTROL_OP_REBOOT) {
             if (g_ble_ops->reboot != NULL) {
                 g_ble_ops->reboot();
+            }
+        } else if (c.op == BRIDGE_CONTROL_OP_POWER_OFF) {
+            if (g_ble_ops->power_off != NULL) {
+                g_ble_ops->power_off();
             }
         }
     }

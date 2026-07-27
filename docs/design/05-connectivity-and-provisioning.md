@@ -3,6 +3,12 @@
 Covers the two Wi-Fi modes, how the mode gets chosen, the BLE control service, the handoff
 choreography between them, and the Android-specific traps that will otherwise eat a week.
 
+> **[13 — UX Architecture](13-ux-architecture.md) supersedes the user-facing choreography here.**
+> The five-step wizard becomes three hops behind a preflight gate, the hosted-vs-joined question is
+> deleted, and the bridge↔Smoke X pairing hop this document never covered is added. The mechanisms
+> below — the GATT service, the AP/STA state machine, the mDNS and network-binding traps — stand
+> unchanged and are what 13 builds on.
+
 ## 5.1 The two modes
 
 |                       | **Hosted** (`AP`)                                                | **Joined** (`STA`)                             |
@@ -210,6 +216,13 @@ u8 ver, u8 mode, u8 auth, u8 ssid_len, u8 psk_len, u8 user_len, char ssid[], psk
 | 9   | `set_units` — `u8 (0 °C, 1 °F)` (display preference) |
 | 10  | `identify` — flash the LED and screen for 5 s        |
 | 11  | `ack_alarm` — `u8 alarm_id`                          |
+| 12  | `set_battery_saver` — `u8 (0 off, 1 on, 2 auto)`     |
+| 13  | `power_off` — deep sleep; **wake needs the button**  |
+
+Ops 12–13 are the v1.1 additive growth (D15): with every control moved off the device, BLE and
+HTTP have to cover what the button used to do. `power_off` and `factory_reset`/`reboot` all answer
+first and execute after the notify flushes, because each destroys the link. A bridge put to sleep
+remotely can only be woken by physically holding PRG — the app says so before it sends it.
 
 **`result` (notify)** — `u8 ver, u8 op_echo, u8 status, u8 len, char detail[]`. Status: `0` ok,
 `1` invalid, `2` busy, `3` failed, `4` unauthorized. `detail` carries the AP PSK after a mode
@@ -273,6 +286,36 @@ to the device.
 After a successful handoff the app keeps the BLE link by default (it costs the bridge ~1–3 mA and
 gives instant fallback when you wander out of Wi-Fi range with the phone). A setting disables it
 for users who care about the milliamps.
+
+> **Implemented (A16).** The app side of this — long tracked as the open **A6.7** defect ("the BLE
+> lane never engages when Wi-Fi cannot reach the bridge") — now lives in `app/lib/app/connection_supervisor.dart`
+> (`ConnectionSupervisor`). It **leads with Bluetooth** for instant data, opportunistically **upgrades
+> to Wi-Fi** (full history/config/OTA) via `raceHttpOnly`/`raceHttpUpgrade`, **holds BLE as a warm
+> standby**, and on a dropped WebSocket **fails over to it synchronously** (the un-swallowed
+> `bridge_session` error → `onLinkLost` → a `switchTransport` swap) then climbs back. A preferred-transport
+> setting (auto / Wi-Fi / Bluetooth) and the "keep Bluetooth as backup" toggle live in the header-chip
+> connection sheet. Host-tested end to end; **on-board bench re-verification of the A6.7 close-out is
+> still owed** (the sim suite exercises the state machine, not the radios). See [08 §8.4](08-flutter-app.md).
+
+## 5.7a Home Assistant / MQTT (A16)
+
+Optional, Wi-Fi-only, opt-in, configured from the app — the D2 module the event bus was always shaped
+to accept. Firmware component **`app_mqtt`** (pure `app_mqtt_core` + thin glue) subscribes to the bus
+(`SAMPLE`/`NET`/`POWER`/`SESSION`/`BASE_LOST`/`BASE_FOUND`/`PAIRING`), publishes a retained state topic
+plus **Home Assistant MQTT Discovery** so the bridge appears as a device with the probes, battery, cook
+status and signal as entities — no manual HA YAML. It **gates on `APP_NET_STATE_STA_UP`** (AP/fallback
+have no route to a broker) and an enable flag, and **adds no application task** — esp-mqtt owns its own,
+and the bus handlers only `esp_mqtt_client_enqueue()` (non-blocking, under the 5 ms guard). Config lives
+in NVS under `mqtt/*` (the password follows the STA-PSK read-back rule — never returned by a GET) and is
+set over `POST /api/v1/config/mqtt`. **Plaintext `mqtt://` only**: TLS would pull esp-tls/mbedtls back
+and blow the heap floor (below) — a separate future milestone.
+
+**Heap.** With both radios + httpd + WS + LoRa the board already measured `min_free_heap ≈ 78.2 KB`
+(under the 80 KB soak floor — `hardware-verified.md`). The MQTT client adds ~5–10 KB while connected,
+so a documented **MQTT-enabled floor (≥ 68 KB, no BLE central attached)** applies, distinct from the
+phone-attached floor. Mitigations: run only when STA-up + enabled; trim the outbox and mqtt_task stack
+(per-client + `sdkconfig.defaults`); and rely on the common home case having no live BLE central (MQTT's
+purpose is telemetry when the phone is away). The 24 h soak with MQTT enabled settles the number.
 
 ## 5.8 Android: the parts that will bite
 

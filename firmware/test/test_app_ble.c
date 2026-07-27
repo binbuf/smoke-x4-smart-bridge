@@ -105,6 +105,8 @@ static int fake_identify(void) {
 }
 
 static void fake_reboot(void) { g_reboot_calls++; }
+static int g_power_off_calls;
+static void fake_power_off(void) { g_power_off_calls++; }
 
 static int fake_factory_reset(void) {
     g_factory_calls++;
@@ -123,6 +125,7 @@ static const app_ble_ops_t k_ops = {
     .identify = fake_identify,
     .reboot = fake_reboot,
     .factory_reset = fake_factory_reset,
+    .power_off = fake_power_off,
     .uptime_ms = fake_uptime,
 };
 
@@ -187,6 +190,7 @@ static void reset_all(void) {
     g_identify_calls = 0;
     g_reboot_calls = 0;
     g_factory_calls = 0;
+    g_power_off_calls = 0;
     g_cancel_after_notif = 0;
     g_uptime_ms = 1000;
     memset(&g_applied, 0, sizeof g_applied);
@@ -913,6 +917,69 @@ static void test_malformed_writes_answer_invalid(void) {
     CHECK_EQ_INT(g_apply_calls, 0);
 }
 
+/* F17 / §13.8.3 — every wifi_config rejection must carry the SAME `op_echo`
+ * the accepted config does, so the app's single correlator on `result`
+ * (`firstWhere((r) => r.opEcho == …)`, ble_transport.dart:541) hears the
+ * rejection instead of falling to the 10 s timeout — the exact crash path
+ * §13.2.3 exists to close. The echo is captured from the accepted path and
+ * every refusal is checked against it, so a future change that moves the
+ * accepted echo off OP_ECHO_NONE without updating a rejection site (the
+ * footgun §13.8.3 names) fails here rather than in a user's lawn chair.
+ *
+ * Giving wifi_config an echo DISTINCT from wifi_scan_ctrl — the other half
+ * of the collision — is the protocol's job (a control_op pseudo-op in
+ * records.yaml, §13.8.3) and is out of this component's reach; what is
+ * provable on the host is that no rejection path drops the correlator. */
+static void test_wifi_config_rejections_carry_a_correlatable_echo(void) {
+    reset_all();
+    uint8_t cfg[BRIDGE_WIFI_CONFIG_MAX_SIZE];
+    bridge_result_t r;
+
+    /* The correlator the app will be waiting on: whatever the ACCEPTED
+     * config answers with. */
+    size_t len = pack_wifi_config(cfg, BRIDGE_NET_MODE_AP, NULL, NULL);
+    CHECK_EQ_INT(
+        app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len),
+        APP_BLE_OK);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
+    const uint8_t echo = r.op_echo;
+
+    /* 1 — a frame too short to decode (the handler's "malformed" path). */
+    const uint8_t malformed[3] = {1, BRIDGE_NET_MODE_STA, 3};
+    g_notif_count = 0;
+    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, malformed,
+                       sizeof malformed);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
+    CHECK_EQ_INT(r.op_echo, echo);
+
+    /* 2 — a well-formed frame with an unusable mode (`off`). */
+    len = pack_wifi_config(cfg, BRIDGE_NET_MODE_OFF, NULL, NULL);
+    g_notif_count = 0;
+    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
+    CHECK_EQ_INT(r.op_echo, echo);
+
+    /* 3 — STA with no SSID. */
+    len = pack_wifi_config(cfg, BRIDGE_NET_MODE_STA, NULL, "pw");
+    g_notif_count = 0;
+    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
+    CHECK_EQ_INT(r.op_echo, echo);
+
+    /* And the link-level refusal in front of the handler shares it too, so
+     * an unauthenticated wifi_config is heard rather than timed out. */
+    len = pack_wifi_config(cfg, BRIDGE_NET_MODE_STA, "Backyard", "hunter2boo");
+    g_notif_count = 0;
+    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_encrypted, cfg, len);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
+    CHECK_EQ_INT(r.op_echo, echo);
+}
+
 /* ── F10.7: the scan flow ─────────────────────────────────────────── */
 
 static void make_scan(app_ble_scan_ap_t *aps, int n) {
@@ -1047,6 +1114,46 @@ static void test_scan_edge_cases(void) {
     CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
 }
 
+/* F17 / §13.2.1 — `s_scanning` is cleared on a start-failure, a cancel, and
+ * a completed delivery, but NOT on a BLE disconnect: that edge lives in
+ * app_ble.c, which drops PUSH_SCAN_RESULTS while the link is down. Pocket
+ * the phone mid-scan and the latch survives, so every reconnect's first
+ * wifi_scan answers BUSY until reboot. app_ble_ctrl_reset() is the
+ * host-testable half of the fix — it clears the latch so the next START is
+ * accepted again. The wiring (one call from the disconnect handler) is
+ * app_ble.c's and is documented in the F17 report, not edited here. */
+static void test_ctrl_reset_restores_the_accept_scan_state(void) {
+    reset_all();
+    const uint8_t start[2] = {1, BRIDGE_SCAN_CMD_START};
+    bridge_result_t r;
+
+    /* A scan is running; a second START is correctly refused as busy. */
+    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted,
+                                    start, 2),
+                 APP_BLE_OK);
+    CHECK(app_ble_scan_active());
+    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_BUSY);
+
+    /* The disconnect a phone never announces over the wire: without the
+     * reset, this latch strands every future scan at BUSY. */
+    app_ble_ctrl_reset();
+    CHECK(!app_ble_scan_active());
+
+    /* A fresh START is accepted again — it reaches the radio and answers
+     * ok, not busy. */
+    const int starts_before = g_scan_starts;
+    g_notif_count = 0;
+    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted,
+                                    start, 2),
+                 APP_BLE_OK);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
+    CHECK_EQ_INT(g_scan_starts, starts_before + 1);
+    CHECK(app_ble_scan_active());
+}
+
 /* ── F10.8: device_control ────────────────────────────────────────── */
 
 static void write_op(uint8_t op, const uint8_t *body, size_t body_len) {
@@ -1150,6 +1257,54 @@ static void test_reboot_and_reset_answer_before_they_act(void) {
                  BRIDGE_RESULT_STATUS_OK);
     CHECK_EQ_INT(g_factory_calls, 1);
     CHECK_EQ_INT(g_notifs[0].ch, APP_BLE_CH_RESULT);
+
+    /* op 13 power_off is the third of the same shape: nothing remote wakes
+     * the bridge afterwards, so the answer must already be on the wire. */
+    reset_all();
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_POWER_OFF, NULL, 0),
+                 BRIDGE_RESULT_STATUS_OK);
+    CHECK_EQ_INT(g_power_off_calls, 1);
+    CHECK_EQ_INT(g_notifs[0].ch, APP_BLE_CH_RESULT);
+}
+
+static void test_set_battery_saver_takes_the_tri_state(void) {
+    /* op 12 mirrors POST /config/device's off/on/auto so the two transports
+     * cannot disagree about what "auto" means. */
+    const uint8_t on = BRIDGE_BATTERY_SAVER_ON;
+    reset_all();
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_SET_BATTERY_SAVER, &on, 1),
+                 BRIDGE_RESULT_STATUS_OK);
+    uint8_t v = 0xff;
+    CHECK_EQ_INT(app_config_store_get_u8(APP_CONFIG_DEV_BATTERY_SAVER, &v),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(v, BRIDGE_BATTERY_SAVER_ON);
+
+    const uint8_t automatic = BRIDGE_BATTERY_SAVER_AUTO;
+    reset_all();
+    CHECK_EQ_INT(
+        status_after(BRIDGE_CONTROL_OP_SET_BATTERY_SAVER, &automatic, 1),
+        BRIDGE_RESULT_STATUS_OK);
+    CHECK_EQ_INT(app_config_store_get_u8(APP_CONFIG_DEV_BATTERY_SAVER, &v),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(v, BRIDGE_BATTERY_SAVER_AUTO);
+
+    /* Out of range is refused, and the stored value is left alone — checked
+     * against a value set in the SAME scope, since reset_all() wipes NVS. */
+    reset_all();
+    const uint8_t known = BRIDGE_BATTERY_SAVER_ON;
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_SET_BATTERY_SAVER, &known, 1),
+                 BRIDGE_RESULT_STATUS_OK);
+    const uint8_t bogus = 9;
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_SET_BATTERY_SAVER, &bogus, 1),
+                 BRIDGE_RESULT_STATUS_INVALID);
+    CHECK_EQ_INT(app_config_store_get_u8(APP_CONFIG_DEV_BATTERY_SAVER, &v),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(v, BRIDGE_BATTERY_SAVER_ON);
+
+    /* An empty body is malformed, not a silent default. */
+    reset_all();
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_SET_BATTERY_SAVER, NULL, 0),
+                 BRIDGE_RESULT_STATUS_INVALID);
 }
 
 static void test_set_time_backpatches_an_open_session(void) {
@@ -1420,12 +1575,15 @@ int main(void) {
     test_net_status_notifies_once_per_transition();
     test_unauthenticated_write_is_refused();
     test_malformed_writes_answer_invalid();
+    test_wifi_config_rejections_carry_a_correlatable_echo();
     test_scan_streams_indexed_results();
     test_scan_busy_does_not_disturb_the_running_scan();
     test_scan_cancel_stops_the_stream();
     test_scan_edge_cases();
+    test_ctrl_reset_restores_the_accept_scan_state();
     test_every_op_reaches_its_component();
     test_reboot_and_reset_answer_before_they_act();
+    test_set_battery_saver_takes_the_tri_state();
     test_live_state_alarm_active_follows_the_engine();
     test_soc_and_the_battery_capability_bit();
     test_set_time_backpatches_an_open_session();

@@ -3,9 +3,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../design/theme.dart' as design;
 import 'error_boundary.dart';
 import 'router.dart';
-import 'theme.dart';
 
 /// Root of the widget tree, mounted inside a `ProviderScope` by
 /// `bootstrap.dart`.
@@ -15,12 +15,13 @@ class SmokeBridgeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp.router(
     title: 'Smoke Bridge',
-    // Dark-first (design 08 §8.7): dark is the default until the settings
-    // screen (M4) adds a user-facing theme choice. The light theme exists
-    // and is exercised by tests.
+    // Dark-only ships (design 14 §14.3, decision U4): a white bar behind the
+    // app in a dark yard is worse than a high-contrast dark one, so **both**
+    // slots are the design theme — OS-light chrome can never leak a white
+    // scaffold behind the shell.
     themeMode: ThemeMode.dark,
-    theme: SmokeTheme.light,
-    darkTheme: SmokeTheme.dark,
+    theme: design.SmokeTheme.dark,
+    darkTheme: design.SmokeTheme.dark,
     routerConfig: appRouter,
     builder: (context, child) =>
         ErrorBoundary(child: child ?? const SizedBox.shrink()),

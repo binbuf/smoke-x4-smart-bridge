@@ -103,6 +103,25 @@ void app_ui_draw_char(app_ui_fb_t *fb, int col, int row, char c) {
     /* Column 5 of the cell and row 7 are the inter-glyph gap: left clear. */
 }
 
+/* A 5x7 degree sign — a 3x3 ring at the top of the cell. The large font
+ * (`large_next`) has carried a dedicated degree glyph since F10; the small font
+ * did not, so every small-font temperature rendered "163??F": the codepoint is
+ * emitted as the two UTF-8 bytes 0xC2 0xB0, both of which fall outside the
+ * printable range and drew '?' each. Column-major, bit gy = row gy. */
+static const uint8_t k_degree5x7[5] = {0x00, 0x07, 0x05, 0x07, 0x00};
+
+static void draw_degree(app_ui_fb_t *fb, int col, int row) {
+    const int x0 = col * APP_UI_CELL_W;
+    const int y0 = row * APP_UI_CELL_H;
+    for (int gx = 0; gx < 5; gx++) {
+        for (int gy = 0; gy < 7; gy++) {
+            if ((k_degree5x7[gx] >> gy) & 1u) {
+                app_ui_set_pixel(fb, x0 + gx, y0 + gy, true);
+            }
+        }
+    }
+}
+
 int app_ui_draw_text(app_ui_fb_t *fb, int col, int row, const char *s) {
     if (s == NULL || row < 0 || row >= APP_UI_ROWS) {
         return 0;
@@ -114,6 +133,17 @@ int app_ui_draw_text(app_ui_fb_t *fb, int col, int row, const char *s) {
         }
         if (c >= APP_UI_COLS) {
             break; /* clipped at column 21, exactly */
+        }
+        const unsigned char u = (unsigned char)*s;
+        if (u == 0xB0 || (u == 0xC2 && (unsigned char)s[1] == 0xB0)) {
+            /* The degree sign, bare Latin-1 or UTF-8, is one glyph in one cell
+             * — the same rule `large_next` applies. */
+            draw_degree(fb, c, row);
+            if (u == 0xC2) {
+                s++; /* consume the trailing 0xB0; the loop consumes the 0xC2 */
+            }
+            drawn++;
+            continue;
         }
         app_ui_draw_char(fb, c, row, *s);
         drawn++;

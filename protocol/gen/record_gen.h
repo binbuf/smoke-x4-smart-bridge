@@ -191,6 +191,8 @@ typedef enum {
     BRIDGE_CONTROL_OP_SET_UNITS = 9,
     BRIDGE_CONTROL_OP_IDENTIFY = 10,
     BRIDGE_CONTROL_OP_ACK_ALARM = 11,
+    BRIDGE_CONTROL_OP_SET_BATTERY_SAVER = 12,
+    BRIDGE_CONTROL_OP_POWER_OFF = 13,
 } bridge_control_op_t;
 
 static inline const char *bridge_control_op_str(int v) {
@@ -217,6 +219,10 @@ static inline const char *bridge_control_op_str(int v) {
         return "identify";
     case 11:
         return "ack_alarm";
+    case 12:
+        return "set_battery_saver";
+    case 13:
+        return "power_off";
     default:
         return "";
     }
@@ -258,6 +264,25 @@ static inline const char *bridge_units_str(int v) {
         return "celsius";
     case 1:
         return "fahrenheit";
+    default:
+        return "";
+    }
+}
+
+typedef enum {
+    BRIDGE_BATTERY_SAVER_OFF = 0,
+    BRIDGE_BATTERY_SAVER_ON = 1,
+    BRIDGE_BATTERY_SAVER_AUTO = 2,
+} bridge_battery_saver_t;
+
+static inline const char *bridge_battery_saver_str(int v) {
+    switch (v) {
+    case 0:
+        return "off";
+    case 1:
+        return "on";
+    case 2:
+        return "auto";
     default:
         return "";
     }
@@ -1272,6 +1297,26 @@ static inline void bridge_ctrl_ack_alarm_encode(const bridge_ctrl_ack_alarm_t *v
 /* Fills *v from the wire bytes. Never rejects on version. */
 static inline void bridge_ctrl_ack_alarm_decode(const uint8_t *buf, bridge_ctrl_ack_alarm_t *v) {
     v->alarm_id = buf[0];
+}
+
+/* ── set_battery_saver (device_control body, 1 B) ── */
+
+#define BRIDGE_CTRL_SET_BATTERY_SAVER_SIZE 1u
+
+typedef struct __attribute__((packed)) {
+    uint8_t saver;
+} bridge_ctrl_set_battery_saver_t;
+
+_Static_assert(sizeof(bridge_ctrl_set_battery_saver_t) == BRIDGE_CTRL_SET_BATTERY_SAVER_SIZE,
+               "set_battery_saver must pack to 1 bytes");
+
+static inline void bridge_ctrl_set_battery_saver_encode(const bridge_ctrl_set_battery_saver_t *v, uint8_t out[BRIDGE_CTRL_SET_BATTERY_SAVER_SIZE]) {
+    out[0] = v->saver;
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_ctrl_set_battery_saver_decode(const uint8_t *buf, bridge_ctrl_set_battery_saver_t *v) {
+    v->saver = buf[0];
 }
 
 #ifdef __cplusplus

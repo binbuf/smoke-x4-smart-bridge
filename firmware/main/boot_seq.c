@@ -7,6 +7,7 @@ static const char *const STEP_NAMES[BRIDGE_BOOT_STEP_COUNT] = {
     "app_power_init", "app_ui_init",   "recovery_window", "cook_store_init",
     "smoke_x_init",   "smoke_x_start", "app_time_init",   "app_net_start",
     "app_api_start",  "app_ble_start", "app_alarm_start", "ota_health_gate",
+    "app_mqtt_start",
 };
 
 const char *bridge_boot_step_name(int step) {

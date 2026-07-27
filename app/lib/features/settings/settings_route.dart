@@ -17,6 +17,8 @@ import '../../data/transport/ble_transport.dart';
 import '../../data/transport/bridge_transport.dart';
 import '../../data/transport/http_transport.dart';
 import '../../domain/entities/entities.dart';
+import '../bridge/verb_progress.dart';
+import 'settings_mqtt.dart';
 import 'settings_network.dart';
 import 'settings_probes.dart';
 import 'settings_screen.dart';
@@ -34,9 +36,18 @@ class _SettingsRouteState extends State<SettingsRoute> {
   List<Probe> _probes = const [];
   BridgeStatus? _status;
   String _units = 'F';
+  String _saver = 'auto';
   bool _quietHours = true;
   bool _monitoring = true;
   bool _batteryExempt = false;
+
+  // A12.3 — network. The mode is optimistic: it reflects what was last
+  // applied from this screen, because `/status` does not carry it and
+  // opening a WebSocket just to render one line is a bad trade.
+  NetMode _netMode = NetMode.sta;
+  String _netSsid = '';
+  String _apPsk = '';
+  String _netRecovery = '';
 
   // A12.6 — OTA upload state. Progress comes from the transport's `ota`
   // events, not from byte counting: the device is authoritative about its
@@ -45,6 +56,10 @@ class _SettingsRouteState extends State<SettingsRoute> {
   String _otaPhase = '';
   String _otaRefusal = '';
   StreamSubscription<BridgeEvent>? _otaEvents;
+
+  // A16 — Home Assistant / MQTT. Loaded from the device (HTTP-only); null
+  // until it answers, and left null on a transport that cannot do it.
+  MqttConfig? _mqtt;
 
   @override
   void initState() {
@@ -75,6 +90,16 @@ class _SettingsRouteState extends State<SettingsRoute> {
     } on Object {
       // Settings still renders: the pages that need the device say so
       // individually rather than the whole screen failing.
+    }
+    if (t.capabilities.mqtt) {
+      try {
+        final mqtt = await t.mqttConfig();
+        if (mounted) {
+          setState(() => _mqtt = mqtt);
+        }
+      } on Object {
+        // The Home Assistant page falls back to defaults if the read fails.
+      }
     }
   }
 
@@ -134,6 +159,47 @@ class _SettingsRouteState extends State<SettingsRoute> {
         _otaPhase = '';
       });
     }
+  }
+
+  /// D15's verbs. The bridge answers *before* it acts and then drops the
+  /// link, so a transport error here is as likely to be the success path as
+  /// a failure — there is nothing honest to report and nothing to retry.
+  Future<void> _power(ControlCommand cmd) async {
+    try {
+      await _transport?.control(cmd);
+    } on Object {
+      // Deliberately swallowed; see above.
+    }
+  }
+
+  /// The three verbs that take the bridge down run inside the A24.9 sheet,
+  /// which verifies completion by watching the bridge actually drop — the
+  /// board-found gap was a factory reset that succeeded with no confirmation.
+  Future<void> _runDisruptive(DisruptiveVerb verb, ControlCommand cmd) async {
+    final t = _transport;
+    if (t == null || !mounted) {
+      return;
+    }
+    await showVerbProgressSheet(
+      context,
+      verb: verb,
+      send: () => t.control(cmd),
+      probe: () => t.status(),
+      // A confirmed factory reset forgets the bridge on this phone too — the
+      // app must never keep claiming a bridge the reset just erased.
+      onCompleted: verb == DisruptiveVerb.factoryReset
+          ? () => unawaited(
+              AppEnv.instance?.prefs.forgetBridge() ?? Future<void>.value(),
+            )
+          : null,
+      onSetUpAgain: verb == DisruptiveVerb.factoryReset
+          ? () {
+              if (mounted) {
+                context.go(AppRoutes.setup);
+              }
+            }
+          : null,
+    );
   }
 
   @override
@@ -211,14 +277,96 @@ class _SettingsRouteState extends State<SettingsRoute> {
       ),
     ),
     SettingsSection.network => NetworkSettingsView(
-      mode: NetMode.sta,
-      onApply: (mode, ssid, psk) async {},
+      mode: _netMode,
+      ssid: _netSsid,
+      apPsk: _apPsk,
+      recoveryMessage: _netRecovery,
+      // A12.3 — the real switch. The device answers first and defers ~500 ms
+      // so this reply flushes before it tears the interface down (05 §5.4);
+      // switching to AP hands back a generated key the user needs to rejoin,
+      // which is exactly why applyNetwork returns it instead of being a
+      // fire-and-forget config write.
+      onApply: (mode, ssid, psk) async {
+        final t = _transport;
+        if (t == null) {
+          return;
+        }
+        try {
+          final apPsk = await t.applyNetwork(
+            mode: mode == NetMode.ap ? NetworkMode.ap : NetworkMode.sta,
+            ssid: ssid,
+            psk: psk,
+          );
+          if (!mounted) return;
+          setState(() {
+            _netMode = mode;
+            _netSsid = mode == NetMode.ap ? '' : ssid;
+            _apPsk = apPsk;
+            _netRecovery = mode == NetMode.ap
+                ? 'The bridge is switching to its own network. Your phone has '
+                      'to leave this one to reach it'
+                      '${apPsk.isEmpty ? '' : ' — the key is shown above'}.'
+                : 'The bridge is joining $ssid. If the app cannot find it '
+                      'again, type its address under "Reach it directly".';
+          });
+        } on BridgeApiException catch (err) {
+          if (!mounted) return;
+          setState(() => _netRecovery = err.message);
+        } on Object {
+          if (!mounted) return;
+          setState(
+            () => _netRecovery =
+                'The bridge did not accept that change. It may already have '
+                'moved — try reaching it directly.',
+          );
+        }
+      },
       onManualAddress: (address) async {
         await AppEnv.instance?.prefs.recordConnection(address);
         if (mounted) {
           context.go(AppRoutes.home);
         }
       },
+    ),
+    SettingsSection.homeAssistant => MqttSettingsView(
+      config: _mqtt ?? const MqttConfig(),
+      // BLE cannot reach a LAN broker; the page says so rather than offering a
+      // form that would throw BridgeUnsupportedException on save.
+      unsupportedReason: _transport is BleTransport
+          ? 'Home Assistant needs a Wi-Fi connection to the bridge.'
+          : '',
+      onApply:
+          ({
+            required enabled,
+            required host,
+            required port,
+            required user,
+            password,
+            required prefix,
+            required haDiscovery,
+          }) async {
+            final t = _transport;
+            if (t == null) {
+              return;
+            }
+            try {
+              await t.setMqttConfig(
+                enabled: enabled,
+                host: host,
+                port: port,
+                user: user,
+                password: password,
+                prefix: prefix,
+                haDiscovery: haDiscovery,
+              );
+              final fresh = await t.mqttConfig();
+              if (mounted) {
+                setState(() => _mqtt = fresh);
+              }
+            } on Object {
+              // Best-effort; the page keeps rendering its current state.
+            }
+          },
     ),
     SettingsSection.device => DeviceSettingsView(
       units: _units,
@@ -229,12 +377,34 @@ class _SettingsRouteState extends State<SettingsRoute> {
         // screens must agree, so the setting travels.
         await _transport?.configure(BridgeConfig(displayUnits: u));
       },
+      batterySaver: _saver,
+      onBatterySaver: (v) async {
+        setState(() => _saver = v);
+        await _transport?.configure(
+          BridgeConfig(
+            batterySaver: switch (v) {
+              'off' => BatterySaverMode.off,
+              'on' => BatterySaverMode.on,
+              _ => BatterySaverMode.auto,
+            },
+          ),
+        );
+      },
     ),
     SettingsSection.advanced => AdvancedSettingsView(
       radio: {
         if (_status != null) 'firmware': _status!.fw,
         if (_status != null) 'packets_seen': _status!.numProbes,
       },
+      paired: _status?.paired ?? false,
+      // D15 moved these off the button; this screen is now the only way to
+      // re-scan or drop the base.
+      onPair: _transport == null
+          ? null
+          : () => unawaited(_power(const ControlCommand.pair())),
+      onUnpair: _transport == null
+          ? null
+          : () => unawaited(_power(const ControlCommand.unpair())),
     ),
     SettingsSection.firmware => FirmwareSettingsView(
       currentVersion: _status?.fw ?? '',
@@ -245,6 +415,30 @@ class _SettingsRouteState extends State<SettingsRoute> {
       phase: _otaPhase,
       refusal: _otaRefusal,
       onUpload: AppEnv.instance?.firmwareImage == null ? null : _uploadFirmware,
+    ),
+    SettingsSection.power => PowerSettingsView(
+      sessionActive: _status?.sessionActive ?? false,
+      // Each verb runs inside the A24.9 completion sheet after the view's own
+      // confirm: send → watch the bridge actually go down → an explicit done
+      // state, instead of the old fire-and-forget.
+      onRestart: _transport == null
+          ? null
+          : () => _runDisruptive(
+              DisruptiveVerb.restart,
+              const ControlCommand.reboot(),
+            ),
+      onPowerOff: _transport == null
+          ? null
+          : () => _runDisruptive(
+              DisruptiveVerb.powerOff,
+              const ControlCommand.powerOff(),
+            ),
+      onFactoryReset: _transport == null
+          ? null
+          : () => _runDisruptive(
+              DisruptiveVerb.factoryReset,
+              const ControlCommand.factoryReset(),
+            ),
     ),
     SettingsSection.about => AboutView(
       appVersion: AppEnv.instance?.appVersion ?? '',

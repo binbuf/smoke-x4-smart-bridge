@@ -55,7 +55,7 @@ void main() {
         ),
       );
       expect(find.byKey(const Key('session-row-27')), findsOneWidget);
-      expect(find.textContaining('peak 258°'), findsOneWidget);
+      expect(find.textContaining('peak 258.0°'), findsOneWidget);
       expect(find.textContaining('4 probes'), findsOneWidget);
     });
 

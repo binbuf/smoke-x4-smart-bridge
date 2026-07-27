@@ -302,6 +302,59 @@ void main() {
     });
   });
 
+  group('raceHttpOnly (A24.7 — the supervisor upgrade race)', () {
+    test('returns the first HTTP lane and never touches BLE', () async {
+      var bleTried = false;
+      final cached = <String>[];
+      final mgr = ConnectionManager(
+        probe: (url) async => url == 'http://192.168.4.1',
+        writeCache: (url) async => cached.add(url),
+        bleAttempt: () async {
+          bleTried = true;
+          return bleOverFake();
+        },
+        delay: _FakeDelay().call,
+      );
+      final outcome = await mgr.raceHttpOnly();
+      expect(outcome, isA<Connected>());
+      expect(outcome!.lane, ConnectionLane.apDefault);
+      // BLE is the supervisor's single warm handle — this race must not open
+      // a second one.
+      expect(bleTried, isFalse);
+      expect(cached, ['http://192.168.4.1']);
+    });
+
+    test('returns null when every HTTP lane fails', () async {
+      final mgr = ConnectionManager(
+        probe: (_) async => false,
+        writeCache: (_) async {},
+        cachedBaseUrl: 'http://10.0.0.7',
+        bleAttempt: () async => bleOverFake(), // present, must be ignored
+        delay: _FakeDelay(hold: (d) => d.inSeconds == 99).call,
+      );
+      expect(await mgr.raceHttpOnly(timeout: const Duration(seconds: 99)), isNull);
+    });
+
+    test('manual entry pre-empts the HTTP-only race', () async {
+      final mgr = ConnectionManager(
+        probe: (url) async {
+          if (url == 'http://172.16.0.9') {
+            return true; // only the manual address works
+          }
+          await Completer<void>().future; // every other lane hangs
+          return false;
+        },
+        writeCache: (_) async {},
+        delay: _FakeDelay().call, // holds: only MANUAL can end this race
+      );
+      final raceF = mgr.raceHttpOnly();
+      mgr.enterManual('http://172.16.0.9');
+      final outcome = await raceF;
+      expect(outcome, isA<Connected>());
+      expect(outcome!.lane, ConnectionLane.manual);
+    });
+  });
+
   group('reconnect backoff (A7.3)', () {
     test('the ladder is exactly 1,2,4,8,15,30 then capped', () {
       expect(

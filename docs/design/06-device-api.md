@@ -325,6 +325,26 @@ pushed on the WebSocket. The new image is _pending verify_ until the health gate
 Refused with `409` while a cook session is active unless `?force=1` — nobody should discover a bad
 flash 14 hours into a brisket.
 
+### `POST /api/v1/restart` · `POST /api/v1/factory-reset` · `POST /api/v1/power-off`
+
+The v1.1 destructive verbs (D15). With every control moved off the button, these are the app's only
+way to reach them; BLE has carried `reboot`/`factory_reset` since M3 and gained `power_off` as op 13.
+
+| Route            | Effect                                                                         |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `/restart`       | Reboot. Sessions resume from NVS on the way back up ([04](04-storage-and-history.md)) |
+| `/factory-reset` | Wipes config, pairing, BLE bonds, **and all cook history**, then reboots        |
+| `/power-off`     | Deep sleep. Replies `wake_requires_button: true` — see below                    |
+
+All three **answer before they act**: the handler replies, then a ~500 ms timer fires the real
+operation, so the HTTP response actually flushes before the device dies. This is the same idiom
+`/ota` uses for its post-flash reboot. `factory-reset` wipes *before* scheduling the restart, so a
+lost timer cannot leave a half-wiped bridge.
+
+`power-off` is the one asymmetric verb in the API: it can be sent remotely, but **waking is
+physical** — a sustained hold of PRG ([07 §7.4](07-display-and-controls.md)). Any client offering
+it must say so first, because the user may be nowhere near the smoker.
+
 ## 6.3 WebSocket — `GET /api/v1/stream`
 
 Push instead of polling. At a 30-second cadence, polling burns battery on both ends for nothing.

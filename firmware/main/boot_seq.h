@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#define BRIDGE_BOOT_STEP_COUNT 16
+#define BRIDGE_BOOT_STEP_COUNT 17
 
 /* Step numbers per 03 §3.4 (1-based). */
 typedef enum {
@@ -38,6 +38,8 @@ typedef enum {
     BRIDGE_BOOT_BLE = 14,
     BRIDGE_BOOT_ALARM = 15,
     BRIDGE_BOOT_OTA_HEALTH_GATE = 16, /* stub until F14 */
+    BRIDGE_BOOT_MQTT = 17, /* MQTT / Home Assistant publisher (05 §5.7) —
+                            * non-fatal, Wi-Fi-only, opt-in */
 } bridge_boot_step_t;
 
 /* A step returns 0 on success, nonzero on failure. NULL steps are skipped

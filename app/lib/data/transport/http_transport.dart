@@ -86,6 +86,7 @@ class HttpTransport implements BridgeTransport {
     historyPreview: true,
     config: true,
     ota: true,
+    mqtt: true,
   );
 
   // ── REST (A5.1) ─────────────────────────────────────────────────────
@@ -352,6 +353,15 @@ class HttpTransport implements BridgeTransport {
         await _postJson('/api/v1/time', {'unix_ms': unixMs});
       case AckAlarmCommand(:final alarmId):
         _ws?.sink.add(jsonEncode({'type': 'ack_alarm', 'id': alarmId}));
+      // The three destructive verbs answer BEFORE they act (~500 ms), so a
+      // 200 here means "scheduled", not "done". The socket dies immediately
+      // after; a caller that never sees the 200 must treat it as unknown.
+      case RebootCommand():
+        await _postJson('/api/v1/restart', null);
+      case FactoryResetCommand():
+        await _postJson('/api/v1/factory-reset', null);
+      case PowerOffCommand():
+        await _postJson('/api/v1/power-off', null);
     }
   }
 
@@ -386,10 +396,68 @@ class HttpTransport implements BridgeTransport {
   }
 
   @override
+  Future<String> applyNetwork({
+    required NetworkMode mode,
+    String ssid = '',
+    String psk = '',
+  }) async {
+    final body = <String, Object?>{'mode': mode.name};
+    if (mode == NetworkMode.sta) {
+      // Ignored for `ap` — the device generates that SSID/PSK itself.
+      body['ssid'] = ssid;
+      body['psk'] = psk;
+    }
+    final res = await _postJson('/api/v1/config/wifi', body);
+    // Switching to AP returns generated credentials in `expect` because the
+    // user needs to read them to join (06 §6.2); STA answers with a host and
+    // no secret, so there is nothing to hand back.
+    final expect = (res as Map?)?['expect'] as Map?;
+    return (expect?['psk'] as String?) ?? '';
+  }
+
+  @override
+  Future<MqttConfig> mqttConfig() async {
+    final j = await _getJson('/api/v1/config/mqtt') as Map;
+    return MqttConfig(
+      enabled: j['enabled'] == true,
+      host: (j['host'] as String?) ?? '',
+      port: (j['port'] as num?)?.toInt() ?? 1883,
+      user: (j['user'] as String?) ?? '',
+      prefix: (j['prefix'] as String?) ?? 'smokebridge',
+      haDiscovery: j['ha_discovery'] == true,
+      connected: j['connected'] == true,
+    );
+  }
+
+  @override
+  Future<void> setMqttConfig({
+    bool? enabled,
+    String? host,
+    int? port,
+    String? user,
+    String? password,
+    String? prefix,
+    bool? haDiscovery,
+  }) async {
+    final body = <String, Object?>{};
+    if (enabled != null) body['enabled'] = enabled;
+    if (host != null) body['host'] = host;
+    if (port != null) body['port'] = port;
+    if (user != null) body['user'] = user;
+    if (password != null) body['pass'] = password;
+    if (prefix != null) body['prefix'] = prefix;
+    if (haDiscovery != null) body['ha_discovery'] = haDiscovery;
+    await _postJson('/api/v1/config/mqtt', body);
+  }
+
+  @override
   Future<void> configure(BridgeConfig cfg) async {
     final body = <String, Object?>{};
     if (cfg.displayUnits != null) {
       body['display_units'] = cfg.displayUnits;
+    }
+    if (cfg.batterySaver != null) {
+      body['battery_saver'] = cfg.batterySaver!.name;
     }
     if (cfg.probes != null) {
       body['probes'] = [

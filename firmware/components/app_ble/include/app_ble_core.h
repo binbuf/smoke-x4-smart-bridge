@@ -137,6 +137,10 @@ typedef struct {
     void (*reboot)(void);
     /* op 8: wipe NVS **including all bonds**, sessions, and config. */
     int (*factory_reset)(void);
+    /* op 13: enter deep sleep. Like reboot it destroys the link, so it runs
+     * only after the answer is on the wire. WAKING NEEDS THE PHYSICAL PRG
+     * BUTTON — nothing over BLE can bring the bridge back. */
+    void (*power_off)(void);
     uint64_t (*uptime_ms)(void);
 } app_ble_ops_t;
 

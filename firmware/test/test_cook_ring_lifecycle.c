@@ -76,7 +76,6 @@ static cook_lc_input_t base_input(uint32_t now_s) {
     in.paired = true;
     in.sample = true;
     in.any_attached = true;
-    in.max_attached_temp_x10 = 2250;
     return in;
 }
 
@@ -84,25 +83,23 @@ static void test_start_conditions(void) {
     cook_lifecycle_t lc;
     cook_lifecycle_reset(&lc);
 
-    /* Hot probe → start. */
+    /* A25: paired + receiving + a probe attached starts recording at ANY
+     * temperature — power the units on, and the fire-lighting stretch is in
+     * the history before the app is ever opened. */
     cook_lc_input_t in = base_input(100);
     CHECK_EQ_INT(cook_lifecycle_step(&lc, &in), COOK_LC_START);
 
-    /* Cold probe on the counter → no start... */
-    in.max_attached_temp_x10 = 750;
-    CHECK_EQ_INT(cook_lifecycle_step(&lc, &in), COOK_LC_NONE);
-    /* ...unless explicitly started. */
-    in.explicit_start = true;
-    CHECK_EQ_INT(cook_lifecycle_step(&lc, &in), COOK_LC_START);
-    in.explicit_start = false;
-
     /* Unpaired, probe-less, or silent: never. */
-    in.max_attached_temp_x10 = 2250;
     in.paired = false;
     CHECK_EQ_INT(cook_lifecycle_step(&lc, &in), COOK_LC_NONE);
     in.paired = true;
     in.any_attached = false;
     CHECK_EQ_INT(cook_lifecycle_step(&lc, &in), COOK_LC_NONE);
+    /* An explicit start does not bypass the attached requirement — an
+     * all-detached "cook" records nothing worth keeping. */
+    in.explicit_start = true;
+    CHECK_EQ_INT(cook_lifecycle_step(&lc, &in), COOK_LC_NONE);
+    in.explicit_start = false;
     in.any_attached = true;
     in.sample = false;
     CHECK_EQ_INT(cook_lifecycle_step(&lc, &in), COOK_LC_NONE);

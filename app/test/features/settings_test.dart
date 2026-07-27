@@ -29,7 +29,7 @@ void _tall(WidgetTester tester) {
 
 void main() {
   group('the shell', () {
-    testWidgets('offers the seven §8.6 sections', (tester) async {
+    testWidgets('offers every §8.6 section', (tester) async {
       _tall(tester);
       final opened = <SettingsSection>[];
       await tester.pumpWidget(_wrap(SettingsHomeView(onOpen: opened.add)));
@@ -532,5 +532,135 @@ void main() {
         expect(find.byKey(const Key('firmware-version')), findsOneWidget);
       },
     );
+  });
+
+  // D15 — the bridge's button can only cycle views and sleep, so these are
+  // the controls that had to land somewhere. If they are not here, they do
+  // not exist anywhere.
+  group('D15 — the controls that left the button', () {
+    testWidgets('battery saver offers the tri-state and reports it', (
+      tester,
+    ) async {
+      _tall(tester);
+      final chosen = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          DeviceSettingsView(
+            units: 'F',
+            onUnits: (_) {},
+            batterySaver: 'auto',
+            onBatterySaver: chosen.add,
+          ),
+        ),
+      );
+      // `auto` is the point: it engages below 20 % and releases at 30 %,
+      // which a switch could not express.
+      expect(find.byKey(const Key('settings-battery-saver')), findsOneWidget);
+      await tester.tap(find.text('On'));
+      await tester.pump();
+      await tester.tap(find.text('Off'));
+      await tester.pump();
+      expect(chosen, ['on', 'off']);
+    });
+
+    testWidgets('re-scan and unpair are reachable and report', (tester) async {
+      _tall(tester);
+      var pairs = 0;
+      var unpairs = 0;
+      await tester.pumpWidget(
+        _wrap(
+          AdvancedSettingsView(
+            paired: true,
+            onPair: () => pairs++,
+            onUnpair: () => unpairs++,
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('settings-pair')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('settings-unpair')));
+      await tester.pump();
+      expect((pairs, unpairs), (1, 1));
+    });
+
+    testWidgets('restart confirms before it fires', (tester) async {
+      _tall(tester);
+      var restarts = 0;
+      await tester.pumpWidget(
+        _wrap(PowerSettingsView(onRestart: () async => restarts++)),
+      );
+      await tester.tap(find.byKey(const Key('power-restart')));
+      await tester.pumpAndSettle();
+      // Nothing has happened yet — the dialog is the gate.
+      expect(restarts, 0);
+      await tester.tap(find.byKey(const Key('power-confirm')));
+      await tester.pumpAndSettle();
+      expect(restarts, 1);
+    });
+
+    testWidgets('cancelling a destructive verb does nothing at all', (
+      tester,
+    ) async {
+      _tall(tester);
+      var wipes = 0;
+      await tester.pumpWidget(
+        _wrap(PowerSettingsView(onFactoryReset: () async => wipes++)),
+      );
+      await tester.tap(find.byKey(const Key('power-factory-reset')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('power-cancel')));
+      await tester.pumpAndSettle();
+      expect(wipes, 0);
+    });
+
+    testWidgets('power off warns that only the PRG button can undo it', (
+      tester,
+    ) async {
+      _tall(tester);
+      var offs = 0;
+      await tester.pumpWidget(
+        _wrap(PowerSettingsView(onPowerOff: () async => offs++)),
+      );
+      await tester.tap(find.byKey(const Key('power-off')));
+      await tester.pumpAndSettle();
+      // The one consequence a user cannot discover any other way: nothing
+      // remote wakes the bridge again. (The tile subtitle mentions PRG too,
+      // so this matches the dialog's own wording.)
+      expect(
+        find.textContaining('physically hold the PRG button'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('power-confirm')));
+      await tester.pumpAndSettle();
+      expect(offs, 1);
+    });
+
+    testWidgets('factory reset says the phone will have to pair again', (
+      tester,
+    ) async {
+      _tall(tester);
+      await tester.pumpWidget(
+        _wrap(PowerSettingsView(onFactoryReset: () async {})),
+      );
+      await tester.tap(find.byKey(const Key('power-factory-reset')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('pair with it again'), findsOneWidget);
+    });
+
+    testWidgets('with no transport the verbs are disabled, not dead', (
+      tester,
+    ) async {
+      _tall(tester);
+      await tester.pumpWidget(_wrap(const PowerSettingsView()));
+      // Present so the page still explains what the bridge can do, but not
+      // tappable — a control that cannot work is worse than no control.
+      for (final k in ['power-restart', 'power-off', 'power-factory-reset']) {
+        expect(
+          tester.widget<ListTile>(find.byKey(Key(k))).enabled,
+          isFalse,
+          reason: k,
+        );
+      }
+    });
   });
 }

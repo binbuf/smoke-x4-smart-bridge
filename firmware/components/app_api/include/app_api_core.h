@@ -139,6 +139,21 @@ typedef struct {
     /* V3.1 — FreeRTOS task watermarks + heap fragmentation. NULL on a
      * build without them, which reports an empty list. */
     void (*tasks_snapshot)(app_api_tasks_snapshot_t *out);
+    /* The three destructive verbs the app needs now that the PRG button is
+     * display + power only. Each is DEFERRED by the glue (the OTA
+     * `rebooting_in_ms` idiom) so the 200 reaches the client before the
+     * socket dies; the core only asks. NULL on a build without them, which
+     * answers 501 rather than pretending it worked. */
+    void (*reboot)(void);
+    int (*factory_reset)(void);
+    /* Waking again needs the physical PRG button — say so in the reply. */
+    void (*power_off)(void);
+    /* MQTT / Home Assistant (05 §5.7). Both NULL on a build without the
+     * publisher, which /config/mqtt then reports as "connected":false and a
+     * no-op reconfigure — the /status.ble "report zeros, don't pretend"
+     * discipline. */
+    bool (*mqtt_status)(void);
+    void (*mqtt_reconfigure)(void);
 } app_api_ops_t;
 
 int app_api_core_init(const app_api_ops_t *ops);

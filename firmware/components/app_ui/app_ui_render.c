@@ -589,12 +589,18 @@ void app_ui_render_overlay_confirm(const app_ui_state_t *st,
     char buf[24];
     snprintf(buf, sizeof buf, "%.21s", st->confirm_text);
     app_ui_draw_text_centred(fb, 1, buf);
-    snprintf(buf, sizeof buf, "keep holding   %u",
-             (unsigned)st->confirm_count);
-    app_ui_draw_text(fb, 2, 3, buf);
-    /* The visible cancel path — hold actions commit on RELEASE, and this
-     * line is what makes that discoverable rather than folklore. */
-    app_ui_draw_text(fb, 2, 5, "release to cancel");
+    /* confirm_count is the whole seconds left before a release would
+     * commit; 0 means armed. Hold actions commit on RELEASE, so the copy
+     * flips from "let go and nothing happens" to "let go and it happens" —
+     * which is what makes that discoverable rather than folklore. */
+    if (st->confirm_count > 0) {
+        snprintf(buf, sizeof buf, "keep holding   %u",
+                 (unsigned)st->confirm_count);
+        app_ui_draw_text(fb, 2, 3, buf);
+        app_ui_draw_text(fb, 2, 5, "release to cancel");
+    } else {
+        app_ui_draw_text(fb, 2, 3, "release to confirm");
+    }
     app_ui_render_strip(st, fb);
 }
 

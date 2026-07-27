@@ -376,6 +376,33 @@ static void test_the_gate_is_driven_high_and_always_released(void) {
     CHECK_EQ_INT(app_power_read_once(&ops, NULL), -1);
 }
 
+static void test_wake_hold_confirms_only_a_sustained_press(void) {
+    app_power_wake_hold_t w;
+
+    /* A full 5 s hold confirms — and not one tick sooner. */
+    app_power_wake_hold_reset(&w);
+    uint32_t t = 0;
+    for (; t < APP_POWER_WAKE_HOLD_MS; t += 20) {
+        CHECK_EQ_INT(app_power_wake_hold_sample(&w, true, t),
+                     APP_POWER_WAKE_PENDING);
+    }
+    CHECK_EQ_INT(app_power_wake_hold_sample(&w, true, t),
+                 APP_POWER_WAKE_CONFIRMED);
+
+    /* Released early → aborted (re-sleep): a pocket-press cannot power the
+     * bridge on. */
+    app_power_wake_hold_reset(&w);
+    (void)app_power_wake_hold_sample(&w, true, 0);
+    (void)app_power_wake_hold_sample(&w, true, 2000);
+    CHECK_EQ_INT(app_power_wake_hold_sample(&w, false, 2020),
+                 APP_POWER_WAKE_ABORTED);
+
+    /* A wake with nothing actually held is not honoured. */
+    app_power_wake_hold_reset(&w);
+    CHECK_EQ_INT(app_power_wake_hold_sample(&w, false, 0),
+                 APP_POWER_WAKE_ABORTED);
+}
+
 int main(void) {
     test_curve_is_a_lookup_not_a_line();
     test_zero_mv_is_unknown_not_flat();
@@ -389,5 +416,6 @@ int main(void) {
     test_manual_calibration_wins_over_the_solver();
     test_saver_hysteresis_and_the_users_setting();
     test_the_gate_is_driven_high_and_always_released();
+    test_wake_hold_confirms_only_a_sustained_press();
     return test_summary("test_app_power");
 }

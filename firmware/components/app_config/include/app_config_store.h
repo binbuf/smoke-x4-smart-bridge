@@ -93,7 +93,19 @@ typedef enum {
     X(TIME_LAST_EPOCH_MS, "time", "last_epoch_ms", U64, 8, 0, "")      \
     X(TIME_TZ_OFFSET_MIN, "time", "tz_offset_min", I32, 4, 0, "")      \
     X(TIME_SOURCE, "time", "source", U8, 1, 0, "")                     \
-    X(ALARM_RULES, "alarms", "rules", BLOB, 64, 0, "")
+    X(ALARM_RULES, "alarms", "rules", BLOB, 64, 0, "")                 \
+    /* MQTT / Home Assistant (05 §5.7 add-on). Wi-Fi-only, opt-in. The     \
+     * password follows the sta_psk read-back discipline: it is written    \
+     * here but never returned by any GET. STR max_len includes the NUL.   \
+     * Plaintext mqtt:// in v1 — no TLS keys (that is a heap-budget         \
+     * conversation of its own, D2/03 §3.7). */                            \
+    X(MQTT_ENABLED, "mqtt", "enabled", U8, 1, 0, "")                   \
+    X(MQTT_HOST, "mqtt", "host", STR, 65, 0, "")                       \
+    X(MQTT_PORT, "mqtt", "port", U16, 2, 1883, "")                     \
+    X(MQTT_USER, "mqtt", "user", STR, 65, 0, "")                       \
+    X(MQTT_PASS, "mqtt", "pass", STR, 65, 0, "")                       \
+    X(MQTT_PREFIX, "mqtt", "prefix", STR, 33, 0, "smokebridge")        \
+    X(MQTT_HA_DISCOVERY, "mqtt", "ha_disc", U8, 1, 1, "")
 
 typedef enum {
 #define X(id, ns, key, type, len, dnum, dstr) APP_CONFIG_##id,

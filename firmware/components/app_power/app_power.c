@@ -25,12 +25,15 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
 #include "driver/gpio.h"
+#include "driver/rtc_io.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
+#include "esp_sleep.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "app_power_core.h"
 #include "app_power_svc.h"
 #include "bridge_event.h"
 #include "cook_power_log.h"
@@ -214,4 +217,73 @@ int app_power_init(void) {
     ESP_LOGI(TAG, "battery up: GPIO37 HIGH gates the divider (V1.3), %s",
              s_have_cali ? "eFuse-calibrated ADC" : "uncalibrated ADC");
     return 0;
+}
+
+/* ── soft power (07 §7.4) ─────────────────────────────────────────────
+ * GPIO0 (PRG, active LOW) is the deep-sleep wake source. It is an RTC IO on
+ * the S3, so ext0 is valid. */
+#define PIN_WAKE GPIO_NUM_0
+/* GPIO35 (white LED, active HIGH): provisional wake feedback, driven as a
+ * plain GPIO here because the wake gate runs before app_ui claims it for
+ * LEDC. app_ui reconfigures the pin when it starts. */
+#define PIN_WAKE_LED GPIO_NUM_35
+
+void app_power_enter_deep_sleep(void) {
+    ESP_LOGW(TAG, "soft power off: deep sleep, wake on GPIO%d LOW",
+             (int)PIN_WAKE);
+    /* Hold GPIO0's pull-up so the line is defined while the digital domain
+     * is off; the button pulls it LOW when pressed.
+     *
+     * BENCH (V-row): GPIO0 is also the ROM download-mode strap. If a wake
+     * press is still held when the ROM samples strapping after wake, the
+     * chip may enter USB download mode instead of our firmware. If the bench
+     * shows that, the wake source moves to the RST button (a plain reset,
+     * GPIO0 never held) — see 03 §3.4.1. */
+    rtc_gpio_pullup_en(PIN_WAKE);
+    rtc_gpio_pulldown_dis(PIN_WAKE);
+    (void)esp_sleep_enable_ext0_wakeup(PIN_WAKE, 0); /* 0 = wake on LOW */
+    esp_deep_sleep_start();                          /* does not return */
+}
+
+void app_power_wake_gate(void) {
+    if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT0) {
+        return; /* power-on / RST / OTA / brownout: a normal boot */
+    }
+    /* Woke on the PRG button. Release the RTC hold and read GPIO0 as a
+     * normal input, then require a sustained hold or go back to sleep. */
+    rtc_gpio_deinit(PIN_WAKE);
+    const gpio_config_t in = {
+        .pin_bit_mask = 1ULL << PIN_WAKE,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
+    (void)gpio_config(&in);
+    const gpio_config_t led = {
+        .pin_bit_mask = 1ULL << PIN_WAKE_LED,
+        .mode = GPIO_MODE_OUTPUT,
+    };
+    (void)gpio_config(&led);
+
+    ESP_LOGI(TAG, "woke on PRG — hold %d ms to power on",
+             APP_POWER_WAKE_HOLD_MS);
+    app_power_wake_hold_t w;
+    app_power_wake_hold_reset(&w);
+    uint32_t t = 0;
+    for (;;) {
+        const bool pressed = gpio_get_level(PIN_WAKE) == 0; /* active LOW */
+        (void)gpio_set_level(PIN_WAKE_LED, pressed ? 1 : 0);
+        const app_power_wake_t d = app_power_wake_hold_sample(&w, pressed, t);
+        if (d == APP_POWER_WAKE_CONFIRMED) {
+            (void)gpio_set_level(PIN_WAKE_LED, 0);
+            ESP_LOGI(TAG, "wake confirmed — booting");
+            return;
+        }
+        if (d == APP_POWER_WAKE_ABORTED) {
+            (void)gpio_set_level(PIN_WAKE_LED, 0);
+            ESP_LOGI(TAG, "wake released early — back to sleep");
+            app_power_enter_deep_sleep(); /* re-arm + sleep; no return */
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+        t += 20;
+    }
 }

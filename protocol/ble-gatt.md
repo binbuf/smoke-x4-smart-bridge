@@ -301,6 +301,15 @@ answered on `result` (`0009`) with `op_echo` set to the op.
 | 9   | `set_units`     | 1 B (§5.6.4)    | 3 B         | display units preference                     |
 | 10  | `identify`      | —               | 2 B         | flash the LED and screen for 5 s             |
 | 11  | `ack_alarm`     | 1 B (§5.6.5)    | 3 B         | acknowledge an active alarm                  |
+| 12  | `set_battery_saver` | 1 B (§5.6.7) | 3 B        | battery saver off/on/auto                    |
+| 13  | `power_off`     | —               | 2 B         | enter deep sleep; **PRG wakes it, nothing remote does** |
+
+Ops **12–13 are v1.1 additive growth** under §5.6.6: appended to the end of the
+table, never renumbering 1–11, so a v1.0 peer that never sends them is unaffected
+and a v1.0 bridge answers them `invalid` rather than misreading a neighbour's op.
+They exist because the PRG button became display + power only — factory reset,
+battery saver and the rest now have to be reachable from the app, and `power_off`
+is the one verb whose undo is physical.
 
 Ops not listed with a body carry none. Offsets below are **within the body**, i.e. relative
 to byte 2 of the write.
@@ -354,6 +363,21 @@ Consequences, stated so nobody rediscovers them:
 
 An unknown op is already defined behaviour — `result{status: invalid}`, no side effects
 (§5.9) — so a future v1.1 client talking to v1.0 firmware degrades cleanly.
+
+#### 5.6.7 `set_battery_saver` body (op 12, 1 B) — v1.1
+
+| Body offset | (abs) | Size | Field   | Type | Meaning                        |
+| ----------- | ----- | ---- | ------- | ---- | ------------------------------ |
+| 0           | 2     | 1    | `saver` | u8   | 0 = off · 1 = on · 2 = auto    |
+
+The same tri-state `POST /api/v1/config/device` accepts, deliberately: the button used to
+toggle a bool, but the two remote transports must not disagree about what `auto` means.
+Any other value is `invalid` and leaves the stored setting untouched.
+
+`power_off` (op 13) carries **no body**. Like `reboot` and `factory_reset` it is answered
+before it is executed (§5.9), because it destroys the link that carries the answer — and
+unlike them, **nothing over BLE brings the bridge back**: waking is a physical PRG hold.
+A client should confirm with the user before sending it.
 
 ### 5.7 `0007 live_state` — Read + Notify, encrypted
 

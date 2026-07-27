@@ -14,7 +14,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$BridgeCapabilities {
 
- bool get liveState; bool get fullHistory; bool get historyPreview; bool get config; bool get ota;
+ bool get liveState; bool get fullHistory; bool get historyPreview; bool get config; bool get ota;/// Home Assistant / MQTT config (05 §5.7). HTTP-only: the broker lives on
+/// the Wi-Fi LAN, so BLE reports false and its settings page explains it.
+ bool get mqtt;
 /// Create a copy of BridgeCapabilities
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +27,16 @@ $BridgeCapabilitiesCopyWith<BridgeCapabilities> get copyWith => _$BridgeCapabili
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgeCapabilities&&(identical(other.liveState, liveState) || other.liveState == liveState)&&(identical(other.fullHistory, fullHistory) || other.fullHistory == fullHistory)&&(identical(other.historyPreview, historyPreview) || other.historyPreview == historyPreview)&&(identical(other.config, config) || other.config == config)&&(identical(other.ota, ota) || other.ota == ota));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgeCapabilities&&(identical(other.liveState, liveState) || other.liveState == liveState)&&(identical(other.fullHistory, fullHistory) || other.fullHistory == fullHistory)&&(identical(other.historyPreview, historyPreview) || other.historyPreview == historyPreview)&&(identical(other.config, config) || other.config == config)&&(identical(other.ota, ota) || other.ota == ota)&&(identical(other.mqtt, mqtt) || other.mqtt == mqtt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,liveState,fullHistory,historyPreview,config,ota);
+int get hashCode => Object.hash(runtimeType,liveState,fullHistory,historyPreview,config,ota,mqtt);
 
 @override
 String toString() {
-  return 'BridgeCapabilities(liveState: $liveState, fullHistory: $fullHistory, historyPreview: $historyPreview, config: $config, ota: $ota)';
+  return 'BridgeCapabilities(liveState: $liveState, fullHistory: $fullHistory, historyPreview: $historyPreview, config: $config, ota: $ota, mqtt: $mqtt)';
 }
 
 
@@ -45,7 +47,7 @@ abstract mixin class $BridgeCapabilitiesCopyWith<$Res>  {
   factory $BridgeCapabilitiesCopyWith(BridgeCapabilities value, $Res Function(BridgeCapabilities) _then) = _$BridgeCapabilitiesCopyWithImpl;
 @useResult
 $Res call({
- bool liveState, bool fullHistory, bool historyPreview, bool config, bool ota
+ bool liveState, bool fullHistory, bool historyPreview, bool config, bool ota, bool mqtt
 });
 
 
@@ -62,13 +64,14 @@ class _$BridgeCapabilitiesCopyWithImpl<$Res>
 
 /// Create a copy of BridgeCapabilities
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? liveState = null,Object? fullHistory = null,Object? historyPreview = null,Object? config = null,Object? ota = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? liveState = null,Object? fullHistory = null,Object? historyPreview = null,Object? config = null,Object? ota = null,Object? mqtt = null,}) {
   return _then(_self.copyWith(
 liveState: null == liveState ? _self.liveState : liveState // ignore: cast_nullable_to_non_nullable
 as bool,fullHistory: null == fullHistory ? _self.fullHistory : fullHistory // ignore: cast_nullable_to_non_nullable
 as bool,historyPreview: null == historyPreview ? _self.historyPreview : historyPreview // ignore: cast_nullable_to_non_nullable
 as bool,config: null == config ? _self.config : config // ignore: cast_nullable_to_non_nullable
 as bool,ota: null == ota ? _self.ota : ota // ignore: cast_nullable_to_non_nullable
+as bool,mqtt: null == mqtt ? _self.mqtt : mqtt // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -154,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool liveState,  bool fullHistory,  bool historyPreview,  bool config,  bool ota)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool liveState,  bool fullHistory,  bool historyPreview,  bool config,  bool ota,  bool mqtt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BridgeCapabilities() when $default != null:
-return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.config,_that.ota);case _:
+return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.config,_that.ota,_that.mqtt);case _:
   return orElse();
 
 }
@@ -175,10 +178,10 @@ return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.con
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool liveState,  bool fullHistory,  bool historyPreview,  bool config,  bool ota)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool liveState,  bool fullHistory,  bool historyPreview,  bool config,  bool ota,  bool mqtt)  $default,) {final _that = this;
 switch (_that) {
 case _BridgeCapabilities():
-return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.config,_that.ota);case _:
+return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.config,_that.ota,_that.mqtt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -195,10 +198,10 @@ return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.con
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool liveState,  bool fullHistory,  bool historyPreview,  bool config,  bool ota)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool liveState,  bool fullHistory,  bool historyPreview,  bool config,  bool ota,  bool mqtt)?  $default,) {final _that = this;
 switch (_that) {
 case _BridgeCapabilities() when $default != null:
-return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.config,_that.ota);case _:
+return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.config,_that.ota,_that.mqtt);case _:
   return null;
 
 }
@@ -210,7 +213,7 @@ return $default(_that.liveState,_that.fullHistory,_that.historyPreview,_that.con
 
 
 class _BridgeCapabilities implements BridgeCapabilities {
-  const _BridgeCapabilities({this.liveState = true, this.fullHistory = false, this.historyPreview = false, this.config = false, this.ota = false});
+  const _BridgeCapabilities({this.liveState = true, this.fullHistory = false, this.historyPreview = false, this.config = false, this.ota = false, this.mqtt = false});
   
 
 @override@JsonKey() final  bool liveState;
@@ -218,6 +221,9 @@ class _BridgeCapabilities implements BridgeCapabilities {
 @override@JsonKey() final  bool historyPreview;
 @override@JsonKey() final  bool config;
 @override@JsonKey() final  bool ota;
+/// Home Assistant / MQTT config (05 §5.7). HTTP-only: the broker lives on
+/// the Wi-Fi LAN, so BLE reports false and its settings page explains it.
+@override@JsonKey() final  bool mqtt;
 
 /// Create a copy of BridgeCapabilities
 /// with the given fields replaced by the non-null parameter values.
@@ -229,16 +235,16 @@ _$BridgeCapabilitiesCopyWith<_BridgeCapabilities> get copyWith => __$BridgeCapab
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BridgeCapabilities&&(identical(other.liveState, liveState) || other.liveState == liveState)&&(identical(other.fullHistory, fullHistory) || other.fullHistory == fullHistory)&&(identical(other.historyPreview, historyPreview) || other.historyPreview == historyPreview)&&(identical(other.config, config) || other.config == config)&&(identical(other.ota, ota) || other.ota == ota));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BridgeCapabilities&&(identical(other.liveState, liveState) || other.liveState == liveState)&&(identical(other.fullHistory, fullHistory) || other.fullHistory == fullHistory)&&(identical(other.historyPreview, historyPreview) || other.historyPreview == historyPreview)&&(identical(other.config, config) || other.config == config)&&(identical(other.ota, ota) || other.ota == ota)&&(identical(other.mqtt, mqtt) || other.mqtt == mqtt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,liveState,fullHistory,historyPreview,config,ota);
+int get hashCode => Object.hash(runtimeType,liveState,fullHistory,historyPreview,config,ota,mqtt);
 
 @override
 String toString() {
-  return 'BridgeCapabilities(liveState: $liveState, fullHistory: $fullHistory, historyPreview: $historyPreview, config: $config, ota: $ota)';
+  return 'BridgeCapabilities(liveState: $liveState, fullHistory: $fullHistory, historyPreview: $historyPreview, config: $config, ota: $ota, mqtt: $mqtt)';
 }
 
 
@@ -249,7 +255,7 @@ abstract mixin class _$BridgeCapabilitiesCopyWith<$Res> implements $BridgeCapabi
   factory _$BridgeCapabilitiesCopyWith(_BridgeCapabilities value, $Res Function(_BridgeCapabilities) _then) = __$BridgeCapabilitiesCopyWithImpl;
 @override @useResult
 $Res call({
- bool liveState, bool fullHistory, bool historyPreview, bool config, bool ota
+ bool liveState, bool fullHistory, bool historyPreview, bool config, bool ota, bool mqtt
 });
 
 
@@ -266,13 +272,14 @@ class __$BridgeCapabilitiesCopyWithImpl<$Res>
 
 /// Create a copy of BridgeCapabilities
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? liveState = null,Object? fullHistory = null,Object? historyPreview = null,Object? config = null,Object? ota = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? liveState = null,Object? fullHistory = null,Object? historyPreview = null,Object? config = null,Object? ota = null,Object? mqtt = null,}) {
   return _then(_BridgeCapabilities(
 liveState: null == liveState ? _self.liveState : liveState // ignore: cast_nullable_to_non_nullable
 as bool,fullHistory: null == fullHistory ? _self.fullHistory : fullHistory // ignore: cast_nullable_to_non_nullable
 as bool,historyPreview: null == historyPreview ? _self.historyPreview : historyPreview // ignore: cast_nullable_to_non_nullable
 as bool,config: null == config ? _self.config : config // ignore: cast_nullable_to_non_nullable
 as bool,ota: null == ota ? _self.ota : ota // ignore: cast_nullable_to_non_nullable
+as bool,mqtt: null == mqtt ? _self.mqtt : mqtt // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -1014,7 +1021,7 @@ extension ControlCommandPatterns on ControlCommand {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StartSessionCommand value)?  sessionStart,TResult Function( StopSessionCommand value)?  sessionStop,TResult Function( MarkCommand value)?  mark,TResult Function( PairCommand value)?  pair,TResult Function( UnpairCommand value)?  unpair,TResult Function( SetTimeCommand value)?  setTime,TResult Function( AckAlarmCommand value)?  ackAlarm,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StartSessionCommand value)?  sessionStart,TResult Function( StopSessionCommand value)?  sessionStop,TResult Function( MarkCommand value)?  mark,TResult Function( PairCommand value)?  pair,TResult Function( UnpairCommand value)?  unpair,TResult Function( SetTimeCommand value)?  setTime,TResult Function( AckAlarmCommand value)?  ackAlarm,TResult Function( RebootCommand value)?  reboot,TResult Function( FactoryResetCommand value)?  factoryReset,TResult Function( PowerOffCommand value)?  powerOff,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case StartSessionCommand() when sessionStart != null:
@@ -1024,7 +1031,10 @@ return mark(_that);case PairCommand() when pair != null:
 return pair(_that);case UnpairCommand() when unpair != null:
 return unpair(_that);case SetTimeCommand() when setTime != null:
 return setTime(_that);case AckAlarmCommand() when ackAlarm != null:
-return ackAlarm(_that);case _:
+return ackAlarm(_that);case RebootCommand() when reboot != null:
+return reboot(_that);case FactoryResetCommand() when factoryReset != null:
+return factoryReset(_that);case PowerOffCommand() when powerOff != null:
+return powerOff(_that);case _:
   return orElse();
 
 }
@@ -1042,7 +1052,7 @@ return ackAlarm(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StartSessionCommand value)  sessionStart,required TResult Function( StopSessionCommand value)  sessionStop,required TResult Function( MarkCommand value)  mark,required TResult Function( PairCommand value)  pair,required TResult Function( UnpairCommand value)  unpair,required TResult Function( SetTimeCommand value)  setTime,required TResult Function( AckAlarmCommand value)  ackAlarm,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StartSessionCommand value)  sessionStart,required TResult Function( StopSessionCommand value)  sessionStop,required TResult Function( MarkCommand value)  mark,required TResult Function( PairCommand value)  pair,required TResult Function( UnpairCommand value)  unpair,required TResult Function( SetTimeCommand value)  setTime,required TResult Function( AckAlarmCommand value)  ackAlarm,required TResult Function( RebootCommand value)  reboot,required TResult Function( FactoryResetCommand value)  factoryReset,required TResult Function( PowerOffCommand value)  powerOff,}){
 final _that = this;
 switch (_that) {
 case StartSessionCommand():
@@ -1052,7 +1062,10 @@ return mark(_that);case PairCommand():
 return pair(_that);case UnpairCommand():
 return unpair(_that);case SetTimeCommand():
 return setTime(_that);case AckAlarmCommand():
-return ackAlarm(_that);}
+return ackAlarm(_that);case RebootCommand():
+return reboot(_that);case FactoryResetCommand():
+return factoryReset(_that);case PowerOffCommand():
+return powerOff(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -1066,7 +1079,7 @@ return ackAlarm(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StartSessionCommand value)?  sessionStart,TResult? Function( StopSessionCommand value)?  sessionStop,TResult? Function( MarkCommand value)?  mark,TResult? Function( PairCommand value)?  pair,TResult? Function( UnpairCommand value)?  unpair,TResult? Function( SetTimeCommand value)?  setTime,TResult? Function( AckAlarmCommand value)?  ackAlarm,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StartSessionCommand value)?  sessionStart,TResult? Function( StopSessionCommand value)?  sessionStop,TResult? Function( MarkCommand value)?  mark,TResult? Function( PairCommand value)?  pair,TResult? Function( UnpairCommand value)?  unpair,TResult? Function( SetTimeCommand value)?  setTime,TResult? Function( AckAlarmCommand value)?  ackAlarm,TResult? Function( RebootCommand value)?  reboot,TResult? Function( FactoryResetCommand value)?  factoryReset,TResult? Function( PowerOffCommand value)?  powerOff,}){
 final _that = this;
 switch (_that) {
 case StartSessionCommand() when sessionStart != null:
@@ -1076,7 +1089,10 @@ return mark(_that);case PairCommand() when pair != null:
 return pair(_that);case UnpairCommand() when unpair != null:
 return unpair(_that);case SetTimeCommand() when setTime != null:
 return setTime(_that);case AckAlarmCommand() when ackAlarm != null:
-return ackAlarm(_that);case _:
+return ackAlarm(_that);case RebootCommand() when reboot != null:
+return reboot(_that);case FactoryResetCommand() when factoryReset != null:
+return factoryReset(_that);case PowerOffCommand() when powerOff != null:
+return powerOff(_that);case _:
   return null;
 
 }
@@ -1093,7 +1109,7 @@ return ackAlarm(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  sessionStart,TResult Function()?  sessionStop,TResult Function( MarkKind kind,  int probe,  String text)?  mark,TResult Function()?  pair,TResult Function()?  unpair,TResult Function( int unixMs)?  setTime,TResult Function( int alarmId)?  ackAlarm,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  sessionStart,TResult Function()?  sessionStop,TResult Function( MarkKind kind,  int probe,  String text)?  mark,TResult Function()?  pair,TResult Function()?  unpair,TResult Function( int unixMs)?  setTime,TResult Function( int alarmId)?  ackAlarm,TResult Function()?  reboot,TResult Function()?  factoryReset,TResult Function()?  powerOff,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case StartSessionCommand() when sessionStart != null:
 return sessionStart();case StopSessionCommand() when sessionStop != null:
@@ -1102,7 +1118,10 @@ return mark(_that.kind,_that.probe,_that.text);case PairCommand() when pair != n
 return pair();case UnpairCommand() when unpair != null:
 return unpair();case SetTimeCommand() when setTime != null:
 return setTime(_that.unixMs);case AckAlarmCommand() when ackAlarm != null:
-return ackAlarm(_that.alarmId);case _:
+return ackAlarm(_that.alarmId);case RebootCommand() when reboot != null:
+return reboot();case FactoryResetCommand() when factoryReset != null:
+return factoryReset();case PowerOffCommand() when powerOff != null:
+return powerOff();case _:
   return orElse();
 
 }
@@ -1120,7 +1139,7 @@ return ackAlarm(_that.alarmId);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  sessionStart,required TResult Function()  sessionStop,required TResult Function( MarkKind kind,  int probe,  String text)  mark,required TResult Function()  pair,required TResult Function()  unpair,required TResult Function( int unixMs)  setTime,required TResult Function( int alarmId)  ackAlarm,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  sessionStart,required TResult Function()  sessionStop,required TResult Function( MarkKind kind,  int probe,  String text)  mark,required TResult Function()  pair,required TResult Function()  unpair,required TResult Function( int unixMs)  setTime,required TResult Function( int alarmId)  ackAlarm,required TResult Function()  reboot,required TResult Function()  factoryReset,required TResult Function()  powerOff,}) {final _that = this;
 switch (_that) {
 case StartSessionCommand():
 return sessionStart();case StopSessionCommand():
@@ -1129,7 +1148,10 @@ return mark(_that.kind,_that.probe,_that.text);case PairCommand():
 return pair();case UnpairCommand():
 return unpair();case SetTimeCommand():
 return setTime(_that.unixMs);case AckAlarmCommand():
-return ackAlarm(_that.alarmId);}
+return ackAlarm(_that.alarmId);case RebootCommand():
+return reboot();case FactoryResetCommand():
+return factoryReset();case PowerOffCommand():
+return powerOff();}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -1143,7 +1165,7 @@ return ackAlarm(_that.alarmId);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  sessionStart,TResult? Function()?  sessionStop,TResult? Function( MarkKind kind,  int probe,  String text)?  mark,TResult? Function()?  pair,TResult? Function()?  unpair,TResult? Function( int unixMs)?  setTime,TResult? Function( int alarmId)?  ackAlarm,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  sessionStart,TResult? Function()?  sessionStop,TResult? Function( MarkKind kind,  int probe,  String text)?  mark,TResult? Function()?  pair,TResult? Function()?  unpair,TResult? Function( int unixMs)?  setTime,TResult? Function( int alarmId)?  ackAlarm,TResult? Function()?  reboot,TResult? Function()?  factoryReset,TResult? Function()?  powerOff,}) {final _that = this;
 switch (_that) {
 case StartSessionCommand() when sessionStart != null:
 return sessionStart();case StopSessionCommand() when sessionStop != null:
@@ -1152,7 +1174,10 @@ return mark(_that.kind,_that.probe,_that.text);case PairCommand() when pair != n
 return pair();case UnpairCommand() when unpair != null:
 return unpair();case SetTimeCommand() when setTime != null:
 return setTime(_that.unixMs);case AckAlarmCommand() when ackAlarm != null:
-return ackAlarm(_that.alarmId);case _:
+return ackAlarm(_that.alarmId);case RebootCommand() when reboot != null:
+return reboot();case FactoryResetCommand() when factoryReset != null:
+return factoryReset();case PowerOffCommand() when powerOff != null:
+return powerOff();case _:
   return null;
 
 }
@@ -1491,9 +1516,105 @@ as int,
 }
 
 /// @nodoc
+
+
+class RebootCommand implements ControlCommand {
+  const RebootCommand();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RebootCommand);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ControlCommand.reboot()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class FactoryResetCommand implements ControlCommand {
+  const FactoryResetCommand();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FactoryResetCommand);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ControlCommand.factoryReset()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class PowerOffCommand implements ControlCommand {
+  const PowerOffCommand();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PowerOffCommand);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ControlCommand.powerOff()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$BridgeConfig {
 
- String? get displayUnits; List<Probe>? get probes;
+ String? get displayUnits; List<Probe>? get probes; BatterySaverMode? get batterySaver;
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1504,16 +1625,16 @@ $BridgeConfigCopyWith<BridgeConfig> get copyWith => _$BridgeConfigCopyWithImpl<B
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other.probes, probes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other.probes, probes)&&(identical(other.batterySaver, batterySaver) || other.batterySaver == batterySaver));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(probes));
+int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(probes),batterySaver);
 
 @override
 String toString() {
-  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes)';
+  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes, batterySaver: $batterySaver)';
 }
 
 
@@ -1524,7 +1645,7 @@ abstract mixin class $BridgeConfigCopyWith<$Res>  {
   factory $BridgeConfigCopyWith(BridgeConfig value, $Res Function(BridgeConfig) _then) = _$BridgeConfigCopyWithImpl;
 @useResult
 $Res call({
- String? displayUnits, List<Probe>? probes
+ String? displayUnits, List<Probe>? probes, BatterySaverMode? batterySaver
 });
 
 
@@ -1541,11 +1662,12 @@ class _$BridgeConfigCopyWithImpl<$Res>
 
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? displayUnits = freezed,Object? probes = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? displayUnits = freezed,Object? probes = freezed,Object? batterySaver = freezed,}) {
   return _then(_self.copyWith(
 displayUnits: freezed == displayUnits ? _self.displayUnits : displayUnits // ignore: cast_nullable_to_non_nullable
 as String?,probes: freezed == probes ? _self.probes : probes // ignore: cast_nullable_to_non_nullable
-as List<Probe>?,
+as List<Probe>?,batterySaver: freezed == batterySaver ? _self.batterySaver : batterySaver // ignore: cast_nullable_to_non_nullable
+as BatterySaverMode?,
   ));
 }
 
@@ -1630,10 +1752,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BridgeConfig() when $default != null:
-return $default(_that.displayUnits,_that.probes);case _:
+return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
   return orElse();
 
 }
@@ -1651,10 +1773,10 @@ return $default(_that.displayUnits,_that.probes);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver)  $default,) {final _that = this;
 switch (_that) {
 case _BridgeConfig():
-return $default(_that.displayUnits,_that.probes);case _:
+return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1671,10 +1793,10 @@ return $default(_that.displayUnits,_that.probes);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? displayUnits,  List<Probe>? probes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver)?  $default,) {final _that = this;
 switch (_that) {
 case _BridgeConfig() when $default != null:
-return $default(_that.displayUnits,_that.probes);case _:
+return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
   return null;
 
 }
@@ -1686,7 +1808,7 @@ return $default(_that.displayUnits,_that.probes);case _:
 
 
 class _BridgeConfig implements BridgeConfig {
-  const _BridgeConfig({this.displayUnits, final  List<Probe>? probes}): _probes = probes;
+  const _BridgeConfig({this.displayUnits, final  List<Probe>? probes, this.batterySaver}): _probes = probes;
   
 
 @override final  String? displayUnits;
@@ -1699,6 +1821,7 @@ class _BridgeConfig implements BridgeConfig {
   return EqualUnmodifiableListView(value);
 }
 
+@override final  BatterySaverMode? batterySaver;
 
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -1710,16 +1833,16 @@ _$BridgeConfigCopyWith<_BridgeConfig> get copyWith => __$BridgeConfigCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other._probes, _probes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other._probes, _probes)&&(identical(other.batterySaver, batterySaver) || other.batterySaver == batterySaver));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(_probes));
+int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(_probes),batterySaver);
 
 @override
 String toString() {
-  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes)';
+  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes, batterySaver: $batterySaver)';
 }
 
 
@@ -1730,7 +1853,7 @@ abstract mixin class _$BridgeConfigCopyWith<$Res> implements $BridgeConfigCopyWi
   factory _$BridgeConfigCopyWith(_BridgeConfig value, $Res Function(_BridgeConfig) _then) = __$BridgeConfigCopyWithImpl;
 @override @useResult
 $Res call({
- String? displayUnits, List<Probe>? probes
+ String? displayUnits, List<Probe>? probes, BatterySaverMode? batterySaver
 });
 
 
@@ -1747,11 +1870,12 @@ class __$BridgeConfigCopyWithImpl<$Res>
 
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? displayUnits = freezed,Object? probes = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? displayUnits = freezed,Object? probes = freezed,Object? batterySaver = freezed,}) {
   return _then(_BridgeConfig(
 displayUnits: freezed == displayUnits ? _self.displayUnits : displayUnits // ignore: cast_nullable_to_non_nullable
 as String?,probes: freezed == probes ? _self._probes : probes // ignore: cast_nullable_to_non_nullable
-as List<Probe>?,
+as List<Probe>?,batterySaver: freezed == batterySaver ? _self.batterySaver : batterySaver // ignore: cast_nullable_to_non_nullable
+as BatterySaverMode?,
   ));
 }
 

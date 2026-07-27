@@ -12,14 +12,14 @@
   [probe-tile-headline-1]
     paint _StrokePainter
     text "PIT"
-    text "246°" semantics "Pit, 246 degrees, steady"
+    text "245.6°" semantics "Pit, 245.6 degrees, steady"
     text "target 250°"
     text "—"
     paint SparklinePainter
   [probe-tile-headline-2]
     paint _StrokePainter
     text "BRISKET"
-    text "203°" semantics "Brisket, 203 degrees, steady"
+    text "203.0°" semantics "Brisket, 203.0 degrees, steady"
     text "target 203°"
     text "—"
     [probe-eta-2]

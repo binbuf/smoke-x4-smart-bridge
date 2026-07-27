@@ -264,6 +264,23 @@ class FlutterBlueGattClient implements BleGattClient {
   }
 
   @override
+  Future<void> removeBond() async {
+    final device = _device;
+    if (device == null) {
+      throw const BleStateException('removeBond() with no device');
+    }
+    try {
+      // Android-only plugin call (reflection over the hidden API). Where it
+      // is refused, the caller's fallback is the manual Bluetooth-settings
+      // route — this must throw, not lie.
+      await device.removeBond();
+    } on FlutterBluePlusException catch (e) {
+      throw BleStateException('could not remove the bond: ${e.description}');
+    }
+    _setBond(BleBondState.none);
+  }
+
+  @override
   Future<int> requestMtu(int mtu) async {
     final device = _device;
     if (device == null) {
@@ -317,10 +334,33 @@ class FlutterBlueGattClient implements BleGattClient {
     throw BleStateException(e.description ?? 'GATT operation failed');
   }
 
+  /// A GATT op that STALLS is Android silently retrying security. The
+  /// board-found case (A24.11): a stale OS bond against a factory-reset
+  /// bridge never errors — the stack re-tries the dead key while the app
+  /// waits forever. Bounding every op and reading the stall through the
+  /// bond state turns "it just hangs" into the same typed answers the
+  /// error path already gives.
+  static const _opTimeout = Duration(seconds: 12);
+
+  Never _mapStall() {
+    if (_bond == BleBondState.bonded) {
+      // We hold a key the bridge no longer honours: it was factory-reset.
+      throw const BleRebondRequiredException();
+    }
+    if (_conn != BleConnectionState.connected) {
+      throw const BleConnectionLostException();
+    }
+    throw const BleStateException('GATT operation timed out');
+  }
+
   @override
   Future<Uint8List> read(int slot) async {
     try {
-      return Uint8List.fromList(await _charFor(slot).read());
+      return Uint8List.fromList(
+        await _charFor(slot).read().timeout(_opTimeout),
+      );
+    } on TimeoutException {
+      _mapStall();
     } on FlutterBluePlusException catch (e) {
       _mapGattFailure(e);
     }
@@ -331,7 +371,9 @@ class FlutterBlueGattClient implements BleGattClient {
     try {
       // With response: every write on this contract is answered on
       // `result`, and a silently-dropped write would strand the wizard.
-      await _charFor(slot).write(value);
+      await _charFor(slot).write(value).timeout(_opTimeout);
+    } on TimeoutException {
+      _mapStall();
     } on FlutterBluePlusException catch (e) {
       _mapGattFailure(e);
     }
@@ -354,12 +396,20 @@ class FlutterBlueGattClient implements BleGattClient {
       onError: ctl.addError,
     );
     unawaited(
-      c.setNotifyValue(true).catchError((Object e) {
-        ctl.addError(
-          e is FlutterBluePlusException
-              ? const BleNotBondedException('could not enable notifications')
-              : e,
-        );
+      c.setNotifyValue(true).timeout(_opTimeout).catchError((Object e) {
+        // The CCCD write needs encryption, so a stale bond stalls or
+        // auth-fails right here — route it through the same bond-aware
+        // mapping as reads and writes (A24.11).
+        if (_bond == BleBondState.bonded &&
+            (e is TimeoutException || e is FlutterBluePlusException)) {
+          ctl.addError(const BleRebondRequiredException());
+        } else if (e is FlutterBluePlusException || e is TimeoutException) {
+          ctl.addError(
+            const BleNotBondedException('could not enable notifications'),
+          );
+        } else {
+          ctl.addError(e);
+        }
         return false;
       }),
     );

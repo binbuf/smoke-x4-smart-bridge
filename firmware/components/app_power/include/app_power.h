@@ -19,6 +19,18 @@ extern "C" {
  * SOC_UNKNOWN rather than inventing a percentage. */
 int app_power_init(void);
 
+/* Soft power off (07 §7.4): arm GPIO0 (PRG) as the deep-sleep wake source
+ * and enter deep sleep. DOES NOT RETURN. Callers blank their own outputs
+ * (panel, LED, rails) first — this owns only the power domain and the wake. */
+void app_power_enter_deep_sleep(void);
+
+/* Called first thing in app_main on every boot. If this boot is a GPIO0 wake
+ * from app_power_enter_deep_sleep(), require the button held for
+ * APP_POWER_WAKE_HOLD_MS (app_power_core.h) or go straight back to sleep, so a
+ * pocket-press cannot power the bridge on. Returns immediately on a normal
+ * boot. */
+void app_power_wake_gate(void);
+
 #ifdef __cplusplus
 }
 #endif

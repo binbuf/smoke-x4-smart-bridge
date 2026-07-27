@@ -210,7 +210,9 @@ enum ControlOp {
   factoryReset(8),
   setUnits(9),
   identify(10),
-  ackAlarm(11);
+  ackAlarm(11),
+  setBatterySaver(12),
+  powerOff(13);
 
   const ControlOp(this.wire);
   final int wire;
@@ -253,6 +255,24 @@ enum TempUnits {
   final int wire;
 
   static TempUnits? fromWire(int v) {
+    for (final e in values) {
+      if (e.wire == v) {
+        return e;
+      }
+    }
+    return null;
+  }
+}
+
+enum BatterySaver {
+  off(0),
+  on(1),
+  auto(2);
+
+  const BatterySaver(this.wire);
+  final int wire;
+
+  static BatterySaver? fromWire(int v) {
     for (final e in values) {
       if (e.wire == v) {
         return e;
@@ -1487,6 +1507,32 @@ class CtrlAckAlarm {
     final out = Uint8List(size);
     final bd = ByteData.sublistView(out);
     bd.setUint8(0, alarmId);
+    return out;
+  }
+}
+
+/// set_battery_saver — fixed 1 B. (device_control body)
+class CtrlSetBatterySaver {
+  CtrlSetBatterySaver({this.saver = 0});
+
+  static const int size = 1;
+
+  final int saver;
+
+  BatterySaver? get saverEnum => BatterySaver.fromWire(saver);
+
+  /// Parses 1 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory CtrlSetBatterySaver.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return CtrlSetBatterySaver(saver: bd.getUint8(0));
+  }
+
+  /// Serializes to 1 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, saver);
     return out;
   }
 }

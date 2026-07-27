@@ -151,6 +151,21 @@ void main() {
     expect(prefs.lastBaseUrl, 'http://10.50.50.38');
   });
 
+  test('a Bluetooth-only bridge is remembered — no onboarding loop', () async {
+    // A25, board-found: setup finished over Bluetooth records no base URL, so
+    // "have we met a bridge?" keyed on lastBaseUrl said no and the shell
+    // redirected to /setup — which finished, and redirected again, forever.
+    final prefs = InMemoryBridgePrefs(lastBleDeviceId: 'AA:BB:CC:DD:A4:F2');
+    expect(prefs.hasBridge, isTrue);
+    final state = await make(
+      prefs: prefs,
+      probe: (_) async => false, // no Wi-Fi anywhere
+      bleAttempt: () async => null, // and the radio finds nothing right now
+    ).start();
+    // Offline is the honest answer; onboarding would be a loop.
+    expect(state, isA<LaunchOffline>());
+  });
+
   test('a phone that has never met a bridge but has BLE still races', () async {
     final state = await make(
       probe: (_) async => false,

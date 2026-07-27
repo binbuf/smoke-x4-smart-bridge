@@ -38,6 +38,18 @@ void main() {
     expect(t.capabilities.liveState, isTrue);
     expect(t.capabilities.fullHistory, isTrue);
     expect(t.capabilities.ota, isFalse);
+    expect(t.capabilities.mqtt, isTrue);
+  });
+
+  test('mqttConfig round-trips, and a blank password is kept (A16)', () async {
+    final t = transport();
+    expect((await t.mqttConfig()).enabled, isFalse);
+    await t.setMqttConfig(enabled: true, host: 'broker.lan', port: 1884);
+    final cfg = await t.mqttConfig();
+    expect(cfg.enabled, isTrue);
+    expect(cfg.host, 'broker.lan');
+    expect(cfg.port, 1884);
+    expect(cfg.connected, isTrue); // enabled with a host
   });
 
   test('status() answers the dashboard header', () async {

@@ -6,7 +6,7 @@ idf_component_register(
     # streamed-upload contract (F14.5), so every consumer needs its
     # headers too.
     REQUIRES app_ota
-    PRIV_REQUIRES esp_app_format app_alarm app_power app_ble app_config app_net app_time app_ui
+    PRIV_REQUIRES esp_app_format app_alarm app_power app_ble app_config app_mqtt app_net app_time app_ui
                   cook_store smoke_x
                   bridge_event esp_http_server esp_timer espcoredump
                   esp_hw_support

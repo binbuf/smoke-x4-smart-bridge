@@ -157,7 +157,7 @@ class FindStep extends StatelessWidget {
   static String _blobLine(BridgeDiscovery b) {
     final parts = <String>[];
     if (b.pitTempF10 != null) {
-      parts.add('pit ${(b.pitTempF10! / 10).round()} °F');
+      parts.add('pit ${(b.pitTempF10! / 10).toStringAsFixed(1)} °F');
     }
     if (b.sessionActive && b.sessionMinutes > 0) {
       final h = b.sessionMinutes ~/ 60;

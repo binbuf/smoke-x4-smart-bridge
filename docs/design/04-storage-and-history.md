@@ -223,8 +223,13 @@ brisket is a design that loses data.
 - at least one probe is attached
 - no session is currently open
 
-plus **either** any attached probe reading above **90 °F** (i.e. something is actually cooking, not
-a probe sitting on the counter) **or** an explicit start from the app or a PRG long-press.
+— at **any temperature** (amended A25). The original rule also required an attached probe above
+90 °F ("something is actually cooking"), which lost exactly the stretch a cook most wants to see
+later: lighting the fire and getting the pit stable before it crosses 90 °F. Recording now begins
+the moment the powered bridge syncs with the base, so a cook can set up the hardware, tend the fire,
+and open the app hours later to the whole history — with no session setup at all, or naming the
+already-recording cook retroactively. The cost is an occasional counter-top session from a base
+left on with probes plugged in; the 10-minute detached rule and retention absorb those.
 
 **End** when any of:
 

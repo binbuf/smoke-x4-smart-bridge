@@ -137,6 +137,36 @@ typedef struct {
  * draw). The gate is ALWAYS released, including on a failed read. */
 int app_power_read_once(const app_power_adc_ops_t *ops, uint16_t *adc_mv);
 
+/* ── soft-power wake confirm (07 §7.4) ────────────────────────────────
+ * A deep-sleep GPIO0 wake reaches our firmware only AFTER the ROM has run;
+ * we then require the button held continuously for APP_POWER_WAKE_HOLD_MS
+ * before finishing boot. Released early → straight back to deep sleep, so a
+ * pocket-press cannot power the bridge on 12 hours from a socket. Pure, so
+ * "how long, and does an early release abort?" is a host test rather than a
+ * comment — the same discipline as the app_ui gesture machine.
+ *
+ * The first sample must be pressed=true (the wake press itself); a wake with
+ * nothing actually held is an abort, not a wake. */
+#define APP_POWER_WAKE_HOLD_MS 5000
+
+typedef enum {
+    APP_POWER_WAKE_PENDING = 0, /* still holding, not yet the full window */
+    APP_POWER_WAKE_CONFIRMED,   /* held long enough — finish booting */
+    APP_POWER_WAKE_ABORTED,     /* released early — re-arm and sleep again */
+} app_power_wake_t;
+
+typedef struct {
+    bool started;
+    uint32_t press_ms;
+} app_power_wake_hold_t;
+
+void app_power_wake_hold_reset(app_power_wake_hold_t *w);
+
+/* Feed the button level (true = down) at now_ms; call every ~20 ms from the
+ * wake gate. Returns the running decision. */
+app_power_wake_t app_power_wake_hold_sample(app_power_wake_hold_t *w,
+                                            bool pressed, uint32_t now_ms);
+
 #ifdef __cplusplus
 }
 #endif

@@ -28,6 +28,12 @@ enum SettingsSection {
   device('Device', 'Units, display, retention', Icons.developer_board),
   advanced('Advanced', 'Radio, raw packets, logs', Icons.tune),
   firmware('Firmware', 'Version and updates', Icons.system_update_alt),
+  homeAssistant(
+    'Home Assistant',
+    'Publish to MQTT over Wi-Fi',
+    Icons.home_outlined,
+  ),
+  power('Power', 'Restart, sleep, and factory reset', Icons.power_settings_new),
   about('About', 'Versions and licences', Icons.info_outline);
 
   const SettingsSection(this.title, this.subtitle, this.icon);
@@ -68,6 +74,8 @@ class DeviceSettingsView extends StatelessWidget {
     this.maxSessions = 64,
     this.onDeviceConfig,
     this.batteryCalibrationAvailable = false,
+    this.batterySaver = 'auto',
+    this.onBatterySaver,
     super.key,
   });
 
@@ -84,6 +92,13 @@ class DeviceSettingsView extends StatelessWidget {
   /// False until F12 (M5). V1.3 settled the divider (×4.9, GPIO37 HIGH
   /// enables) but nothing reads it yet.
   final bool batteryCalibrationAvailable;
+
+  /// `off` · `on` · `auto` — 01 §1.6's saver profile. Tri-state on purpose:
+  /// `auto` engages below 20 % and releases at 30 %, which a switch cannot
+  /// say. A String for the same reason [units] is one — the wire spelling is
+  /// the contract and the route does the mapping.
+  final String batterySaver;
+  final ValueChanged<String>? onBatterySaver;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +143,35 @@ class DeviceSettingsView extends StatelessWidget {
           title: const Text('Keep at most'),
           subtitle: Text('$maxSessions cooks on the bridge'),
         ),
+        const _SectionLabel('Battery'),
+        ListTile(
+          title: const Text('Battery saver'),
+          subtitle: Text(switch (batterySaver) {
+            'off' => 'Never throttle — full performance on mains power',
+            'on' => 'Always throttled: slower CPU, dimmer screen, less radio',
+            _ => 'Engages below 20 % and releases at 30 %',
+          }),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: SegmentedButton<String>(
+            key: const Key('settings-battery-saver'),
+            segments: const [
+              ButtonSegment(value: 'off', label: Text('Off')),
+              ButtonSegment(value: 'on', label: Text('On')),
+              ButtonSegment(value: 'auto', label: Text('Auto')),
+            ],
+            selected: {
+              if (batterySaver == 'off' || batterySaver == 'on')
+                batterySaver
+              else
+                'auto',
+            },
+            onSelectionChanged: onBatterySaver == null
+                ? null
+                : (s) => onBatterySaver!(s.first),
+          ),
+        ),
         ListTile(
           key: const Key('settings-battery-calibration'),
           enabled: batteryCalibrationAvailable,
@@ -158,6 +202,9 @@ class AdvancedSettingsView extends StatelessWidget {
     this.noveltyLog = '',
     this.logLines = const [],
     this.onExportLogs,
+    this.paired = false,
+    this.onPair,
+    this.onUnpair,
     super.key,
   });
 
@@ -166,6 +213,15 @@ class AdvancedSettingsView extends StatelessWidget {
   final String noveltyLog;
   final List<String> logLines;
   final VoidCallback? onExportLogs;
+
+  /// Whether the bridge is currently bound to a Smoke X base.
+  final bool paired;
+
+  /// Re-enter sync/scan (`pairing/sync` · op 1) and drop the binding
+  /// (`pairing/unpair` · op 2). D15 moved these off the device button, so
+  /// this screen is now the only way a user reaches them.
+  final VoidCallback? onPair;
+  final VoidCallback? onUnpair;
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +236,36 @@ class AdvancedSettingsView extends StatelessWidget {
             title: Text(e.key.replaceAll('_', ' ')),
             trailing: Text('${e.value}'),
           ),
+        const _SectionLabel('Base station'),
+        ListTile(
+          key: const Key('settings-pairing-state'),
+          title: const Text('Pairing'),
+          subtitle: Text(
+            paired
+                ? 'Bound to a Smoke X base'
+                : 'Not paired — put the base in sync mode, then re-scan',
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              OutlinedButton.icon(
+                key: const Key('settings-pair'),
+                onPressed: onPair,
+                icon: const Icon(Icons.wifi_tethering),
+                label: const Text('Re-scan'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                key: const Key('settings-unpair'),
+                onPressed: onUnpair,
+                icon: const Icon(Icons.link_off),
+                label: const Text('Unpair'),
+              ),
+            ],
+          ),
+        ),
         const _SectionLabel('Raw packets'),
         if (packets.isEmpty)
           const ListTile(
@@ -220,6 +306,166 @@ class AdvancedSettingsView extends StatelessWidget {
             icon: const Icon(Icons.ios_share),
             label: const Text('Export logs'),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The power page (D15).
+///
+/// The bridge's button can only cycle views and switch itself off, so every
+/// other disruptive verb has to live here. All three are confirmed, each
+/// with the consequence spelled out rather than a generic "Are you sure?":
+///
+///  * **Power off is the sharp one.** Nothing remote can undo it — waking the
+///    bridge needs someone to walk over and hold PRG (07 §7.4). A user who
+///    taps this from the sofa has stranded their cook, so the dialog says so
+///    in those words.
+///  * **Factory reset forgets this phone's BLE bond**, so the app has to pair
+///    again afterwards; that is a surprise worth pre-empting.
+class PowerSettingsView extends StatelessWidget {
+  const PowerSettingsView({
+    this.onRestart,
+    this.onPowerOff,
+    this.onFactoryReset,
+    this.sessionActive = false,
+    super.key,
+  });
+
+  final Future<void> Function()? onRestart;
+  final Future<void> Function()? onPowerOff;
+  final Future<void> Function()? onFactoryReset;
+
+  /// Drives the extra "this ends the cook" line, so the warning is specific
+  /// when it matters instead of permanently shouting.
+  final bool sessionActive;
+
+  static Future<bool> _confirm(
+    BuildContext context, {
+    required String title,
+    required String body,
+    required String confirmLabel,
+    bool destructive = false,
+  }) async {
+    final theme = Theme.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(
+            key: const Key('power-cancel'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('power-confirm'),
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
+                  )
+                : null,
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cookWarning = sessionActive
+        ? ' A cook is running and will be interrupted.'
+        : '';
+    return ListView(
+      key: const Key('settings-power'),
+      children: [
+        const _SectionLabel('Power'),
+        ListTile(
+          key: const Key('power-restart'),
+          leading: const Icon(Icons.restart_alt),
+          title: const Text('Restart the bridge'),
+          subtitle: const Text('Comes back on its own in a few seconds'),
+          enabled: onRestart != null,
+          onTap: onRestart == null
+              ? null
+              : () async {
+                  final ok = await _confirm(
+                    context,
+                    title: 'Restart the bridge?',
+                    body:
+                        'It will be unreachable for a few seconds while it '
+                        'reboots, then reconnect by itself.$cookWarning',
+                    confirmLabel: 'Restart',
+                  );
+                  if (ok) {
+                    await onRestart!();
+                  }
+                },
+        ),
+        ListTile(
+          key: const Key('power-off'),
+          leading: const Icon(Icons.bedtime_outlined),
+          title: const Text('Power off'),
+          subtitle: const Text('Deep sleep — waking it needs the PRG button'),
+          enabled: onPowerOff != null,
+          onTap: onPowerOff == null
+              ? null
+              : () async {
+                  final ok = await _confirm(
+                    context,
+                    title: 'Power off the bridge?',
+                    body:
+                        'It stops responding on Wi-Fi and Bluetooth, and '
+                        'nothing in this app can wake it again. To turn it '
+                        'back on you must physically hold the PRG button on '
+                        'the bridge for about 5 seconds.$cookWarning',
+                    confirmLabel: 'Power off',
+                    destructive: true,
+                  );
+                  if (ok) {
+                    await onPowerOff!();
+                  }
+                },
+        ),
+        const _SectionLabel('Danger zone'),
+        ListTile(
+          key: const Key('power-factory-reset'),
+          leading: Icon(Icons.delete_forever, color: theme.colorScheme.error),
+          title: Text(
+            'Factory reset',
+            style: TextStyle(color: theme.colorScheme.error),
+          ),
+          subtitle: const Text(
+            'Erases pairing, network settings, cook history and Bluetooth '
+            'bonds',
+          ),
+          enabled: onFactoryReset != null,
+          onTap: onFactoryReset == null
+              ? null
+              : () async {
+                  final ok = await _confirm(
+                    context,
+                    title: 'Erase everything?',
+                    body:
+                        'This wipes the bridge back to how it shipped: its '
+                        'pairing with the base, its network settings, every '
+                        'stored cook, and its Bluetooth bonds. This phone '
+                        'will forget the bridge too, and you’ll have to pair '
+                        'with it again. It cannot be undone.$cookWarning',
+                    confirmLabel: 'Erase everything',
+                    destructive: true,
+                  );
+                  if (ok) {
+                    await onFactoryReset!();
+                  }
+                },
         ),
       ],
     );

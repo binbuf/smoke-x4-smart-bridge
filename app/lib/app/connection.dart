@@ -101,7 +101,9 @@ class AppConnection {
   Future<LaunchState> start({
     Duration raceTimeout = const Duration(seconds: 8),
   }) async {
-    final neverMetABridge = prefs.lastBaseUrl == null;
+    // A25: a Bluetooth-only bridge is remembered by its OS address, not a
+    // base URL — see BridgePrefs.hasBridge.
+    final neverMetABridge = !prefs.hasBridge;
     if (neverMetABridge && bleAttempt == null) {
       // Nothing remembered and no radio to fall back on: this phone has
       // never met a bridge.
@@ -148,6 +150,51 @@ class AppConnection {
         _emit(const LaunchOffline());
     }
     return _state;
+  }
+
+  /// 05 §5.7 — a single Wi-Fi-only race, no BLE lane, returning the winning
+  /// HTTP link or null. This is the [ConnectionSupervisor]'s building block:
+  /// the Wi-Fi half of the BLE-default boot (raced beside one warm BLE link)
+  /// and the background *upgrade* that climbs back onto Wi-Fi after a
+  /// failover. It does not emit [LaunchState] — the supervisor owns that
+  /// story — but it does register its manager so [enterManual] still
+  /// pre-empts, and it writes the cache on a win.
+  Future<LaunchConnected?> raceHttpUpgrade({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final mgr = ConnectionManager(
+      cachedBaseUrl: prefs.lastBaseUrl,
+      discovery: discovery,
+      delay: _delay,
+      probe: probe ?? _defaultProbe,
+      writeCache: (baseUrl) => prefs.recordConnection(baseUrl),
+    );
+    _manager = mgr;
+    final outcome = await mgr.raceHttpOnly(timeout: timeout);
+    if (outcome == null) {
+      return null;
+    }
+    return LaunchConnected(
+      transport: transportFor(outcome.baseUrl),
+      link: LinkKind.http,
+      address: outcome.baseUrl,
+    );
+  }
+
+  /// 05 §5.7 — one attempt at the warm BLE link the supervisor holds as the
+  /// active transport (Wi-Fi down) or the standby that makes failover
+  /// instant (Wi-Fi up). Never throws: a missing radio, an unbonded bridge,
+  /// or a permission gap all read the same — no link.
+  Future<BridgeTransport?> attemptBle() async {
+    final attempt = bleAttempt;
+    if (attempt == null) {
+      return null;
+    }
+    try {
+      return await attempt();
+    } on Object {
+      return null;
+    }
   }
 
   /// A dropped link re-RACES rather than redialling: the bridge may have

@@ -705,6 +705,97 @@ static void handle_config_wifi_post(const app_api_req_t *req,
     }
 }
 
+static void handle_config_mqtt_get(app_api_out_t *out) {
+    uint8_t en = 0;
+    uint8_t ha = 1;
+    (void)app_config_store_get_u8(APP_CONFIG_MQTT_ENABLED, &en);
+    (void)app_config_store_get_u8(APP_CONFIG_MQTT_HA_DISCOVERY, &ha);
+    uint16_t port = 1883;
+    (void)app_config_store_get_u16(APP_CONFIG_MQTT_PORT, &port);
+    char host[65] = "";
+    char user[65] = "";
+    char prefix[33] = "";
+    (void)app_config_store_get_str(APP_CONFIG_MQTT_HOST, host, sizeof host);
+    (void)app_config_store_get_str(APP_CONFIG_MQTT_USER, user, sizeof user);
+    (void)app_config_store_get_str(APP_CONFIG_MQTT_PREFIX, prefix,
+                                   sizeof prefix);
+    bool connected = s_ops->mqtt_status != NULL && s_ops->mqtt_status();
+
+    /* NEVER the stored password — the sta_psk discipline (06 §6.2). */
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_fmt(out, "{\"enabled\":%s,\"host\":", en ? "true" : "false");
+    app_api_emit_json_str(out, host);
+    app_api_emit_fmt(out, ",\"port\":%u,\"user\":", (unsigned)port);
+    app_api_emit_json_str(out, user);
+    app_api_emit_str(out, ",\"prefix\":");
+    app_api_emit_json_str(out, prefix);
+    app_api_emit_fmt(out, ",\"ha_discovery\":%s,\"connected\":%s}",
+                     ha ? "true" : "false", connected ? "true" : "false");
+}
+
+static void handle_config_mqtt_post(const app_api_req_t *req,
+                                    app_api_out_t *out) {
+    bool enabled = false;
+    const bool have_enabled =
+        app_api_json_bool(req->body, "enabled", &enabled) == 0;
+    char host[65] = "";
+    const bool have_host =
+        app_api_json_str(req->body, "host", host, sizeof host) == 0;
+    long port = 0;
+    const bool have_port = app_api_json_int(req->body, "port", &port) == 0;
+
+    if (have_port && (port < 1 || port > 65535)) {
+        return app_api_error(out, 400, "invalid_field",
+                             "port must be 1..65535");
+    }
+    /* Enabling needs a broker — from this body or already stored. */
+    if (have_enabled && enabled) {
+        char cur_host[65] = "";
+        (void)app_config_store_get_str(APP_CONFIG_MQTT_HOST, cur_host,
+                                       sizeof cur_host);
+        const char *effective = have_host ? host : cur_host;
+        if (effective[0] == '\0') {
+            return app_api_error(out, 400, "invalid_field",
+                                 "enabling needs a host");
+        }
+    }
+
+    char user[65] = "";
+    char pass[65] = "";
+    char prefix[33] = "";
+    bool ha = true;
+    if (have_enabled) {
+        (void)app_config_store_set_u8(APP_CONFIG_MQTT_ENABLED,
+                                      enabled ? 1 : 0);
+    }
+    if (have_host) {
+        (void)app_config_store_set_str(APP_CONFIG_MQTT_HOST, host);
+    }
+    if (have_port) {
+        (void)app_config_store_set_u16(APP_CONFIG_MQTT_PORT, (uint16_t)port);
+    }
+    if (app_api_json_str(req->body, "user", user, sizeof user) == 0) {
+        (void)app_config_store_set_str(APP_CONFIG_MQTT_USER, user);
+    }
+    if (app_api_json_str(req->body, "pass", pass, sizeof pass) == 0) {
+        (void)app_config_store_set_str(APP_CONFIG_MQTT_PASS, pass);
+    }
+    if (app_api_json_str(req->body, "prefix", prefix, sizeof prefix) == 0) {
+        (void)app_config_store_set_str(APP_CONFIG_MQTT_PREFIX, prefix);
+    }
+    if (app_api_json_bool(req->body, "ha_discovery", &ha) == 0) {
+        (void)app_config_store_set_u8(APP_CONFIG_MQTT_HA_DISCOVERY,
+                                      ha ? 1 : 0);
+    }
+
+    /* Enabling it live restarts the client without a reboot. */
+    if (s_ops->mqtt_reconfigure != NULL) {
+        s_ops->mqtt_reconfigure();
+    }
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_str(out, "{\"ok\":true}");
+}
+
 static void handle_config_device_get(app_api_out_t *out) {
     uint8_t units = 0, timeout_hi = 0, led = 1, saver = 0;
     uint16_t timeout_s = 60, batt_mah = 3000;
@@ -788,8 +879,21 @@ static void handle_config_device_post(const app_api_req_t *req,
                                       strcmp(sval, "C") == 0 ? 1 : 0);
     }
     if (app_api_json_int(body, "display_timeout_s", &ival) == 0) {
-        (void)app_config_store_set_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S,
-                                       (uint16_t)ival);
+        /* Clamp to {0} ∪ [15,600]. 0 means never sleep; any positive value is
+         * held at >= 15 s so a passkey or OTA screen cannot be made unreadable.
+         * A value of 1 left the board unprovisionable (13 §13.2.1), because the
+         * handler validated nothing. */
+        uint16_t to;
+        if (ival <= 0) {
+            to = 0;
+        } else if (ival < 15) {
+            to = 15;
+        } else if (ival > 600) {
+            to = 600;
+        } else {
+            to = (uint16_t)ival;
+        }
+        (void)app_config_store_set_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S, to);
     }
     if (app_api_json_bool(body, "led_enabled", &bval) == 0) {
         (void)app_config_store_set_u8(APP_CONFIG_DEV_LED_ENABLED,
@@ -837,9 +941,21 @@ static void handle_config_device_post(const app_api_req_t *req,
     /* probes: [{"n":1,"name":...,"role":...,"target_f10":...}, ...] */
     const char *probes = app_api_json_find(body, "probes");
     if (probes && *probes == '[') {
-        const char *p = probes;
-        while ((p = strstr(p, "{\"n\"")) != NULL ||
-               (p = strstr(probes, "{ \"n\"")) != NULL) {
+        /* One tolerant forward scan. The old loop searched the compact form
+         * from `p` OR the spaced form from `probes` (the start of the array),
+         * so a single pretty-printed body (curl, Postman, Home Assistant)
+         * re-found the first object every iteration and spun the httpd task
+         * forever — an unauthenticated remote DoS on the default config. This
+         * advances `p` strictly and accepts any whitespace between objects. */
+        const char *p = probes + 1; /* past '[' */
+        for (;;) {
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' ||
+                   *p == ',') {
+                p++;
+            }
+            if (*p != '{') {
+                break; /* ']' or end of body — never restart from the top */
+            }
             const char *obj_end = strchr(p, '}');
             if (!obj_end) {
                 break;
@@ -878,10 +994,7 @@ static void handle_config_device_post(const app_api_req_t *req,
                     (void)app_config_store_set_i32(tk[pn - 1], (int32_t)pt);
                 }
             }
-            p = obj_end + 1;
-            if (*p == ']') {
-                break;
-            }
+            p = obj_end + 1; /* strictly advances — termination guaranteed */
         }
     }
     app_api_out_begin(out, 200, "application/json");
@@ -1280,6 +1393,52 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
         app_api_emit_str(out, "{\"ok\":true}");
         return 0;
     }
+    /* ── the destructive verbs (v1.1) ──────────────────────────────────
+     * The PRG button is display + power only, so factory reset and restart
+     * have to be reachable from the app. Each answers FIRST and acts after
+     * the deferral in the glue, exactly like the OTA reboot: a client that
+     * never sees its 200 cannot tell success from a dropped connection. */
+    if (strcmp(req->method, "POST") == 0 && strcmp(api, "/restart") == 0) {
+        if (s_ops->reboot == NULL) {
+            app_api_error(out, 501, "unsupported",
+                          "no restart on this build");
+            return 0;
+        }
+        app_api_out_begin(out, 200, "application/json");
+        app_api_emit_str(out, "{\"ok\":true,\"rebooting_in_ms\":500}");
+        s_ops->reboot();
+        return 0;
+    }
+    if (strcmp(req->method, "POST") == 0 &&
+        strcmp(api, "/factory-reset") == 0) {
+        if (s_ops->factory_reset == NULL) {
+            app_api_error(out, 501, "unsupported",
+                          "no factory reset on this build");
+            return 0;
+        }
+        if (s_ops->factory_reset() != 0) {
+            app_api_error(out, 500, "failed", "factory reset failed");
+            return 0;
+        }
+        app_api_out_begin(out, 200, "application/json");
+        app_api_emit_str(out, "{\"ok\":true,\"rebooting_in_ms\":500}");
+        return 0;
+    }
+    if (strcmp(req->method, "POST") == 0 && strcmp(api, "/power-off") == 0) {
+        if (s_ops->power_off == NULL) {
+            app_api_error(out, 501, "unsupported",
+                          "no power off on this build");
+            return 0;
+        }
+        /* wake_requires_button is not decoration: nothing remote can bring
+         * the bridge back, so the app must be able to warn before asking. */
+        app_api_out_begin(out, 200, "application/json");
+        app_api_emit_str(out,
+                         "{\"ok\":true,\"sleeping_in_ms\":500,"
+                         "\"wake_requires_button\":true}");
+        s_ops->power_off();
+        return 0;
+    }
     if (strcmp(api, "/config/wifi") == 0) {
         if (is_get) {
             handle_config_wifi_get(out);
@@ -1293,6 +1452,14 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
             handle_config_device_get(out);
         } else {
             handle_config_device_post(req, out);
+        }
+        return 0;
+    }
+    if (strcmp(api, "/config/mqtt") == 0) {
+        if (is_get) {
+            handle_config_mqtt_get(out);
+        } else {
+            handle_config_mqtt_post(req, out);
         }
         return 0;
     }

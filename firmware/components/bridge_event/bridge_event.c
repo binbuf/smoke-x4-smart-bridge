@@ -18,15 +18,28 @@ typedef struct {
     const char *name;
 } guard_ctx_t;
 
+/* Count of budget overruns since boot, exposed for diagnosis (a slow handler
+ * must stay visible even though it no longer bricks the board). */
+static uint32_t s_guard_violations;
+
+uint32_t bridge_event_guard_violation_count(void) { return s_guard_violations; }
+
 static void log_violation(const char *handler_name, uint64_t elapsed_us) {
-    ESP_LOGE(TAG, "handler %s ran %llu us (> %u us budget)",
+    s_guard_violations++;
+    ESP_LOGE(TAG, "handler %s ran %llu us (> %u us budget) [%lu total]",
              handler_name != NULL ? handler_name : "?",
              (unsigned long long)elapsed_us,
-             (unsigned)BRIDGE_EVENT_GUARD_BUDGET_US);
-#ifndef NDEBUG
-    /* A slow handler in a debug build is a bug, loudly (03 §3.2 rule 1). */
-    assert(false && "bridge_event handler over 5 ms budget");
-#endif
+             (unsigned)BRIDGE_EVENT_GUARD_BUDGET_US,
+             (unsigned long)s_guard_violations);
+    /* BOARD-FOUND 2026-07-25: this used to `assert(false)` in debug builds. A
+     * slow-but-completed handler is a perf bug, not a safety one — the guard
+     * fires only AFTER the handler returns (a truly hung task is caught by the
+     * task watchdog instead), so panicking here bricks a field device over a
+     * transient blip. The real culprit is I²C/NVS flash-bus contention on the
+     * event loop during AP startup: `app_ui.alarm` measured 17.3 ms and
+     * crash-looped a live cook every time the Smoke X raised an alarm. The
+     * loud ESP_LOGE + the counter keep it visible; the root-cause fix (all I²C
+     * off the event loop, 13 §13.7.5 F17.2) is bench work. Degrade, don't die. */
 }
 
 static void guarded_trampoline(void *arg, esp_event_base_t base, int32_t id,

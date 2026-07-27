@@ -90,6 +90,28 @@ void runTransportContract({
       await t.close();
     });
 
+    test('mqttConfig() honours the mqtt capability', () async {
+      final t = await create();
+      if (t.capabilities.mqtt) {
+        // It may still fail for backend reasons (a mock with no /config/mqtt),
+        // but it must NEVER be the BLE "needs Wi-Fi" refusal.
+        try {
+          expect(await t.mqttConfig(), isA<MqttConfig>());
+        } on BridgeUnsupportedException {
+          fail('a transport that claims mqtt must not refuse it as unsupported');
+        } on Object {
+          // A backend/transport error is fine here — capability, not wiring.
+        }
+      } else {
+        // Typed refusal, so the page explains rather than showing a dead form.
+        expect(
+          () => t.mqttConfig(),
+          throwsA(isA<BridgeUnsupportedException>()),
+        );
+      }
+      await t.close();
+    });
+
     test('close() releases without throwing', () async {
       final t = await create();
       await t.close();

@@ -29,6 +29,7 @@ class FakePeripheralConfig {
     this.rejectBond = false,
     this.dropOnWrite = false,
     this.staleBond = false,
+    this.refuseRemoveBond = false,
     this.scanResults = const [],
     this.emptyScan = false,
     this.wifiConfigOutcome = ResultStatus.ok,
@@ -51,6 +52,11 @@ class FakePeripheralConfig {
   /// to it. Surfaces as a re-bond-needed condition, never as a silent
   /// "won't connect" (A6.4).
   final bool staleBond;
+
+  /// The platform refuses [BleGattClient.removeBond] (A24.11) — the case
+  /// where the auto-heal cannot run and the user is sent to Bluetooth
+  /// settings instead.
+  final bool refuseRemoveBond;
 
   final List<WifiScanResult> scanResults;
   final bool emptyScan;
@@ -319,6 +325,24 @@ class FakePeripheral implements BleGattClient {
     _setBond(BleBondState.bonded);
   }
 
+  /// How many times the client healed a stale bond (A24.11), for assertions.
+  int removeBondCalls = 0;
+
+  /// After a heal, the fresh pairing gets REAL keys — the stale-bond
+  /// condition is gone. Modelled as a cleared flag consulted alongside
+  /// [FakePeripheralConfig.staleBond].
+  bool _staleBondCleared = false;
+
+  @override
+  Future<void> removeBond() async {
+    removeBondCalls++;
+    if (config.refuseRemoveBond) {
+      throw const BleStateException('platform refused removeBond');
+    }
+    _staleBondCleared = true;
+    _setBond(BleBondState.none);
+  }
+
   @override
   Future<int> requestMtu(int mtu) async {
     _requireConnected();
@@ -345,7 +369,8 @@ class FakePeripheral implements BleGattClient {
     if (slot == BridgeChar.deviceInfo) {
       return; // open: identify a bridge before bonding
     }
-    if (config.staleBond && _bond == BleBondState.bonded) {
+    if (config.staleBond && !_staleBondCleared &&
+        _bond == BleBondState.bonded) {
       // We think we are bonded; the peer disagrees. This is what a
       // factory-reset bridge does, and it must be distinguishable.
       throw const BleRebondRequiredException();

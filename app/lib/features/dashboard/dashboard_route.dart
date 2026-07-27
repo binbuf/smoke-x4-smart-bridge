@@ -57,7 +57,9 @@ class _DashboardRouteState extends State<DashboardRoute> {
     }
     setState(() => _launch = state);
     if (state is LaunchNeedsOnboarding) {
-      context.go(AppRoutes.onboarding);
+      // A23: the guided setup flow (13 §13.5.1) replaces the old wizard as the
+      // destination for a phone that has never met a bridge.
+      context.go(AppRoutes.setup);
       return;
     }
     if (state is! LaunchConnected) {
@@ -102,6 +104,12 @@ class _DashboardRouteState extends State<DashboardRoute> {
       appBar: AppBar(
         title: const Text('Smoke Bridge'),
         actions: [
+          IconButton(
+            key: const Key('nav-cook'),
+            icon: const Icon(Icons.local_fire_department_outlined),
+            tooltip: 'Cook view',
+            onPressed: () => context.push(AppRoutes.cook),
+          ),
           IconButton(
             key: const Key('nav-sessions'),
             icon: const Icon(Icons.history),

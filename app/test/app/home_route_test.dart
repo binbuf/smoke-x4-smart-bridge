@@ -1,47 +1,50 @@
-/// A9.5/A9.6 — the home route is the dashboard now.
+/// A24.1 — the home route is the app shell now.
 ///
-/// A1.2's `HomePlaceholderScreen` is gone: `/` builds [DashboardRoute],
-/// which decides whether this phone has ever met a bridge and routes to
-/// the wizard if not. Mounted with no [AppEnv] installed — the case a
-/// bare widget test hits — it must render its chrome and its connecting
-/// state rather than throwing, which is what this file pins.
+/// `/` used to build `DashboardRoute`; it now builds [AppShell], the four-tab
+/// primary experience (design 13 §13.3). Mounted with no [AppEnv] installed —
+/// the case a bare widget test hits — the shell must render its tabs and its
+/// connecting state rather than throwing, which is what this file pins. The
+/// theme assertions below still exercise `app/theme.dart`'s `SmokeTheme`
+/// directly, unchanged.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/app/router.dart';
 import 'package:smoke_bridge/app/theme.dart';
-import 'package:smoke_bridge/features/dashboard/dashboard_route.dart';
+import 'package:smoke_bridge/features/shell/app_shell.dart';
 
 Widget _appWith(ThemeData theme) =>
     MaterialApp.router(theme: theme, routerConfig: createRouter());
 
-Future<void> _expectDashboardChrome(
+Future<void> _expectShellChrome(
   WidgetTester tester,
   Brightness brightness,
 ) async {
-  expect(find.byType(DashboardRoute), findsOneWidget);
-  expect(find.text('Smoke Bridge'), findsOneWidget);
-  // The two doors out of the dashboard (A11, A12).
-  expect(find.byKey(const Key('nav-sessions')), findsOneWidget);
-  expect(find.byKey(const Key('nav-settings')), findsOneWidget);
-  final context = tester.element(find.byType(DashboardRoute));
+  expect(find.byType(AppShell), findsOneWidget);
+  // The four tabs (§13.3.3).
+  for (final tab in ['Cook', 'History', 'Alarms', 'Bridge']) {
+    expect(find.text(tab), findsOneWidget, reason: 'nav tab "$tab"');
+  }
+  final context = tester.element(find.byType(AppShell));
   expect(Theme.of(context).brightness, brightness);
 }
 
 void main() {
-  testWidgets('home route renders under the dark (default) theme', (
+  testWidgets('home route renders the shell under the dark (default) theme', (
     tester,
   ) async {
     await tester.pumpWidget(_appWith(SmokeTheme.dark));
     await tester.pump();
-    await _expectDashboardChrome(tester, Brightness.dark);
+    await _expectShellChrome(tester, Brightness.dark);
   });
 
-  testWidgets('home route renders under the light theme', (tester) async {
+  testWidgets('home route renders the shell under the light theme', (
+    tester,
+  ) async {
     await tester.pumpWidget(_appWith(SmokeTheme.light));
     await tester.pump();
-    await _expectDashboardChrome(tester, Brightness.light);
+    await _expectShellChrome(tester, Brightness.light);
   });
 
   testWidgets('with no environment it waits rather than throwing', (
@@ -49,7 +52,8 @@ void main() {
   ) async {
     await tester.pumpWidget(_appWith(SmokeTheme.dark));
     await tester.pump();
-    expect(find.byKey(const Key('dashboard-connecting')), findsOneWidget);
+    // No AppEnv: the Cook tab shows its connecting spinner, no exception.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

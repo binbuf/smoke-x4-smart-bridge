@@ -28,6 +28,10 @@ esp_err_t bridge_event_handler_register(bridge_event_id_t id,
 esp_err_t bridge_event_post(bridge_event_id_t id, const void *payload,
                             size_t payload_size);
 
+/* Count of handler budget overruns since boot. A slow handler no longer
+ * panics the board (see bridge_event.c); this keeps it visible for diagnosis. */
+uint32_t bridge_event_guard_violation_count(void);
+
 #ifdef __cplusplus
 }
 #endif

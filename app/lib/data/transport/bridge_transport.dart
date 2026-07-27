@@ -24,7 +24,35 @@ abstract class BridgeCapabilities with _$BridgeCapabilities {
     @Default(false) bool historyPreview,
     @Default(false) bool config,
     @Default(false) bool ota,
+
+    /// Home Assistant / MQTT config (05 §5.7). HTTP-only: the broker lives on
+    /// the Wi-Fi LAN, so BLE reports false and its settings page explains it.
+    @Default(false) bool mqtt,
   }) = _BridgeCapabilities;
+}
+
+/// A16 — the bridge's MQTT / Home Assistant publisher config. The password is
+/// **write-only**: [MqttConfig] never carries it back (the device never
+/// returns it), and [BridgeTransport.setMqttConfig] omitting it keeps the
+/// stored one. [connected] is read-only truth from the device.
+class MqttConfig {
+  const MqttConfig({
+    this.enabled = false,
+    this.host = '',
+    this.port = 1883,
+    this.user = '',
+    this.prefix = 'smokebridge',
+    this.haDiscovery = true,
+    this.connected = false,
+  });
+
+  final bool enabled;
+  final String host;
+  final int port;
+  final String user;
+  final String prefix;
+  final bool haDiscovery;
+  final bool connected;
 }
 
 /// Push events, as a sealed union so a `switch` over variants is exhaustive —
@@ -66,7 +94,25 @@ enum AlarmAction { raised, cleared, acked }
 
 enum SessionAction { started, ended, renamed }
 
+/// 01 §1.6's saver profile. Tri-state on the wire (`battery_saver` over
+/// HTTP, `set_battery_saver` op 12 over BLE) — `auto` engages below 20 % and
+/// releases at 30 %, which a bool cannot express.
+enum BatterySaverMode { off, on, auto }
+
+/// Hosted AP or joined STA (05 §5.4).
+enum NetworkMode { ap, sta }
+
+/// Which transport to prefer when more than one can reach the bridge
+/// (05 §5.7). `auto` takes whichever connects first — BLE shows data
+/// instantly, Wi-Fi upgrades in for full history/config/OTA. `ble`/`wifi`
+/// only bias the launch race's tiebreak; **neither is an exclusion** — a
+/// phone that can reach the bridge just one way still connects that way.
+enum PreferredTransport { auto, ble, wifi }
+
 /// Control verbs, mirroring `device_control` / the POST endpoints.
+///
+/// D15 moved every control off the device's button, so this union is now the
+/// *only* way most of these happen at all.
 @freezed
 sealed class ControlCommand with _$ControlCommand {
   const factory ControlCommand.sessionStart() = StartSessionCommand;
@@ -81,13 +127,28 @@ sealed class ControlCommand with _$ControlCommand {
   const factory ControlCommand.setTime({required int unixMs}) = SetTimeCommand;
   const factory ControlCommand.ackAlarm({required int alarmId}) =
       AckAlarmCommand;
+
+  /// Reboot. `device_control` op 7 · `POST /api/v1/restart`.
+  const factory ControlCommand.reboot() = RebootCommand;
+
+  /// Wipe config, sessions and BLE bonds, then reboot. Irreversible, and it
+  /// forgets this phone's bond: op 8 · `POST /api/v1/factory-reset`.
+  const factory ControlCommand.factoryReset() = FactoryResetCommand;
+
+  /// Deep sleep. op 13 · `POST /api/v1/power-off`. **Nothing remote can undo
+  /// this** — waking the bridge needs a physical PRG hold (07 §7.4), which is
+  /// why every caller must confirm first.
+  const factory ControlCommand.powerOff() = PowerOffCommand;
 }
 
 /// The configurable surface (a subset in M0; grows with the settings work).
 @freezed
 abstract class BridgeConfig with _$BridgeConfig {
-  const factory BridgeConfig({String? displayUnits, List<Probe>? probes}) =
-      _BridgeConfig;
+  const factory BridgeConfig({
+    String? displayUnits,
+    List<Probe>? probes,
+    BatterySaverMode? batterySaver,
+  }) = _BridgeConfig;
 }
 
 /// A12.6 — a firmware image the user chose, as a length and a byte stream.
@@ -140,6 +201,22 @@ abstract interface class BridgeTransport {
 
   Future<void> configure(BridgeConfig cfg);
 
+  /// A12.3 — switch between hosting an AP and joining a network (05 §5.4).
+  ///
+  /// Returns the **AP PSK** when the switch generated one, or `''`. That is
+  /// why this is not a [BridgeConfig] field: the device answers *before* it
+  /// reconfigures and hands back credentials the user must read to rejoin,
+  /// and a `void configure` would throw them away.
+  ///
+  /// Both real transports implement it — HTTP via `POST /api/v1/config/wifi`,
+  /// BLE via the `wifi_config` characteristic — because provisioning has to
+  /// work on whichever one is currently reachable.
+  Future<String> applyNetwork({
+    required NetworkMode mode,
+    String ssid = '',
+    String psk = '',
+  });
+
   /// A12.6 — stream a firmware image to `POST /api/v1/ota` (F14.5).
   ///
   /// Only [HttpTransport] implements it; BLE and the mock throw
@@ -155,6 +232,24 @@ abstract interface class BridgeTransport {
     Stream<List<int>> image, {
     required int lengthBytes,
     bool force = false,
+  });
+
+  /// A16 — read the MQTT / Home Assistant publisher config (05 §5.7). HTTP
+  /// via `GET /api/v1/config/mqtt`; BLE throws [BridgeUnsupportedException]
+  /// because the broker is only reachable over the Wi-Fi LAN.
+  Future<MqttConfig> mqttConfig();
+
+  /// A16 — update it via `POST /api/v1/config/mqtt`. Every field is optional:
+  /// an omitted field keeps the device's stored value, and [password] omitted
+  /// keeps the stored password (it is never sent back on a read).
+  Future<void> setMqttConfig({
+    bool? enabled,
+    String? host,
+    int? port,
+    String? user,
+    String? password,
+    String? prefix,
+    bool? haDiscovery,
   });
 
   Future<void> close();

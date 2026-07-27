@@ -139,14 +139,11 @@ static void close_session(void) {
 static void handle_sample(const bridge_evt_sample_t *s, bool explicit_start,
                           bool explicit_stop) {
     bool any_attached = false;
-    int16_t max_temp = INT16_MIN;
     for (int i = 0; i < s->num_probes && i < 4; i++) {
         const int16_t v = s->temp_f10[i];
         if (v != BRIDGE_TEMP_DETACHED && v != BRIDGE_TEMP_INVALID) {
             any_attached = true;
-            if (v > max_temp) {
-                max_temp = v;
-            }
+            break;
         }
     }
 
@@ -155,7 +152,6 @@ static void handle_sample(const bridge_evt_sample_t *s, bool explicit_start,
         .paired = true,
         .sample = true,
         .any_attached = any_attached,
-        .max_attached_temp_x10 = any_attached ? max_temp : 0,
         .explicit_start = explicit_start,
         .explicit_stop = explicit_stop,
         .unpaired = false,

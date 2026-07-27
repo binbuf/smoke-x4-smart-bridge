@@ -43,6 +43,7 @@ FAKE_STEP(13)
 FAKE_STEP(14)
 FAKE_STEP(15)
 FAKE_STEP(16)
+FAKE_STEP(17)
 
 static bridge_boot_ops_t fake_ops(void) {
     bridge_boot_ops_t ops = {
@@ -64,6 +65,7 @@ static bridge_boot_ops_t fake_ops(void) {
                 fake_step_14,
                 fake_step_15,
                 fake_step_16,
+                fake_step_17,
             },
     };
     return ops;
@@ -79,10 +81,10 @@ static void test_clean_boot(void) {
     const bridge_boot_ops_t ops = fake_ops();
     bridge_boot_result_t res;
     CHECK(bridge_boot_run(&ops, NULL, &res));
-    CHECK_EQ_INT(res.steps_completed, 16);
+    CHECK_EQ_INT(res.steps_completed, 17);
     CHECK_EQ_INT(res.failed_mask, 0);
     CHECK_EQ_INT(res.fatal_step, 0);
-    CHECK_EQ_INT(g_fake.n_calls, 16);
+    CHECK_EQ_INT(g_fake.n_calls, 17);
 }
 
 static void test_step12_failure_still_boots(void) {
@@ -96,8 +98,8 @@ static void test_step12_failure_still_boots(void) {
     CHECK_EQ_INT(res.steps_completed, 11);
     CHECK_EQ_INT(res.failed_mask, 1u << (BRIDGE_BOOT_NET - 1));
     CHECK_EQ_INT(res.fatal_step, 0);
-    CHECK_EQ_INT(g_fake.n_calls, 16); /* 13..16 still ran */
-    CHECK_EQ_INT(g_fake.calls[15], 16);
+    CHECK_EQ_INT(g_fake.n_calls, 17); /* 13..17 still ran */
+    CHECK_EQ_INT(g_fake.calls[16], 17);
 }
 
 static void test_fatal_steps_abort(void) {
@@ -145,7 +147,7 @@ static void test_null_steps_are_skipped(void) {
     const bridge_boot_ops_t ops = {0}; /* all NULL — a bare skeleton boots */
     bridge_boot_result_t res;
     CHECK(bridge_boot_run(&ops, NULL, &res));
-    CHECK_EQ_INT(res.steps_completed, 16);
+    CHECK_EQ_INT(res.steps_completed, 17);
 }
 
 static void test_double_reset_token(void) {

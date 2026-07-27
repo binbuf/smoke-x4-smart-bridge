@@ -188,6 +188,19 @@ static app_api_tasks_snapshot_t g_tasks_snap;
 
 static void ops_tasks(app_api_tasks_snapshot_t *out) { *out = g_tasks_snap; }
 
+/* v1.1 destructive verbs — counted, never executed. */
+static int g_reboot_calls;
+static int g_factory_calls;
+static int g_power_off_calls;
+static int g_factory_rc;
+
+static void ops_reboot(void) { g_reboot_calls++; }
+static void ops_power_off(void) { g_power_off_calls++; }
+static int ops_factory_reset(void) {
+    g_factory_calls++;
+    return g_factory_rc;
+}
+
 static const app_api_ops_t g_api_ops = {
     .sysinfo = ops_sysinfo,
     .net_status = ops_net,
@@ -199,6 +212,9 @@ static const app_api_ops_t g_api_ops = {
     .uptime_ms = ops_uptime,
     .ota_status = ops_ota_status,
     .tasks_snapshot = ops_tasks,
+    .reboot = ops_reboot,
+    .factory_reset = ops_factory_reset,
+    .power_off = ops_power_off,
 };
 
 /* smoke_x_ctrl radio double (pairing endpoints drive the real ctrl). */
@@ -560,6 +576,38 @@ static void test_config_wifi_fixture_bytes(void) {
     CHECK(strstr(g_body, "Gk7mR2xQpT") != NULL); /* AP PSK IS returned */
 }
 
+static void test_config_mqtt(void) {
+    seed_world();
+
+    /* Enabling with a host is accepted. */
+    do_req("POST", "/api/v1/config/mqtt",
+           "{\"enabled\":true,\"host\":\"192.168.1.10\",\"port\":1883,"
+           "\"pass\":\"secretpw\",\"prefix\":\"smokebridge\"}",
+           NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"ok\":true") != NULL);
+
+    /* GET reflects the config but NEVER the password (the sta_psk rule). */
+    do_req("GET", "/api/v1/config/mqtt", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"enabled\":true") != NULL);
+    CHECK(strstr(g_body, "\"host\":\"192.168.1.10\"") != NULL);
+    CHECK(strstr(g_body, "\"connected\":") != NULL);
+    CHECK(strstr(g_body, "secretpw") == NULL);
+    CHECK(strstr(g_body, "\"pass\"") == NULL);
+
+    /* An out-of-range port is refused, and nothing from that body applies. */
+    do_req("POST", "/api/v1/config/mqtt", "{\"port\":70000}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    CHECK(strstr(g_body, "invalid_field") != NULL);
+
+    /* Enabling with no broker at all is refused. */
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_MQTT_HOST, ""),
+                 APP_CONFIG_OK);
+    do_req("POST", "/api/v1/config/mqtt", "{\"enabled\":true}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+}
+
 static void test_time_backpatches_open_session(void) {
     seed_world();
     seed_session(80); /* opened with clock... */
@@ -596,6 +644,56 @@ static void test_radio_conservative_post(void) {
     CHECK_EQ_INT(g_out.status, 400);
     do_req("POST", "/api/v1/radio", "{}", NULL);
     CHECK_EQ_INT(g_out.status, 200);
+}
+
+static void test_destructive_verbs_answer_before_they_act(void) {
+    seed_world();
+    g_reboot_calls = 0;
+    g_factory_calls = 0;
+    g_power_off_calls = 0;
+    g_factory_rc = 0;
+
+    /* Restart: 200 with the deferral the client can trust, op fired once. */
+    do_req("POST", "/api/v1/restart", "{}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"rebooting_in_ms\":500") != NULL);
+    CHECK_EQ_INT(g_reboot_calls, 1);
+
+    /* Factory reset wipes, then reboots — one call each. */
+    do_req("POST", "/api/v1/factory-reset", "{}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK_EQ_INT(g_factory_calls, 1);
+
+    /* Power off must SAY that nothing remote can undo it: the app needs
+     * that flag to warn before it strands a bridge in the yard. */
+    do_req("POST", "/api/v1/power-off", "{}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"wake_requires_button\":true") != NULL);
+    CHECK_EQ_INT(g_power_off_calls, 1);
+
+    /* A failing wipe is a 500, and does NOT claim it is rebooting. */
+    g_factory_rc = -1;
+    do_req("POST", "/api/v1/factory-reset", "{}", NULL);
+    CHECK_EQ_INT(g_out.status, 500);
+    CHECK(strstr(g_body, "rebooting_in_ms") == NULL);
+    g_factory_rc = 0;
+
+    /* GET is not a way to brick a bridge. */
+    g_reboot_calls = 0;
+    do_req("GET", "/api/v1/restart", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 404);
+    CHECK_EQ_INT(g_reboot_calls, 0);
+
+    /* A build without the ops answers 501 rather than pretending. */
+    app_api_ops_t bare = g_api_ops;
+    bare.reboot = NULL;
+    bare.factory_reset = NULL;
+    bare.power_off = NULL;
+    CHECK_EQ_INT(app_api_core_init(&bare), 0);
+    do_req("POST", "/api/v1/power-off", "{}", NULL);
+    CHECK_EQ_INT(g_out.status, 501);
+    CHECK_EQ_INT(g_power_off_calls, 1); /* unchanged: nothing ran */
+    CHECK_EQ_INT(app_api_core_init(&g_api_ops), 0);
 }
 
 static void test_debug_endpoints(void) {
@@ -1306,6 +1404,59 @@ static void test_debug_tasks(void) {
                  APP_CONFIG_OK);
 }
 
+/* F17.1 — the probes[] parser must terminate on a pretty-printed body (the old
+ * loop searched the spaced form from the array start every iteration, re-found
+ * object 1 forever, and spun the httpd task: an unauthenticated remote DoS on
+ * the default config). Reaching any assertion below proves the loop
+ * terminated; both names proving they were stored proves every object parsed,
+ * not just the first. Plus the display_timeout_s clamp that keeps a passkey
+ * screen readable. */
+static void test_config_probes_parser_and_timeout(void) {
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_DEV_API_TOKEN, ""),
+                 APP_CONFIG_OK);
+
+    /* Pretty-printed with spaces and newlines — the exact shape that hung. */
+    do_req("POST", "/api/v1/config/device",
+           "{ \"probes\": [\n"
+           "  { \"n\": 1, \"name\": \"PitProbe\", \"role\": \"pit\" },\n"
+           "  { \"n\": 2, \"name\": \"BrisketX\", \"role\": \"food\" }\n"
+           "] }",
+           NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "PitProbe") != NULL);
+    CHECK(strstr(g_body, "BrisketX") != NULL);
+
+    /* Compact form still parses both objects (guard on the other branch). */
+    do_req("POST", "/api/v1/config/device",
+           "{\"probes\":[{\"n\":3,\"name\":\"PointCut\"},"
+           "{\"n\":4,\"name\":\"BirdLeg\"}]}",
+           NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "PointCut") != NULL);
+    CHECK(strstr(g_body, "BirdLeg") != NULL);
+
+    /* display_timeout_s clamps to {0} u [15,600]; the trailing comma pins the
+     * match so 15 cannot alias 150 nor 60 alias 600. */
+    do_req("POST", "/api/v1/config/device", "{\"display_timeout_s\":1}", NULL);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "\"display_timeout_s\":15,") != NULL);
+
+    do_req("POST", "/api/v1/config/device", "{\"display_timeout_s\":5000}",
+           NULL);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "\"display_timeout_s\":600,") != NULL);
+
+    do_req("POST", "/api/v1/config/device", "{\"display_timeout_s\":0}", NULL);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "\"display_timeout_s\":0,") != NULL);
+
+    do_req("POST", "/api/v1/config/device", "{\"display_timeout_s\":60}", NULL);
+    do_req("GET", "/api/v1/config/device", NULL, NULL);
+    CHECK(strstr(g_body, "\"display_timeout_s\":60,") != NULL);
+}
+
 int main(void) {
     test_captive_probes_exact_bytes();
     test_router_auth_and_errors();
@@ -1318,8 +1469,10 @@ int main(void) {
     test_samples_formats();
     test_samples_bucketed_24h();
     test_config_wifi_fixture_bytes();
+    test_config_mqtt();
     test_time_backpatches_open_session();
     test_radio_conservative_post();
+    test_destructive_verbs_answer_before_they_act();
     test_debug_endpoints();
     test_ws_registry_and_frames();
     test_status_alarms_are_the_engine_not_a_literal();
@@ -1331,5 +1484,6 @@ int main(void) {
     test_ota_route();
     test_status_ota_object();
     test_debug_tasks();
+    test_config_probes_parser_and_timeout();
     return test_summary("test_app_api");
 }

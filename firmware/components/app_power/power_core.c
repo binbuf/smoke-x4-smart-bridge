@@ -230,3 +230,34 @@ int app_power_read_once(const app_power_adc_ops_t *ops, uint16_t *adc_mv) {
     *adc_mv = mv;
     return 0;
 }
+
+void app_power_wake_hold_reset(app_power_wake_hold_t *w) {
+    if (w != NULL) {
+        w->started = false;
+        w->press_ms = 0;
+    }
+}
+
+app_power_wake_t app_power_wake_hold_sample(app_power_wake_hold_t *w,
+                                            bool pressed, uint32_t now_ms) {
+    if (w == NULL) {
+        return APP_POWER_WAKE_ABORTED;
+    }
+    if (!w->started) {
+        /* The wake press must be down when we start watching: a wake with
+         * the button already released is not a wake we honour. */
+        if (!pressed) {
+            return APP_POWER_WAKE_ABORTED;
+        }
+        w->started = true;
+        w->press_ms = now_ms;
+        return APP_POWER_WAKE_PENDING;
+    }
+    if (!pressed) {
+        return APP_POWER_WAKE_ABORTED; /* let go early — cancel the wake */
+    }
+    if (now_ms - w->press_ms >= APP_POWER_WAKE_HOLD_MS) {
+        return APP_POWER_WAKE_CONFIRMED;
+    }
+    return APP_POWER_WAKE_PENDING;
+}

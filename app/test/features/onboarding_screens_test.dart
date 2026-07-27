@@ -107,8 +107,8 @@ void main() {
 
     expect(find.byKey(const Key('onboarding-find-list')), findsOneWidget);
     expect(find.text('SmokeBridge-A4F2'), findsOneWidget);
-    // "pit 243 °F · 4 h 12 m", before any connection exists.
-    expect(find.textContaining('pit 243 °F'), findsOneWidget);
+    // "pit 243.1 °F · 4 h 12 m", before any connection exists.
+    expect(find.textContaining('pit 243.1 °F'), findsOneWidget);
     expect(find.textContaining('4 h 12 m'), findsOneWidget);
     expect(channelCalls, isEmpty);
     await drive(tester, h.dispose(), frames: 4);

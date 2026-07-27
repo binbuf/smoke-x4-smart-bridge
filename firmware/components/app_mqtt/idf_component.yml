@@ -1,0 +1,6 @@
+dependencies:
+  idf: ">=5.4"
+  # esp-mqtt is a built-in in v5.x but a component-manager dependency in v6
+  # (05 §5.7a). The registry name is `espressif/mqtt`; it provides the
+  # component named `mqtt`, which app_mqtt's CMakeLists PRIV_REQUIREs.
+  espressif/mqtt: "*"

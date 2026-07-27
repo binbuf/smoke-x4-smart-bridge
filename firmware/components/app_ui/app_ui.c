@@ -33,6 +33,7 @@
 #include "app_alarm.h"
 #include "app_config_store.h"
 #include "app_net.h"
+#include "app_power.h"
 #include "app_power_svc.h"
 #include "app_ui_core.h"
 #include "app_ui_input.h"
@@ -157,66 +158,21 @@ static void op_panel_power(void *ctx, bool on) {
 
 static void op_perform(void *ctx, app_ui_action_t action) {
     (void)ctx;
-    switch (action) {
-    case APP_UI_ACTION_TOGGLE_UNITS: {
-        uint8_t u = 0;
-        (void)app_config_store_get_u8(APP_CONFIG_DEV_UNITS, &u);
-        /* Display only; storage stays canonical (04 §4.2). The setting
-         * travels because the app renders the same data. */
-        (void)app_config_store_set_u8(APP_CONFIG_DEV_UNITS, u ? 0 : 1);
-        break;
+    /* ONE action. Everything the button used to do — units, sessions, marks,
+     * pairing, network mode, battery saver, factory reset, alarm ack — moved
+     * to the app, which already reaches this device over HTTP and BLE
+     * (07 §7.4). The bridge is a passthrough; this is its only commit. */
+    if (action != APP_UI_ACTION_POWER_OFF) {
+        return;
     }
-    case APP_UI_ACTION_SESSION_TOGGLE:
-        if (cook_session_is_open()) {
-            (void)cook_store_request_stop();
-        } else {
-            (void)cook_store_request_start();
-        }
-        break;
-    case APP_UI_ACTION_NET_TOGGLE: {
-        /* The context action 07 opens by arguing for: the Network page is
-         * already showing what you are switching FROM, which is what makes
-         * a one-button mode switch safe. */
-        app_net_status_t now;
-        app_net_get_status(&now);
-        app_net_pending_cfg_t cfg;
-        memset(&cfg, 0, sizeof cfg);
-        cfg.mode = strcmp(now.mode, "ap") == 0 ? APP_CONFIG_NET_MODE_STA
-                                               : APP_CONFIG_NET_MODE_AP;
-        (void)app_net_request_config(&cfg);
-        break;
-    }
-    case APP_UI_ACTION_RADIO_TOGGLE:
-        (void)smoke_x_ctrl_unpair();
-        break;
-    case APP_UI_ACTION_SAVER_TOGGLE: {
-        uint8_t v = 0;
-        (void)app_config_store_get_u8(APP_CONFIG_DEV_BATTERY_SAVER, &v);
-        (void)app_config_store_set_u8(APP_CONFIG_DEV_BATTERY_SAVER,
-                                      v ? 0 : 1);
-        break;
-    }
-    case APP_UI_ACTION_ADD_MARK: {
-        const cook_ring_sample_t *newest = cook_ring_get(0);
-        char text[16];
-        snprintf(text, sizeof text, "Mark %u",
-                 (unsigned)s_model.mark_seq);
-        (void)cook_session_mark(newest ? newest->t : 0u,
-                                BRIDGE_MARK_KIND_NOTE, 0, text);
-        break;
-    }
-    case APP_UI_ACTION_ACK_ALARM:
-        /* Silences the LED and the buzzer. The alarm stays in the list
-         * and in /status with acked:true (09 §9.2). */
-        (void)app_alarm_ack_all();
-        break;
-    case APP_UI_ACTION_FACTORY_RESET:
-        (void)app_config_store_factory_reset();
-        esp_restart();
-        break;
-    default:
-        break;
-    }
+    /* Soft power off. Blank everything app_ui owns — the panel, its Vext
+     * rail, and the LED — then hand the SoC to app_power, which arms the
+     * GPIO0 wake and enters deep sleep. Does not return. */
+    app_ui_panel_set_awake(false);    /* SSD1306 0xAE: pixels off */
+    (void)op_vext_power(NULL, false); /* GPIO36 HIGH: cut the OLED rail */
+    (void)ledc_set_duty(LEDC_LOW_SPEED_MODE, LED_CHANNEL, 0);
+    (void)ledc_update_duty(LEDC_LOW_SPEED_MODE, LED_CHANNEL);
+    app_power_enter_deep_sleep();
 }
 
 static const app_ui_model_ops_t k_model_ops = {

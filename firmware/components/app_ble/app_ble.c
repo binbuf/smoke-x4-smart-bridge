@@ -31,8 +31,10 @@
 #include "services/gatt/ble_svc_gatt.h"
 
 #include "app_ble_core.h"
+#include "app_ble_internal.h"
 #include "app_config_store.h"
 #include "app_net.h"
+#include "app_power.h"
 #include "bridge_event.h"
 #include "esp_app_desc.h"
 #include "esp_wifi.h"
@@ -146,6 +148,12 @@ static int op_factory_reset(void) {
     return app_config_store_factory_reset() == APP_CONFIG_OK ? 0 : -1;
 }
 
+static void op_power_off(void) {
+    /* Same shape as op_reboot: the caller has already flushed the answer.
+     * Waking again needs the physical PRG button (app_power_wake_gate). */
+    app_power_enter_deep_sleep();
+}
+
 static uint64_t op_uptime_ms(void) { return (uint64_t)esp_log_timestamp(); }
 
 static const app_ble_ops_t k_ops = {
@@ -158,6 +166,7 @@ static const app_ble_ops_t k_ops = {
     .identify = op_identify,
     .reboot = op_reboot,
     .factory_reset = op_factory_reset,
+    .power_off = op_power_off,
     .uptime_ms = op_uptime_ms,
 };
 
@@ -341,6 +350,12 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
         s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
         app_ble_set_mtu(APP_BLE_MTU_DEFAULT);
         app_ble_passkey_clear();
+        /* Clear the control layer's busy latch (13 §13.2.1). Without this, a
+         * phone pocketed mid-Wi-Fi-scan leaves s_scanning set, and every later
+         * scan answers BUSY until the board reboots — the disconnect is the
+         * one place that knows the scan's owner is gone. Host-tested in
+         * test_app_ble (ctrl_reset restores the accept-scan state). */
+        app_ble_ctrl_reset();
         publish_ble(BRIDGE_BLE_DISCONNECTED, 0);
         start_advertising();
         return 0;
@@ -355,17 +370,15 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
         if (event->passkey.params.action != BLE_SM_IOACT_DISP) {
             return 0; /* DisplayOnly never asks for input or confirmation */
         }
-        /* The fourth phone is refused until a slot is freed (§3). The
-         * check is here, before a key is displayed, so the user is not
-         * asked to type a code that was never going to be accepted. */
+        /* A new phone is ALWAYS allowed to pair, even with the 3 slots full:
+         * NimBLE's round-robin store policy (ble_hs_cfg.store_status_cb =
+         * ble_store_util_status_rr, above) evicts the OLDEST bond as the new
+         * one is written. So a fresh phone can always take over — and, in
+         * particular, factory-reset a bridge whose other phones are gone.
+         * This is safe because pairing still requires reading the passkey off
+         * the bridge's own OLED (physical presence), so a stranger in BLE
+         * range cannot evict a bond. */
         refresh_bond_count();
-        if (!app_ble_bond_slot_available()) {
-            ESP_LOGW(TAG, "bond slots full (%u) — refusing pairing",
-                     (unsigned)app_ble_bond_count());
-            (void)ble_gap_terminate(event->passkey.conn_handle,
-                                    BLE_ERR_REM_USER_CONN_TERM);
-            return 0;
-        }
         struct ble_sm_io io = {.action = BLE_SM_IOACT_DISP};
         io.passkey = esp_random() % 1000000u;
         app_ble_passkey_set(io.passkey);
