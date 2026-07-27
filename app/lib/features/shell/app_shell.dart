@@ -1,28 +1,26 @@
-/// A24.1 — the app shell: four tabs over one live session (design 13 §13.3).
+/// A24.1 — the app shell: four branches over one live session (design 13
+/// §13.3), now adaptive and branch-stacked.
 ///
-/// This makes the new UI the primary app. `/` renders [AppShell]; the shell
-/// boots the connection race **once** (via [ShellSession]) and hands the one
-/// [DashboardSnapshot] to whichever tab is showing. Tab state survives switching
-/// because the bodies live in an [IndexedStack] — all four stay mounted, so
-/// History keeps its scroll position and the Cook chart keeps its viewport when
-/// you flick to Bridge and back (§13.3.3).
+/// The shell boots the connection race **once** (via [ShellSession]), publishes
+/// it through [ShellScope], and frames whichever branch is showing. Branch
+/// state survives switching because `StatefulShellRoute.indexedStack` keeps all
+/// four `Navigator`s mounted — History keeps its scroll position and its pushed
+/// detail page, and the Cook chart keeps its viewport, when you flick to Bridge
+/// and back (§13.3.3).
 ///
-/// **Chrome (§13.5.7).** A [SystemStatusBar] (transport + freshness) and a shared
-/// [AlarmBar] (the highest unacked alarm, acked through the one session) ride
-/// above every tab — *except Cook*, which carries its own equivalent chrome
-/// inside [CookView] and would otherwise double it (two alarm bars, two haptic
-/// buzzes). So on the Cook tab the shell chrome yields to CookView's; on the
-/// other three the shell owns it. Every tab therefore shows a transport
-/// indicator and an alarm strip, with exactly one of each. (A one-line
-/// `showChrome` flag on CookView would let the shell own chrome uniformly; that
-/// widget is another agent's file, so this is the honest seam for now.)
+/// **Chrome is uniform (§13.5.7).** [SystemStatusBar] and the shared [AlarmBar]
+/// ride above **every** branch, including Cook. Previously Cook drew its own
+/// chip and bar inside `CookView` while the other three got the shell's, so the
+/// transport indicator changed position, container and scroll behaviour with
+/// the tab, and a ringing alarm raised two bars. `CookView.showChrome` (the
+/// one-line flag its own doc comment asked for) closes that seam.
 ///
-/// **Cook body.** Promotes `cook_preview_route.dart`'s body — the snapshot, a
-/// local [CookPlan] opened through `showCookSetupSheet`, the shared freshness,
-/// `onAck`/`onSetupCook`/`onStop`, and the [CookChart] below. The chart is kept
-/// bounded (an [Expanded] `CookView` with the chart pinned under it) rather than
-/// nested in a sliver, because `CookView` is itself a `ListView` and cannot take
-/// the unbounded height a `SliverToBoxAdapter` would hand it.
+/// **Adaptive (§13.3).** Bottom [NavigationBar] on compact; [NavigationRail]
+/// from 600 dp, extended past 1240 dp. The destinations and their indices never
+/// change — only the chrome carrying them — which is what keeps this a layout
+/// change and not an IA change. The status bar rides the rail's footer on wide
+/// windows so two chips do not span seven inches. On a half-open foldable the
+/// content is inset clear of the crease.
 library;
 
 import 'dart:async';
@@ -33,31 +31,61 @@ import 'package:go_router/go_router.dart';
 import '../../app/connection.dart';
 import '../../app/router.dart';
 import '../../design/design.dart';
-import '../../domain/analysis/analysis.dart';
 import '../../domain/entities/entities.dart';
-import '../../domain/plan/plan.dart';
 import '../../ui/ui.dart';
-import '../chart/chart_viewport.dart';
-import '../chart/cook_chart.dart';
-import '../cook/cook_setup_sheet.dart';
-import '../cook/cook_view.dart';
+import '../alarms/alerts_tab.dart';
 import '../bridge/bridge_tab.dart';
+import '../cook/cook_tab.dart';
 import '../dashboard/dashboard_snapshot.dart';
 import '../sessions/sessions_route.dart';
-// AlarmsTab is still the branded placeholder (its real three-tier build is
-// pending); BridgeTab is the real device screen (A24.3).
 import 'connection_sheet.dart';
-import 'placeholder_tabs.dart' show AlarmsTab;
 import 'refresh_banner.dart';
+import 'shell_scope.dart';
 import 'shell_session.dart';
 import 'system_status_bar.dart';
 
+/// The four destinations, in branch order. One table, read by both the bar and
+/// the rail, so the two can never drift.
+const List<NavigationDestination> _destinations = [
+  NavigationDestination(
+    icon: Icon(Icons.local_fire_department_outlined),
+    selectedIcon: Icon(Icons.local_fire_department_rounded),
+    label: 'Cook',
+  ),
+  NavigationDestination(icon: Icon(Icons.history_rounded), label: 'History'),
+  NavigationDestination(
+    icon: Icon(Icons.notifications_outlined),
+    selectedIcon: Icon(Icons.notifications_rounded),
+    // "Alarms" collided with the *device's* alarm rules, and this branch's
+    // real job is whether this phone will actually wake you.
+    label: 'Alerts',
+  ),
+  NavigationDestination(
+    icon: Icon(Icons.router_outlined),
+    selectedIcon: Icon(Icons.router_rounded),
+    label: 'Bridge',
+  ),
+];
+
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.session, this.initialIndex = 0});
+  const AppShell({
+    super.key,
+    this.session,
+    this.navigationShell,
+    this.initialIndex = 0,
+  });
 
   /// Injected by tests with a seeded [ShellSession]. Null in production, where
   /// the shell builds and owns one from the ambient `AppEnv`.
   final ShellSession? session;
+
+  /// The router's branch container. Present in the app; null when a test
+  /// mounts the shell directly, which then falls back to a local
+  /// [IndexedStack] over the same four widgets. The tabs themselves are
+  /// identical either way — they read the session from [ShellScope], not from
+  /// a constructor — so the fallback exercises the shipping widgets.
+  final StatefulNavigationShell? navigationShell;
+
   final int initialIndex;
 
   @override
@@ -71,21 +99,17 @@ class _AppShellState extends State<AppShell> {
   /// its lifetime.
   late final bool _ownsSession;
 
-  late int _index;
-
-  /// Cook-tab UI state, local to the shell (§13.3.1): null → instrument mode.
-  CookPlan? _plan;
-  ChartViewport? _viewport;
+  /// Only used on the no-router fallback path.
+  late int _localIndex;
 
   bool _redirected = false;
 
   @override
   void initState() {
     super.initState();
-    _index = widget.initialIndex;
+    _localIndex = widget.initialIndex;
     _session = widget.session ?? ShellSession();
     _ownsSession = widget.session == null;
-    _viewport = _viewportFor(_session.snapshot);
     _session.addListener(_onSession);
     if (_ownsSession) {
       unawaited(_session.start());
@@ -106,6 +130,8 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     // A9.5/§13.3.2: a phone that has never met a bridge goes to guided setup.
+    // This is one of the two places §13.3.4 still permits `context.go` — it is
+    // the setup gate, not an in-branch navigation.
     if (_session.launch is LaunchNeedsOnboarding && !_redirected) {
       _redirected = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -115,27 +141,26 @@ class _AppShellState extends State<AppShell> {
       });
       return;
     }
-    setState(() => _viewport = _viewportFor(_session.snapshot, _viewport));
+    setState(() {});
   }
 
-  /// Initialise, then keep extending, the chart viewport as samples arrive —
-  /// the same rule `cook_preview_route.dart:85` used.
-  ChartViewport? _viewportFor(DashboardSnapshot? s, [ChartViewport? current]) {
-    if (s == null) {
-      return current;
+  int get _index => widget.navigationShell?.currentIndex ?? _localIndex;
+
+  void _select(int i) {
+    final shell = widget.navigationShell;
+    if (shell == null) {
+      setState(() => _localIndex = i);
+      return;
     }
-    final toT = s.samples.isEmpty ? 60 : s.samples.last.t;
-    if (current == null) {
-      return ChartViewport.forSession(
-        fromT: s.samples.isEmpty ? 0 : s.samples.first.t,
-        toT: toT,
-      );
-    }
-    return current.extendTo(toT);
+    // `initialLocation: true` when re-tapping the current tab pops that
+    // branch back to its root — the standard "tap the tab you are on to go
+    // home" gesture, and the way out of a pushed History detail without
+    // reaching for back.
+    shell.goBranch(i, initialLocation: i == shell.currentIndex);
   }
 
   /// The single loudest alarm still ringing — highest severity, device-scope
-  /// (`probe == 0`) included. Mirrors `cook_view.dart:84`.
+  /// (`probe == 0`) included.
   Alarm? _topAlarm(DashboardSnapshot s) {
     Alarm? best;
     for (final a in s.alarms) {
@@ -149,197 +174,126 @@ class _AppShellState extends State<AppShell> {
     return best;
   }
 
-  Future<void> _setupCook() async {
-    final plan = await showCookSetupSheet(context);
-    if (plan != null && mounted) {
-      setState(() => _plan = plan);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final window = context.window;
     final snapshot = _session.snapshot;
-    // The chip shows a retry count only while a background Wi-Fi (re)connect is
-    // actually running — a healthy link reads clean.
+
+    // The chip shows a retry count only while a background Wi-Fi (re)connect
+    // is actually running — a healthy link reads clean.
     final live = _session.liveLink;
     final retry = live != null && live.upgrading && live.attempt > 0
         ? live.attempt
         : null;
-    // Cook (index 0) carries its own chrome inside CookView; the shell yields
-    // to it there and owns the chrome on every other tab.
-    final showChrome = _index != 0;
     final topAlarm = snapshot == null ? null : _topAlarm(snapshot);
 
-    return Scaffold(
-      backgroundColor: t.bg,
-      body: Column(
-        children: [
-          // Above everything, and outside `showChrome`: Cook owns its own
-          // chrome, so without this it would be the one tab where a failed
-          // pull-to-refresh said nothing at all.
-          RefreshBanner(
-            failure: _session.refreshFailure,
-            busy: _session.refreshing,
-            onRetry: () => unawaited(_session.refresh()),
-            onDismiss: _session.dismissRefreshFailure,
-          ),
-          if (showChrome) ...[
-            SystemStatusBar(
-              link: snapshot?.link ?? LinkKind.offline,
-              netMode: snapshot?.netMode,
-              freshness: _session.freshness,
-              socPct: snapshot?.socPct,
-              charging: snapshot?.charging ?? false,
-              batteryKnown: snapshot?.batteryKnown ?? false,
-              attempt: retry,
-              onTap: () => unawaited(showConnectionSheet(context, _session)),
-            ),
-            AlarmBar(
-              alarm: topAlarm,
-              onAck: topAlarm == null
-                  ? null
-                  : () => unawaited(_session.ackAlarm(topAlarm.id)),
-            ),
-          ],
-          Expanded(
-            child: IndexedStack(
-              index: _index,
-              children: [
-                _cookTab(context),
-                const SessionsRoute(),
-                const AlarmsTab(),
-                // The shared session lights up the tab's live state — link,
-                // mode, health, and the last-known framing when offline
-                // (A24.10). Without it the tab could only echo stale prefs.
-                // `active` gates its signal poll: all four tabs stay mounted
-                // in the IndexedStack, and a radio read behind three other
-                // screens is battery spent on nothing.
-                BridgeTab(session: _session, active: _index == 3),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: t.surface,
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.local_fire_department_outlined),
-            selectedIcon: Icon(Icons.local_fire_department_rounded),
-            label: 'Cook',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_rounded),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications_rounded),
-            label: 'Alarms',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.router_outlined),
-            selectedIcon: Icon(Icons.router_rounded),
-            label: 'Bridge',
-          ),
-        ],
+    final statusBar = SystemStatusBar(
+      link: snapshot?.link ?? LinkKind.offline,
+      netMode: snapshot?.netMode,
+      freshness: _session.freshness,
+      socPct: snapshot?.socPct,
+      charging: snapshot?.charging ?? false,
+      batteryKnown: snapshot?.batteryKnown ?? false,
+      attempt: retry,
+      onTap: () => unawaited(showConnectionSheet(context, _session)),
+    );
+
+    final body = Column(
+      children: [
+        // Above everything: a failed pull-to-refresh must be able to say so on
+        // every branch, including Cook.
+        RefreshBanner(
+          failure: _session.refreshFailure,
+          busy: _session.refreshing,
+          onRetry: () => unawaited(_session.refresh()),
+          onDismiss: _session.dismissRefreshFailure,
+        ),
+        // The status bar rides the top of the *content* on every width.
+        //
+        // It briefly lived in the rail footer, on the theory that a full-width
+        // strip carrying two chips wastes a tablet's width. On the device that
+        // backfired: the transport chip is ~150 dp of text, and an
+        // `IntrinsicWidth` rail sized itself to fit it — a 160 dp navigation
+        // rail, twice its natural width, stealing exactly the space the
+        // supporting pane was meant to gain. Beside the rail it costs nothing.
+        statusBar,
+        AlarmBar(
+          alarm: topAlarm,
+          celsius: _session.celsius,
+          onAck: topAlarm == null
+              ? null
+              : () => unawaited(_session.ackAlarm(topAlarm.id)),
+        ),
+        Expanded(child: _branchBody()),
+      ],
+    );
+
+    return ShellScope(
+      session: _session,
+      activeIndex: _index,
+      child: Scaffold(
+        backgroundColor: t.bg,
+        body: window.usesRail
+            ? Row(
+                children: [
+                  _rail(window),
+                  // Nothing may land in the crease of a book-posture fold.
+                  SizedBox(width: window.hingeIsVertical ? window.hingeGap : 0),
+                  Expanded(child: body),
+                ],
+              )
+            : body,
+        bottomNavigationBar: window.usesRail
+            ? null
+            : NavigationBar(
+                backgroundColor: t.surface,
+                selectedIndex: _index,
+                onDestinationSelected: _select,
+                destinations: _destinations,
+              ),
       ),
     );
   }
 
-  /// Makes a screen-sized, non-scrolling branch pullable. An empty state is
-  /// exactly where "try the bridge again, now" matters most, and a widget
-  /// that does not scroll cannot be pulled.
-  Widget _pullable(Widget child) => RefreshIndicator(
-    onRefresh: _session.refresh,
-    child: LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: child,
-        ),
-      ),
-    ),
-  );
-
-  Widget _cookTab(BuildContext context) {
-    final snapshot = _session.snapshot;
-    if (snapshot == null) {
-      return SafeArea(
-        bottom: false,
-        child: switch (_session.launch) {
-          LaunchOffline() => _pullable(
-            const EmptyState(
-              icon: Icons.cloud_off_rounded,
-              title: 'Can’t reach your bridge',
-              message:
-                  'Saved cooks are still here. Pull down to try again — the '
-                  'app also reconnects on its own when the bridge is back.',
-            ),
-          ),
-          _ => const Center(child: CircularProgressIndicator()),
-        },
-      );
+  Widget _branchBody() {
+    final shell = widget.navigationShell;
+    if (shell != null) {
+      return shell;
     }
+    // No router above us (a direct-mount test). Same four widgets, same
+    // ShellScope, so what is exercised is what ships.
+    return IndexedStack(
+      index: _localIndex,
+      children: const [
+        CookTab(),
+        SessionsRoute(embedded: true),
+        AlertsTab(),
+        BridgeTab(),
+      ],
+    );
+  }
 
-    final probeConfig = [
-      for (final p in snapshot.probes)
-        Probe(n: p.probe, name: p.name, role: p.role, targetF10: p.targetF10),
-    ];
-    final viewport = _viewport;
-    final showChart = snapshot.samples.isNotEmpty && viewport != null;
-
-    return SafeArea(
-      bottom: false,
-      child: Column(
-        children: [
-          Expanded(
-            child: CookView(
-              snapshot: snapshot,
-              plan: _plan,
-              freshness: _session.freshness,
-              paired: snapshot.paired,
-              onSetupCook: _setupCook,
-              onStop: _plan == null ? null : () => setState(() => _plan = null),
-              // The highest unacked alarm rides CookView's own AlarmBar off
-              // snapshot.alarms; silencing it acks the exact id on the device.
-              onAck: (alarm) => unawaited(_session.ackAlarm(alarm.id)),
-              onRefresh: _session.refresh,
-            ),
+  /// Navigation only. Anything else in here widens the rail (see the
+  /// [SystemStatusBar] note above) and eats the width the content just gained.
+  Widget _rail(SmokeWindow window) {
+    final t = context.tokens;
+    return NavigationRail(
+      backgroundColor: t.surface,
+      selectedIndex: _index,
+      onDestinationSelected: _select,
+      extended: window.railExtended,
+      labelType: window.railExtended
+          ? NavigationRailLabelType.none
+          : NavigationRailLabelType.all,
+      destinations: [
+        for (final d in _destinations)
+          NavigationRailDestination(
+            icon: d.icon,
+            selectedIcon: d.selectedIcon,
+            label: Text(d.label),
           ),
-          if (showChart)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                SmokeTokens.s4,
-                0,
-                SmokeTokens.s4,
-                SmokeTokens.s4,
-              ),
-              child: SmokeCard(
-                child: SizedBox(
-                  height: 240,
-                  child: CookChart(
-                    model: buildChartSeries(
-                      snapshot.samples,
-                      fromT: viewport.minX,
-                      toT: viewport.maxX,
-                    ),
-                    viewport: viewport,
-                    probes: probeConfig,
-                    marks: snapshot.marks,
-                    startedUnixMs: snapshot.startedUnixMs,
-                    onViewport: (v) => setState(() => _viewport = v),
-                    fullHistory: snapshot.fullHistory,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
