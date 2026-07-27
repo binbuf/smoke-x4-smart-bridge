@@ -48,6 +48,7 @@ import '../sessions/sessions_route.dart';
 // pending); BridgeTab is the real device screen (A24.3).
 import 'connection_sheet.dart';
 import 'placeholder_tabs.dart' show AlarmsTab;
+import 'refresh_banner.dart';
 import 'shell_session.dart';
 import 'system_status_bar.dart';
 
@@ -174,6 +175,15 @@ class _AppShellState extends State<AppShell> {
       backgroundColor: t.bg,
       body: Column(
         children: [
+          // Above everything, and outside `showChrome`: Cook owns its own
+          // chrome, so without this it would be the one tab where a failed
+          // pull-to-refresh said nothing at all.
+          RefreshBanner(
+            failure: _session.refreshFailure,
+            busy: _session.refreshing,
+            onRetry: () => unawaited(_session.refresh()),
+            onDismiss: _session.dismissRefreshFailure,
+          ),
           if (showChrome) ...[
             SystemStatusBar(
               link: snapshot?.link ?? LinkKind.offline,
@@ -202,7 +212,10 @@ class _AppShellState extends State<AppShell> {
                 // The shared session lights up the tab's live state — link,
                 // mode, health, and the last-known framing when offline
                 // (A24.10). Without it the tab could only echo stale prefs.
-                BridgeTab(session: _session),
+                // `active` gates its signal poll: all four tabs stay mounted
+                // in the IndexedStack, and a radio read behind three other
+                // screens is battery spent on nothing.
+                BridgeTab(session: _session, active: _index == 3),
               ],
             ),
           ),
@@ -237,18 +250,36 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  /// Makes a screen-sized, non-scrolling branch pullable. An empty state is
+  /// exactly where "try the bridge again, now" matters most, and a widget
+  /// that does not scroll cannot be pulled.
+  Widget _pullable(Widget child) => RefreshIndicator(
+    onRefresh: _session.refresh,
+    child: LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: child,
+        ),
+      ),
+    ),
+  );
+
   Widget _cookTab(BuildContext context) {
     final snapshot = _session.snapshot;
     if (snapshot == null) {
       return SafeArea(
         bottom: false,
         child: switch (_session.launch) {
-          LaunchOffline() => const EmptyState(
-            icon: Icons.cloud_off_rounded,
-            title: 'Can’t reach your bridge',
-            message:
-                'Saved cooks are still here. The app reconnects on its own '
-                'when the bridge is back.',
+          LaunchOffline() => _pullable(
+            const EmptyState(
+              icon: Icons.cloud_off_rounded,
+              title: 'Can’t reach your bridge',
+              message:
+                  'Saved cooks are still here. Pull down to try again — the '
+                  'app also reconnects on its own when the bridge is back.',
+            ),
           ),
           _ => const Center(child: CircularProgressIndicator()),
         },
@@ -277,6 +308,7 @@ class _AppShellState extends State<AppShell> {
               // The highest unacked alarm rides CookView's own AlarmBar off
               // snapshot.alarms; silencing it acks the exact id on the device.
               onAck: (alarm) => unawaited(_session.ackAlarm(alarm.id)),
+              onRefresh: _session.refresh,
             ),
           ),
           if (showChart)
