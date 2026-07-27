@@ -15,6 +15,7 @@
 #include "nvs_flash.h"
 
 #include "app_alarm.h"
+#include "app_mqtt.h"
 #include "app_api.h"
 #include "app_ble.h"
 #include "app_config.h"
@@ -188,6 +189,14 @@ static int step_ota_health_gate(void *ctx) {
     return app_ota_init(&hooks);
 }
 
+static int step_mqtt(void *ctx) {
+    (void)ctx;
+    /* MQTT / Home Assistant (05 §5.7). Non-fatal and opt-in: it no-ops until
+     * enabled with a broker and STA is up, and adds no application task
+     * (esp-mqtt owns its own). Last so the uplink and API are already up. */
+    return app_mqtt_init();
+}
+
 static void disarm_timer_cb(void *arg) {
     (void)arg;
     bridge_double_reset_disarm(&s_drt_token);
@@ -200,6 +209,11 @@ void app_main(void) {
     bench_run();
     return;
 #endif
+    /* Soft power (07 §7.4): if this boot is a wake from a PRG-hold deep
+     * sleep, confirm a sustained hold here — before any subsystem starts —
+     * or go straight back to sleep. Returns immediately on a normal boot. */
+    app_power_wake_gate();
+
     ESP_LOGI(TAG, "Smoke X4 Smart Bridge — M0 skeleton");
     ESP_LOGI(TAG, "task stack budget: %d B declared across %u tasks",
              (int)BRIDGE_TASK_STACK_TOTAL, (unsigned)BRIDGE_TASK_COUNT);
@@ -224,6 +238,7 @@ void app_main(void) {
                 [BRIDGE_BOOT_BLE - 1] = step_ble,
                 [BRIDGE_BOOT_ALARM - 1] = step_alarm,
                 [BRIDGE_BOOT_OTA_HEALTH_GATE - 1] = step_ota_health_gate,
+                [BRIDGE_BOOT_MQTT - 1] = step_mqtt,
             },
     };
 

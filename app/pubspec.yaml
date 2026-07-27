@@ -52,6 +52,14 @@ dependencies:
   shared_preferences: ^2.5.5
   logger: ^2.7.0
   go_router: ^17.3.0
+  # A24.2 — runtime permissions + platform seams (design 13 §13.2.0). Appended,
+  # not woven into §8.2's table: these are the on-device wiring the preflight
+  # gate needs (runtime request + OS settings deep-links) and share_plus backs
+  # the export sheet. flutter_blue_plus still requests BLE at scan time; these
+  # let the primer/permission gate become real ahead of it.
+  permission_handler: ^11.3.1
+  connectivity_plus: ^6.0.5
+  share_plus: ^10.0.0
 
 dev_dependencies:
   flutter_test:
@@ -67,3 +75,24 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Design 14 §14.5. Bundled as assets, never fetched: the app must render
+  # identically on a phone joined to the bridge's own AP with no internet at
+  # all (`bindProcessToNetwork` removes NET_CAPABILITY_INTERNET by design,
+  # 05 §5.8.1), and a golden that depends on a font download is a golden that
+  # fails in CI. All three are SIL OFL 1.1; the licences sit beside them and
+  # are registered with LicenseRegistry in bootstrap().
+  #
+  # Measured 1.64 MB of TTF against 14 §14.5's ≤1.2 MB budget — over, and
+  # Inter is 876 KB of it. Subsetting is A19.2b; `--tree-shake-icons` does not
+  # touch fonts.
+  fonts:
+    - family: Archivo
+      fonts:
+        - asset: assets/fonts/Archivo[wdth,wght].ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter[opsz,wght].ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono[wght].ttf

@@ -105,6 +105,9 @@ enums:
     set_units: 9
     identify: 10
     ack_alarm: 11
+    # v1.1 additive growth (ble-gatt §5.6.6): appended, never renumbered.
+    set_battery_saver: 12
+    power_off: 13
   result_status: # result.status
     ok: 0
     invalid: 1
@@ -114,6 +117,11 @@ enums:
   units: # device_control set_units payload
     celsius: 0
     fahrenheit: 1
+  battery_saver: # device_control set_battery_saver payload; mirrors the
+    # HTTP config/device tri-state, so BLE and REST cannot disagree.
+    off: 0
+    on: 1
+    auto: 2
   scan_cmd: # wifi_scan_ctrl.cmd
     cancel: 0
     start: 1
@@ -453,3 +461,6 @@ control_bodies:
   ack_alarm: # op 11
     fields:
       - { name: alarm_id, type: u8 }
+  set_battery_saver: # op 12
+    fields:
+      - { name: saver, type: u8, enum: battery_saver }

@@ -21,6 +21,8 @@ system diagram; everything else expands one part of it.
 | [10 — Repo, Tooling & Testing](10-repo-tooling-and-testing.md)          | Monorepo layout, simulator, CI, test strategy                                                       |
 | [11 — Roadmap & Risks](11-roadmap-and-risks.md)                         | Milestones, two-track parallelism, ranked risks, working with one board                             |
 | [12 — Task Planning Notes](12-task-planning-notes.md)                   | **Briefing for a future task-creation session** — epics, dependencies, task conventions, anti-tasks |
+| [13 — UX Architecture](13-ux-architecture.md)                           | **The user-facing contract** — the three pairing hops, app IA, the truth model, failure matrix, on-device UX, required protocol changes |
+| [14 — Design System](14-design-system.md)                               | Flutter tokens, typography, colour, the component library, chart rules, accessibility                |
 
 ## The short version
 

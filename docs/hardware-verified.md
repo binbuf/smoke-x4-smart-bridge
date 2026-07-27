@@ -122,7 +122,19 @@ Both the production shape and its counterpart (a *remembered* bridge that is
 merely unreachable must stay offline, not be dragged back through the wizard)
 are now covered, and the fix was verified to fail without it.
 
-### The BLE lane never engages when Wi-Fi cannot reach the bridge (found 2026-07-23, OPEN)
+### The BLE lane never engages when Wi-Fi cannot reach the bridge (found 2026-07-23 — SOFTWARE FIX LANDED 2026-07-25, bench re-verify owed)
+
+> **Fix (A16, 2026-07-25).** Root cause on the software side was structural, not a
+> single bug: the shell took the race's first winner and *froze* on one transport,
+> a dropped WebSocket error was swallowed (`bridge_session.dart` `onError:(_){}`),
+> and the re-race code (`ConnectionManager.reconnect`) was dead. The new
+> `ConnectionSupervisor` (`app/lib/app/connection_supervisor.dart`) leads with BLE,
+> holds it as a warm standby under Wi-Fi, and fails over synchronously on the now
+> un-swallowed link-lost signal. Host-tested (`test/app/connection_supervisor_test.dart`
+> + `bridge_session_test.dart`). **Still owed: the on-board bench re-run** (kill Wi-Fi
+> mid-cook → readings keep flowing over BLE, chip flips to Bluetooth, then auto-upgrade
+> when Wi-Fi returns) — the sim suite exercises the state machine, not the radios. The
+> `pm clear` BLUETOOTH-permission confounder below is a *separate* path still to wire.
 
 The condition A6.7 asks for arrived on its own: during A8.4 the bridge dropped
 off the LAN. The phone kept a valid bond (`bonded:1`), the bridge kept
@@ -199,6 +211,13 @@ Flash: `idf.py -B build/heltec-v3 '-DSDKCONFIG=sdkconfig.heltec-v3' -p COMx flas
 | **V3a.1** free heap with AP + NimBLE + httpd + both LittleFS mounts — closes F9.13's provisional | ❌ **FAILS THE 150 KB TARGET.** Measured with STA up + NimBLE bonded/connected + httpd + a live WebSocket + LoRa RX: `free_heap` steady **≈ 90.5 KB**, `min_free_heap` **80,116 B = 78.2 KB**. Stable over the window (no leak — free_heap moved < 0.6 KB across 165 s), so this is a **level** problem, not a growth one. F9.13's provisional 180.7 KB is superseded: NimBLE's real cost here is ≈ 90–100 KB against the [01 §1.4](design/01-hardware.md) allowance of 35–45 KB. **This is the design conversation the plan requires before M4**, not a bench tuning exercise — see the open question below. |
 
 ### Open design question — the heap target (raised by V3a.1, 2026-07-22)
+
+> **A16 addendum (2026-07-25).** MQTT/Home Assistant (opt-in, Wi-Fi-only) adds ~5–10 KB *while
+> connected*, so the enabled case wants its **own documented floor: `min_free_heap ≥ 68 KB` with no
+> BLE central attached** (MQTT's purpose is telemetry when the phone is away, so the common enabled
+> case has no NimBLE central — the expensive part). It adds no application task (esp-mqtt owns its
+> own), and the client + outbox are trimmed per-client and in `sdkconfig.defaults`. The 24 h soak with
+> MQTT **enabled** is what settles this number; measure it alongside the 80 KB phone-attached floor.
 
 The 150 KB target is missed by roughly half. The plan
 ([M3](tasks/M3-ble-and-provisioning.md), [M2–M6](tasks/M2-M6-outline.md)) is explicit that this is a

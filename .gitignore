@@ -40,3 +40,22 @@ Thumbs.db
 
 # Host test build trees
 firmware/test/build*/
+
+# Packaged app artefacts. `build/` already covers the usual output path; these
+# catch a copy dropped anywhere else (a shared APK, a signing key).
+*.apk
+*.aab
+*.jks
+*.keystore
+.gradle/
+
+# Logs and crash dumps — but NOT the committed capture fixtures, which are
+# test inputs rather than noise (protocol/fixtures/board/*.log).
+*.log
+!protocol/fixtures/**/*.log
+*.coredump
+
+# Editor / OS leftovers not already covered
+*~
+*.tmp
+.claude/
