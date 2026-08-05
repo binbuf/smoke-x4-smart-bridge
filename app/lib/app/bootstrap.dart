@@ -14,6 +14,7 @@ import '../data/transport/ble_gatt_fbp.dart';
 import '../data/transport/ble_transport.dart';
 import '../data/transport/nsd_discovery.dart';
 import '../features/sessions/export.dart';
+import '../platform/firmware_picker.dart';
 import '../platform/notifications_plugin.dart';
 import '../platform/share_plugin.dart';
 import 'app.dart';
@@ -47,6 +48,10 @@ void bootstrap() {
       // newapp §C.1 — `share_plus` has been a dependency with no call site
       // since A24.2; the export used to end at a path in a snackbar.
       shareSheet: const PluginShareSheet(),
+      // newapp §C.5 — the seam A12.6 left empty, so the firmware screen
+      // explained the web installer rather than offering an update. The
+      // transport underneath was always finished.
+      firmwareImage: pickFirmwareImage,
     );
 
     runApp(const ProviderScope(child: SmokeBridgeApp()));

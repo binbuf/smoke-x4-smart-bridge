@@ -13,6 +13,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../app/app.dart' show ThemeProfile;
 import '../../core/format.dart';
 import '../../domain/entities/entities.dart';
 
@@ -100,13 +101,16 @@ class DeviceSettingsView extends StatelessWidget {
   const DeviceSettingsView({
     required this.units,
     required this.onUnits,
-    this.displayTimeoutS = 60,
-    this.ledEnabled = true,
-    this.maxSessions = 64,
+    this.displayTimeoutS,
+    this.ledEnabled,
+    this.maxSessions,
     this.onDeviceConfig,
     this.batteryCalibrationAvailable = false,
-    this.batterySaver = 'auto',
+    this.batterySaver,
     this.onBatterySaver,
+    this.themeProfile = ThemeProfile.dark,
+    this.onThemeProfile,
+    this.unsupportedReason = '',
     super.key,
   });
 
@@ -115,10 +119,23 @@ class DeviceSettingsView extends StatelessWidget {
   /// two screens must agree.
   final String units;
   final ValueChanged<String> onUnits;
-  final int displayTimeoutS;
-  final bool ledEnabled;
-  final int maxSessions;
+
+  /// **Null until the bridge has said so** (newapp §F, §I.0).
+  ///
+  /// These three used to be `= 60`, `= true` and `= 64` — constructor defaults
+  /// rendered as if they had been read from the device, on rows whose write
+  /// callback was null. A settings screen that states a value it has never
+  /// been told is the same lie as a stale temperature under a live chip, and
+  /// this app's fourth house rule ("absent ≠ zero") already forbade it
+  /// everywhere except here.
+  final int? displayTimeoutS;
+  final bool? ledEnabled;
+  final int? maxSessions;
   final ValueChanged<Map<String, Object?>>? onDeviceConfig;
+
+  /// Non-empty disables the writable rows and states why, rather than leaving
+  /// controls that look live and write nothing.
+  final String unsupportedReason;
 
   /// False until F12 (M5). V1.3 settled the divider (×4.9, GPIO37 HIGH
   /// enables) but nothing reads it yet.
@@ -128,8 +145,15 @@ class DeviceSettingsView extends StatelessWidget {
   /// `auto` engages below 20 % and releases at 30 %, which a switch cannot
   /// say. A String for the same reason [units] is one — the wire spelling is
   /// the contract and the route does the mapping.
-  final String batterySaver;
+  final String? batterySaver;
   final ValueChanged<String>? onBatterySaver;
+
+  /// newapp §H.3. Unlike every other row on this page this one is a **phone**
+  /// setting, not a device one — it works with the bridge unplugged, and it is
+  /// grouped under Display beside units for that reason rather than being
+  /// exiled to an About page nobody opens.
+  final ThemeProfile themeProfile;
+  final ValueChanged<ThemeProfile>? onThemeProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +161,15 @@ class DeviceSettingsView extends StatelessWidget {
     return ListView(
       key: const Key('settings-device'),
       children: [
+        if (unsupportedReason.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
+              unsupportedReason,
+              key: const Key('settings-device-unsupported'),
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
         const _SectionLabel('Display'),
         ListTile(
           title: const Text('Temperature units'),
@@ -152,10 +185,32 @@ class DeviceSettingsView extends StatelessWidget {
           ),
         ),
         ListTile(
+          title: const Text('App theme'),
+          subtitle: Text(themeProfile.blurb),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: SegmentedButton<ThemeProfile>(
+            key: const Key('settings-theme-profile'),
+            segments: [
+              for (final p in ThemeProfile.values)
+                ButtonSegment(value: p, label: Text(p.label)),
+            ],
+            selected: {themeProfile},
+            onSelectionChanged: onThemeProfile == null
+                ? null
+                : (s) => onThemeProfile!(s.first),
+          ),
+        ),
+        ListTile(
           title: const Text('Display timeout'),
-          subtitle: Text(formatDuration(displayTimeoutS)),
+          subtitle: Text(
+            displayTimeoutS == null
+                ? '—'
+                : formatDuration(displayTimeoutS!),
+          ),
           trailing: const Icon(Icons.chevron_right),
-          onTap: onDeviceConfig == null
+          onTap: onDeviceConfig == null || displayTimeoutS == null
               ? null
               : () => onDeviceConfig!({
                   'display_timeout_s': displayTimeoutS == 60 ? 300 : 60,
@@ -164,8 +219,11 @@ class DeviceSettingsView extends StatelessWidget {
         SwitchListTile(
           key: const Key('settings-led'),
           title: const Text('Status LED'),
-          value: ledEnabled,
-          onChanged: onDeviceConfig == null
+          subtitle: ledEnabled == null
+              ? const Text('The bridge hasn’t reported this yet')
+              : null,
+          value: ledEnabled ?? false,
+          onChanged: onDeviceConfig == null || ledEnabled == null
               ? null
               : (v) => onDeviceConfig!({'led_enabled': v}),
         ),
@@ -174,7 +232,11 @@ class DeviceSettingsView extends StatelessWidget {
           // The old phrasing ("Keep at most" / "64 cooks on the bridge") never
           // said what happens when it fills up.
           title: const Text('Cooks kept on the bridge'),
-          subtitle: Text('$maxSessions — the oldest are deleted first'),
+          subtitle: Text(
+            maxSessions == null
+                ? '—'
+                : '$maxSessions — the oldest are deleted first',
+          ),
         ),
         const _SectionLabel('Battery'),
         ListTile(
@@ -182,7 +244,8 @@ class DeviceSettingsView extends StatelessWidget {
           subtitle: Text(switch (batterySaver) {
             'off' => 'Never slow down — full performance on mains power',
             'on' => 'Always saving: slower chip, dimmer screen, less radio',
-            _ => 'Turns on below 20%, and off again at 30%',
+            'auto' => 'Turns on below 20%, and off again at 30%',
+            _ => 'The bridge hasn’t reported this yet',
           }),
         ),
         Padding(
@@ -194,13 +257,14 @@ class DeviceSettingsView extends StatelessWidget {
               ButtonSegment(value: 'on', label: Text('On')),
               ButtonSegment(value: 'auto', label: Text('Auto')),
             ],
+            emptySelectionAllowed: true,
             selected: {
-              if (batterySaver == 'off' || batterySaver == 'on')
-                batterySaver
-              else
-                'auto',
+              // Nothing selected until the device has said which it is —
+              // pre-selecting "Auto" would be a guess wearing a fact's clothes.
+              if (batterySaver != null) batterySaver!,
             },
-            onSelectionChanged: onBatterySaver == null
+            onSelectionChanged:
+                onBatterySaver == null || unsupportedReason.isNotEmpty
                 ? null
                 : (s) => onBatterySaver!(s.first),
           ),
