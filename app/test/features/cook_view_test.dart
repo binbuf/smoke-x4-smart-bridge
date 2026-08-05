@@ -53,7 +53,7 @@ CookPlan _brisketPlan() => CookPlan(
   doneness: 'Pitmaster shred',
   pitBandMinF10: 2250,
   pitBandMaxF10: 2750,
-  probes: const [
+  probes: [
     PlanProbe(jack: 1, isPit: true, name: 'Pit'),
     PlanProbe(
       jack: 2,
@@ -139,7 +139,7 @@ void main() {
         title: 'Chicken',
         hazard: HazardClass.poultry,
         doneness: 'rare',
-        probes: const [
+        probes: [
           PlanProbe(jack: 1, isPit: true, name: 'Pit'),
           PlanProbe(jack: 2, isPit: false, name: 'Chicken', targetF10: 1400),
         ],

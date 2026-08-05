@@ -19,7 +19,7 @@ import 'dart:typed_data';
 String bridgeUuid(int slot) =>
     '7f9a${slot.toRadixString(16).padLeft(4, '0')}-4c5b-4b0f-9a3d-1c2e3f405162';
 
-/// The nine characteristics, by their `XXXX` slot.
+/// The eleven characteristics, by their `XXXX` slot.
 class BridgeChar {
   static const deviceInfo = 0x0001;
   static const netStatus = 0x0002;
@@ -30,6 +30,13 @@ class BridgeChar {
   static const liveState = 0x0007;
   static const historyPreview = 0x0008;
   static const result = 0x0009;
+
+  /// v1.1 — full history over BLE (ble-gatt §5.10–§5.11). Present only on a
+  /// bridge whose `device_info.caps` b6 `history_full` is set; writing them
+  /// on an older one gets no answer at all, which is why the flag gates
+  /// them rather than a try/catch.
+  static const historyCtrl = 0x000A;
+  static const historyData = 0x000B;
 
   static const service = 0x0000;
 }

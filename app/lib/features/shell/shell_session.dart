@@ -28,6 +28,7 @@ import '../../app/app_env.dart';
 import '../../app/bridge_session.dart';
 import '../../app/connection.dart';
 import '../../app/connection_supervisor.dart';
+import '../../data/repos/cook_repository.dart';
 import '../../data/transport/ble_transport.dart'
     show BridgeControlException, BridgeUnsupportedException;
 import '../../data/transport/bridge_transport.dart';
@@ -150,12 +151,101 @@ class ShellSession extends ChangeNotifier {
   }
 
   /// Start, replace, or end the guided cook. Null ends it.
+  ///
+  /// **Prefs is a first-frame cache, not the truth.** The truth is the `cooks`
+  /// row (§D.1) — that is what History reads, what backdating edits and what
+  /// survives a reinstall of the running plan. Prefs keeps its copy because
+  /// the shell has to pick instrument-versus-guided on its *very first frame*,
+  /// and a database read one await later would render the wrong mode and snap.
   Future<void> setPlan(CookPlan? plan) async {
     _plan = plan;
     notifyListeners();
     await _env?.prefs.setCookPlanJson(
       plan == null ? null : jsonEncode(plan.toJson()),
     );
+  }
+
+  /// The cook-annotation repository for the bridge this session is talking to,
+  /// or null before one is known.
+  CookRepository? get cookRepo {
+    final env = _env;
+    final id = _bridgeId;
+    if (env == null || id == null) {
+      return null;
+    }
+    return _cookRepo ??= CookRepository(env.db, bridgeId: id);
+  }
+
+  CookRepository? _cookRepo;
+  String? _bridgeId;
+
+  /// §D.1 — start a cook. Writes the annotation **and** the first-frame cache.
+  ///
+  /// Reuses the running row when the plan already carries a `cookId`, so
+  /// editing a running cook retargets it rather than starting a second one
+  /// over the same readings.
+  Future<void> startCook(CookPlan plan) async {
+    await _ensureBridgeId();
+    final repo = cookRepo;
+    if (repo != null) {
+      try {
+        final saved = await repo.startFromPlan(plan);
+        plan.cookId = saved.id;
+      } on Object {
+        // The annotation could not be written (no cache yet, a locked
+        // database). The guided overlay still runs from prefs — degrading to
+        // the old behaviour is far better than refusing to start a cook.
+      }
+    }
+    await setPlan(plan);
+  }
+
+  /// §D.1 — end the annotation. **The bridge keeps recording**, and the cook
+  /// stays in History where it can be renamed, backdated or reopened.
+  Future<void> endCook() async {
+    final repo = cookRepo;
+    final id = _plan?.cookId;
+    if (repo != null && id != null) {
+      try {
+        final cook = await repo.cook(id);
+        if (cook != null) {
+          await repo.end(cook);
+        }
+      } on Object {
+        // Same reasoning as startCook: the on-screen state must still change.
+      }
+    }
+    await setPlan(null);
+  }
+
+  /// §D.5 — the user says the food came off the heat. The one input the phase
+  /// engine may not infer.
+  Future<void> markPulled() async {
+    final repo = cookRepo;
+    final id = _plan?.cookId;
+    if (repo == null || id == null) {
+      return;
+    }
+    final cook = await repo.cook(id);
+    if (cook != null) {
+      await repo.markPulled(cook);
+      notifyListeners();
+    }
+  }
+
+  /// The running annotation, for screens that need more than the plan carries
+  /// (notes, favourite, the pull time). Null when there is no cook or no cache.
+  Future<CookAnnotation?> runningCook() async {
+    await _ensureBridgeId();
+    final id = _plan?.cookId;
+    if (id != null) {
+      return cookRepo?.cook(id);
+    }
+    return cookRepo?.running();
+  }
+
+  Future<void> _ensureBridgeId() async {
+    _bridgeId ??= await _env?.db.sessionDao.knownBridgeId();
   }
 
   /// The supervisor's latest link, for the header chip's live health: which

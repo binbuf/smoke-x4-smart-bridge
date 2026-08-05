@@ -46,6 +46,55 @@ void main() {
     expectSameShape(body, fixtureJson('status.json'));
   });
 
+  test(
+    '/cook-clock: unset until the app confirms, adjustable, clearable',
+    () async {
+      // A replayed cook is running and samples are on "flash" — and the clock
+      // is STILL unset, because recording and "a cook is happening" are
+      // different claims and only the app can make the second one.
+      var (code, body) = await getJson(server, '/api/v1/cook-clock');
+      expect(code, 200);
+      expect((body! as Map)['set'], isFalse);
+      // null, never 0: zero is a cook that started this instant.
+      expect((body as Map)['elapsed_s'], isNull);
+
+      // "The cook is already five minutes in."
+      (code, body) = await postJson(server, '/api/v1/cook-clock', {
+        'elapsed_s': 300,
+      });
+      expect(code, 200);
+      expect((body! as Map)['elapsed_s'], 300);
+
+      // Re-posting ADJUSTS rather than conflicting — the app corrects the
+      // start time mid-cook.
+      (code, body) = await postJson(server, '/api/v1/cook-clock', {
+        'elapsed_s': 7200,
+      });
+      expect(code, 200);
+      expect((body! as Map)['elapsed_s'], 7200);
+
+      // Exactly one field, and the bound is the device's 99:59.
+      (code, _) = await postJson(server, '/api/v1/cook-clock', {});
+      expect(code, 400);
+      (code, _) = await postJson(server, '/api/v1/cook-clock', {
+        'elapsed_s': 10,
+        'started_unix_ms': 1774094400000,
+      });
+      expect(code, 400);
+      (code, _) = await postJson(server, '/api/v1/cook-clock', {
+        'elapsed_s': kCookClockMaxElapsedS + 1,
+      });
+      expect(code, 400);
+
+      // DELETE blanks it and is idempotent.
+      (code, body) = await deleteJson(server, '/api/v1/cook-clock');
+      expect(code, 200);
+      expect((body! as Map)['set'], isFalse);
+      (code, _) = await deleteJson(server, '/api/v1/cook-clock');
+      expect(code, 200);
+    },
+  );
+
   test('GET /live matches the live fixture shape', () async {
     final (code, body) = await getJson(server, '/api/v1/live?window=7200');
     expect(code, 200);

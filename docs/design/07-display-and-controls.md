@@ -33,7 +33,7 @@ Two questions from the brief, answered up front:
 | Large font | 12×24 digits + `°`, for the headline temperature. ~1.2 KB of table               |
 | Refresh    | 1 Hz, and immediately on any state change. Paused while asleep                   |
 | Sleep      | after `display_timeout_s` (default 60 s) → panel off (`0xAE`), render task idles |
-| Wake       | any button, any alarm, session start/end, network state change, BLE connect      |
+| Wake       | any button, any alarm, network state change, BLE connect                         |
 
 Sleeping the panel saves ~10 mA — the cheapest single item in the power budget
 ([01 §1.6](01-hardware.md)) — and matters because an AP-mode bridge cannot otherwise sleep at all.
@@ -54,9 +54,29 @@ Row 7 (the bottom line) is reserved on every page:
 | -------------------- | ------------------------------------------------------------- |
 | `●` / `○`            | filled = LoRa packet within the last 60 s; hollow = base lost |
 | `sta` / `ap` / `---` | network mode; `ap*` when a client is associated               |
-| `04:12`              | elapsed time in the active cook, or `--:--`                   |
+| `04:12`              | the **app-confirmed** cook clock, or **blank**                |
 | `71%`                | battery SoC, or `USB` when charging                           |
 | `⚠`                  | an unacknowledged alarm exists                                |
+
+**The clock is blank, not `--:--`, until an app confirms a cook.** This slot used to read the open
+storage session's age, and the bridge opens a session by itself as soon as samples arrive — so a
+bridge on a bench with a probe in a glass of water displayed a cook that nobody had started.
+
+The device has no concept of a cook and never infers one. It records continuously
+([04 §4.3](04-storage-and-history.md)) and draws temperatures; deciding that a stretch of samples is
+a brisket that started at 04:15 is the app's judgement, and the app pushes it down over
+`POST /api/v1/cook-clock` ([06 §6.2](06-device-api.md)) or the `set_cook_clock` control op. Posting
+again **adjusts** — the intended flow is that you light the fire, open the app five minutes later,
+and set the clock to 00:05 rather than 00:00.
+
+`--:--` would mean "a cook is running and I have lost its clock", which is a state the bridge cannot
+be in. Blank is the honest rendering of "no one has told me a cook is running". The five columns stay
+reserved either way, so confirming a cook does not shove the battery and the alarm glyph sideways.
+
+The clock is **not persisted**: a reboot clears it and the strip goes blank until the app confirms
+again. After a power cut the bridge has no way to know whether the cook is still going, and a stale
+clock counting up through a finished cook is the confident wrong answer this whole arrangement
+removes. Capped at 99:59, because hh:mm gets exactly five columns.
 
 ## 7.2 Pages
 
@@ -85,26 +105,47 @@ a temperature — the reference's `0.0` is a real trap on a graph and a real con
 **Hold 2 s** → cycle the displayed unit (°F ↔ °C). Display only; storage stays canonical
 ([04 §4.2](04-storage-and-history.md)).
 
-### Page 2 — Cook
+### Page 2 — Trends
 
 ```
 ┌─────────────────────┐
-│Brisket        #27   │
-│Elapsed  04:12:30    │
-│Brisket 163 → 203°F  │
-│ETA  6h20m  (stall)  │
-│    ╱‾‾╲___╱‾‾‾‾     │  ← 2 h sparkline, 21×16 px
+│TRENDS    10min °F/hr│
+│Pit         243.0 -2.4│
+│Brisket     163.2 +4.1│
+│Point       159.4 +3.8│
+│Flat          ---     │  ← detached: no reading, no rate
+│    ╱‾‾╲___╱‾‾‾‾     │  ← 2 h sparkline, 122×16 px
 │    ╱                │
-│Marks 3   1,440 pts  │
 │●sta  04:12  71%     │
 └─────────────────────┘
 ```
 
-The sparkline is the pit probe over the RAM ring's 2-hour window
-([04 §4.3](04-storage-and-history.md)) — auto-scaled, with min/max labelled at the ends. This is
-where "did the fire hold overnight?" gets answered without unlocking a phone.
+Every probe's reading beside how fast it is moving, and the shape of the last two hours. There is
+nothing session-shaped here on purpose.
 
-**Hold 2 s** → start or stop the session, with a 3-second confirm countdown.
+**This page used to be COOK**, and it led with a session id, a session name, `Elapsed 04:12:30`, an
+ETA and a mark count. Every one of those was the device answering a question only the app can
+answer. The bridge opens a storage session as soon as a probe warms up, so `#27 Brisket, elapsed
+00:04:00` appeared whether or not anybody was cooking; and `Hold PRG to start`, which the empty state
+offered, promised a control the PRG button has not had since M5. What is left is what the device
+actually knows.
+
+The rate is the RAM ring's rolling 10-minute OLS slope — the same number and the same refusal to
+guess as the app's `rateOfChange` ([09 §9.4](09-alarms-and-insights.md)): under 12 valid samples, or
+across a gap over 2 minutes, it is **absent** rather than approximate. A detached probe renders `---`
+and no rate at all; an unplugged probe is not holding steady at zero.
+
+The window and the unit are named once in the header rather than repeated as `/hr` on four rows —
+21 columns does not have four spare. In °C the reading converts by (F−32)×5/9 and the rate by 5/9
+alone: a degree per hour is an interval, not a temperature, so applying the offset would turn a pit
+holding steady at +0.0 into a plunge of −17.8.
+
+The sparkline is the pit probe over the RAM ring's 2-hour window
+([04 §4.3](04-storage-and-history.md)), auto-scaled, breaking at gaps rather than bridging them. This
+is where "did the fire hold overnight?" gets answered without unlocking a phone — and it needs no
+session to mean something, which is why it is the one thing that survived the old page unchanged.
+
+**No hold action.** Starting and stopping a cook is the app's, and always was.
 
 ### Page 3 — Network
 
@@ -193,7 +234,7 @@ When unpaired, it becomes the pairing screen:
 │Put your Smoke X     │
 │base in SYNC mode    │
 │                     │
-│○---  --:--  71%     │
+│○---         71%     │
 └─────────────────────┘
 ```
 
@@ -207,12 +248,15 @@ When unpaired, it becomes the pairing screen:
 │Battery 3.89V  71%   │
 │  charging           │
 │Uptime  14:15:30     │
-│Storage 9% of 2.4MB  │
-│  12 cooks           │
+│Storage 9%  12 files │  ← `files`, not `cooks` (see below)
 │Heap 168k (min 141k) │
 │●sta  04:12  71%     │
 └─────────────────────┘
 ```
+
+The storage row counts **files**, not cooks. It is a disk gauge: the store keeps writing whether or
+not anyone ever calls a stretch of it a cook, and how the recording divides into cooks is the app's
+answer to give.
 
 **Hold 2 s** → toggle battery-saver mode.
 

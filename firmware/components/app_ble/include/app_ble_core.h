@@ -39,7 +39,7 @@ extern "C" {
 #define APP_BLE_ERR_BUSY (-2)
 #define APP_BLE_ERR_FAILED (-3)
 
-/* ── The nine characteristics (ble-gatt §1) ───────────────────────── */
+/* ── The eleven characteristics (ble-gatt §1) ─────────────────────── */
 
 typedef enum {
     APP_BLE_CH_DEVICE_INFO = 0, /* 0001 */
@@ -51,6 +51,10 @@ typedef enum {
     APP_BLE_CH_LIVE_STATE,      /* 0007 */
     APP_BLE_CH_HISTORY_PREVIEW, /* 0008 */
     APP_BLE_CH_RESULT,          /* 0009 */
+    /* v1.1 additive growth: appended, never renumbered — the same rule the
+     * control_op table follows (§5.6.6). */
+    APP_BLE_CH_HISTORY_CTRL,    /* 000A */
+    APP_BLE_CH_HISTORY_DATA,    /* 000B */
     APP_BLE_CH_COUNT,
 } app_ble_char_t;
 
@@ -141,6 +145,12 @@ typedef struct {
      * only after the answer is on the wire. WAKING NEEDS THE PHYSICAL PRG
      * BUTTON — nothing over BLE can bring the bridge back. */
     void (*power_off)(void);
+    /* §5.10: schedule app_ble_history_run() somewhere that may touch flash.
+     * Streaming a 12 h session is hundreds of reads and the NimBLE host
+     * task's stack belongs to the stack, so the glue moves it to the
+     * ble_push row. NULL runs the stream inline, which is what the host
+     * suite wants — there is no row there and nothing to protect. */
+    int (*history_defer)(void);
     uint64_t (*uptime_ms)(void);
 } app_ble_ops_t;
 
@@ -217,6 +227,16 @@ bool app_ble_scan_active(void);
  * correctly-indexed notification per AP, and stops early if a cancel
  * arrives mid-stream. A scan that was cancelled emits nothing. */
 int app_ble_scan_deliver(const app_ble_scan_ap_t *aps, int n);
+
+/* ── Full history over BLE (ble-gatt §5.10–§5.11) ─────────────────── */
+
+/* True while a stream is queued or running. A second request answers busy
+ * without disturbing it. */
+bool app_ble_history_active(void);
+
+/* Runs the latched request: reads flash and pushes framed notifications.
+ * The glue calls this from the ble_push row after ops->history_defer. */
+void app_ble_history_run(void);
 
 /* ── Advertising (F10.2, ble-gatt §2) ─────────────────────────────── */
 

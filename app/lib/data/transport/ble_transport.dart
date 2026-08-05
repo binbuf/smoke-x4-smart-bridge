@@ -7,9 +7,12 @@
 /// firmware's `record_gen.h`. A6's job is to speak the contract, not to
 /// negotiate it.
 ///
-/// Capabilities are honest rather than optimistic: live telemetry and the
-/// 2-hour preview, yes; full history and OTA, no — those stay Wi-Fi-only
-/// in v1 and the chart says so ([ble-gatt §5.8](../../../../protocol/ble-gatt.md)).
+/// Capabilities are honest rather than optimistic: live telemetry, the
+/// 2-hour preview, and — from v1.1 — full history
+/// ([ble-gatt §5.10–§5.11](../../../../protocol/ble-gatt.md)). OTA stays
+/// Wi-Fi-only, and full history is reported from the bridge's own caps bit
+/// rather than declared, because the same app build talks to bridges on
+/// both sides of that feature.
 library;
 
 import 'dart:async';
@@ -172,6 +175,24 @@ class NotificationReassembler {
 int? _netStatusLength(Uint8List b) => b.length < 10 ? null : 10 + b[8] + b[9];
 int? _scanResultLength(Uint8List b) => b.length < 7 ? null : 7 + b[6];
 int? _resultLength(Uint8List b) => b.length < 4 ? null : 4 + b[3];
+int? _historyDataLength(Uint8List b) => b.length < 7 ? null : 7 + b[6];
+
+/// A history stream that did not end `ok` (ble-gatt §5.11). Separate from
+/// [BridgeControlException] because it arrives on `history_data`, not on
+/// `result` — and because "the stream died at frame 40" is a different
+/// user-visible fact from "the write was refused".
+class BridgeHistoryException implements Exception {
+  const BridgeHistoryException(this.status, {this.framesSeen = 0});
+
+  final dto.ResultStatus status;
+  final int framesSeen;
+
+  bool get isBusy => status == dto.ResultStatus.busy;
+
+  @override
+  String toString() =>
+      'BridgeHistoryException(${status.name}, after $framesSeen frames)';
+}
 
 class BleTransport implements BridgeTransport {
   BleTransport(this.client);
@@ -182,17 +203,30 @@ class BleTransport implements BridgeTransport {
   final _results = StreamController<dto.ResultFrame>.broadcast();
   final _netStatus = StreamController<dto.NetStatus>.broadcast();
   final _scanResults = StreamController<dto.WifiScanResult>.broadcast();
+  final _historyData = StreamController<dto.HistoryData>.broadcast();
   final _subs = <StreamSubscription<dynamic>>[];
   bool _started = false;
   bool _closed = false;
 
+  /// `device_info.caps` b6 — whether this bridge serves §5.10/§5.11.
+  ///
+  /// **Null means "not asked yet", never "no".** A v1.0 bridge does not
+  /// merely refuse a `history_ctrl` write, it never answers one at all, so
+  /// guessing optimistically would hang the sync rather than fail it. The
+  /// flag is latched on the first [deviceInfo] read, which [status] and the
+  /// connection handshake both perform before anything reads capabilities.
+  bool? _historyFull;
+
   @override
-  BridgeCapabilities get capabilities => const BridgeCapabilities(
+  BridgeCapabilities get capabilities => BridgeCapabilities(
     liveState: true,
     historyPreview: true,
-    // v1.1 (ble-gatt §5.8). The chart's "full history needs Wi-Fi" notice
-    // is driven by exactly this flag — A3.1 built it for this moment.
-    fullHistory: false,
+    // v1.1 (ble-gatt §5.10). Derived from the device rather than declared
+    // here: the same app build talks to bridges on both sides of this
+    // feature, and the chart's "full history needs Wi-Fi" notice — which
+    // A3.1 built for exactly this flag — must still be right in front of
+    // an older one.
+    fullHistory: _historyFull ?? false,
     // Network config is the whole reason this transport exists. Probe
     // names/roles have no `device_control` op and stay HTTP-only in v1;
     // configure() says so with a typed condition rather than pretending.
@@ -209,6 +243,19 @@ class BleTransport implements BridgeTransport {
       return;
     }
     _started = true;
+
+    // Settle `capabilities` before anything can read it. `device_info` is
+    // the one unencrypted characteristic (§3), so this succeeds on any
+    // connected link — and it must happen HERE rather than lazily, because
+    // callers branch on `capabilities.fullHistory` synchronously and a
+    // capability that is briefly wrong is a UI that briefly lies.
+    try {
+      await deviceInfo();
+    } on Object {
+      // A bridge we cannot even identify is one nothing else will work
+      // against either; leaving _historyFull null keeps full history
+      // reported as absent, which is the safe direction.
+    }
 
     _subs.add(
       client.subscribe(BridgeChar.liveState).listen((chunk) {
@@ -257,6 +304,15 @@ class BleTransport implements BridgeTransport {
         _scanResults.add(dto.WifiScanResult.unpack(bytes));
       }),
     );
+
+    // §5.11. Subscribed unconditionally: an older bridge simply has no such
+    // characteristic and the client's subscribe is a no-op there, whereas
+    // subscribing lazily at request time would race the first frames.
+    _subs.add(
+      _reassembled(BridgeChar.historyData, _historyDataLength).listen((bytes) {
+        _historyData.add(dto.HistoryData.unpack(bytes));
+      }),
+    );
   }
 
   Stream<Uint8List> _reassembled(int slot, int? Function(Uint8List) len) {
@@ -295,8 +351,12 @@ class BleTransport implements BridgeTransport {
 
   Stream<dto.WifiScanResult> get scanResults => _scanResults.stream;
 
-  Future<dto.DeviceInfo> deviceInfo() async =>
-      dto.DeviceInfo.decode(await client.read(BridgeChar.deviceInfo));
+  Future<dto.DeviceInfo> deviceInfo() async {
+    final info = dto.DeviceInfo.decode(await client.read(BridgeChar.deviceInfo));
+    // Latch the one capability the app cannot otherwise discover safely.
+    _historyFull = info.historyFull;
+    return info;
+  }
 
   /// Reads `net_status` on demand (§5.2 is Read as well as Notify).
   /// Notifications report CHANGES; when nothing changed there is nothing
@@ -374,9 +434,141 @@ class BleTransport implements BridgeTransport {
     );
   }
 
+  // ── full history over BLE (A27 — ble-gatt §5.10–§5.11) ─────────────
+  //
+  // The transfer that makes an always-recording bridge useful without a
+  // network: turn the bridge on with the base station, walk away, come back
+  // twelve hours later, and the phone pulls the whole cook over Bluetooth.
+
+  /// One request at a time, enforced here rather than discovered as a
+  /// `busy` end frame — the device serialises streams (§5.10) and two
+  /// concurrent callers would otherwise interleave frames from one stream
+  /// into the other's reassembly.
+  Future<void>? _historyLock;
+
+  /// Runs one `history_ctrl` request and yields its frames until `last`.
+  ///
+  /// Throws [BridgeHistoryException] when the end frame reports anything
+  /// but `ok`, and [BridgeUnsupportedException] on a bridge whose caps say
+  /// it does not serve this at all.
+  Stream<dto.HistoryData> _request(
+    dto.HistoryReq req, {
+    int sessionId = 0,
+    int fromT = 0,
+    int? toT,
+    int stride = 1,
+    Duration timeout = const Duration(seconds: 30),
+  }) async* {
+    if (_historyFull == null) {
+      await deviceInfo(); // cheap, unencrypted, and settles the question
+    }
+    if (_historyFull != true) {
+      throw const BridgeUnsupportedException('full history');
+    }
+    await start();
+
+    // Serialise against any stream already running on this transport.
+    while (_historyLock != null) {
+      await _historyLock;
+    }
+    final gate = Completer<void>();
+    _historyLock = gate.future;
+    try {
+      // Attach BEFORE the write: the device answers on its own task and the
+      // first frames can land while the write is still completing.
+      final frames = StreamController<dto.HistoryData>();
+      final sub = _historyData.stream.listen(frames.add, onError: frames.addError);
+      try {
+        await client.write(
+          BridgeChar.historyCtrl,
+          dto.HistoryCtrl(
+            req: req.wire,
+            stride: stride,
+            sessionId: sessionId,
+            fromT: fromT,
+            // UINT32_MAX is "to the end" (§5.10), which is what an absent
+            // bound means everywhere else in this app too.
+            toT: toT ?? 0xFFFFFFFF,
+          ).encode(),
+        );
+
+        var seen = 0;
+        var nextSeq = 0;
+        await for (final f in frames.stream.timeout(timeout)) {
+          seen++;
+          // §5.11: a `busy` refusal rides seq 0xFFFF precisely so it cannot
+          // be confused with a frame of a stream already in flight.
+          if (f.seq != 0xFFFF) {
+            if (f.seq != nextSeq) {
+              // A gap means a dropped frame. Stitching across it would hand
+              // the cache a cook with an invisible hole, so fail instead and
+              // let the caller re-request the range.
+              throw FormatException(
+                'history_data: frame gap — expected seq $nextSeq, got ${f.seq}',
+              );
+            }
+            nextSeq = f.seq + 1;
+          }
+          if (f.kindEnum == dto.HistoryKind.end) {
+            final status =
+                dto.ResultStatus.fromWire(
+                  f.payloadRaw.isEmpty ? 3 : f.payloadRaw[0],
+                ) ??
+                dto.ResultStatus.failed;
+            if (status != dto.ResultStatus.ok) {
+              throw BridgeHistoryException(status, framesSeen: seen);
+            }
+            return; // the one clean exit: an end frame that said ok
+          }
+          yield f;
+          if (f.last) {
+            // `last` without `end` means the terminator was dropped. The
+            // data so far is real, but the stream is not provably complete.
+            throw const BridgeHistoryException(dto.ResultStatus.failed);
+          }
+        }
+        throw const BridgeHistoryException(dto.ResultStatus.failed);
+      } finally {
+        await sub.cancel();
+        await frames.close();
+      }
+    } finally {
+      _historyLock = null;
+      gate.complete();
+    }
+  }
+
   @override
-  Future<List<CookSession>> sessions() =>
-      throw const BridgeUnsupportedException('the session list');
+  Future<List<CookSession>> sessions() async {
+    final out = <CookSession>[];
+    await for (final f in _request(dto.HistoryReq.sessions)) {
+      if (f.kindEnum != dto.HistoryKind.session) {
+        continue;
+      }
+      for (var i = 0; i < f.count; i++) {
+        final s = dto.HistorySession.decode(
+          f.payloadRaw,
+          i * dto.HistorySession.size,
+        );
+        out.add(
+          CookSession(
+            id: s.sessionId,
+            name: s.name,
+            // 0 is "the bridge had no clock", not midnight 1970 — the same
+            // absent-is-null rule every other reading here follows.
+            startedUnixMs: s.startedUnixMs == 0 ? null : s.startedUnixMs,
+            endedUnixMs: s.endedUnixMs == 0 ? null : s.endedUnixMs,
+            samplePeriodS: s.samplePeriodS,
+            sampleCount: s.sampleCount,
+            numProbes: s.numProbes,
+            closed: s.closed,
+            pinned: s.pinned,
+          ),
+        );
+      }
+    }
+    return out;
+  }
 
   @override
   Stream<List<Sample>> samples(
@@ -384,7 +576,89 @@ class BleTransport implements BridgeTransport {
     int fromT = 0,
     int? toT,
     int? bucketS,
-  }) => throw const BridgeUnsupportedException('full history');
+  }) async* {
+    // The device aggregates for the HTTP chart; over BLE it streams whole
+    // records and the app buckets locally. Sending 23 KB unaggregated and
+    // keeping full fidelity in the cache beats saving a few KB and caching
+    // something the user can never zoom into.
+    var batch = <Sample>[];
+    await for (final f in _request(
+      dto.HistoryReq.samples,
+      sessionId: sessionId,
+      fromT: fromT,
+      toT: toT,
+    )) {
+      if (f.kindEnum != dto.HistoryKind.samples) {
+        continue;
+      }
+      for (var i = 0; i < f.count; i++) {
+        final r = dto.SampleRec.decode(f.payloadRaw, i * dto.SampleRec.size);
+        batch.add(
+          Sample(
+            t: r.t,
+            tempsF10: r.tempNullable,
+            billows: r.billows,
+            newAlarm: r.newAlarm,
+            sourceCelsius: r.sourceCelsius,
+            rssi: r.rssi,
+          ),
+        );
+      }
+      // 14 records per frame would mean ~103 drift transactions for a 12 h
+      // cook. Coalescing keeps the insert count sane without holding the
+      // whole session in memory.
+      if (batch.length >= 480) {
+        yield batch;
+        batch = <Sample>[];
+      }
+    }
+    if (batch.isNotEmpty) {
+      yield batch;
+    }
+  }
+
+  /// A28 — the marks the bridge recorded, over the same stream (§5.11).
+  /// Not on [BridgeTransport] because HTTP fetches them through the session
+  /// detail endpoint; this is the BLE lane's equivalent.
+  Future<List<Mark>> marks(int sessionId, {int fromT = 0, int? toT}) async {
+    final out = <Mark>[];
+    await for (final f in _request(
+      dto.HistoryReq.marks,
+      sessionId: sessionId,
+      fromT: fromT,
+      toT: toT,
+    )) {
+      if (f.kindEnum != dto.HistoryKind.marks) {
+        continue;
+      }
+      for (var i = 0; i < f.count; i++) {
+        final m = dto.MarkRec.decode(f.payloadRaw, i * dto.MarkRec.size);
+        out.add(
+          Mark(
+            t: m.t,
+            kind: m.kind < MarkKind.values.length
+                ? MarkKind.values[m.kind]
+                : MarkKind.values.first,
+            probe: m.probe,
+            text: m.text,
+          ),
+        );
+      }
+    }
+    return out;
+  }
+
+  /// Stops a stream in flight (§5.10). Always succeeds, including with
+  /// nothing running — that is what a retrying caller's second cancel is.
+  Future<void> cancelHistory() async {
+    if (_historyFull != true) {
+      return;
+    }
+    await client.write(
+      BridgeChar.historyCtrl,
+      dto.HistoryCtrl(req: dto.HistoryReq.cancel.wire).encode(),
+    );
+  }
 
   @override
   Future<void> control(ControlCommand cmd) async {
@@ -445,6 +719,22 @@ class BleTransport implements BridgeTransport {
       // disabled-and-mysterious — but a caller that ignores the flag gets
       // an honest refusal rather than a silent drop.
       throw const BridgeUnsupportedException('firmware update');
+
+  /// newapp §G.3 — the device's alarm rules over the `device_control`
+  /// surface.
+  ///
+  /// v1 firmware has no BLE op for reading or writing a rule, and the honest
+  /// answer to "can this link change the bridge's alarms" is therefore no.
+  /// Throwing the typed condition is what makes the editor render its rows
+  /// disabled-with-a-reason instead of offering switches that write nothing —
+  /// which is the exact bug the settings tree shipped with.
+  @override
+  Future<List<Map<String, Object?>>> alarmRules() =>
+      throw const BridgeUnsupportedException('Changing the bridge’s alarms');
+
+  @override
+  Future<void> setAlarmRule(Map<String, Object?> rule) =>
+      throw const BridgeUnsupportedException('Changing the bridge’s alarms');
 
   @override
   Future<MqttConfig> mqttConfig() =>
@@ -613,6 +903,7 @@ class BleTransport implements BridgeTransport {
     await _results.close();
     await _netStatus.close();
     await _scanResults.close();
+    await _historyData.close();
     await client.dispose();
   }
 }

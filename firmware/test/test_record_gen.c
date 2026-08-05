@@ -420,6 +420,102 @@ static void check_history_preview(const uint8_t *bytes, size_t len,
     CHECK(memcmp(out, bytes, len) == 0);
 }
 
+/* ── v1.1 full history over BLE (§5.10–§5.11) ─────────────────────── */
+
+static void check_history_ctrl(const uint8_t *bytes, size_t len,
+                               const kv_t *kv, size_t n) {
+    CHECK_EQ_INT(len, BRIDGE_HISTORY_CTRL_SIZE);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    bridge_history_ctrl_t c;
+    bridge_history_ctrl_decode(bytes, &c);
+    CHECK_EQ_INT(c.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(c.req, kv_ll(kv, n, "req"));
+    CHECK_EQ_INT(c.stride, kv_ll(kv, n, "stride"));
+    CHECK_EQ_INT(c.session_id, kv_ll(kv, n, "session_id"));
+    CHECK_EQ_INT(c.from_t, kv_ll(kv, n, "from_t"));
+    CHECK(c.to_t == (uint32_t)kv_ll(kv, n, "to_t"));
+
+    uint8_t out[BRIDGE_HISTORY_CTRL_SIZE];
+    bridge_history_ctrl_encode(&c, out);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
+static void check_history_session(const uint8_t *bytes, size_t len,
+                                  const kv_t *kv, size_t n) {
+    CHECK_EQ_INT(len, BRIDGE_HISTORY_SESSION_SIZE);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    bridge_history_session_t s;
+    bridge_history_session_decode(bytes, &s);
+    CHECK_EQ_INT(s.session_id, kv_ll(kv, n, "session_id"));
+    CHECK(s.started_unix_ms == (uint64_t)kv_ll(kv, n, "started_unix_ms"));
+    CHECK(s.ended_unix_ms == (uint64_t)kv_ll(kv, n, "ended_unix_ms"));
+    CHECK_EQ_INT(s.sample_count, kv_ll(kv, n, "sample_count"));
+    CHECK_EQ_INT(s.sample_period_s, kv_ll(kv, n, "sample_period_s"));
+    CHECK_EQ_INT(s.num_probes, kv_ll(kv, n, "num_probes"));
+    CHECK_EQ_INT(s.flags, kv_ll(kv, n, "flags"));
+    CHECK_EQ_INT(bridge_history_session_clock_valid(s.flags),
+                 kv_ll(kv, n, "flag_clock_valid"));
+    CHECK_EQ_INT(bridge_history_session_closed(s.flags),
+                 kv_ll(kv, n, "flag_closed"));
+    CHECK_EQ_INT(bridge_history_session_pinned(s.flags),
+                 kv_ll(kv, n, "flag_pinned"));
+    /* The em-dash auto-name of 04 §4.6 is 26 BYTES; a 24-byte field
+     * clipped it, which is why this one is 28. Held here so a future
+     * shrink is a red test rather than a truncated cook name. */
+    check_padded_str(s.name, sizeof s.name, kv_get(kv, n, "name"));
+
+    uint8_t out[BRIDGE_HISTORY_SESSION_SIZE];
+    bridge_history_session_encode(&s, out);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
+static void check_history_data(const uint8_t *bytes, size_t len,
+                               const kv_t *kv, size_t n) {
+    bridge_history_data_t f;
+    CHECK_EQ_INT(bridge_history_data_unpack(bytes, len, &f), (int)len);
+    CHECK_EQ_INT(len, kv_ll(kv, n, "wire_len"));
+    CHECK_EQ_INT(f.ver, kv_ll(kv, n, "ver"));
+    CHECK_EQ_INT(f.kind, kv_ll(kv, n, "data_kind"));
+    CHECK_EQ_INT(f.seq, kv_ll(kv, n, "seq"));
+    CHECK_EQ_INT(f.flags, kv_ll(kv, n, "flags"));
+    CHECK_EQ_INT(bridge_history_data_last(f.flags), kv_ll(kv, n, "last"));
+    CHECK_EQ_INT(f.count, kv_ll(kv, n, "count"));
+    CHECK_EQ_INT(f.len, kv_ll(kv, n, "len"));
+    /* The 7-byte fixed prefix must arrive whole in the first chunk even at
+     * the 20-byte default MTU — the §4 guarantee the client's reassembler
+     * reads the length from. */
+    CHECK(len - f.len == 7u);
+
+    if (f.kind == BRIDGE_HISTORY_KIND_SAMPLES) {
+        CHECK_EQ_INT(f.len, f.count * BRIDGE_SAMPLE_REC_SIZE);
+        /* Records travel VERBATIM: decoding one straight out of the frame
+         * payload must reproduce what was written, CRC included. */
+        for (int i = 0; i < f.count; i++) {
+            bridge_sample_rec_t rec;
+            /* decode returns the CRC verdict: a record that travelled
+             * verbatim still verifies, which is the whole reason the
+             * stream does not re-encode. */
+            CHECK(bridge_sample_rec_decode(
+                f.payload + i * BRIDGE_SAMPLE_REC_SIZE, &rec));
+            char key[24];
+            snprintf(key, sizeof key, "s%d_t", i);
+            CHECK_EQ_INT(rec.t, kv_ll(kv, n, key));
+        }
+        CHECK_EQ_INT(kv_ll(kv, n, "s1_temp2_null"), 1);
+    } else if (f.kind == BRIDGE_HISTORY_KIND_END) {
+        /* The terminator is the only frame that reports a status, and it
+         * always carries exactly one byte of it. */
+        CHECK_EQ_INT(f.count, 0);
+        CHECK_EQ_INT(f.len, 1);
+        CHECK_EQ_INT(f.payload[0], kv_ll(kv, n, "status"));
+        CHECK(bridge_history_data_last(f.flags));
+    }
+
+    uint8_t out[BRIDGE_HISTORY_DATA_MAX_SIZE];
+    CHECK_EQ_INT(bridge_history_data_pack(&f, out, sizeof out), (int)len);
+    CHECK(memcmp(out, bytes, len) == 0);
+}
+
 /* ── tests ────────────────────────────────────────────────────────── */
 
 static void test_crc_check_values(void) {
@@ -519,6 +615,12 @@ static void test_fixture_corpus(void) {
             check_result(bytes, len, kv, n);
         } else if (strcmp(kind, "history_preview") == 0) {
             check_history_preview(bytes, len, kv, n);
+        } else if (strcmp(kind, "history_ctrl") == 0) {
+            check_history_ctrl(bytes, len, kv, n);
+        } else if (strcmp(kind, "history_session") == 0) {
+            check_history_session(bytes, len, kv, n);
+        } else if (strcmp(kind, "history_data") == 0) {
+            check_history_data(bytes, len, kv, n);
         } else {
             CHECK(!"unknown fixture kind");
         }
@@ -526,8 +628,10 @@ static void test_fixture_corpus(void) {
     closedir(dir);
     /* The P1.5 corpus (5 samples + 2 headers + 1 mark) plus P3.2's twelve
      * BLE payload vectors — one per characteristic, plus the states that
-     * have historically been got wrong (sentinels, AP vs STA, cancel). */
-    CHECK_EQ_INT(fixtures_seen, 20);
+     * have historically been got wrong (sentinels, AP vs STA, cancel) —
+     * plus v1.1's four history vectors (§5.10–§5.11: the request, a
+     * session entry, a mid-stream samples frame, the terminator). */
+    CHECK_EQ_INT(fixtures_seen, 24);
 }
 
 static void test_var_payload_roundtrip(void) {

@@ -197,6 +197,22 @@ class MockTransport implements BridgeTransport {
   /// page and the contract suite can drive it with no broker.
   MqttConfig mqtt = const MqttConfig();
 
+  /// newapp §G.3 — an in-memory rule table, so the write-then-read-back
+  /// pattern is exercised end to end by the transport contract suite.
+  final List<Map<String, Object?>> rules = [];
+
+  @override
+  Future<List<Map<String, Object?>>> alarmRules() async =>
+      [for (final r in rules) Map<String, Object?>.from(r)];
+
+  @override
+  Future<void> setAlarmRule(Map<String, Object?> rule) async {
+    rules.removeWhere(
+      (r) => r['rule'] == rule['rule'] && r['probe'] == rule['probe'],
+    );
+    rules.add(Map<String, Object?>.from(rule));
+  }
+
   @override
   Future<MqttConfig> mqttConfig() async => mqtt;
 

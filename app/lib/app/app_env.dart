@@ -15,6 +15,7 @@ import '../data/transport/discovery.dart';
 import '../data/transport/http_transport.dart';
 import '../features/sessions/export.dart';
 import '../platform/notifications.dart';
+import '../platform/share.dart';
 import 'connection.dart';
 
 class AppEnv {
@@ -29,6 +30,7 @@ class AppEnv {
     this.notifications,
     this.foregroundService,
     this.firmwareImage,
+    this.shareSheet,
     this.appVersion = '1.0.0',
   }) : transportFor = transportFor ?? HttpTransport.new;
 
@@ -50,6 +52,11 @@ class AppEnv {
   /// rather than showing a dead button. The transport's `uploadFirmware`
   /// is real regardless, and drivable against `tools/sim`.
   final FirmwareImageSource? firmwareImage;
+
+  /// newapp §C.1 — where an exported CSV goes after it is written. Null on a
+  /// platform with no share intent, and the export then names its path rather
+  /// than offering a button that cannot work.
+  final ShareSheet? shareSheet;
   final String appVersion;
 
   /// A fresh race per route: `ConnectionManager`'s manual-entry completer

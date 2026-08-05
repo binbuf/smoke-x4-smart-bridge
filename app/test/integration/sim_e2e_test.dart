@@ -37,9 +37,11 @@ import 'package:smoke_bridge/data/repos/sync_engine.dart';
 import 'package:smoke_bridge/data/transport/http_transport.dart';
 import 'package:smoke_bridge/domain/analysis/analysis.dart';
 import 'package:smoke_bridge/features/chart/chart_viewport.dart';
+import 'package:smoke_bridge/features/cook/cook_view.dart';
 import 'package:smoke_bridge/features/dashboard/dashboard.dart';
 import 'package:smoke_bridge/features/sessions/export.dart';
 import 'package:smoke_bridge/features/sessions/sessions_screen.dart';
+import 'package:smoke_bridge/ui/ui.dart';
 
 import '../data/records_parity_test.dart' show repoRoot;
 
@@ -253,20 +255,16 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: DashboardView(
+            body: CookView(
               snapshot: snap,
-              viewport: ChartViewport.forSession(
-                fromT: snap.samples.first.t,
-                toT: snap.samples.last.t,
-              ),
-              onViewport: (_) {},
-              onControl: (_) async {},
+              plan: null,
+              freshness: ProbeFreshness.live,
             ),
           ),
         ),
       );
       await tester.pump();
-      expect(find.byKey(const Key('dashboard-view')), findsOneWidget);
+      expect(find.byType(CookView), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       final detail = await tester.runAsync(() async {

@@ -61,6 +61,25 @@ static void format_temp_whole(int16_t f10, bool celsius, char *out,
     snprintf(out, cap, "%ld", (long)((v + (v < 0 ? -5 : 5)) / 10));
 }
 
+/* A rate of change, tenths of a degree per hour, sign ALWAYS shown: `+4.1`
+ * reads as a direction at a glance and `4.1` reads as a quantity.
+ *
+ * Two things this gets right that the open-coded `%+ld.%ld` it replaced did
+ * not. A rate scales for °C but does not shift — 5/9, no 32 — because a
+ * degree per hour is an interval, not a temperature. And the sign comes from
+ * the VALUE, not from its whole part: −0.4 °F/hr has a whole part of zero,
+ * which `%+ld` renders as `+0`, so a probe that was cooling read as warming. */
+static void format_slope(int16_t f10_per_hr, bool celsius, char *out,
+                         size_t cap) {
+    int32_t v = f10_per_hr;
+    if (celsius) {
+        v = v * 5 / 9;
+    }
+    const char sign = v < 0 ? '-' : '+';
+    const int32_t mag = v < 0 ? -v : v;
+    snprintf(out, cap, "%c%ld.%ld", sign, (long)(mag / 10), (long)(mag % 10));
+}
+
 void app_ui_format_hhmm(uint32_t seconds, bool valid, char *out, size_t cap) {
     if (out == NULL || cap == 0) {
         return;
@@ -95,9 +114,22 @@ void app_ui_render_strip(const app_ui_state_t *st, app_ui_fb_t *fb) {
         return;
     }
     char line[APP_UI_COLS + 1];
+    /* The elapsed slot is BLANK until an app confirms a cook, and `--:--`
+     * never appears here again. The old strip took its clock from whether a
+     * storage session was open — which the bridge opens by itself the moment
+     * a probe warms up — so a bridge sitting on a bench with a probe in a
+     * glass of water displayed a cook that nobody had started. Blank is the
+     * honest rendering of "no one has told me a cook is running"; `--:--`
+     * would mean "a cook is running and I have lost its clock".
+     *
+     * The five columns stay reserved either way, so confirming a cook in the
+     * app does not shove the battery and the alarm glyph sideways. */
     char elapsed[8];
-    app_ui_format_hhmm(st->elapsed_s, st->session_active, elapsed,
-                       sizeof elapsed);
+    if (st->cook_clock_set) {
+        app_ui_format_hhmm(st->cook_elapsed_s, true, elapsed, sizeof elapsed);
+    } else {
+        snprintf(elapsed, sizeof elapsed, "     ");
+    }
 
     const char *mode = st->net_mode == APP_UI_NET_STA   ? "sta"
                        : st->net_mode == APP_UI_NET_AP  ? (st->ap_client ? "ap*" : "ap ")
@@ -217,9 +249,7 @@ void app_ui_render_page_probes(const app_ui_state_t *st, app_ui_fb_t *fb) {
         app_ui_draw_text(fb, 14 - vlen, row, val);
 
         if (attached(p->temp_f10) && p->slope_valid) {
-            const int32_t s = p->slope_f10_per_hr;
-            snprintf(buf, sizeof buf, "%+ld.%ld", (long)(s / 10),
-                     (long)((s < 0 ? -s : s) % 10));
+            format_slope(p->slope_f10_per_hr, st->celsius, buf, sizeof buf);
             const int len = (int)strlen(buf);
             app_ui_draw_text(fb, APP_UI_COLS - len, row, buf);
         }
@@ -229,81 +259,77 @@ void app_ui_render_page_probes(const app_ui_state_t *st, app_ui_fb_t *fb) {
     app_ui_render_strip(st, fb);
 }
 
-/* ── page 2: cook (F11b.4; 07 §7.2) ────────────────────────────────── */
+/* ── page 2: trends (F11b.4; 07 §7.2) ────────────────────────────────
+ *
+ *   TRENDS    10min °F/hr
+ *   Pit         243.1 -2.4
+ *   Brisket     163.2 +4.1
+ *   Point       159.4 +3.8
+ *   Flat          ---
+ *     ..-''''
+ *   -'
+ *   *sta  04:12  71%
+ *
+ * WHAT THIS PAGE IS NOT. It used to be COOK: a session id, a session name,
+ * `Elapsed 04:12:30`, an ETA and a mark count. Every one of those was the
+ * device answering a question only the app can answer — the bridge opens a
+ * storage session as soon as a probe warms up, so `#27 Brisket, elapsed
+ * 00:04:00` appeared whether or not anybody was cooking, and `Hold PRG to
+ * start` promised a control the PRG button has not had since M5.
+ *
+ * What is left is what the device actually knows: what the probes read right
+ * now, how fast each is moving, and the shape of the last two hours. The
+ * elapsed time on the strip below comes from the app or does not appear.
+ *
+ * The rate is the ring's rolling 10-minute OLS slope, the same number and the
+ * same refusal-to-guess as the app's rateOfChange (A2.2): under 12 valid
+ * samples, or across a gap over 2 minutes, it is absent rather than
+ * approximate. */
 
-void app_ui_render_page_cook(const app_ui_state_t *st, app_ui_fb_t *fb) {
+#define TRENDS_TEMP_END_COL 14  /* right edge of the temperature column */
+#define TRENDS_SLOPE_END_COL 20 /* right edge of the rate column */
+
+void app_ui_render_page_trends(const app_ui_state_t *st, app_ui_fb_t *fb) {
     app_ui_fb_clear(fb);
     if (st == NULL) {
         return;
     }
     char buf[40];
 
-    if (!st->session_active) {
-        app_ui_draw_text(fb, 0, 0, "COOK");
-        app_ui_draw_text(fb, 0, 2, "No session running");
-        app_ui_draw_text(fb, 0, 4, "Hold PRG to start");
-        app_ui_render_strip(st, fb);
-        return;
-    }
+    /* The window and the unit are named ONCE, in the header, so each row
+     * spends its columns on the reading instead of repeating `/hr` four
+     * times. 21 columns does not have four spare. */
+    snprintf(buf, sizeof buf, "10min \xC2\xB0%c/hr", st->celsius ? 'C' : 'F');
+    app_ui_draw_text(fb, 0, 0, "TRENDS");
+    app_ui_draw_text(fb, APP_UI_COLS - 11, 0, buf);
 
-    snprintf(buf, sizeof buf, "%.14s", st->session_name);
-    app_ui_draw_text(fb, 0, 0, buf);
-    snprintf(buf, sizeof buf, "#%u", (unsigned)st->session_id);
-    app_ui_draw_text(fb, APP_UI_COLS - (int)strlen(buf), 0, buf);
+    int row = 1;
+    for (int i = 0; i < 4 && i < st->num_probes && row <= 4; i++, row++) {
+        const app_ui_probe_t *p = &st->probe[i];
+        snprintf(buf, sizeof buf, "%.8s", p->name[0] ? p->name : "Probe");
+        app_ui_draw_text(fb, 0, row, buf);
 
-    char hms[12];
-    app_ui_format_hhmmss(st->elapsed_s, hms, sizeof hms);
-    snprintf(buf, sizeof buf, "Elapsed %s", hms);
-    app_ui_draw_text(fb, 0, 1, buf);
+        /* One decimal here, unlike the probes page: this page's whole job is
+         * the small movements, and 0.1 °F is the resolution the protocol
+         * carries. A detached probe renders `---` and no rate at all — an
+         * unplugged probe is not holding steady at zero. */
+        char val[10];
+        app_ui_format_temp(p->temp_f10, st->celsius, false, val, sizeof val);
+        app_ui_draw_text(fb, TRENDS_TEMP_END_COL + 1 - (int)strlen(val), row,
+                         val);
 
-    /* The primary food probe's current → target. */
-    int food = -1;
-    for (int i = 0; i < 4 && i < st->num_probes; i++) {
-        if (st->probe[i].role == BRIDGE_PROBE_ROLE_FOOD &&
-            attached(st->probe[i].temp_f10)) {
-            food = i;
-            break;
+        if (attached(p->temp_f10) && p->slope_valid) {
+            format_slope(p->slope_f10_per_hr, st->celsius, val, sizeof val);
+            app_ui_draw_text(fb, TRENDS_SLOPE_END_COL + 1 - (int)strlen(val),
+                             row, val);
         }
-    }
-    if (food >= 0) {
-        char cur[8];
-        char tgt[8];
-        format_temp_whole(st->probe[food].temp_f10, st->celsius, cur,
-                          sizeof cur);
-        if (st->probe[food].target_f10 > 0) {
-            format_temp_whole((int16_t)st->probe[food].target_f10,
-                              st->celsius, tgt, sizeof tgt);
-        } else {
-            snprintf(tgt, sizeof tgt, "--");
-        }
-        snprintf(buf, sizeof buf, "%.7s %s>%s\xC2\xB0%c",
-                 st->probe[food].name[0] ? st->probe[food].name : "Food", cur,
-                 tgt, st->celsius ? 'C' : 'F');
-        app_ui_draw_text(fb, 0, 2, buf);
-    }
-
-    /* The device's ETA is the cheap one, and it says so. The app tier owns
-     * 09 §9.4's two models and its range presentation; the device never
-     * renders a confident wrong answer. */
-    if (st->stalled) {
-        app_ui_draw_text(fb, 0, 3, "ETA  --     (stall)");
-    } else if (st->eta_valid) {
-        snprintf(buf, sizeof buf, "ETA  %uh%02um",
-                 (unsigned)(st->eta_s / 3600u),
-                 (unsigned)((st->eta_s / 60u) % 60u));
-        app_ui_draw_text(fb, 0, 3, buf);
-    } else {
-        app_ui_draw_text(fb, 0, 3, "ETA  --");
     }
 
     /* The 2 h pit sparkline, straight from the RAM ring (04 §4.3). This is
-     * where "did the fire hold overnight?" gets answered without
-     * unlocking a phone. */
-    app_ui_draw_sparkline(fb, 3, 32, 122, 16, st->spark, st->spark_n);
-
-    snprintf(buf, sizeof buf, "Marks %u  %u pts", (unsigned)st->mark_count,
-             (unsigned)st->sample_count);
-    app_ui_draw_text(fb, 0, 6, buf);
+     * where "did the fire hold overnight?" gets answered without unlocking a
+     * phone — and it needs no session to be meaningful, which is why it is
+     * the one thing that survived the old page unchanged. */
+    app_ui_draw_sparkline(fb, 3, 40, 122, 16, st->spark, st->spark_n);
 
     app_ui_render_strip(st, fb);
 }
@@ -468,8 +494,11 @@ void app_ui_render_page_system(const app_ui_state_t *st, app_ui_fb_t *fb) {
             ? (unsigned)(((uint64_t)st->storage_used_b * 100u) /
                          st->storage_total_b)
             : 0u;
-    snprintf(buf, sizeof buf, "Storage %u%% %u cooks", pct,
-             (unsigned)st->sessions);
+    /* `files`, not `cooks`. The store keeps writing whether or not anyone
+     * calls a stretch of it a cook; this row is a disk gauge, and dividing
+     * the recording into cooks is the app's answer to give. */
+    snprintf(buf, sizeof buf, "Storage %u%% %u files", pct,
+             (unsigned)st->stored_files);
     app_ui_draw_text(fb, 0, 4, buf);
     snprintf(buf, sizeof buf, "Heap %uk (min %uk)",
              (unsigned)(st->heap_free / 1024u),
@@ -660,8 +689,8 @@ void app_ui_render(const app_ui_state_t *st, app_ui_fb_t *fb) {
         break;
     }
     switch (st->page) {
-    case APP_UI_PAGE_COOK:
-        return app_ui_render_page_cook(st, fb);
+    case APP_UI_PAGE_TRENDS:
+        return app_ui_render_page_trends(st, fb);
     case APP_UI_PAGE_NETWORK:
         return app_ui_render_page_network(st, fb);
     case APP_UI_PAGE_RADIO:

@@ -457,6 +457,125 @@ void main() {
         'v${i}_null': preview.valuesNullable[i] == null ? 1 : 0,
     },
   );
+
+  // ── v1.1: full history over BLE (§5.10–§5.11) ──────────────────────
+  final histCtrl = HistoryCtrl(
+    req: HistoryReq.samples.wire,
+    stride: 1,
+    sessionId: 0x1A,
+    fromT: 0,
+    toT: 0xFFFFFFFF,
+  );
+  write(
+    'ble-history-ctrl-samples',
+    'history_ctrl: every record of session 0x1A — the 12 h overnight ask',
+    histCtrl.encode(),
+    {
+      'kind': 'history_ctrl',
+      'wire_len': histCtrl.encode().length,
+      'ver': histCtrl.ver,
+      'req': histCtrl.req,
+      'stride': histCtrl.stride,
+      'session_id': histCtrl.sessionId,
+      'from_t': histCtrl.fromT,
+      'to_t': histCtrl.toT,
+    },
+  );
+
+  final histSession = HistorySession(
+    sessionId: 0x1A,
+    startedUnixMs: 1774051200000,
+    endedUnixMs: 0, // still open — the always-recording resting state
+    sampleCount: 1440, // 12 h at 30 s
+    samplePeriodS: 30,
+    numProbes: 4,
+    flags: 0x01, // clock_valid, not closed, not pinned
+    nameRaw: utf8ToPadded('Cook — Sat 14 Mar, 06:12', 28),
+  );
+  write(
+    'ble-history-session',
+    'history_session: a 12 h cook still recording, as the stream carries it',
+    histSession.encode(),
+    {
+      'kind': 'history_session',
+      'wire_len': histSession.encode().length,
+      'session_id': histSession.sessionId,
+      'started_unix_ms': histSession.startedUnixMs,
+      'ended_unix_ms': histSession.endedUnixMs,
+      'sample_count': histSession.sampleCount,
+      'sample_period_s': histSession.samplePeriodS,
+      'num_probes': histSession.numProbes,
+      'flags': histSession.flags,
+      'flag_clock_valid': histSession.clockValid ? 1 : 0,
+      'flag_closed': histSession.closed ? 1 : 0,
+      'flag_pinned': histSession.pinned ? 1 : 0,
+      'name': histSession.name,
+    },
+  );
+
+  // Two sample_recs in one frame, byte-identical to what sits on flash —
+  // the whole reason the stream carries records rather than re-encoding.
+  final framed = [
+    SampleRec(t: 43230, temp: [2431, 1632, 1594, 887], rssi: -71),
+    SampleRec(t: 43260, temp: [2428, 1633, tempDetached, 887], rssi: -73),
+  ];
+  final framePayload = BytesBuilder();
+  for (final s in framed) {
+    framePayload.add(s.encode());
+  }
+  final histData = HistoryData(
+    kind: HistoryKind.samples.wire,
+    seq: 7,
+    flags: 0, // not the last frame: more is on its way
+    count: framed.length,
+    payloadRaw: framePayload.toBytes(),
+  );
+  write(
+    'ble-history-data-samples',
+    'history_data: a mid-stream samples frame carrying two verbatim records',
+    histData.pack(),
+    {
+      'kind': 'history_data',
+      'wire_len': histData.pack().length,
+      'ver': histData.ver,
+      'data_kind': histData.kind,
+      'seq': histData.seq,
+      'flags': histData.flags,
+      'last': histData.last ? 1 : 0,
+      'count': histData.count,
+      'len': histData.payloadRaw.length,
+      's0_t': framed[0].t,
+      's1_t': framed[1].t,
+      's1_temp2_null': framed[1].tempOrNull(2) == null ? 1 : 0,
+    },
+  );
+
+  // The terminator, and the only frame that reports a status (§5.11).
+  final histEnd = HistoryData(
+    kind: HistoryKind.end.wire,
+    seq: 8,
+    flags: 0x01, // last
+    count: 0,
+    payloadRaw: Uint8List.fromList([0]), // result_status.ok
+  );
+  write(
+    'ble-history-data-end',
+    'history_data: the end frame — a finished stream, distinguishable from a '
+        'dropped one',
+    histEnd.pack(),
+    {
+      'kind': 'history_data',
+      'wire_len': histEnd.pack().length,
+      'ver': histEnd.ver,
+      'data_kind': histEnd.kind,
+      'seq': histEnd.seq,
+      'flags': histEnd.flags,
+      'last': histEnd.last ? 1 : 0,
+      'count': histEnd.count,
+      'len': histEnd.payloadRaw.length,
+      'status': histEnd.payloadRaw[0],
+    },
+  );
 }
 
 Uint8List _probeNames(List<String> names) {

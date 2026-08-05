@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/app_env.dart';
 import '../../app/router.dart';
+import '../../data/local/database.dart' show CacheStats;
 import '../../data/transport/ble_transport.dart';
 import '../../data/transport/bridge_transport.dart';
 import '../../data/transport/http_transport.dart';
@@ -70,6 +71,12 @@ class _SettingsRouteState extends State<SettingsRoute> {
   // until it answers, and left null on a transport that cannot do it.
   MqttConfig? _mqtt;
 
+  // A29 — the phone's own cache. Read from drift, never from the bridge:
+  // this page is about what THIS PHONE keeps, and it must render with the
+  // bridge unplugged.
+  CacheStats _cache = CacheStats.empty;
+  bool _clearing = false;
+
   @override
   void initState() {
     super.initState();
@@ -80,7 +87,39 @@ class _SettingsRouteState extends State<SettingsRoute> {
     unawaited(_load());
   }
 
+  /// The cache's size, read straight from drift. Deliberately outside the
+  /// `baseUrl == null` guard below: a phone that has never been paired
+  /// still has a cache page, and one whose bridge is unreachable must
+  /// still be able to clear it.
+  Future<void> _loadCache() async {
+    final db = AppEnv.instance?.db;
+    if (db == null) {
+      return;
+    }
+    final stats = await db.cacheStats();
+    if (mounted) {
+      setState(() => _cache = stats);
+    }
+  }
+
+  Future<void> _clearCache() async {
+    final db = AppEnv.instance?.db;
+    if (db == null) {
+      return;
+    }
+    setState(() => _clearing = true);
+    try {
+      await db.clearCachedCooks();
+      await _loadCache();
+    } finally {
+      if (mounted) {
+        setState(() => _clearing = false);
+      }
+    }
+  }
+
   Future<void> _load() async {
+    unawaited(_loadCache());
     final env = AppEnv.instance;
     final baseUrl = env?.prefs.lastBaseUrl;
     if (env == null || baseUrl == null) {
@@ -454,6 +493,13 @@ class _SettingsRouteState extends State<SettingsRoute> {
               DisruptiveVerb.factoryReset,
               const ControlCommand.factoryReset(),
             ),
+    ),
+    SettingsSection.storage => StorageSettingsView(
+      sessions: _cache.sessions,
+      samples: _cache.samples,
+      approxBytes: _cache.approxBytes,
+      busy: _clearing,
+      onClear: _clearCache,
     ),
     SettingsSection.about => AboutView(
       appVersion: AppEnv.instance?.appVersion ?? '',

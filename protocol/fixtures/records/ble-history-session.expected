@@ -1,0 +1,14 @@
+# history_session: a 12 h cook still recording, as the stream carries it
+kind=history_session
+wire_len=56
+session_id=26
+started_unix_ms=1774051200000
+ended_unix_ms=0
+sample_count=1440
+sample_period_s=30
+num_probes=4
+flags=1
+flag_clock_valid=1
+flag_closed=0
+flag_pinned=0
+name=Cook — Sat 14 Mar, 06:12

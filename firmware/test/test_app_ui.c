@@ -11,6 +11,7 @@
  * Run with --write-goldens to regenerate GOLDEN_DIR after a deliberate
  * visual change; review the PNGs before committing.
  */
+#include "app_ui_cook.h"
 #include "app_ui_core.h"
 #include "app_ui_input.h"
 #include "app_ui_led.h"
@@ -603,14 +604,16 @@ static void test_flush_writes_the_whole_panel(void) {
 /* ══ F11b — the status strip, the five pages, gestures, sleep, LED ══ */
 
 static app_ui_state_t cook_state(void) {
-    /* A plausible mid-cook, and the shape most of the goldens vary from. */
+    /* A plausible mid-cook, and the shape most of the goldens vary from.
+     * The clock is SET here because an app confirmed this cook — the device
+     * has no way to reach that state on its own, which is the point. */
     app_ui_state_t st;
     memset(&st, 0, sizeof st);
     st.num_probes = 4;
     st.base_ok = true;
     st.net_mode = APP_UI_NET_STA;
-    st.session_active = true;
-    st.elapsed_s = 4 * 3600 + 12 * 60 + 30;
+    st.cook_clock_set = true;
+    st.cook_elapsed_s = 4 * 3600 + 12 * 60 + 30;
     st.soc_pct = 71;
     snprintf(st.probe[0].name, sizeof st.probe[0].name, "Pit");
     st.probe[0].role = BRIDGE_PROBE_ROLE_PIT;
@@ -635,12 +638,6 @@ static app_ui_state_t cook_state(void) {
     snprintf(st.probe[3].name, sizeof st.probe[3].name, "Flat");
     st.probe[3].role = BRIDGE_PROBE_ROLE_FOOD;
     st.probe[3].temp_f10 = BRIDGE_TEMP_DETACHED;
-    st.session_id = 27;
-    snprintf(st.session_name, sizeof st.session_name, "Brisket");
-    st.sample_count = 1440;
-    st.mark_count = 3;
-    st.eta_valid = true;
-    st.eta_s = 6 * 3600 + 20 * 60;
     for (int i = 0; i < 48; i++) {
         st.spark[i] = (int16_t)(2400 + (i % 12) * 8 - (i / 12) * 5);
     }
@@ -666,7 +663,7 @@ static app_ui_state_t cook_state(void) {
     st.uptime_s = 14 * 3600 + 15 * 60 + 30;
     st.storage_total_b = 2490368;
     st.storage_used_b = 214016;
-    st.sessions = 12;
+    st.stored_files = 12;
     st.heap_free = 172032;
     st.heap_min = 144384;
     st.mv = 3894;
@@ -729,7 +726,7 @@ static void test_status_strip_shapes(void) {
      * rather than inventing it. */
     app_ui_render_page_probes(&st, &fb);
     CHECK(strip_has_ink(&fb));
-    golden("strip-sta-cook", &fb);
+    golden("strip-sta-clock", &fb);
 
     st.base_ok = false;
     st.alarm_unacked = true;
@@ -743,13 +740,43 @@ static void test_status_strip_shapes(void) {
     app_ui_render_page_probes(&st, &fb);
     golden("strip-ap-charging", &fb);
 
-    /* No session and no battery data: `--:--` and `--%`, never 00:00 and
-     * never 0 % (07 §7.1, P3.2). */
+    /* No app-confirmed cook and no battery data. The battery half is the old
+     * rule (`--%`, never 0 %, P3.2). The clock half is the new one and it is
+     * STRICTER: not `--:--` but nothing at all.
+     *
+     * `--:--` says "a cook is running and I have lost its clock". The bridge
+     * cannot be in that state — it does not know what a cook is — so the
+     * slot is blank, and the assertion below is the same no-digit invariant
+     * the detached probes get: there must be no NUMBER in the clock's five
+     * columns, not merely a different number. */
     st = cook_state();
-    st.session_active = false;
+    st.cook_clock_set = false;
     st.soc_pct = BRIDGE_SOC_UNKNOWN;
     app_ui_render_page_probes(&st, &fb);
-    golden("strip-no-session-no-battery", &fb);
+    golden("strip-no-clock-no-battery", &fb);
+    CHECK(!cells_contain_a_digit(&fb, APP_UI_STRIP_ROW, APP_UI_STRIP_ROW, 5,
+                                 10));
+
+    /* And the battery does not slide left into the empty clock slot: an app
+     * confirming a cook must not reflow the strip under the reader's eyes.
+     * Same state twice, clock the only difference, columns 11..20 compared
+     * pixel for pixel. */
+    app_ui_state_t without = cook_state();
+    without.cook_clock_set = false;
+    app_ui_fb_t fb_without;
+    app_ui_render_page_probes(&without, &fb_without);
+    app_ui_state_t with = cook_state();
+    app_ui_fb_t fb_with;
+    app_ui_render_page_probes(&with, &fb_with);
+    for (int col = 11; col < APP_UI_COLS; col++) {
+        for (int dx = 0; dx < APP_UI_CELL_W; dx++) {
+            for (int y = 56; y < 64; y++) {
+                const int x = col * APP_UI_CELL_W + dx;
+                CHECK_EQ_INT(app_ui_get_pixel(&fb_without, x, y),
+                             app_ui_get_pixel(&fb_with, x, y));
+            }
+        }
+    }
 }
 
 static void test_page_probes_goldens(void) {
@@ -795,23 +822,18 @@ static void test_page_probes_goldens(void) {
     golden("page-probes-long-name", &fb);
 }
 
-static void test_page_cook_goldens(void) {
+static void test_page_trends_goldens(void) {
     app_ui_fb_t fb;
     app_ui_state_t st = cook_state();
-    app_ui_render_page_cook(&st, &fb);
-    golden("page-cook", &fb);
+    app_ui_render_page_trends(&st, &fb);
+    golden("page-trends", &fb);
 
-    /* Stalled: the ETA is suppressed with the reason, not replaced by a
-     * number (09 §9.4). */
-    st.stalled = true;
-    app_ui_render_page_cook(&st, &fb);
-    golden("page-cook-stalled", &fb);
-
-    /* Under 30 minutes of history — the device refuses to guess. */
-    st = cook_state();
-    st.eta_valid = false;
-    app_ui_render_page_cook(&st, &fb);
-    golden("page-cook-no-eta", &fb);
+    /* °C converts the READING by (F−32)×5/9 and the RATE by 5/9 alone: a
+     * degree per hour is an interval, so applying the offset would turn a
+     * pit holding steady at +0.0 into a plunge of −17.8. */
+    st.celsius = true;
+    app_ui_render_page_trends(&st, &fb);
+    golden("page-trends-celsius", &fb);
 
     /* A dropout in the ring: the sparkline breaks rather than bridging a
      * gap that did not happen. */
@@ -819,13 +841,56 @@ static void test_page_cook_goldens(void) {
     for (int i = 16; i < 28; i++) {
         st.spark[i] = BRIDGE_TEMP_DETACHED;
     }
-    app_ui_render_page_cook(&st, &fb);
-    golden("page-cook-gap", &fb);
+    app_ui_render_page_trends(&st, &fb);
+    golden("page-trends-gap", &fb);
 
+    /* No app has confirmed a cook. The page is UNCHANGED above the strip —
+     * temperatures and rates are facts about probes, not about cooks — and
+     * only the strip's clock goes blank. The old COOK page replaced its
+     * whole body with `No session running` here. */
     st = cook_state();
-    st.session_active = false;
-    app_ui_render_page_cook(&st, &fb);
-    golden("page-cook-no-session", &fb);
+    st.cook_clock_set = false;
+    app_ui_render_page_trends(&st, &fb);
+    golden("page-trends-no-clock", &fb);
+    CHECK(cells_contain_a_digit(&fb, 1, 4, 9, 14)); /* temps still there */
+
+    /* Every probe detached: `---` in every reading, no rate at all, and NO
+     * DIGIT anywhere in the reading or rate columns. A probe pulled out of
+     * the meat is not holding steady at zero. */
+    st = cook_state();
+    for (int i = 0; i < 4; i++) {
+        st.probe[i].temp_f10 = BRIDGE_TEMP_DETACHED;
+        st.probe[i].slope_valid = false;
+    }
+    app_ui_render_page_trends(&st, &fb);
+    golden("page-trends-all-detached", &fb);
+    CHECK(!cells_contain_a_digit(&fb, 1, 4, 9, APP_UI_COLS - 1));
+
+    /* A cooling probe under 0.1 °F/hr. The whole part is zero, so a naive
+     * `%+ld.%ld` prints `+0.4` for −0.4 and reports a probe that is falling
+     * as one that is rising. */
+    st = cook_state();
+    st.num_probes = 1;
+    st.probe[0].slope_valid = true;
+    st.probe[0].slope_f10_per_hr = -4;
+    app_ui_render_page_trends(&st, &fb);
+    golden("page-trends-small-negative-rate", &fb);
+    {
+        app_ui_fb_t minus;
+        app_ui_fb_clear(&minus);
+        /* `-0.4` right-aligned on column 20 starts at column 17. */
+        app_ui_draw_text(&minus, 17, 1, "-0.4");
+        for (int col = 17; col <= 20; col++) {
+            for (int dx = 0; dx < APP_UI_CELL_W; dx++) {
+                for (int dy = 0; dy < APP_UI_CELL_H; dy++) {
+                    const int x = col * APP_UI_CELL_W + dx;
+                    const int y = APP_UI_CELL_H + dy;
+                    CHECK_EQ_INT(app_ui_get_pixel(&fb, x, y),
+                                 app_ui_get_pixel(&minus, x, y));
+                }
+            }
+        }
+    }
 }
 
 static void test_page_network_goldens(void) {
@@ -954,8 +1019,8 @@ static void test_render_dispatch(void) {
         st.page = page;
         app_ui_render(&st, &a);
         switch (page) {
-        case APP_UI_PAGE_COOK:
-            app_ui_render_page_cook(&st, &b);
+        case APP_UI_PAGE_TRENDS:
+            app_ui_render_page_trends(&st, &b);
             break;
         case APP_UI_PAGE_NETWORK:
             app_ui_render_page_network(&st, &b);
@@ -1280,7 +1345,7 @@ static void test_power_off_and_alarm_display(void) {
     /* A tap only cycles views and commits nothing — the app owns control. */
     model_init(&w);
     model_tap(&w);
-    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_COOK);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_TRENDS);
     CHECK_EQ_INT(g_performed_n, 0);
 
     /* AN ALARM IS DISPLAYED, NEVER SILENCED HERE. It forces view 1; a tap
@@ -1297,7 +1362,7 @@ static void test_power_off_and_alarm_display(void) {
     model_tap(&w);
     CHECK_EQ_INT(g_performed_n, 0); /* nothing was acked */
     CHECK(w.st.overlay != APP_UI_OVERLAY_ALARM);
-    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_COOK);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_TRENDS);
 
     /* And the 60 s revert: the view comes back on its own, and nothing here
      * touches alarm state. Clearing the screen is not dealing with it. */
@@ -1517,6 +1582,64 @@ static void test_small_font_degree_glyph(void) {
     CHECK_EQ_INT(app_ui_draw_text(&fb, 0, 0, "9\xB0"), 2);
 }
 
+/* ── the app-confirmed cook clock ────────────────────────────────────── */
+
+static void test_cook_clock(void) {
+    uint32_t e = 12345;
+
+    /* Nothing until an app says so. `e` is left untouched on false, so a
+     * caller that ignores the return value cannot accidentally render a
+     * stale number. */
+    app_ui_cook_clear();
+    CHECK(!app_ui_cook_get(1000, &e));
+    CHECK_EQ_INT((int)e, 12345);
+
+    /* "The cook is 5 minutes in" — the case that motivated the whole
+     * module. It is not 0:00, and it advances from there. */
+    CHECK_EQ_INT(app_ui_cook_set(300, 1000), 0);
+    CHECK(app_ui_cook_get(1000, &e));
+    CHECK_EQ_INT((int)e, 300);
+    CHECK(app_ui_cook_get(1060, &e));
+    CHECK_EQ_INT((int)e, 360);
+
+    /* Re-setting ADJUSTS rather than failing: the app corrects the start
+     * time mid-cook and the glass follows. */
+    CHECK_EQ_INT(app_ui_cook_set(7200, 1060), 0);
+    CHECK(app_ui_cook_get(1060, &e));
+    CHECK_EQ_INT((int)e, 7200);
+
+    /* A cook older than this boot. The bridge browned out four hours into
+     * an overnight; the app reconnects and says so. An unsigned anchor
+     * would have to saturate at uptime zero and under-report by however
+     * long the reboot cost. */
+    CHECK_EQ_INT(app_ui_cook_set(4 * 3600, 600), 0);
+    CHECK(app_ui_cook_get(600, &e));
+    CHECK_EQ_INT((int)e, 4 * 3600);
+    CHECK(app_ui_cook_get(1200, &e));
+    CHECK_EQ_INT((int)e, 4 * 3600 + 600);
+
+    /* Beyond 99:59 is REFUSED, not clamped — the caller is told. */
+    CHECK_EQ_INT(app_ui_cook_set(APP_UI_COOK_MAX_ELAPSED_S + 1, 1000), -1);
+    CHECK(app_ui_cook_get(1200, &e)); /* the old clock survives the refusal */
+    CHECK_EQ_INT((int)e, 4 * 3600 + 600);
+
+    /* Running PAST the cap pins instead of reflowing the strip: hh:mm has
+     * exactly five columns and `100:00` would shove the battery sideways. */
+    CHECK_EQ_INT(app_ui_cook_set(APP_UI_COOK_MAX_ELAPSED_S, 1000), 0);
+    CHECK(app_ui_cook_get(100000, &e));
+    CHECK_EQ_INT((int)e, (int)APP_UI_COOK_MAX_ELAPSED_S);
+    {
+        char hhmm[8];
+        app_ui_format_hhmm(e, true, hhmm, sizeof hhmm);
+        CHECK_EQ_INT((int)strlen(hhmm), 5);
+    }
+
+    /* Clearing is idempotent — a retrying client sends `stop` twice. */
+    app_ui_cook_clear();
+    app_ui_cook_clear();
+    CHECK(!app_ui_cook_get(100000, NULL));
+}
+
 int main(int argc, char **argv) {
     g_write_goldens = argc > 1 && strcmp(argv[1], "--write-goldens") == 0;
 
@@ -1539,7 +1662,8 @@ int main(int argc, char **argv) {
     test_flush_writes_the_whole_panel();
     test_status_strip_shapes();
     test_page_probes_goldens();
-    test_page_cook_goldens();
+    test_page_trends_goldens();
+    test_cook_clock();
     test_page_network_goldens();
     test_page_radio_and_system_goldens();
     test_overlay_goldens();

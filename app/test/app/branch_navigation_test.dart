@@ -5,13 +5,17 @@
 /// was a **root** route reached by `context.go`, so opening a cook unmounted
 /// `AppShell` — which disposes the `ShellSession` and kills the live link —
 /// replaced the tab bar with a full-screen page, and left the only way back a
-/// chain of arrows terminating at `/`, which rebuilt the shell on the *Cook*
-/// tab. One tap cost the tab bar, the connection, the tab and the scroll
-/// position.
+/// chain of arrows terminating at `/`. One tap cost the tab bar, the
+/// connection, the tab and the scroll position.
 ///
 /// With `StatefulShellRoute.indexedStack` the detail is pushed **inside** the
-/// History branch: the shell stays mounted, the nav bar stays on screen, and
-/// back is a branch pop.
+/// Cooks branch: the shell stays mounted, the nav bar stays on screen, and back
+/// is a branch pop.
+///
+/// The newapp §B.2 IA moves the paths (`/cook`→`/live`, `/history`→`/cooks`,
+/// `/bridge`→`/device`, `/alerts` folded away) and every old one still resolves,
+/// because a deep link a user saved or a notification already posted must not
+/// land on a 404.
 library;
 
 import 'package:flutter/material.dart';
@@ -68,11 +72,11 @@ void main() {
 
     final shellBefore = tester.state<State>(find.byType(AppShell));
 
-    router.go('${AppRoutes.history}/5');
+    router.go('${AppRoutes.cooks}/5');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(_path(router), '/history/5');
+    expect(_path(router), '/cooks/5');
     // The shell is the SAME State object — not rebuilt, so the connection
     // race did not restart and no ShellSession was disposed.
     expect(
@@ -96,23 +100,49 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(_path(router), '/history/12');
+    expect(_path(router), '/cooks/12');
     expect(find.byType(AppShell), findsOneWidget);
+  });
+
+  testWidgets('every superseded path still resolves somewhere real', (
+    tester,
+  ) async {
+    final router = await _pumpApp(tester);
+    // A saved deep link and an already-posted notification both outlive an IA
+    // change; landing them on a 404 is not a redesign, it is a regression.
+    const moved = {
+      '/cook': '/live',
+      '/history': '/cooks',
+      '/history/7': '/cooks/7',
+      '/sessions': '/cooks',
+      '/alerts': '/device/alarms',
+      '/bridge': '/device',
+      '/bridge/probes': '/device/settings/probes',
+      '/bridge/alarms': '/device/alarms',
+      '/settings': '/device',
+      '/settings/network': '/device/settings/network',
+    };
+    for (final entry in moved.entries) {
+      router.go(entry.key);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_path(router), entry.value, reason: 'from ${entry.key}');
+    }
   });
 
   testWidgets('/ and /settings redirect into their branches', (tester) async {
     final router = await _pumpApp(tester);
 
-    expect(_path(router), AppRoutes.cook, reason: 'initial location');
+    expect(_path(router), AppRoutes.live, reason: 'the reader is the landing');
 
     router.go(AppRoutes.settings);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(
       _path(router),
-      AppRoutes.bridge,
+      AppRoutes.device,
       reason:
-          'settings folded into the Bridge branch — it used to be '
+          'settings folded into the Device branch — it used to be '
           'reachable only from a connection-sheet button labelled '
           '"Reach it directly by address"',
     );
@@ -120,21 +150,21 @@ void main() {
     router.go(AppRoutes.home);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(_path(router), AppRoutes.cook);
+    expect(_path(router), AppRoutes.live);
   });
 
   testWidgets(
-    'every device settings section is reachable at /bridge/:section',
+    'every device settings section is reachable at /device/settings/:section',
     (tester) async {
       final router = await _pumpApp(tester);
 
       for (final section in SettingsSection.deviceSections) {
-        router.go('${AppRoutes.bridge}/${section.slug}');
+        router.go('${AppRoutes.deviceSettings}/${section.slug}');
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
         expect(
           _path(router),
-          '/bridge/${section.slug}',
+          '/device/settings/${section.slug}',
           reason: 'section "${section.title}"',
         );
         expect(
@@ -152,19 +182,24 @@ void main() {
   // hop-0 preflight, which reaches `flutter_blue_plus` — unsupported on the
   // test platform. The setup flow has its own suite against a fake probe
   // (`setup_hop1_test.dart`); what belongs here is the *structural* claim.
-  test('setup and onboarding are gates, never destinations', () {
+  test('three branches, and setup is a gate rather than one of them', () {
     expect(AppRoutes.branchPaths, [
-      AppRoutes.cook,
-      AppRoutes.history,
-      AppRoutes.alerts,
-      AppRoutes.bridge,
+      AppRoutes.live,
+      AppRoutes.cooks,
+      AppRoutes.device,
     ]);
     expect(AppRoutes.branchPaths, isNot(contains(AppRoutes.setup)));
-    expect(AppRoutes.branchPaths, isNot(contains(AppRoutes.onboarding)));
+    expect(
+      AppRoutes.branchPaths,
+      isNot(contains(AppRoutes.alerts)),
+      reason:
+          '§B.1 — a permissions verdict is not a place a user spends fourteen '
+          'hours; it is a banner on the screens that matter',
+    );
   });
 
   test(
-    'an unknown /bridge slug resolves to nothing rather than a wrong page',
+    'an unknown settings slug resolves to nothing rather than a wrong page',
     () {
       expect(settingsSectionForSlug('probes'), SettingsSection.probes);
       expect(settingsSectionForSlug('PROBES'), SettingsSection.probes);

@@ -47,6 +47,8 @@ Base UUID: `7f9aXXXX-4c5b-4b0f-9a3d-1c2e3f405162`. The service is
 | `0007` | `live_state`               | Read, Notify | encrypted                     | fixed 16 B (§5.7)       |
 | `0008` | `history_preview`          | Read         | encrypted                     | variable ≤ 244 B (§5.8) |
 | `0009` | `result`                   | Notify       | encrypted                     | variable ≤ 68 B (§5.9)  |
+| `000A` | `history_ctrl`             | Write        | encrypted                     | fixed 16 B (§5.10)      |
+| `000B` | `history_data`             | Notify       | encrypted                     | variable ≤ 244 B (§5.11) |
 
 Every characteristic with Notify carries a standard CCCD (`0x2902`); writing it requires the
 same security level as the characteristic value.
@@ -107,7 +109,7 @@ than Just Works, and it costs nothing.
 | Level                         | Applies to                                                                                    | Meaning                                                                                                        |
 | ----------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | open                          | `device_info`                                                                                 | readable with no pairing at all, so the app can identify a bridge before bonding                               |
-| encrypted                     | `net_status`, `wifi_scan_ctrl`, `wifi_scan_result`, `live_state`, `history_preview`, `result` | link must be encrypted (any bond)                                                                              |
+| encrypted                     | `net_status`, `wifi_scan_ctrl`, `wifi_scan_result`, `live_state`, `history_preview`, `result`, `history_ctrl`, `history_data` | link must be encrypted (any bond)                                                                              |
 | encrypted + **authenticated** | `wifi_config`, `device_control`                                                               | link key must be MITM-authenticated (passkey pairing) — these two can change network config or wipe the device |
 
 Bonding:
@@ -123,7 +125,10 @@ Bonding:
 ## 4. MTU strategy
 
 **Request ATT_MTU 247 on connect.** 247 is chosen so the largest payload,
-`history_preview` at 244 B, fits a single ATT PDU (244 + 3 = 247).
+`history_preview` at 244 B, fits a single ATT PDU (244 + 3 = 247). `history_data`
+(§5.11) is sized to the same 244 B ceiling for the same reason, so the v1.1
+history stream costs one PDU per frame on a negotiated link and degrades to the
+ordinary chunker on one that refused.
 
 **`live_state` must survive a failed negotiation** — the single most likely Android BLE
 failure (risk R7). At the default ATT_MTU of 23 the usable notify payload is
@@ -173,7 +178,7 @@ Fixed 40 B. The unencrypted identity card, mirroring the mDNS TXT records
 | 0      | 1    | `ver`    | u8       | `1`                                                                                                    |
 | 1      | 1    | `api`    | u8       | HTTP/BLE API major version, `1`                                                                        |
 | 2      | 1    | `probes` | u8       | 2 or 4                                                                                                 |
-| 3      | 1    | `caps`   | u8       | b0 `wifi_ap` · b1 `wifi_sta` · b2 `wifi_enterprise` · b3 `history_preview` · b4 `ota` · b5 `battery` · b6–b7 reserved |
+| 3      | 1    | `caps`   | u8       | b0 `wifi_ap` · b1 `wifi_sta` · b2 `wifi_enterprise` · b3 `history_preview` · b4 `ota` · b5 `battery` · b6 `history_full` · b7 reserved |
 | 4      | 4    | `id`     | char[4]  | device id, e.g. `A4F2` (ASCII hex, matches SSID/name suffix)                                           |
 | 8      | 16   | `model`  | char[16] | UTF-8, NUL-padded, e.g. `heltec-v3`                                                                    |
 | 24     | 16   | `fw`     | char[16] | UTF-8, NUL-padded, e.g. `1.0.0`                                                                        |
@@ -303,13 +308,23 @@ answered on `result` (`0009`) with `op_echo` set to the op.
 | 11  | `ack_alarm`     | 1 B (§5.6.5)    | 3 B         | acknowledge an active alarm                  |
 | 12  | `set_battery_saver` | 1 B (§5.6.7) | 3 B        | battery saver off/on/auto                    |
 | 13  | `power_off`     | —               | 2 B         | enter deep sleep; **PRG wakes it, nothing remote does** |
+| 14  | `set_cook_clock` | 4 B (§5.6.8)   | 6 B         | the elapsed time the SCREEN shows; sets or adjusts     |
+| 15  | `clear_cook_clock` | —             | 2 B         | the cook is over — blank the screen's clock            |
 
-Ops **12–13 are v1.1 additive growth** under §5.6.6: appended to the end of the
+Ops **12–15 are v1.1 additive growth** under §5.6.6: appended to the end of the
 table, never renumbering 1–11, so a v1.0 peer that never sends them is unaffected
 and a v1.0 bridge answers them `invalid` rather than misreading a neighbour's op.
 They exist because the PRG button became display + power only — factory reset,
 battery saver and the rest now have to be reachable from the app, and `power_off`
 is the one verb whose undo is physical.
+
+**14–15 are NOT 4–5 under another name.** `session_start`/`session_stop` are about
+RECORDING: which log file the samples land in, and the bridge opens one by itself
+as soon as samples arrive whether or not anyone is cooking. 14–15 are about the
+GLASS: the device has no concept of a cook and never infers one, so it shows an
+elapsed time only while an app has declared one. Either pair can be used without
+the other, and usually is — an always-recording bridge with no app-confirmed cook
+is the normal resting state.
 
 Ops not listed with a body carry none. Offsets below are **within the body**, i.e. relative
 to byte 2 of the write.
@@ -374,6 +389,28 @@ The same tri-state `POST /api/v1/config/device` accepts, deliberately: the butto
 toggle a bool, but the two remote transports must not disagree about what `auto` means.
 Any other value is `invalid` and leaves the stored setting untouched.
 
+#### 5.6.8 `set_cook_clock` body (op 14, 4 B) — v1.1
+
+| Body offset | (abs) | Size | Field       | Type | Meaning                                  |
+| ----------- | ----- | ---- | ----------- | ---- | ---------------------------------------- |
+| 0           | 2     | 4    | `elapsed_s` | u32  | how old the cook is **at this moment**   |
+
+Not a start timestamp — an age. That choice is what makes the op work on a bridge
+with no wall clock, and what makes it naturally adjustable: "the cook is 5 minutes
+in" is the same write whether it is the first one or a correction. Re-sending is
+the intended flow (you light the fire, then you open the app), never a conflict.
+
+Refused `invalid` beyond 359940 (99:59) — the width of the OLED status strip's
+clock ([07 §7.1](../docs/design/07-display-and-controls.md)) — and the live clock
+survives the refusal. `clear_cook_clock` (op 15) carries no body and always answers
+`ok`: clearing a clock that is already clear is what a retrying client's second
+write looks like. Neither op starts or stops any recording.
+
+The clock does not survive a reboot. After a power cut the bridge cannot know
+whether the cook is still going, and a stale clock counting up through a finished
+cook is exactly the confident wrong answer these ops exist to remove; the app
+re-sends op 14 on reconnect.
+
 `power_off` (op 13) carries **no body**. Like `reboot` and `factory_reset` it is answered
 before it is executed (§5.9), because it destroys the link that carries the answer — and
 unlike them, **nothing over BLE brings the bridge back**: waking is a physical PRG hold.
@@ -401,7 +438,12 @@ Sum: 1 + 1 + 8 + 1 + 1 + 4 = **16 B ≤ 20 B** (see §4).
 ### 5.8 `0008 history_preview` — Read, encrypted
 
 Variable, ≤ 244 B: one probe's temperature at 1-minute buckets for the last 2 h — enough to
-draw a real sparkline over BLE alone. Full history over BLE is deferred to v1.1.
+draw a real sparkline over BLE alone, from a single Read with no round trips.
+
+It **survives §5.10**. Full history over BLE is no longer deferred, but this
+characteristic is still the fastest thing on the contract: a dashboard paints from
+one read while the history stream is still arriving, which is exactly the split
+between "show me something now" and "give me the whole cook" that the two exist for.
 
 | Offset | Size        | Field         | Type     | Meaning                                                             |
 | ------ | ----------- | ------------- | -------- | ------------------------------------------------------------------- |
@@ -428,6 +470,89 @@ write.
 | 4      | `len` | `detail`  | char[] | UTF-8: the **AP PSK** after a mode change to AP, or an error string    |
 
 Wire length: `4 + len`; maximum 4 + 64 = **68 B**.
+
+### 5.10 `000A history_ctrl` — Write, encrypted — v1.1
+
+**Fixed 16 B.** Asks the bridge to stream a slice of stored history back on
+`history_data` (§5.11). This pair is what lifts the §5.8 two-hour ceiling.
+
+**Why it exists.** §5.8 was written on the assumption that Wi-Fi is how you fetch a
+cook and Bluetooth is how you watch one. That is backwards for the device's actual
+resting state: the bridge is powered on next to the smoker, recording since the fire
+was lit, and the phone that walks up to it hours later is in a yard with no Wi-Fi.
+A 12-hour cook is 1,440 records — 23 KB — which is seconds of transfer on a
+negotiated link. Making the phone join a network to read a file the bridge is
+holding four feet away was the wrong trade.
+
+| Offset | Size | Field        | Type   | Meaning                                                     |
+| ------ | ---- | ------------ | ------ | ----------------------------------------------------------- |
+| 0      | 1    | `ver`        | u8     | `1`                                                         |
+| 1      | 1    | `req`        | u8     | 0 `cancel` · 1 `sessions` · 2 `samples` · 3 `marks`         |
+| 2      | 2    | `stride`     | u16 LE | `samples` only; 1 = every record. **0 is read as 1**        |
+| 4      | 4    | `session_id` | u32 LE | ignored when `req = sessions`                               |
+| 8      | 4    | `from_t`     | u32 LE | session-relative seconds, inclusive                         |
+| 12     | 4    | `to_t`       | u32 LE | inclusive; `UINT32_MAX` = to the end                        |
+
+Sum: 1 + 1 + 2 + 4 + 4 + 4 = **16 B**.
+
+`t` is **session-relative seconds, never wall-clock** — the same axis the records
+themselves carry ([04 §4.4](../docs/design/04-storage-and-history.md)), so a range
+request means the same thing on a bridge that never learned the time.
+
+**One stream at a time.** A `history_ctrl` write while a stream is running answers
+`busy` on the end frame **without disturbing the stream in flight** — the same rule
+`wifi_scan_ctrl` follows for a scan already running (§5.3). `cancel` stops the
+current stream; it always succeeds, including when nothing is running, because that
+is what a retrying client's second cancel looks like.
+
+**These writes are answered on `history_data`, not on `result`.** Two reasons, both
+load-bearing: `result.op_echo` is a `control_op`, and this characteristic is not one
+— it would have to borrow `op_echo = 0`, which already means
+`wifi_scan_ctrl`/`wifi_config` and which clients correlate on. And a stream that
+died halfway has to be distinguishable from one that finished, which a single
+up-front acknowledgement cannot express.
+
+### 5.11 `000B history_data` — Notify, encrypted — v1.1
+
+Variable, ≤ 244 B. One framed slice of the answer to a `history_ctrl` write.
+
+| Offset | Size  | Field     | Type   | Meaning                                                        |
+| ------ | ----- | --------- | ------ | -------------------------------------------------------------- |
+| 0      | 1     | `ver`     | u8     | `1`                                                            |
+| 1      | 1     | `kind`    | u8     | 0 `end` · 1 `session` · 2 `samples` · 3 `marks`                |
+| 2      | 2     | `seq`     | u16 LE | frame counter within one response, from 0                      |
+| 4      | 1     | `flags`   | u8     | b0 `last` · b1–b7 reserved                                     |
+| 5      | 1     | `count`   | u8     | items in this frame                                            |
+| 6      | 1     | `len`     | u8     | payload bytes, ≤ 237                                           |
+| 7      | `len` | `payload` | u8[]   | `count` × the item for this `kind`                             |
+
+Wire length: `7 + len`; maximum 7 + 237 = **244 B**. The fixed prefix is 7 B, so it
+arrives whole in the first chunk even at the 20-byte default MTU — the §4 guarantee
+every variable payload here relies on.
+
+| `kind`    | Payload item                                    | Size | Items/frame |
+| --------- | ----------------------------------------------- | ---- | ----------- |
+| `session` | `history_session` (`records.yaml`)               | 56 B | 4           |
+| `samples` | `sample_rec` — **verbatim, exactly as on flash** | 16 B | 14          |
+| `marks`   | `mark_rec` — verbatim                            | 32 B | 7           |
+| `end`     | one byte: a `result_status`                      | 1 B  | `count = 0` |
+
+**`samples` and `marks` carry the on-disk records unchanged**, CRC and all. The
+bridge does not re-encode them, so a corrupt record is detected by the phone rather
+than laundered into a plausible temperature on the way out — and the read path stays
+a `memcpy` out of the streaming sink.
+
+**Every response ends with exactly one `kind = end` frame carrying `flags.last`.**
+Its single payload byte is a `result_status`: `ok` when the stream completed,
+`invalid` for an unknown `session_id` or a malformed request, `busy` when another
+stream was already running, `failed` for a read error. A client that sees `last`
+without `end` has lost a frame. `seq` increments across *all* frames of one response
+including the terminator, so a gap is detectable and the client's recovery is to
+re-request the range — never to stitch across the hole.
+
+An empty answer is a valid one: a session with no marks answers with `end`/`ok` and
+nothing else, which the client must render as "no marks" rather than as a hang. This
+is the same rule the §5.4 empty scan follows.
 
 ---
 
@@ -465,6 +590,9 @@ copies: `tools/bridge_protocol/lib/records.g.dart`, `app/lib/data/dto/records.g.
 | §5.7        | `LiveState.encode/decode`    | 16                            |
 | §5.8        | `HistoryPreview.pack/unpack` | max 244                       |
 | §5.9        | `ResultFrame.pack/unpack`    | max 68                        |
+| §5.10       | `HistoryCtrl.encode/decode`  | 16                            |
+| §5.11       | `HistoryData.pack/unpack`    | max 244                       |
+| §5.11       | `HistorySession.encode/decode` | 56                          |
 
 Every payload now has a generated codec (P3.2 folded in the last two) **and** a committed
 hex vector under `protocol/fixtures/records/ble-*.hex`, parsed by both the C host suite

@@ -85,6 +85,64 @@ class PluginNotificationSink implements NotificationSink {
     }
   }
 
+  /// Checks without prompting — Android stops showing the dialog after two
+  /// refusals, forever, so the delivery banner must not spend one to render.
+  @override
+  Future<bool> hasPermission() async {
+    try {
+      return await _android?.areNotificationsEnabled() ?? false;
+    } on Object catch (e) {
+      debugPrint('notification permission check unavailable: $e');
+      return false;
+    }
+  }
+
+  /// §G.4 — the mechanism that lights the screen at 3 a.m.
+  ///
+  /// Since 22 January 2025 apps targeting Android 14+ only hold
+  /// `USE_FULL_SCREEN_INTENT` by default if they have calling or **alarm**
+  /// functionality. This app declares itself an alarm app (the manifest says
+  /// so, and the Play Console declaration backs it), but the user can revoke
+  /// it.
+  ///
+  /// **`flutter_local_notifications` 22 exposes no read-only check** — only
+  /// `requestFullScreenIntentPermission`, which prompts. Prompting to render a
+  /// verdict is exactly the mistake the notifications permission taught (two
+  /// refusals and Android never shows the dialog again), so this returns the
+  /// unknown answer rather than spending a prompt on it. Unknown is `true`
+  /// deliberately: a warning nobody can act on is noise, and this permission is
+  /// granted by default on every device that predates the change.
+  @override
+  Future<bool> canUseFullScreenIntent() async => true;
+
+  @override
+  Future<void> openFullScreenIntentSettings() async {
+    try {
+      await _android?.requestFullScreenIntentPermission();
+    } on Object catch (e) {
+      debugPrint('full-screen intent request unavailable: $e');
+    }
+  }
+
+  /// §G.4 — exact alarms, so a time-based rule (elapsed, before-the-end) fires
+  /// on time in Doze rather than whenever the OS next feels like it.
+  Future<bool> canScheduleExactAlarms() async {
+    try {
+      return await _android?.canScheduleExactNotifications() ?? true;
+    } on Object catch (e) {
+      debugPrint('exact alarm check unavailable: $e');
+      return true;
+    }
+  }
+
+  Future<void> requestExactAlarms() async {
+    try {
+      await _android?.requestExactAlarmsPermission();
+    } on Object catch (e) {
+      debugPrint('exact alarm request unavailable: $e');
+    }
+  }
+
   int _idFor(String key) => key.hashCode & 0x7FFFFFFF;
 
   @override

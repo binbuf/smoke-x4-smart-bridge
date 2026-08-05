@@ -1,87 +1,35 @@
-[dashboard-view]
-  [dashboard-header]
-    text "Brisket"
-    [dashboard-elapsed]
-    text "14:59:30"
-    [dashboard-link-http]
-      icon 59111
-      text "10.50.50.38"
-    [dashboard-battery-unknown]
-      icon 57557
-      text "battery n/a"
-  [probe-tile-headline-1]
-    paint _StrokePainter
-    text "PIT"
-    text "254.2°" semantics "Pit, 254.2 degrees, rising 18.8 per hour"
-    icon 57504
-    text "target 250°"
-    text "+18.8°/hr"
-    paint SparklinePainter
-  [probe-tile-headline-2]
-    paint _StrokePainter
-    text "BRISKET"
-    text "199.0°" semantics "Brisket, 199.0 degrees, rising 6.2 per hour"
-    icon 57504
-    text "target 203°"
-    text "+6.2°/hr"
-    [probe-eta-2]
-    text "ETA 45m"
-    paint SparklinePainter
-  [probe-tile-compact-3]
-    paint _StrokePainter
-    text "POINT"
-    text "—" semantics "Point, unplugged"
-    [probe-detached-3]
-    text "unplugged"
-  [probe-tile-compact-4]
-    paint _StrokePainter
-    text "FLAT"
-    text "—" semantics "Flat, unplugged"
-    [probe-detached-4]
-    text "unplugged"
-  [chart-chip-m15]
-    text "15m"
-  [chart-chip-h1]
-    text "1h"
-  [chart-chip-h6]
-    text "6h"
-  [chart-chip-h15]
-    text "15h"
-  [chart-chip-all]
-    text "All"
-  [chart-gestures]
-    chart x 0..53970 y 50..270 touch ours
-      bar color #2ed95926 width 0.0 dash solid spots 1600 from 15 to 15
-      bar color #ffd95926 width 3.0 dash solid spots 800 from 0 to 53970
-      bar color #2e9085e9 width 0.0 dash solid spots 1600 from 15 to 15
-      bar color #ff9085e9 width 2.0 dash [8, 4] spots 800 from 0 to 53970
-      target y 250.0 #8cd95926
-      target y 203.0 #8c9085e9
-      text "2:30"
-      text "5:30"
-      text "8:30"
-      text "11:30"
-      text "2:30"
-      text "5:29"
-      text "50"
-      text "100"
-      text "150"
-      text "200"
-      text "250"
-      text "270"
-  [session-controls]
-    [control-stop]
-    button enabled
-      paint _ShapeBorderPainter
-        icon 62441
-        text "Stop cook"
-    [control-mark]
-    button enabled
-      paint _ShapeBorderPainter
-        icon 61563
-        text "Add mark"
-    [control-export]
-    button disabled
-      paint _ShapeBorderPainter
-        icon 58189
-        text "Export"
+text "Wi-Fi"
+[bridge-header]
+  text "Live readings"
+  text "Nothing is being cooked yet — the bridge is logging anyway"
+  button disabled
+    paint _ShapeBorderPainter
+      icon 62922
+      text "Set up a cook"
+[instrument]
+  text "PIT"
+  icon 983636
+  text "+18.8°/hr"
+  paint _SparkPainter
+  text "254"
+  text ".2"
+  text "°F"
+  icon 63035
+  text "BRISKET"
+  icon 983636
+  text "+6.2°/hr"
+  paint _SparkPainter
+  text "199"
+  text ".0"
+  text "°F"
+  icon 63035
+  text "POINT"
+  text "unplugged"
+  text "—"
+  text "°F"
+  icon 63035
+  text "FLAT"
+  text "unplugged"
+  text "—"
+  text "°F"
+  icon 63035

@@ -53,6 +53,16 @@ static const app_ble_char_def_t k_chars[APP_BLE_CH_COUNT] = {
                                     "history_preview"},
     [APP_BLE_CH_RESULT] = {0x0009, APP_BLE_PROP_NOTIFY, APP_BLE_SEC_ENCRYPTED,
                            BRIDGE_RESULT_MAX_SIZE, "result"},
+    /* v1.1 — full history over BLE. `encrypted`, not `authenticated`: these
+     * two read stored cooks and change nothing, so they sit with live_state
+     * rather than with the pair that can reconfigure or wipe the device
+     * (§3). A bond is still required — a cook is not public. */
+    [APP_BLE_CH_HISTORY_CTRL] = {0x000A, APP_BLE_PROP_WRITE,
+                                 APP_BLE_SEC_ENCRYPTED,
+                                 BRIDGE_HISTORY_CTRL_SIZE, "history_ctrl"},
+    [APP_BLE_CH_HISTORY_DATA] = {0x000B, APP_BLE_PROP_NOTIFY,
+                                 APP_BLE_SEC_ENCRYPTED,
+                                 BRIDGE_HISTORY_DATA_MAX_SIZE, "history_data"},
 };
 
 const app_ble_char_def_t *app_ble_char_def(app_ble_char_t ch) {
@@ -106,6 +116,7 @@ int app_ble_core_init(const app_ble_ops_t *ops) {
     s_passkey = 0;
     app_ble_ctrl_reset();
     app_ble_adv_reset();
+    app_ble_history_reset();
     return APP_BLE_OK;
 }
 

@@ -13,9 +13,11 @@ import '../../domain/entities/entities.dart';
 
 part 'bridge_transport.freezed.dart';
 
-/// What a given transport can do. `BleTransport` (M3) carries live state and
-/// a 2-hour preview but no full history in v1; HTTP and the mock carry
-/// everything.
+/// What a given transport can do. HTTP and the mock carry everything;
+/// `BleTransport` (M3) carries live state, a 2-hour preview, and — against
+/// a bridge whose firmware serves ble-gatt §5.10 — full history too. It
+/// reads [fullHistory] off the device rather than declaring it, so the flag
+/// stays accurate in front of an older bridge.
 @freezed
 abstract class BridgeCapabilities with _$BridgeCapabilities {
   const factory BridgeCapabilities({
@@ -289,6 +291,22 @@ abstract interface class BridgeTransport {
   /// via `GET /api/v1/config/mqtt`; BLE throws [BridgeUnsupportedException]
   /// because the broker is only reachable over the Wi-Fi LAN.
   Future<MqttConfig> mqttConfig();
+
+  /// newapp §G.3 — the device's own alarm rules, as it reports them.
+  ///
+  /// Each map is `{rule, enabled, probe?, threshold?, window_s?}` — the same
+  /// shape [AlarmRuleSpec.toDeviceJson] sends. This is the **read-back** half
+  /// of the write-then-verify pattern, and it is why the rule editor can say
+  /// "Saved to the bridge" and mean it: nothing in this app is allowed to
+  /// report success on the strength of a return value alone.
+  ///
+  /// A transport that cannot carry rules throws [BridgeUnsupportedException],
+  /// which the editor renders as a disabled row with its reason rather than a
+  /// live switch that writes nothing.
+  Future<List<Map<String, Object?>>> alarmRules();
+
+  /// newapp §G.3 — write one rule. Verify with [alarmRules]; never assume.
+  Future<void> setAlarmRule(Map<String, Object?> rule);
 
   /// A16 — update it via `POST /api/v1/config/mqtt`. Every field is optional:
   /// an omitted field keeps the device's stored value, and [password] omitted

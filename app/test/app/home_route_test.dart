@@ -1,7 +1,8 @@
 /// A24.1 — the home route is the app shell now.
 ///
-/// `/` used to build `DashboardRoute`; it now builds [AppShell], the four-tab
-/// primary experience (design 13 §13.3). Mounted with no [AppEnv] installed —
+/// `/` used to build `DashboardRoute`; it now builds [AppShell], the three-tab
+/// primary experience (design 13 §13.3, newapp §B.2). Mounted with no [AppEnv]
+/// installed —
 /// the case a bare widget test hits — the shell must render its tabs and its
 /// connecting state rather than throwing, which is what this file pins. The
 /// theme assertions below still exercise `app/theme.dart`'s `SmokeTheme`
@@ -22,10 +23,10 @@ Future<void> _expectShellChrome(
   Brightness brightness,
 ) async {
   expect(find.byType(AppShell), findsOneWidget);
-  // The four branches (§13.3.3). `findsWidgets` rather than `findsOneWidget`
-  // because the shell is adaptive: a rail may render a label per destination
-  // in a different tree shape than the bar does.
-  for (final tab in ['Cook', 'History', 'Alerts', 'Bridge']) {
+  // The three branches (§13.3.3, §B.2). `findsWidgets` rather than
+  // `findsOneWidget` because the shell is adaptive: a rail may render a label
+  // per destination in a different tree shape than the bar does.
+  for (final tab in ['Live', 'Cooks', 'Device']) {
     expect(find.text(tab), findsWidgets, reason: 'nav destination "$tab"');
   }
   final context = tester.element(find.byType(AppShell));
@@ -49,14 +50,14 @@ void main() {
     await _expectShellChrome(tester, Brightness.light);
   });
 
-  testWidgets('/ redirects into the Cook branch', (tester) async {
+  testWidgets('/ redirects into the reader', (tester) async {
     final router = createRouter();
     addTearDown(router.dispose);
     await tester.pumpWidget(
       MaterialApp.router(theme: SmokeTheme.dark, routerConfig: router),
     );
     await tester.pump();
-    expect(router.routerDelegate.currentConfiguration.uri.path, AppRoutes.cook);
+    expect(router.routerDelegate.currentConfiguration.uri.path, AppRoutes.live);
   });
 
   testWidgets('with no environment it waits rather than throwing', (
@@ -64,7 +65,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_appWith(SmokeTheme.dark));
     await tester.pump();
-    // No AppEnv: the Cook tab shows its connecting spinner, no exception.
+    // No AppEnv: the reader shows its connecting spinner, no exception.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

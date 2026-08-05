@@ -1,0 +1,13 @@
+# history_data: a mid-stream samples frame carrying two verbatim records
+kind=history_data
+wire_len=39
+ver=1
+data_kind=2
+seq=7
+flags=0
+last=0
+count=2
+len=32
+s0_t=43230
+s1_t=43260
+s1_temp2_null=1

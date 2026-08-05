@@ -36,6 +36,13 @@ int app_ble_answer(uint8_t op_echo, uint8_t status, const char *detail);
 void app_ble_ctrl_reset(void);
 void app_ble_adv_reset(void);
 
+/* §5.10 — validates a history_ctrl write, latches it, and either defers the
+ * stream to the ble_push row or (host suite) runs it inline. Always
+ * produces an end frame: silence is the one answer a client waiting on a
+ * stream cannot recover from. */
+int app_ble_history_write(const uint8_t *data, size_t len);
+void app_ble_history_reset(void);
+
 #ifdef __cplusplus
 }
 #endif

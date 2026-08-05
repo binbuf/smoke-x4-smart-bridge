@@ -1,43 +1,4 @@
-[dashboard-view]
-  [dashboard-header]
-    text "Brisket"
-    [dashboard-elapsed]
-    text "01:59:30"
-    [dashboard-link-http]
-      icon 59111
-      text "10.50.50.38"
-    [dashboard-battery-unknown]
-      icon 57557
-      text "battery n/a"
-  [dashboard-no-probes]
-    icon 58742
-    text "No probes plugged in"
-    text "Plug a probe into the base station and it will appear here."
-  [chart-chip-m15]
-    text "15m"
-  [chart-chip-h1]
-    text "1h"
-  [chart-chip-h6]
-    text "6h"
-  [chart-chip-h15]
-    text "15h"
-  [chart-chip-all]
-    text "All"
-  [chart-empty]
-  text "No readings yet"
-  [session-controls]
-    [control-stop]
-    button enabled
-      paint _ShapeBorderPainter
-        icon 62441
-        text "Stop cook"
-    [control-mark]
-    button enabled
-      paint _ShapeBorderPainter
-        icon 61563
-        text "Add mark"
-    [control-export]
-    button disabled
-      paint _ShapeBorderPainter
-        icon 58189
-        text "Export"
+text "Wi-Fi"
+icon 983372
+text "No probes plugged in"
+text "Plug a probe into the base station and it will appear here."

@@ -20,8 +20,10 @@ void main() {
           .toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
-  test('the corpus is present (8 storage + 12 BLE payload vectors)', () {
-    expect(fixtures.length, 20);
+  test('the corpus is present (8 storage + 16 BLE payload vectors)', () {
+    // v1.1 added four: the history request, a session entry, a mid-stream
+    // samples frame, and the terminator (ble-gatt §5.10–§5.11).
+    expect(fixtures.length, 24);
   });
 
   for (final hexFile in fixtures) {
@@ -112,6 +114,68 @@ void main() {
             expect(h.valuesNullable[i] == null, expected['v${i}_null'] == '1');
           }
           expect(h.pack(), bytes);
+
+        // ── v1.1: full history over BLE (§5.10–§5.11) ────────────────
+        case 'history_ctrl':
+          final c = HistoryCtrl.decode(bytes);
+          expect(bytes, hasLength(HistoryCtrl.size));
+          expect(c.reqEnum, isNotNull, reason: 'req must name a history_req');
+          expect(c.stride, int.parse(expected['stride']!));
+          expect(c.sessionId, int.parse(expected['session_id']!));
+          expect(c.fromT, int.parse(expected['from_t']!));
+          expect(c.toT, int.parse(expected['to_t']!));
+          expect(c.encode(), bytes);
+
+        case 'history_session':
+          final s = HistorySession.decode(bytes);
+          expect(bytes, hasLength(HistorySession.size));
+          expect(s.sessionId, int.parse(expected['session_id']!));
+          expect(s.startedUnixMs, int.parse(expected['started_unix_ms']!));
+          expect(s.endedUnixMs, int.parse(expected['ended_unix_ms']!));
+          expect(s.sampleCount, int.parse(expected['sample_count']!));
+          expect(s.samplePeriodS, int.parse(expected['sample_period_s']!));
+          expect(s.numProbes, int.parse(expected['num_probes']!));
+          expect(s.clockValid, expected['flag_clock_valid'] == '1');
+          expect(s.closed, expected['flag_closed'] == '1');
+          expect(s.pinned, expected['flag_pinned'] == '1');
+          // The em-dashed auto-name of 04 §4.6 is 26 BYTES. A 24-byte field
+          // clipped it, which is why this one is 28 — held here so a future
+          // shrink is a red test and not a truncated cook name.
+          expect(s.name, expected['name']);
+          expect(s.encode(), bytes);
+
+        case 'history_data':
+          final f = HistoryData.unpack(bytes);
+          expect(f.kindEnum, isNotNull);
+          expect(f.seq, int.parse(expected['seq']!));
+          expect(f.last, expected['last'] == '1');
+          expect(f.count, int.parse(expected['count']!));
+          expect(f.payloadRaw, hasLength(int.parse(expected['len']!)));
+          // The 7-byte fixed prefix arrives whole in the first chunk even
+          // at the 20-byte default MTU — the §4 guarantee the reassembler
+          // reads the total length from.
+          expect(bytes.length - f.payloadRaw.length, 7);
+          if (f.kindEnum == HistoryKind.samples) {
+            expect(f.payloadRaw, hasLength(f.count * SampleRec.size));
+            for (var i = 0; i < f.count; i++) {
+              // Records travel VERBATIM: one decoded straight out of the
+              // frame payload still verifies its own CRC.
+              final r = SampleRec.decode(f.payloadRaw, i * SampleRec.size);
+              expect(r.crcOk, isTrue);
+              expect(r.t, int.parse(expected['s${i}_t']!));
+            }
+            expect(
+              SampleRec.decode(f.payloadRaw, SampleRec.size).tempOrNull(2),
+              expected['s1_temp2_null'] == '1' ? isNull : isNotNull,
+            );
+          } else if (f.kindEnum == HistoryKind.end) {
+            // The terminator is the only frame that reports a status.
+            expect(f.count, 0);
+            expect(f.payloadRaw, hasLength(1));
+            expect(f.payloadRaw[0], int.parse(expected['status']!));
+            expect(f.last, isTrue);
+          }
+          expect(f.pack(), bytes);
         default:
           fail('unknown kind ${expected['kind']}');
       }

@@ -6,7 +6,7 @@
 library;
 
 import '../../domain/entities/entities.dart';
-import '../local/database.dart' show AppDatabase, SampleSummary;
+import '../local/database.dart' show AppDatabase, CacheStats, SampleSummary;
 import '../transport/bridge_transport.dart';
 import 'sync_engine.dart';
 
@@ -38,6 +38,17 @@ class SessionRepository {
 
   Future<List<({int t, double f})>> sparkline(int sessionId) =>
       db.sampleDao.sparkline(bridgeId, sessionId);
+
+  /// A29 — the cache's size, and the two ways out of it.
+  Future<CacheStats> cacheStats() => db.cacheStats();
+
+  /// Wipes every cached cook. The bridge's own copy is untouched — a later
+  /// sync refills whatever it still holds, which is the difference between
+  /// clearing a cache and deleting data.
+  Future<void> clearCache() => db.clearCachedCooks();
+
+  Future<void> deleteSession(int sessionId) =>
+      db.deleteCachedSession(bridgeId, sessionId);
 }
 
 class BridgeRepository {

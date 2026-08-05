@@ -1,0 +1,9 @@
+# history_ctrl: every record of session 0x1A — the 12 h overnight ask
+kind=history_ctrl
+wire_len=16
+ver=1
+req=2
+stride=1
+session_id=26
+from_t=0
+to_t=4294967295

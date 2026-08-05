@@ -15,6 +15,13 @@ import 'package:cookgen/cookgen.dart';
 /// Injectable clock so replay math is unit-testable without wall waiting.
 typedef NowMs = int Function();
 
+/// 99:59 in seconds — the device's cap on the app-confirmed cook clock, and a
+/// LAYOUT constant rather than a policy one: the OLED status strip gives hh:mm
+/// exactly five columns, and `100:00` would shove the battery sideways
+/// (firmware `APP_UI_COOK_MAX_ELAPSED_S`). The sim enforces the same bound so
+/// an app that only ever meets the sim still meets the real limit.
+const int kCookClockMaxElapsedS = 99 * 3600 + 59 * 60;
+
 class SimState {
   SimState({
     required this.cook,
@@ -78,6 +85,19 @@ class SimState {
   late final List<MarkRec> _marks = List.of(cook.marks);
 
   bool sessionStopped = false;
+
+  /// The app-confirmed cook clock, as an anchor on the replay cursor: the
+  /// virtual second at which the app says the cook began. Null = no app has
+  /// confirmed one, which is the state a real bridge boots into and the
+  /// state it returns to on reboot.
+  ///
+  /// Deliberately INDEPENDENT of `sessionStopped` and of the replay. A real
+  /// bridge records the moment samples arrive and shows an elapsed time only
+  /// when an app declares a cook; the sim would be lying about the contract
+  /// if it derived one from the other. May be negative — the app can date a
+  /// cook to before the sim started, which is how "the bridge rebooted
+  /// mid-cook" is reproduced.
+  int? cookClockAnchorT;
 
   /// Seconds of cook time the replay cursor has reached.
   int virtualT() {

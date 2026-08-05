@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS "app_ui.c" "app_ui_fb.c" "app_ui_font.c" "app_ui_render.c"
          "app_ui_panel.c" "app_ui_input.c" "app_ui_model.c" "app_ui_led.c"
+         "app_ui_cook.c"
     INCLUDE_DIRS "include" "../../../protocol/gen"
     REQUIRES bridge_event
     PRIV_REQUIRES app_alarm app_config app_net app_power cook_store smoke_x

@@ -3,8 +3,9 @@
 # into the host suite too; app_ble.c is the NimBLE-only half.
 idf_component_register(
     SRCS "app_ble.c" "app_ble_core.c" "app_ble_ctrl.c" "app_ble_adv.c"
+         "app_ble_history.c"
     INCLUDE_DIRS "include" "../../../protocol/gen"
-    PRIV_REQUIRES app_alarm app_power app_config app_net app_time cook_store smoke_x
+    PRIV_REQUIRES app_alarm app_power app_config app_net app_time app_ui cook_store smoke_x
                   bridge_event bt esp_wifi esp_event esp_timer
                   esp_app_format
 )

@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/app/connection.dart';
 import 'package:smoke_bridge/design/theme.dart';
 import 'package:smoke_bridge/domain/entities/entities.dart';
-import 'package:smoke_bridge/features/cook/cook_tab.dart';
+import 'package:smoke_bridge/features/live/live_tab.dart';
 import 'package:smoke_bridge/features/dashboard/dashboard_snapshot.dart';
 import 'package:smoke_bridge/features/shell/shell_scope.dart';
 import 'package:smoke_bridge/features/shell/shell_session.dart';
@@ -48,7 +48,7 @@ Widget _host(ShellSession session) => MaterialApp(
   home: ShellScope(
     session: session,
     activeIndex: 0,
-    child: const Scaffold(body: CookTab()),
+    child: const Scaffold(body: LiveTab()),
   ),
 );
 
@@ -125,7 +125,7 @@ void main() {
     tester,
   ) async {
     await _sized(tester, coverDisplay);
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: CookTab())));
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: LiveTab())));
     await tester.pump();
 
     expect(tester.takeException(), isNull);

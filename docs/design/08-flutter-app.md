@@ -31,13 +31,20 @@ Three implementations:
 | Implementation  | Backed by                                                               | Capabilities                                                             |
 | --------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `HttpTransport` | REST + WebSocket ([06](06-device-api.md))                               | everything                                                               |
-| `BleTransport`  | Bridge Control Service ([05 §5.6](05-connectivity-and-provisioning.md)) | live state, 2 h pit preview, config, control — **no full history** in v1 |
+| `BleTransport`  | Bridge Control Service ([05 §5.6](05-connectivity-and-provisioning.md)) | live state, 2 h pit preview, config, control, **and full history from v1.1** — no OTA |
 | `MockTransport` | `tools/sim` or a recorded cook fixture                                  | everything, deterministic                                                |
 
 The dashboard, the chart, the alarm engine, and the session list are written once. A capability flag
-drives the two places where the difference is visible to the user: the chart shows
-_"connected over Bluetooth — full history needs Wi-Fi"_ instead of a stub, and the session list is
-read from the local cache rather than the device.
+drives the places where the difference is visible to the user: the session list is read from the
+local cache rather than the device, and the chart shows _"connected over Bluetooth — full history
+needs Wi-Fi"_ instead of a stub.
+
+**That notice is now conditional on the bridge, not on the transport.** v1.1 added
+`history_ctrl`/`history_data` ([ble-gatt §5.10–§5.11](../../protocol/ble-gatt.md)), so
+`BleTransport` reports `fullHistory` from `device_info.caps` b6 rather than declaring it false.
+A bridge on older firmware still sets the flag clear and still gets the notice — the same app
+build has to be right in front of both, and a v1.0 bridge does not refuse a history request, it
+never answers one at all.
 
 This is what makes decision D1 (custom GATT over `wifi_provisioning`) pay off in the app as well as
 the firmware: **you can stand at the smoker with no Wi-Fi anywhere and still see your temperatures**,

@@ -43,6 +43,7 @@ const requiredPaths = <String>[
   '/api/v1/config/device',
   '/api/v1/config/alarms',
   '/api/v1/time',
+  '/api/v1/cook-clock',
   '/api/v1/radio',
   '/api/v1/ota',
   '/api/v1/debug/packets',
@@ -62,7 +63,9 @@ const errorCodesByStatus = <String, List<String>>{
   '400': ['invalid_body', 'invalid_field', 'unsupported_mode'],
   '401': ['unauthorized'],
   '404': ['session_not_found', 'not_found'],
-  '409': ['session_active', 'not_paired', 'busy'],
+  // clock_unknown: POST /cook-clock was given an absolute started_unix_ms
+  // and the device has no wall clock to measure it against.
+  '409': ['session_active', 'not_paired', 'busy', 'clock_unknown'],
   '413': ['body_too_large'],
   '500': ['storage_error', 'internal'],
   '503': ['radio_unavailable', 'ota_in_progress'],

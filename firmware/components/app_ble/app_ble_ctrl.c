@@ -1,5 +1,5 @@
 /* app_ble_ctrl.c — the write dispatcher: wifi_config (F10.6), the Wi-Fi
- * scan flow (F10.7), and all eleven device_control ops (F10.8).
+ * scan flow (F10.7), and every device_control op (F10.8).
  *
  * Every write is answered on `result` with `op_echo` set — including
  * security refusals, malformed frames, and unknown ops. "No answer" is
@@ -12,6 +12,7 @@
 
 #include "app_alarm_svc.h"
 #include "app_config_store.h"
+#include "app_ui_cook.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 #include "smoke_x_ctrl.h"
@@ -21,7 +22,14 @@
 
 static bool s_scanning;
 
-void app_ble_ctrl_reset(void) { s_scanning = false; }
+void app_ble_ctrl_reset(void) {
+    s_scanning = false;
+    /* A phone pocketed mid-transfer leaves a stream latched, and every
+     * later request would answer BUSY until the board rebooted — the same
+     * failure the scan latch had. The disconnect is the one place that
+     * knows the stream's owner is gone. */
+    app_ble_history_reset();
+}
 
 int app_ble_answer(uint8_t op_echo, uint8_t status, const char *detail) {
     bridge_result_t r;
@@ -292,6 +300,22 @@ static int op_ack_alarm(const uint8_t *body, size_t body_len) {
     return APP_BLE_OK;
 }
 
+/* The app-confirmed cook clock (app_ui_cook.h). BLE carries it because BLE
+ * is the transport that survives a yard with no Wi-Fi — a display feature
+ * that only works when the phone can reach the HTTP API would be missing
+ * exactly when the glass is the only thing you can read. */
+static int op_set_cook_clock(const uint8_t *body, size_t body_len) {
+    if (body_len < BRIDGE_CTRL_SET_COOK_CLOCK_SIZE) {
+        return APP_BLE_ERR_INVALID;
+    }
+    bridge_ctrl_set_cook_clock_t c;
+    bridge_ctrl_set_cook_clock_decode(body, &c);
+    return app_ui_cook_set(c.elapsed_s,
+                           (uint32_t)(g_ble_ops->uptime_ms() / 1000ull)) == 0
+               ? APP_BLE_OK
+               : APP_BLE_ERR_INVALID;
+}
+
 static int dispatch_op(uint8_t op, const uint8_t *body, size_t body_len) {
     switch (op) {
     case BRIDGE_CONTROL_OP_PAIR:
@@ -322,6 +346,13 @@ static int dispatch_op(uint8_t op, const uint8_t *body, size_t body_len) {
         return op_ack_alarm(body, body_len);
     case BRIDGE_CONTROL_OP_SET_BATTERY_SAVER:
         return op_set_battery_saver(body, body_len);
+    case BRIDGE_CONTROL_OP_SET_COOK_CLOCK:
+        return op_set_cook_clock(body, body_len);
+    case BRIDGE_CONTROL_OP_CLEAR_COOK_CLOCK:
+        /* No body, and never a failure: clearing a clock that is already
+         * clear is what a second `stop` from a retrying client looks like. */
+        app_ui_cook_clear();
+        return APP_BLE_OK;
     case BRIDGE_CONTROL_OP_IDENTIFY:
         /* Wakes the display and flashes what exists; the LED driver is
          * M5's F11b. Noted as partial rather than faked. */
@@ -396,6 +427,11 @@ int app_ble_core_write(app_ble_char_t ch, const app_ble_link_t *link,
         return handle_wifi_config(data, len);
     case APP_BLE_CH_DEVICE_CONTROL:
         return handle_device_control(data, len);
+    case APP_BLE_CH_HISTORY_CTRL:
+        /* Answered on history_data, never on `result` (§5.10): result's
+         * op_echo space is control_op's, and a stream that died halfway
+         * has to be distinguishable from one that finished. */
+        return app_ble_history_write(data, len);
     default:
         return APP_BLE_ERR_INVALID;
     }

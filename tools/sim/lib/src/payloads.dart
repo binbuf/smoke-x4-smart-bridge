@@ -75,6 +75,10 @@ Map<String, Object?> statusJson(SimState s) {
       'elapsed_s': ended ? (s.samples.isEmpty ? 0 : s.samples.last.t) : vT,
       'samples': s.liveVisible(vT).length,
     },
+    // NOT the same fact as `session` above. That one is recording — the
+    // bridge opens a log the moment samples arrive. This one is the screen's
+    // clock, set only because an app declared a cook.
+    'cook_clock': cookClockJson(s),
     // F11b.11 / F14.8 — additive objects the device now carries (06 §6.5).
     'display': {'i2c_ok': 18422, 'i2c_err': 0},
     'ota': {
@@ -209,6 +213,18 @@ Map<String, Object?> liveJson(SimState s, int windowS) {
       ],
     },
   };
+}
+
+/// The app-confirmed cook clock. `elapsed_s` is `null` and never `0` when
+/// unset: zero is a cook that started this instant, and the app's whole
+/// reason for asking is to tell those two apart.
+Map<String, Object?> cookClockJson(SimState s) {
+  final anchor = s.cookClockAnchorT;
+  if (anchor == null) {
+    return {'set': false, 'elapsed_s': null};
+  }
+  final elapsed = s.virtualT() - anchor;
+  return {'set': true, 'elapsed_s': elapsed.clamp(0, kCookClockMaxElapsedS)};
 }
 
 Map<String, Object?> sessionJson(SimState s) {

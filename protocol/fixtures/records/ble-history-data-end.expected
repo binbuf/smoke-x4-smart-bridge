@@ -1,0 +1,11 @@
+# history_data: the end frame — a finished stream, distinguishable from a dropped one
+kind=history_data
+wire_len=8
+ver=1
+data_kind=0
+seq=8
+flags=1
+last=1
+count=0
+len=1
+status=0

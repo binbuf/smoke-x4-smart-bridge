@@ -824,6 +824,92 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cook-clock:
+    get:
+      tags: [system]
+      operationId: getCookClock
+      summary: The app-confirmed cook clock
+      description: |
+        What the status strip is showing as elapsed, and why. Also embedded in
+        `GET /status` as `cook_clock`, so a polling client needs no extra call.
+      responses:
+        "200":
+          description: The current clock.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CookClock"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [system]
+      operationId: setCookClock
+      summary: Confirm (or adjust) the cook the screen should time
+      description: |
+        The device NEVER infers a cook. It records continuously and draws
+        temperatures; deciding that a stretch of samples is a cook that
+        started at a particular moment is the app's job, and this is how the
+        app tells the screen.
+
+        Re-posting ADJUSTS rather than conflicting — that is the intended use,
+        not an edge case. You light the fire, open the app five minutes later,
+        and post `elapsed_s: 300` so the strip reads 00:05 instead of 00:00.
+        Post again at any time to correct it.
+
+        Send exactly ONE of the two fields. `elapsed_s` needs no clock at all
+        and is the one to prefer; `started_unix_ms` is measured against the
+        device's own wall clock and answers 409 `clock_unknown` when it has
+        none.
+
+        NOT PERSISTED: a reboot clears the clock and the strip goes blank
+        until the app confirms again. After a power cut the bridge has no way
+        to know whether the cook is still going, and a stale clock counting
+        up through a finished cook is exactly the confident wrong answer this
+        endpoint exists to remove.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CookClockSet"
+      responses:
+        "200":
+          description: The clock after the set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CookClock"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: |
+            `clock_unknown` — `started_unix_ms` was sent but the device has no
+            wall clock to measure it against. POST `/time` first, or send
+            `elapsed_s`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      tags: [system]
+      operationId: clearCookClock
+      summary: The cook is over — blank the strip's clock
+      description: |
+        Idempotent: clearing a clock that is already clear is what a retrying
+        client's second call looks like, and it answers 200. Recording is
+        untouched — this blanks a clock, it does not stop the log.
+      responses:
+        "200":
+          description: The cleared clock.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CookClock"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/radio:
     get:
       tags: [system]
@@ -1196,7 +1282,8 @@ components:
       description: |
         Machine-readable error code. Status → code:
         400 `invalid_body`/`invalid_field`/`unsupported_mode`; 401 `unauthorized`;
-        404 `session_not_found`/`not_found`; 409 `session_active`/`not_paired`/`busy`;
+        404 `session_not_found`/`not_found`;
+        409 `session_active`/`not_paired`/`busy`/`clock_unknown`;
         413 `body_too_large`; 500 `storage_error`/`internal`;
         503 `radio_unavailable`/`ota_in_progress` (and `busy` on the WebSocket cap).
       enum:
@@ -1209,6 +1296,7 @@ components:
         - session_active
         - not_paired
         - busy
+        - clock_unknown
         - body_too_large
         - storage_error
         - internal
@@ -1283,6 +1371,8 @@ components:
           $ref: "#/components/schemas/PowerInfo"
         session:
           $ref: "#/components/schemas/SessionInfo"
+        cook_clock:
+          $ref: "#/components/schemas/CookClock"
         display:
           $ref: "#/components/schemas/DisplayInfo"
         ota:
@@ -1553,6 +1643,58 @@ components:
           type: boolean
           description: Battery-saver currently engaged.
           example: false
+
+    CookClockSet:
+      type: object
+      description: |
+        Exactly one of `elapsed_s` or `started_unix_ms`. Sending both is a 400:
+        a client whose two fields disagree would otherwise never learn which
+        one the bridge believed.
+      properties:
+        elapsed_s:
+          type: integer
+          minimum: 0
+          maximum: 359940
+          description: |
+            How old the cook is AT THIS MOMENT — not a start timestamp. Needs
+            no device clock, which is why it is the field to prefer. The cap is
+            99:59, the width of the strip's clock.
+          example: 300
+        started_unix_ms:
+          type: integer
+          format: int64
+          description: |
+            When the cook began, measured against the DEVICE's wall clock.
+            409 `clock_unknown` if it has none. A start slightly in the future
+            is treated as clock skew and clamped to 00:00.
+          example: 1774094400000
+
+    CookClock:
+      type: object
+      description: |
+        The app-confirmed cook clock — the ONLY source of an elapsed time on
+        the device's screen, and not the same thing as `session`.
+
+        `session` is about RECORDING: the bridge opens a log file by itself as
+        soon as samples arrive, whether or not anyone is cooking. This object
+        is about the GLASS: it is set only because an app declared a cook, and
+        while it is unset the status strip shows no clock at all.
+
+        A client that reads `session.active` and calls it "a cook is running"
+        is reading the wrong field.
+      required: [set, elapsed_s]
+      properties:
+        set:
+          type: boolean
+          description: False until an app confirms a cook; cleared by a reboot.
+          example: true
+        elapsed_s:
+          type: integer
+          nullable: true
+          description: |
+            How old the cook is now. `null` — never `0` — when unset: zero is
+            a cook that started this instant.
+          example: 15150
 
     SessionInfo:
       type: object

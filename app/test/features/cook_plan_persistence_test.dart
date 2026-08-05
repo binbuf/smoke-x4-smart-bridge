@@ -24,7 +24,7 @@ CookPlan _brisket() => CookPlan(
   doneness: 'pitmaster shred',
   pitBandMinF10: 2200,
   pitBandMaxF10: 2600,
-  probes: const [
+  probes: [
     PlanProbe(jack: 1, isPit: true, name: 'Pit'),
     PlanProbe(
       jack: 2,

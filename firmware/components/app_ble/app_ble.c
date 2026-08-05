@@ -63,6 +63,7 @@ typedef enum {
     PUSH_LIVE_STATE = 0,
     PUSH_NET_STATUS,
     PUSH_SCAN_RESULTS,
+    PUSH_HISTORY,
 } push_kind_t;
 
 typedef struct {
@@ -93,8 +94,14 @@ static void op_sysinfo(app_ble_sysinfo_t *out) {
     /* b0 history, b1 live, b3 control (ble-gatt §5.1). b5 `battery` is
      * NOT set here: app_ble_build_device_info() derives it from
      * app_power, so the bit cannot drift from the value it describes and
-     * a host test can hold it. */
-    out->caps = (1u << 0) | (1u << 1) | (1u << 3);
+     * a host test can hold it.
+     *
+     * b6 `history_full` IS a literal, and honestly so: this firmware
+     * carries app_ble_history.c, so it serves §5.10/§5.11 unconditionally.
+     * The bit exists for the client's sake — a v1.0 bridge leaves it clear
+     * and the app keeps its "full history needs Wi-Fi" path rather than
+     * writing a characteristic that will never answer. */
+    out->caps = (1u << 0) | (1u << 1) | (1u << 3) | (1u << 6);
 }
 
 static void op_net_status(app_ble_net_snapshot_t *out) {
@@ -156,6 +163,9 @@ static void op_power_off(void) {
 
 static uint64_t op_uptime_ms(void) { return (uint64_t)esp_log_timestamp(); }
 
+/* Defined below with the ble_push row it posts to. */
+static int op_history_defer(void);
+
 static const app_ble_ops_t k_ops = {
     .sysinfo = op_sysinfo,
     .net_status = op_net_status,
@@ -167,6 +177,7 @@ static const app_ble_ops_t k_ops = {
     .reboot = op_reboot,
     .factory_reset = op_factory_reset,
     .power_off = op_power_off,
+    .history_defer = op_history_defer,
     .uptime_ms = op_uptime_ms,
 };
 
@@ -466,6 +477,13 @@ static void ble_push_task(void *arg) {
                 start_advertising();
             }
             break;
+        case PUSH_HISTORY:
+            /* §5.10 — hundreds of flash reads and a few hundred
+             * notifications, on the row built to carry exactly that. The
+             * NimBLE host task validated the request and returned; this is
+             * where it is answered. */
+            app_ble_history_run();
+            break;
         case PUSH_SCAN_RESULTS: {
             app_net_scan_ap_t raw[APP_NET_SCAN_MAX];
             const int n = app_net_take_scan_results(raw, APP_NET_SCAN_MAX);
@@ -496,6 +514,19 @@ static void enqueue(push_kind_t kind) {
     /* Non-blocking from an event handler, always: the 03 §3.2 duration
      * guard is the whole reason this queue exists. */
     (void)xQueueSend(s_push_q, &msg, 0);
+}
+
+/* §5.10 — the history request arrives on the NimBLE host task, which must
+ * not read flash. Post it to the row instead and answer nothing here; the
+ * core turns a failed post into an end frame carrying `failed`, so a full
+ * queue is a refusal the phone can see rather than a stream that never
+ * starts. */
+static int op_history_defer(void) {
+    if (s_push_q == NULL) {
+        return -1;
+    }
+    const push_msg_t msg = {.kind = (uint8_t)PUSH_HISTORY};
+    return xQueueSend(s_push_q, &msg, 0) == pdTRUE ? 0 : -1;
 }
 
 static void on_sample(void *arg, esp_event_base_t base, int32_t id,

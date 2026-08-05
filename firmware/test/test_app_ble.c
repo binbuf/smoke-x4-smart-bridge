@@ -16,6 +16,7 @@
 #include "app_power_svc.h"
 #include "app_ble_internal.h"
 #include "app_config_store.h"
+#include "app_ui_cook.h"
 #include "app_ui_core.h"
 #include "app_time_core.h"
 #include "cook_ring.h"
@@ -310,6 +311,14 @@ static void test_registry_matches_the_contract(void) {
         {APP_BLE_CH_HISTORY_PREVIEW, 0x0008, APP_BLE_PROP_READ,
          APP_BLE_SEC_ENCRYPTED},
         {APP_BLE_CH_RESULT, 0x0009, APP_BLE_PROP_NOTIFY,
+         APP_BLE_SEC_ENCRYPTED},
+        /* v1.1 full history. `encrypted`, deliberately NOT authenticated:
+         * these read stored cooks and change nothing, so they sit with
+         * live_state rather than with the pair that can reconfigure or
+         * wipe the device (§3). */
+        {APP_BLE_CH_HISTORY_CTRL, 0x000A, APP_BLE_PROP_WRITE,
+         APP_BLE_SEC_ENCRYPTED},
+        {APP_BLE_CH_HISTORY_DATA, 0x000B, APP_BLE_PROP_NOTIFY,
          APP_BLE_SEC_ENCRYPTED},
     };
     CHECK_EQ_INT(sizeof want / sizeof want[0], APP_BLE_CH_COUNT);
@@ -1307,6 +1316,62 @@ static void test_set_battery_saver_takes_the_tri_state(void) {
                  BRIDGE_RESULT_STATUS_INVALID);
 }
 
+/* The cook clock over BLE. It has to work here and not only over HTTP: BLE
+ * is the transport that survives a yard with no Wi-Fi, which is exactly when
+ * the glass is the only thing anyone can read.
+ *
+ * Note what this test does NOT do — it never opens a session. The clock and
+ * the recording are independent, and that separation is the whole change. */
+static void test_cook_clock_ops(void) {
+    reset_all();
+    app_ui_cook_clear();
+    uint32_t elapsed = 0;
+    const uint32_t up_s = (uint32_t)(g_uptime_ms / 1000ull);
+
+    CHECK(!app_ui_cook_get(up_s, &elapsed));
+
+    bridge_ctrl_set_cook_clock_t c;
+    c.elapsed_s = 300; /* "the cook is already five minutes in" */
+    uint8_t body[BRIDGE_CTRL_SET_COOK_CLOCK_SIZE];
+    bridge_ctrl_set_cook_clock_encode(&c, body);
+    CHECK_EQ_INT(
+        status_after(BRIDGE_CONTROL_OP_SET_COOK_CLOCK, body, sizeof body),
+        BRIDGE_RESULT_STATUS_OK);
+    CHECK(app_ui_cook_get(up_s, &elapsed));
+    CHECK_EQ_INT((int)elapsed, 300);
+    CHECK(!cook_session_is_open()); /* no recording was started */
+
+    /* Re-sending adjusts rather than conflicting. */
+    c.elapsed_s = 7200;
+    bridge_ctrl_set_cook_clock_encode(&c, body);
+    CHECK_EQ_INT(
+        status_after(BRIDGE_CONTROL_OP_SET_COOK_CLOCK, body, sizeof body),
+        BRIDGE_RESULT_STATUS_OK);
+    CHECK(app_ui_cook_get(up_s, &elapsed));
+    CHECK_EQ_INT((int)elapsed, 7200);
+
+    /* Beyond 99:59 is refused, and the live clock survives the refusal. */
+    c.elapsed_s = APP_UI_COOK_MAX_ELAPSED_S + 1;
+    bridge_ctrl_set_cook_clock_encode(&c, body);
+    CHECK_EQ_INT(
+        status_after(BRIDGE_CONTROL_OP_SET_COOK_CLOCK, body, sizeof body),
+        BRIDGE_RESULT_STATUS_INVALID);
+    CHECK(app_ui_cook_get(up_s, &elapsed));
+    CHECK_EQ_INT((int)elapsed, 7200);
+
+    /* A short body is malformed, not a silent zero. */
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_SET_COOK_CLOCK, body, 2),
+                 BRIDGE_RESULT_STATUS_INVALID);
+
+    /* Clear carries no body and never fails — a retrying client sends it
+     * twice, and the second must not read as an error. */
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_CLEAR_COOK_CLOCK, NULL, 0),
+                 BRIDGE_RESULT_STATUS_OK);
+    CHECK(!app_ui_cook_get(up_s, &elapsed));
+    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_CLEAR_COOK_CLOCK, NULL, 0),
+                 BRIDGE_RESULT_STATUS_OK);
+}
+
 static void test_set_time_backpatches_an_open_session(void) {
     reset_all();
     /* A session opened with no clock: started_unix_ms is 0 and
@@ -1555,6 +1620,364 @@ static void test_soc_and_the_battery_capability_bit(void) {
     CHECK(st.soc_pct <= 100);
 }
 
+/* ── v1.1: full history over BLE (§5.10–§5.11) ────────────────────── */
+
+/* The client half, in miniature: reassemble chunks into frames, check the
+ * seq chain, and accumulate what arrives. A 12 h cook is ~104 frames —
+ * far past NOTIFY_MAX — so this consumes as it goes rather than capturing.
+ */
+typedef struct {
+    int frames;
+    int samples;
+    int sessions;
+    int marks;
+    bool saw_end;
+    uint8_t end_status;
+    int seq_gaps;
+    uint16_t next_seq;
+    uint32_t first_t;
+    uint32_t last_t;
+    bool all_crcs_ok;
+    bool any_frame_over_mtu;
+    char first_name[29];
+    uint32_t first_sample_count;
+    /* partial-frame reassembly across chunks */
+    uint8_t buf[BRIDGE_HISTORY_DATA_MAX_SIZE];
+    size_t used;
+} hist_sink_t;
+
+static hist_sink_t g_hist;
+
+static void hist_sink_reset(void) {
+    memset(&g_hist, 0, sizeof g_hist);
+    g_hist.all_crcs_ok = true;
+    g_hist.first_t = UINT32_MAX;
+}
+
+static void hist_consume_frame(const uint8_t *bytes, size_t len) {
+    bridge_history_data_t f;
+    if (bridge_history_data_unpack(bytes, len, &f) < 0) {
+        g_hist.all_crcs_ok = false;
+        return;
+    }
+    g_hist.frames++;
+    /* A busy refusal deliberately rides seq UINT16_MAX so it cannot be
+     * mistaken for a frame of the stream already in flight. */
+    if (f.seq != UINT16_MAX) {
+        if (f.seq != g_hist.next_seq) {
+            g_hist.seq_gaps++;
+        }
+        g_hist.next_seq = (uint16_t)(f.seq + 1);
+    }
+
+    switch (f.kind) {
+    case BRIDGE_HISTORY_KIND_SAMPLES:
+        for (int i = 0; i < f.count; i++) {
+            bridge_sample_rec_t rec;
+            if (!bridge_sample_rec_decode(
+                    f.payload + i * BRIDGE_SAMPLE_REC_SIZE, &rec)) {
+                g_hist.all_crcs_ok = false;
+            }
+            if (rec.t < g_hist.first_t) {
+                g_hist.first_t = rec.t;
+            }
+            g_hist.last_t = rec.t;
+            g_hist.samples++;
+        }
+        break;
+    case BRIDGE_HISTORY_KIND_SESSION:
+        for (int i = 0; i < f.count; i++) {
+            bridge_history_session_t s;
+            bridge_history_session_decode(
+                f.payload + i * BRIDGE_HISTORY_SESSION_SIZE, &s);
+            if (g_hist.sessions == 0) {
+                memcpy(g_hist.first_name, s.name, sizeof s.name);
+                g_hist.first_name[sizeof s.name] = '\0';
+                g_hist.first_sample_count = s.sample_count;
+            }
+            g_hist.sessions++;
+        }
+        break;
+    case BRIDGE_HISTORY_KIND_MARKS:
+        g_hist.marks += f.count;
+        break;
+    case BRIDGE_HISTORY_KIND_END:
+        g_hist.saw_end = true;
+        g_hist.end_status = f.len > 0 ? f.payload[0] : 0xFF;
+        break;
+    default:
+        break;
+    }
+}
+
+/* Installed in place of fake_notify for the history tests. */
+static int hist_notify(app_ble_char_t ch, const uint8_t *buf, size_t len) {
+    if (ch != APP_BLE_CH_HISTORY_DATA) {
+        return 0; /* live_state and friends are not this test's business */
+    }
+    if (len > app_ble_notify_chunk()) {
+        g_hist.any_frame_over_mtu = true;
+    }
+    if (g_hist.used + len > sizeof g_hist.buf) {
+        g_hist.used = 0;
+        g_hist.all_crcs_ok = false;
+        return 0;
+    }
+    memcpy(g_hist.buf + g_hist.used, buf, len);
+    g_hist.used += len;
+    /* The 7-byte fixed prefix arrives whole in the first chunk (§4/§5.11),
+     * so the total length is knowable from it — exactly what the app's
+     * reassembler does. */
+    if (g_hist.used < 7) {
+        return 0;
+    }
+    const size_t want = 7u + g_hist.buf[6];
+    if (g_hist.used < want) {
+        return 0;
+    }
+    hist_consume_frame(g_hist.buf, want);
+    g_hist.used = 0;
+    return 0;
+}
+
+static app_ble_ops_t k_hist_ops;
+
+static void use_history_ops(void) {
+    k_hist_ops = k_ops;
+    k_hist_ops.notify = hist_notify;
+    /* history_defer stays NULL: with no ble_push row on the host the core
+     * runs the stream inline, which is what a test wants. */
+    CHECK_EQ_INT(app_ble_core_init(&k_hist_ops), APP_BLE_OK);
+    app_ble_set_mtu(APP_BLE_MTU_PREFERRED);
+}
+
+static void write_history_ctrl(uint8_t req, uint32_t session_id,
+                               uint32_t from_t, uint32_t to_t,
+                               uint16_t stride) {
+    bridge_history_ctrl_t c;
+    memset(&c, 0, sizeof c);
+    c.ver = 1;
+    c.req = req;
+    c.stride = stride;
+    c.session_id = session_id;
+    c.from_t = from_t;
+    c.to_t = to_t;
+    uint8_t buf[BRIDGE_HISTORY_CTRL_SIZE];
+    bridge_history_ctrl_encode(&c, buf);
+    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_HISTORY_CTRL, &k_encrypted, buf,
+                                    sizeof buf),
+                 APP_BLE_OK);
+}
+
+/* Records `hours` of a cook at the nominal 30 s cadence. */
+static uint32_t seed_session(int hours) {
+    CHECK_EQ_INT(cook_store_request_start(), COOK_STORE_OK);
+    const uint32_t n = (uint32_t)hours * 120u;
+    for (uint32_t i = 0; i < n; i++) {
+        const int16_t temp[4] = {(int16_t)(2000 + (i % 400)), 1600,
+                                 BRIDGE_TEMP_DETACHED, 900};
+        CHECK_EQ_INT(cook_session_append(i * 30u, temp, 0, -70),
+                     COOK_STORE_OK);
+    }
+    return cook_session_active_id();
+}
+
+/* THE POINT OF THE FEATURE: a bridge that recorded overnight with no phone
+ * anywhere near it hands the whole cook to a phone over Bluetooth alone. */
+static void test_twelve_hours_streams_over_ble(void) {
+    reset_all();
+    use_history_ops();
+    const uint32_t id = seed_session(12);
+    CHECK_EQ_INT(cook_session_sample_count(), 1440);
+
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, id, 0, UINT32_MAX, 1);
+
+    /* Every record, in order, CRC-intact, with no gap in the frame chain. */
+    CHECK_EQ_INT(g_hist.samples, 1440);
+    CHECK_EQ_INT(g_hist.first_t, 0);
+    CHECK_EQ_INT(g_hist.last_t, 1439u * 30u);
+    CHECK(g_hist.all_crcs_ok);
+    CHECK_EQ_INT(g_hist.seq_gaps, 0);
+    CHECK(g_hist.saw_end);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+    CHECK(!g_hist.any_frame_over_mtu);
+    /* 14 records per frame is the largest whole number that fits 237 B;
+     * 1440/14 = 103 rounded up, plus the terminator. A frame count far off
+     * this means items are straddling frames or frames are half empty. */
+    CHECK_EQ_INT(g_hist.frames, 104);
+}
+
+/* The default ATT MTU is the one Android is most likely to leave us with
+ * (R7). The transfer must still complete — slower, never broken. */
+static void test_history_survives_the_default_mtu(void) {
+    reset_all();
+    use_history_ops();
+    const uint32_t id = seed_session(1);
+
+    app_ble_set_mtu(APP_BLE_MTU_DEFAULT);
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, id, 0, UINT32_MAX, 1);
+
+    CHECK_EQ_INT(g_hist.samples, 120);
+    CHECK(g_hist.all_crcs_ok);
+    CHECK_EQ_INT(g_hist.seq_gaps, 0);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+    /* Frames are unchanged; only the chunking below them differs. */
+    CHECK(!g_hist.any_frame_over_mtu);
+}
+
+static void test_history_range_and_stride(void) {
+    reset_all();
+    use_history_ops();
+    const uint32_t id = seed_session(2);
+
+    /* A delta sync: everything after what the phone already holds. */
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, id, 3600, UINT32_MAX, 1);
+    CHECK_EQ_INT(g_hist.samples, 120);
+    CHECK_EQ_INT(g_hist.first_t, 3600);
+
+    /* stride 0 means "every record", not "no records" (§5.10). */
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, id, 0, UINT32_MAX, 0);
+    CHECK_EQ_INT(g_hist.samples, 240);
+
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, id, 0, UINT32_MAX, 4);
+    CHECK_EQ_INT(g_hist.samples, 60);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+}
+
+static void test_session_list_reports_a_live_cook_honestly(void) {
+    reset_all();
+    use_history_ops();
+    const uint32_t id = seed_session(12);
+    (void)id;
+
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SESSIONS, 0, 0, UINT32_MAX, 1);
+
+    CHECK_EQ_INT(g_hist.sessions, 1);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+    /* THE ONE THAT MATTERS FOR SYNC: the header's sample_count is only
+     * authoritative once a session closes (04 §4.3). An open 12 h cook
+     * whose entry said 0 would tell the phone there is nothing to fetch —
+     * which is precisely the always-recording case this feature exists
+     * for. */
+    CHECK_EQ_INT(g_hist.first_sample_count, 1440);
+    CHECK(strcmp(g_hist.first_name, "Brisket") == 0);
+}
+
+static void test_history_refusals_are_always_answered(void) {
+    reset_all();
+    use_history_ops();
+
+    /* An unknown session: invalid, and still terminated. Silence is the
+     * one answer a client waiting on a stream cannot recover from. */
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, 999, 0, UINT32_MAX, 1);
+    CHECK(g_hist.saw_end);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_INVALID);
+    CHECK_EQ_INT(g_hist.samples, 0);
+
+    /* An unknown req verb. */
+    hist_sink_reset();
+    write_history_ctrl(99, 1, 0, UINT32_MAX, 1);
+    CHECK(g_hist.saw_end);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_INVALID);
+
+    /* A short write. */
+    hist_sink_reset();
+    const uint8_t stub[4] = {1, BRIDGE_HISTORY_REQ_SAMPLES, 0, 0};
+    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_HISTORY_CTRL, &k_encrypted,
+                                    stub, sizeof stub),
+                 APP_BLE_OK);
+    CHECK(g_hist.saw_end);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_INVALID);
+
+    /* Cancel with nothing running is ok — a retrying client's second
+     * cancel must not look like a failure. */
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_CANCEL, 0, 0, 0, 0);
+    CHECK(g_hist.saw_end);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+
+    /* A session with no marks answers ok with no data frames — "no marks",
+     * never a hang (§5.11, the §5.4 empty-scan rule). */
+    const uint32_t id = seed_session(1);
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_MARKS, id, 0, UINT32_MAX, 1);
+    CHECK(g_hist.saw_end);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+    CHECK_EQ_INT(g_hist.marks, 0);
+    CHECK_EQ_INT(g_hist.frames, 1);
+}
+
+static void test_history_marks_stream_verbatim(void) {
+    reset_all();
+    use_history_ops();
+    const uint32_t id = seed_session(1);
+    CHECK_EQ_INT(cook_session_mark(600, 2, 0, "lid open"), COOK_STORE_OK);
+    CHECK_EQ_INT(cook_session_mark(1800, 1, 1, "wrapped"), COOK_STORE_OK);
+    /* Outside the requested range below, so it must not be sent. */
+    CHECK_EQ_INT(cook_session_mark(3400, 0, 0, "late"), COOK_STORE_OK);
+
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_MARKS, id, 0, 2000, 1);
+    CHECK_EQ_INT(g_hist.marks, 2);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+}
+
+/* A phone pocketed mid-transfer must not wedge the characteristic — the
+ * same latch bug the Wi-Fi scan had, caught before the board could teach
+ * it again. */
+static void test_disconnect_clears_a_latched_stream(void) {
+    reset_all();
+    use_history_ops();
+    const uint32_t id = seed_session(1);
+
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, id, 0, UINT32_MAX, 1);
+    CHECK(!app_ble_history_active());
+
+    app_ble_ctrl_reset(); /* what BLE_GAP_EVENT_DISCONNECT calls */
+    CHECK(!app_ble_history_active());
+
+    hist_sink_reset();
+    write_history_ctrl(BRIDGE_HISTORY_REQ_SAMPLES, id, 0, UINT32_MAX, 1);
+    CHECK_EQ_INT(g_hist.samples, 120);
+    CHECK_EQ_INT(g_hist.end_status, BRIDGE_RESULT_STATUS_OK);
+}
+
+/* history_ctrl needs a bond, but NOT the authenticated tier: it reads
+ * stored cooks and changes nothing (§3). */
+static void test_history_requires_encryption_only(void) {
+    reset_all();
+    use_history_ops();
+    const uint32_t id = seed_session(1);
+
+    CHECK(!app_ble_access_allowed(APP_BLE_CH_HISTORY_CTRL, &k_open));
+    CHECK(app_ble_access_allowed(APP_BLE_CH_HISTORY_CTRL, &k_encrypted));
+    CHECK(app_ble_access_allowed(APP_BLE_CH_HISTORY_DATA, &k_encrypted));
+
+    /* An unencrypted write is refused before the handler runs, and the
+     * refusal lands on `result` like every other security refusal. */
+    hist_sink_reset();
+    bridge_history_ctrl_t c;
+    memset(&c, 0, sizeof c);
+    c.ver = 1;
+    c.req = BRIDGE_HISTORY_REQ_SAMPLES;
+    c.session_id = id;
+    c.to_t = UINT32_MAX;
+    uint8_t buf[BRIDGE_HISTORY_CTRL_SIZE];
+    bridge_history_ctrl_encode(&c, buf);
+    (void)app_ble_core_write(APP_BLE_CH_HISTORY_CTRL, &k_open, buf,
+                             sizeof buf);
+    CHECK_EQ_INT(g_hist.samples, 0);
+    CHECK_EQ_INT(g_hist.frames, 0);
+}
+
 int main(void) {
     test_registry_matches_the_contract();
     test_uuid_is_little_endian_on_air();
@@ -1586,10 +2009,20 @@ int main(void) {
     test_set_battery_saver_takes_the_tri_state();
     test_live_state_alarm_active_follows_the_engine();
     test_soc_and_the_battery_capability_bit();
+    test_cook_clock_ops();
     test_set_time_backpatches_an_open_session();
     test_bond_cap();
     test_passkey_lifecycle();
     test_bond_cycle();
     test_passkey_reaches_the_renderer();
+    /* v1.1 — full history over BLE (§5.10–§5.11). */
+    test_twelve_hours_streams_over_ble();
+    test_history_survives_the_default_mtu();
+    test_history_range_and_stride();
+    test_session_list_reports_a_live_cook_honestly();
+    test_history_refusals_are_always_answered();
+    test_history_marks_stream_verbatim();
+    test_disconnect_clears_a_latched_stream();
+    test_history_requires_encryption_only();
     return test_summary("test_app_ble");
 }

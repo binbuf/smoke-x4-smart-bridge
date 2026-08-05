@@ -57,6 +57,7 @@
     "elapsed_s": 43200,
     "samples": 1440
   },
+  "cook_clock": { "set": true, "elapsed_s": 15150 },
   "display": { "i2c_ok": 18422, "i2c_err": 0 },
   "ota": {
     "slot": "ota_0",

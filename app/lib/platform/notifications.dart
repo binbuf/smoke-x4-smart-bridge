@@ -83,6 +83,25 @@ abstract interface class NotificationSink {
   /// degrades the app to in-app surfacing; it never throws.
   Future<bool> requestPermission();
 
+  /// Whether POST_NOTIFICATIONS is **already** granted, without prompting.
+  ///
+  /// The distinction matters more than it looks: Android stops showing the
+  /// dialog after two refusals, forever, so a screen that merely wants to
+  /// render an honest verdict must not spend a prompt to find out. The
+  /// delivery banner (newapp §B.2) rebuilds on every visit to `/live`; asking
+  /// it to request would burn the user's two chances on a banner.
+  Future<bool> hasPermission();
+
+  /// §G.4 — whether this phone will let a critical alarm light the screen.
+  ///
+  /// `NotificationManager.canUseFullScreenIntent()`. True on any platform that
+  /// cannot answer: an unknown that renders as a warning is a warning nobody
+  /// can act on.
+  Future<bool> canUseFullScreenIntent();
+
+  /// Opens `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` so the user can grant it.
+  Future<void> openFullScreenIntentSettings();
+
   Future<void> post(PendingNotification n);
   Future<void> cancel(String key);
 
@@ -113,6 +132,21 @@ class RecordingNotificationSink implements NotificationSink {
 
   @override
   Future<bool> requestPermission() async => permissionGranted;
+
+  @override
+  Future<bool> hasPermission() async => permissionGranted;
+
+  bool fullScreenIntentGranted = true;
+  int fullScreenIntentSettingsOpened = 0;
+
+  @override
+  Future<bool> canUseFullScreenIntent() async => fullScreenIntentGranted;
+
+  @override
+  Future<void> openFullScreenIntentSettings() async {
+    fullScreenIntentSettingsOpened++;
+    log.add('fsi-settings');
+  }
 
   @override
   Future<void> post(PendingNotification n) async {

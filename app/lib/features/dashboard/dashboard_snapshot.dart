@@ -129,7 +129,10 @@ class DashboardSnapshot {
   final bool baseLost;
   final int? lastPacketSAgo;
 
-  /// False on BLE — drives A10.5's "full history needs Wi-Fi" notice.
+  /// Drives A10.5's "full history needs Wi-Fi" notice. False on HTTP-less
+  /// transports **and on a bridge whose firmware predates ble-gatt §5.10** —
+  /// from v1.1 Bluetooth carries whole cooks, so this tracks the device's
+  /// capability rather than the transport's name.
   final bool fullHistory;
 
   /// Whether the bridge is paired to a Smoke X base. Defaults to `true` so an

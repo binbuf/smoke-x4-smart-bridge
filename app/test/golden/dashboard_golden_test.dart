@@ -1,4 +1,4 @@
-/// A15.2 — the dashboard pinned at every shape, in both themes.
+/// A15.2 — the reader pinned at every shape, in both themes.
 ///
 /// The outline's list, and it is not negotiable: **no probes, all
 /// detached, mid-gap, alarm active, 15 h of data, 54 days of data — each
@@ -9,13 +9,19 @@
 ///
 /// The all-detached goldens are the ones that matter most: they are the
 /// cheapest possible place to catch the day `—` becomes `0`.
+///
+/// **The subject moved.** These pinned `DashboardView`, the pre-shell screen
+/// newapp §I.0 deleted — so the suite was guarding a widget nobody could
+/// reach while the shipping reader ([CookView]) had no goldens at all. Same
+/// six shapes, same two themes, now over the thing that actually renders.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/domain/entities/entities.dart';
-import 'package:smoke_bridge/features/chart/chart_viewport.dart';
+import 'package:smoke_bridge/features/cook/cook_view.dart';
 import 'package:smoke_bridge/features/dashboard/dashboard.dart';
+import 'package:smoke_bridge/ui/ui.dart';
 
 import '../support/shapes.dart';
 import 'golden.dart';
@@ -24,7 +30,6 @@ Widget _dashboard(
   List<Sample> cook, {
   List<Alarm> alarms = const [],
   bool fullHistory = true,
-  ChartWindow window = ChartWindow.h15,
 }) {
   final snap = snapshotFor(
     cook,
@@ -32,15 +37,10 @@ Widget _dashboard(
     fullHistory: fullHistory,
     link: fullHistory ? LinkKind.http : LinkKind.ble,
   );
-  return DashboardView(
+  return CookView(
     snapshot: snap,
-    viewport: ChartViewport.forSession(
-      fromT: cook.isEmpty ? 0 : cook.first.t,
-      toT: cook.isEmpty ? 60 : cook.last.t,
-      window: window,
-    ),
-    onViewport: (_) {},
-    onControl: (_) async {},
+    plan: null,
+    freshness: ProbeFreshness.live,
   );
 }
 
@@ -63,10 +63,7 @@ final Map<String, Widget Function()> _shapes = {
     ],
   ),
   '15h': () => _dashboard(syntheticCook(hours: 15)),
-  '54d': () => _dashboard(
-    syntheticCook(hours: 54 * 24, periodS: 300),
-    window: ChartWindow.all,
-  ),
+  '54d': () => _dashboard(syntheticCook(hours: 54 * 24, periodS: 300)),
 };
 
 void main() {
@@ -90,7 +87,6 @@ void main() {
     // tiles reading 0 °F — and nothing on the screen is a temperature.
     await pumpForGolden(tester, _dashboard(allDetached(hours: 2)));
     final described = describeTree(tester);
-    expect(described, contains('[dashboard-no-probes]'));
     expect(described, isNot(contains('text "0°"')));
     expect(described, isNot(contains('degrees')));
   });

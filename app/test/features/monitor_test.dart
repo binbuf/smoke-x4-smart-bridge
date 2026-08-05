@@ -93,6 +93,12 @@ class _FakeTransport implements BridgeTransport {
   }) async {}
 
   @override
+  Future<List<Map<String, Object?>>> alarmRules() async => const [];
+
+  @override
+  Future<void> setAlarmRule(Map<String, Object?> rule) async {}
+
+  @override
   Future<MqttConfig> mqttConfig() async => const MqttConfig();
 
   @override

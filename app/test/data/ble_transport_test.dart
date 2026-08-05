@@ -42,7 +42,26 @@ Future<(BleTransport, FakePeripheral)> bonded({
 
 void main() {
   // ── A6.2: the shared behavioural contract ─────────────────────────
-  runTransportContract(name: 'ble', create: () async => (await bonded()).$1);
+  //
+  // A27 put BLE on the full-history side of this contract, so it now runs
+  // the same session/sample cases HTTP does — against a bridge holding a
+  // real recorded cook rather than an empty one.
+  runTransportContract(
+    name: 'ble',
+    sessionId: 0x1A,
+    create: () async {
+      final state = FakeBridgeState()..recordCook(hours: 2);
+      return (await bonded(state: state)).$1;
+    },
+  );
+
+  // The same contract against a v1.0 bridge, which is the case the typed
+  // refusal and the chart's "needs Wi-Fi" notice still exist for.
+  runTransportContract(
+    name: 'ble (v1.0 bridge, no history_full)',
+    create: () async =>
+        (await bonded(state: FakeBridgeState(caps: 0x0B))).$1,
+  );
 
   group('A6.1 the seam and the fake', () {
     test('device_info is readable with no bond at all', () async {
@@ -99,12 +118,29 @@ void main() {
   });
 
   group('A6.2 BleTransport', () {
-    test('capabilities are honest: no full history, no OTA', () async {
+    test('capabilities are honest: full history yes, OTA no', () async {
       final (t, _) = await bonded();
       expect(t.capabilities.liveState, isTrue);
       expect(t.capabilities.historyPreview, isTrue);
-      expect(t.capabilities.fullHistory, isFalse);
+      // A27 — derived from device_info caps b6, not declared. OTA stays
+      // HTTP-only: the device has no BLE path for an image at all.
+      expect(t.capabilities.fullHistory, isTrue);
       expect(t.capabilities.ota, isFalse);
+      await t.close();
+    });
+
+    test('an older bridge still reports no full history', () async {
+      // Same app build, a bridge from before §5.10. It does not refuse a
+      // history_ctrl write — it has no such characteristic and would never
+      // answer at all, which is exactly why the capability is read from
+      // the device rather than assumed.
+      final (t, _) = await bonded(state: FakeBridgeState(caps: 0x0B));
+      expect(t.capabilities.fullHistory, isFalse);
+      expect(t.capabilities.historyPreview, isTrue);
+      await expectLater(
+        t.sessions(),
+        throwsA(isA<BridgeUnsupportedException>()),
+      );
       await t.close();
     });
 
@@ -617,6 +653,186 @@ void main() {
           ),
         ),
       );
+      await t.close();
+    });
+  });
+
+  // ── A27: full history over BLE (ble-gatt §5.10–§5.11) ─────────────
+  //
+  // The scenario the whole feature exists for: the bridge was switched on
+  // with the base station, recorded all night with no phone anywhere near
+  // it, and the phone that finally walks up is in a yard with no Wi-Fi.
+
+  group('A27 full history over BLE', () {
+    test('twelve hours of an overnight cook arrive over Bluetooth', () async {
+      final state = FakeBridgeState()..recordCook(hours: 12);
+      final (t, _) = await bonded(state: state);
+
+      final batches = await t.samples(0x1A).toList();
+      final all = [for (final b in batches) ...b];
+
+      expect(all, hasLength(1440), reason: '12 h at the 30 s cadence');
+      expect(all.first.t, 0);
+      expect(all.last.t, 1439 * 30);
+      // Monotonic, gap-free, in order — the axis the chart draws on.
+      for (var i = 1; i < all.length; i++) {
+        expect(all[i].t, all[i - 1].t + 30);
+      }
+      // THE invariant, surviving 1,440 records and ~104 frames: a detached
+      // probe is null, never 0 °F.
+      expect(all.every((s) => s.tempsF10[2] == null), isTrue);
+      expect(all.every((s) => s.tempsF10[0] != null), isTrue);
+      await t.close();
+    });
+
+    test('the session list carries an open cook honestly', () async {
+      final state = FakeBridgeState()..recordCook(hours: 12);
+      final (t, _) = await bonded(state: state);
+
+      final sessions = await t.sessions();
+      expect(sessions, hasLength(1));
+      final s = sessions.single;
+      expect(s.id, 0x1A);
+      // 26 bytes of em-dashed auto-name, intact — the 24-byte field that
+      // clipped it is what widened this to 28.
+      expect(s.name, 'Cook — Sat 14 Mar, 06:12');
+      expect(s.closed, isFalse);
+      expect(s.endedUnixMs, isNull, reason: 'open: 0 must read as absent');
+      // The number the sync engine sizes its work against.
+      expect(s.sampleCount, 1440);
+      await t.close();
+    });
+
+    test('a failed MTU negotiation slows the transfer, never breaks it', () async {
+      // 23 is the value to fear (R7): the frames are unchanged, only the
+      // chunking beneath them differs, and the reassembler must cope.
+      final state = FakeBridgeState()..recordCook(hours: 2);
+      final fake = FakePeripheral(
+        config: const FakePeripheralConfig(negotiatedMtu: 23),
+        state: state,
+      );
+      await fake.connect('AA:BB:CC:DD:A4:F2');
+      await fake.bond();
+      await fake.requestMtu(247);
+      expect(fake.mtu, 23);
+      final t = BleTransport(fake);
+      await t.start();
+
+      final all = [for (final b in await t.samples(0x1A).toList()) ...b];
+      expect(all, hasLength(240));
+      expect(all.last.t, 239 * 30);
+      await t.close();
+    });
+
+    test('a range request fetches only the delta', () async {
+      final state = FakeBridgeState()..recordCook(hours: 4);
+      final (t, _) = await bonded(state: state);
+
+      // What reconnecting mid-cook asks for: everything past what the
+      // cache already holds.
+      final all = [
+        for (final b in await t.samples(0x1A, fromT: 3600).toList()) ...b,
+      ];
+      expect(all.first.t, 3600);
+      // 4 h is 480 records; the first hour's 120 stay on the bridge.
+      expect(all, hasLength(360));
+      expect(all.last.t, 479 * 30);
+      await t.close();
+    });
+
+    test('a stream that ends badly throws rather than truncating', () async {
+      // The failure that matters: 900 of 1,440 records is not "a short
+      // cook", it is a lie the cache would keep forever.
+      final state = FakeBridgeState()..recordCook(hours: 2);
+      final (t, _) = await bonded(
+        state: state,
+        config: const FakePeripheralConfig(
+          historyStatus: ResultStatus.failed,
+        ),
+      );
+      await expectLater(
+        t.samples(0x1A).toList(),
+        throwsA(isA<BridgeHistoryException>()),
+      );
+      await t.close();
+    });
+
+    test('a dropped frame is caught by the seq chain', () async {
+      final state = FakeBridgeState()..recordCook(hours: 2);
+      final (t, _) = await bonded(
+        state: state,
+        config: const FakePeripheralConfig(historyDropFrame: 3),
+      );
+      // Stitching across the hole would hand the cache a cook with an
+      // invisible gap; failing lets the caller re-request the range.
+      await expectLater(
+        t.samples(0x1A).toList(),
+        throwsA(isA<FormatException>()),
+      );
+      await t.close();
+    });
+
+    test('busy is typed, and rides a seq the stream never uses', () async {
+      final state = FakeBridgeState()..recordCook(hours: 1);
+      final (t, _) = await bonded(
+        state: state,
+        config: const FakePeripheralConfig(historyBusy: true),
+      );
+      await expectLater(
+        t.samples(0x1A).toList(),
+        throwsA(
+          isA<BridgeHistoryException>().having((e) => e.isBusy, 'isBusy', true),
+        ),
+      );
+      await t.close();
+    });
+
+    test('an unknown session is refused, not hung', () async {
+      final state = FakeBridgeState()..recordCook(hours: 1);
+      final (t, _) = await bonded(state: state);
+      await expectLater(
+        t.samples(999).toList(),
+        throwsA(isA<BridgeHistoryException>()),
+      );
+      await t.close();
+    });
+
+    test('marks stream over the same channel, range-filtered', () async {
+      final state = FakeBridgeState()..recordCook(hours: 2);
+      state.cookMarks[0x1A] = [
+        MarkRec(t: 600, kind: 2, textRaw: utf8ToPadded('lid open', 24)),
+        MarkRec(t: 1800, kind: 1, probe: 1, textRaw: utf8ToPadded('wrapped', 24)),
+        MarkRec(t: 6000, kind: 0, textRaw: utf8ToPadded('late', 24)),
+      ];
+      final (t, _) = await bonded(state: state);
+
+      final marks = await t.marks(0x1A, toT: 2000);
+      expect(marks, hasLength(2));
+      expect(marks.first.t, 600);
+      expect(marks.first.kind, MarkKind.lidOpen);
+      expect(marks.last.text, 'wrapped');
+      await t.close();
+    });
+
+    test('a session with no marks answers empty, never hangs', () async {
+      final state = FakeBridgeState()..recordCook(hours: 1);
+      final (t, _) = await bonded(state: state);
+      expect(await t.marks(0x1A), isEmpty);
+      await t.close();
+    });
+
+    test('two concurrent requests serialise instead of interleaving', () async {
+      // The device serves one stream at a time (§5.10). Two callers must
+      // queue here rather than shredding each other's reassembly.
+      final state = FakeBridgeState()..recordCook(hours: 2);
+      final (t, _) = await bonded(state: state);
+
+      final a = t.samples(0x1A).toList();
+      final b = t.samples(0x1A).toList();
+      final results = await Future.wait([a, b]);
+      for (final batches in results) {
+        expect([for (final x in batches) ...x], hasLength(240));
+      }
       await t.close();
     });
   });

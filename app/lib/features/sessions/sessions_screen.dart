@@ -20,7 +20,7 @@ import '../../domain/entities/entities.dart';
 import '../chart/chart_viewport.dart';
 import '../chart/cook_chart.dart';
 import '../dashboard/probe_tile.dart';
-import '../dashboard/session_controls.dart' show markLabel;
+import '../cook/mark_sheet.dart' show markLabel;
 
 /// One list row's data, assembled from the aggregate query — never from
 /// the samples themselves (A11.2's epic flag).
@@ -178,6 +178,7 @@ class SessionDetailView extends StatefulWidget {
     this.onExport,
     this.onRename,
     this.celsius = false,
+    this.header = const [],
     super.key,
   });
 
@@ -188,6 +189,12 @@ class SessionDetailView extends StatefulWidget {
   final VoidCallback? onExport;
   final ValueChanged<String>? onRename;
   final bool celsius;
+
+  /// Cards to render **above the chart**, for a caller that knows more about
+  /// this cook than a `CookSession` can carry — the annotation's bounds, its
+  /// notes, its §E.5 gaps. Empty keeps the original screen exactly as it was,
+  /// which is what its goldens and its own tests still assert.
+  final List<Widget> header;
 
   @override
   State<SessionDetailView> createState() => _SessionDetailViewState();
@@ -218,6 +225,7 @@ class _SessionDetailViewState extends State<SessionDetailView> {
       key: const Key('session-detail'),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
+        ...widget.header,
         Row(
           children: [
             Expanded(

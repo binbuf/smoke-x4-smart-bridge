@@ -26,6 +26,10 @@ const char *app_api_json_find(const char *body, const char *key);
 int app_api_json_str(const char *body, const char *key, char *out,
                      size_t cap);
 int app_api_json_int(const char *body, const char *key, long *out);
+/* Use this one for epoch milliseconds: `long` is 32-bit on the device and
+ * 64-bit on the host, so app_api_json_int silently truncates a real
+ * timestamp on the board only. */
+int app_api_json_i64(const char *body, const char *key, int64_t *out);
 int app_api_json_bool(const char *body, const char *key, bool *out);
 
 /* Handlers that live in app_api_sessions.c. */

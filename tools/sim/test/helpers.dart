@@ -60,6 +60,13 @@ Future<(int, Object?)> postJson(SimServer s, String path, Object? body) async {
   return (res.statusCode, text.isEmpty ? null : jsonDecode(text));
 }
 
+Future<(int, Object?)> deleteJson(SimServer s, String path) async {
+  final req = await _client.delete('127.0.0.1', s.port, path);
+  final res = await req.close();
+  final text = await utf8.decoder.bind(res).join();
+  return (res.statusCode, text.isEmpty ? null : jsonDecode(text));
+}
+
 /// "Byte-for-byte in shape": recursively identical key sets for maps; lists
 /// are checked element-wise against the fixture's first element's shape.
 /// Values may differ; null in either position is shape-compatible with any

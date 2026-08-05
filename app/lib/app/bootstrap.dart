@@ -15,6 +15,7 @@ import '../data/transport/ble_transport.dart';
 import '../data/transport/nsd_discovery.dart';
 import '../features/sessions/export.dart';
 import '../platform/notifications_plugin.dart';
+import '../platform/share_plugin.dart';
 import 'app.dart';
 import 'app_env.dart';
 import 'error_boundary.dart';
@@ -43,6 +44,9 @@ void bootstrap() {
       // plugin plumbing the bench proves.
       notifications: PluginNotificationSink(),
       foregroundService: PluginForegroundServiceHost(),
+      // newapp §C.1 — `share_plus` has been a dependency with no call site
+      // since A24.2; the export used to end at a path in a snackbar.
+      shareSheet: const PluginShareSheet(),
     );
 
     runApp(const ProviderScope(child: SmokeBridgeApp()));

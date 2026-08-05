@@ -11,6 +11,7 @@
 #include "app_api_internal.h"
 #include "app_config_store.h"
 #include "app_time_core.h"
+#include "app_ui_cook.h"
 #include "cook_novelty_log.h"
 #include "cook_power_log.h"
 #include "cook_ring.h"
@@ -148,6 +149,27 @@ int app_api_json_int(const char *body, const char *key, long *out) {
     return 0;
 }
 
+/* The 64-bit twin of app_api_json_int, and the one to reach for whenever the
+ * field is epoch MILLISECONDS.
+ *
+ * `long` is 32 bits on the xtensa toolchain and 64 on the Linux host that
+ * runs this suite, so an epoch-ms field parsed with strtol saturates at
+ * LONG_MAX on the board — 2147483647 ms is the 25th of January 1970 — and
+ * passes every host test on the way there. The type has to be explicit. */
+int app_api_json_i64(const char *body, const char *key, int64_t *out) {
+    const char *v = app_api_json_find(body, key);
+    if (!v) {
+        return -1;
+    }
+    char *end;
+    const long long n = strtoll(v, &end, 10);
+    if (end == v) {
+        return -1;
+    }
+    *out = (int64_t)n;
+    return 0;
+}
+
 int app_api_json_bool(const char *body, const char *key, bool *out) {
     const char *v = app_api_json_find(body, key);
     if (!v) {
@@ -240,6 +262,10 @@ static void emit_unix_ms_or_null(app_api_out_t *out) {
         app_api_emit_str(out, "null");
     }
 }
+
+/* Defined with the rest of the cook-clock routes below; /status embeds the
+ * same object so a client gets it in the poll it already makes. */
+static void emit_cook_clock(app_api_out_t *out);
 
 static void handle_status(app_api_out_t *out) {
     app_api_sysinfo_t sys;
@@ -390,6 +416,14 @@ static void handle_status(app_api_out_t *out) {
                          "\"started_unix_ms\":null,\"elapsed_s\":0,"
                          "\"samples\":0}");
     }
+
+    /* Additive (06 §6.5), and NOT the same thing as `session` above. That
+     * one is storage: the bridge opened a file because samples arrived.
+     * This one is the display clock, which exists only because an app
+     * declared a cook. A client reading `session.active` and calling it a
+     * cook is reading the wrong field — this is the one the glass shows. */
+    app_api_emit_str(out, ",\"cook_clock\":");
+    emit_cook_clock(out);
 
     /* F11b.11 — additive (06 §6.5: clients ignore unknown keys), and the
      * cheapest way to make V3a.1's deferred OLED-error row measurable in
@@ -1161,8 +1195,12 @@ static void handle_config_alarms(const app_api_req_t *req,
 }
 
 static void handle_time_post(const app_api_req_t *req, app_api_out_t *out) {
-    long unix_ms;
-    if (app_api_json_int(req->body, "unix_ms", &unix_ms) != 0 ||
+    /* int64, NOT long: a 2026 epoch in milliseconds is 1.77e12, which
+     * strtol saturates to LONG_MAX on the 32-bit-long device toolchain
+     * while parsing perfectly on the 64-bit host that runs the tests. The
+     * board's clock landed in January 1970 and the suite stayed green. */
+    int64_t unix_ms;
+    if (app_api_json_i64(req->body, "unix_ms", &unix_ms) != 0 ||
         unix_ms <= 0) {
         return app_api_error(out, 400, "invalid_field",
                              "unix_ms must be int");
@@ -1178,6 +1216,102 @@ static void handle_time_post(const app_api_req_t *req, app_api_out_t *out) {
                             s_ops->uptime_ms());
     app_api_out_begin(out, 200, "application/json");
     app_api_emit_str(out, "{\"ok\":true}");
+}
+
+/* ── the app-confirmed cook clock ──────────────────────────────────────
+ *
+ * The device shows an elapsed time only because an app told it to. This is
+ * the whole contract for that: the app says how old the cook is, the strip
+ * renders it, and nothing else on the bridge reads it. Recording, retention,
+ * and /sessions are untouched — the bridge keeps logging whether or not a
+ * cook is ever declared.
+ *
+ * Setting is IDEMPOTENT AND RE-CALLABLE. Confirming a cook that is already
+ * five minutes old is the normal case, not a correction: you light the fire,
+ * then you open the app.
+ */
+
+static void emit_cook_clock(app_api_out_t *out) {
+    uint32_t elapsed = 0;
+    const uint32_t up_s = (uint32_t)(s_ops->uptime_ms() / 1000ull);
+    if (app_ui_cook_get(up_s, &elapsed)) {
+        app_api_emit_fmt(out, "{\"set\":true,\"elapsed_s\":%u}",
+                         (unsigned)elapsed);
+    } else {
+        /* null, not 0. Zero is a cook that started this instant. */
+        app_api_emit_str(out, "{\"set\":false,\"elapsed_s\":null}");
+    }
+}
+
+static void handle_cook_clock_get(app_api_out_t *out) {
+    app_api_out_begin(out, 200, "application/json");
+    emit_cook_clock(out);
+}
+
+static void handle_cook_clock_post(const app_api_req_t *req,
+                                   app_api_out_t *out) {
+    long elapsed = 0;
+    int64_t started_ms = 0;
+    const bool have_elapsed =
+        app_api_json_int(req->body, "elapsed_s", &elapsed) == 0;
+    const bool have_started =
+        app_api_json_i64(req->body, "started_unix_ms", &started_ms) == 0;
+
+    /* Exactly one. Accepting both and picking a winner means a client with a
+     * disagreeing pair never finds out which one the bridge used. */
+    if (have_elapsed == have_started) {
+        return app_api_error(
+            out, 400, "invalid_field",
+            "send exactly one of elapsed_s or started_unix_ms");
+    }
+
+    if (have_started) {
+        /* Shape before state: a malformed field is a 400 whether or not the
+         * device happens to have a clock, and answering 409 for it would
+         * send the client off to POST /time over a typo. */
+        if (started_ms <= 0) {
+            return app_api_error(out, 400, "invalid_field",
+                                 "started_unix_ms must be a positive epoch "
+                                 "in milliseconds");
+        }
+        uint64_t now_ms = 0;
+        if (!app_time_core_now(s_ops->uptime_ms(), &now_ms)) {
+            /* An absolute start time is unusable without a clock to measure
+             * it against, and guessing one would put an invented elapsed on
+             * the glass — the exact failure this feature removes. The client
+             * can POST /time first, or send elapsed_s, which needs no clock
+             * at all. */
+            return app_api_error(out, 409, "clock_unknown",
+                                 "no wall clock yet — set /time first or "
+                                 "send elapsed_s instead");
+        }
+        const int64_t delta_ms = (int64_t)now_ms - started_ms;
+        /* A start a little in the future is clock skew between a phone and a
+         * bridge, not an error; clamp it. A start hours ahead still fails
+         * below, on the range check. */
+        elapsed = (long)(delta_ms > 0 ? delta_ms / 1000 : 0);
+    }
+
+    if (elapsed < 0 || (uint32_t)elapsed > APP_UI_COOK_MAX_ELAPSED_S) {
+        return app_api_error_detail_int(
+            out, 400, "invalid_field",
+            "elapsed must be 0..359940 s (99:59, the width of the strip's "
+            "clock)",
+            "max_elapsed_s", (int)APP_UI_COOK_MAX_ELAPSED_S);
+    }
+    const uint32_t up_s = (uint32_t)(s_ops->uptime_ms() / 1000ull);
+    if (app_ui_cook_set((uint32_t)elapsed, up_s) != 0) {
+        return app_api_error(out, 400, "invalid_field",
+                             "elapsed out of range");
+    }
+    app_api_out_begin(out, 200, "application/json");
+    emit_cook_clock(out);
+}
+
+static void handle_cook_clock_delete(app_api_out_t *out) {
+    app_ui_cook_clear();
+    app_api_out_begin(out, 200, "application/json");
+    emit_cook_clock(out);
 }
 
 /* ── radio (F9.8) ──────────────────────────────────────────────────────── */
@@ -1469,6 +1603,18 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
     }
     if (strcmp(req->method, "POST") == 0 && strcmp(api, "/time") == 0) {
         handle_time_post(req, out);
+        return 0;
+    }
+    if (strcmp(api, "/cook-clock") == 0) {
+        if (is_get) {
+            handle_cook_clock_get(out);
+        } else if (strcmp(req->method, "POST") == 0) {
+            handle_cook_clock_post(req, out);
+        } else if (strcmp(req->method, "DELETE") == 0) {
+            handle_cook_clock_delete(out);
+        } else {
+            app_api_error(out, 404, "not_found", "no such route");
+        }
         return 0;
     }
     if (strcmp(api, "/radio") == 0) {

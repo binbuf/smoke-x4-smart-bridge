@@ -238,6 +238,88 @@ class SimServer {
               : state.tzOffsetMin;
         return _json(req, 200, {'ok': true});
 
+      // The app-confirmed cook clock. The bridge never infers a cook; this
+      // is how the app tells the screen there is one, and how it corrects
+      // the start time afterwards. Recording is untouched by all three.
+      case ('GET', '/cook-clock'):
+        return _json(req, 200, cookClockJson(state));
+
+      case ('POST', '/cook-clock'):
+        final body = await _body(req);
+        final hasElapsed = body['elapsed_s'] != null;
+        final hasStarted = body['started_unix_ms'] != null;
+        if (hasElapsed == hasStarted) {
+          return _json(
+            req,
+            400,
+            errorBody(
+              'invalid_field',
+              'send exactly one of elapsed_s or started_unix_ms',
+            ),
+          );
+        }
+        int elapsed;
+        if (hasStarted) {
+          if (!state.clockValid) {
+            return _json(
+              req,
+              409,
+              errorBody(
+                'clock_unknown',
+                'no wall clock yet — set /time first or send elapsed_s '
+                    'instead',
+              ),
+            );
+          }
+          final started = body['started_unix_ms'];
+          if (started is! int || started <= 0) {
+            return _json(
+              req,
+              400,
+              errorBody(
+                'invalid_field',
+                'started_unix_ms must be a positive epoch in milliseconds',
+              ),
+            );
+          }
+          // The sim's wall clock is the fixture's session start plus the
+          // replay cursor, so an absolute start converts the same way the
+          // device's does.
+          final nowMs = state.header.startedUnixMs + vT * 1000;
+          final deltaMs = nowMs - started;
+          elapsed = deltaMs > 0 ? deltaMs ~/ 1000 : 0;
+        } else {
+          final raw = body['elapsed_s'];
+          if (raw is! int) {
+            return _json(
+              req,
+              400,
+              errorBody('invalid_field', 'elapsed_s must be int'),
+            );
+          }
+          elapsed = raw;
+        }
+        if (elapsed < 0 || elapsed > kCookClockMaxElapsedS) {
+          return _json(
+            req,
+            400,
+            errorBody(
+              'invalid_field',
+              'elapsed must be 0..$kCookClockMaxElapsedS s (99:59, the '
+                  "width of the strip's clock)",
+              {'max_elapsed_s': kCookClockMaxElapsedS},
+            ),
+          );
+        }
+        // Re-posting ADJUSTS; it is never a conflict.
+        state.cookClockAnchorT = vT - elapsed;
+        return _json(req, 200, cookClockJson(state));
+
+      case ('DELETE', '/cook-clock'):
+        // Idempotent: a retrying client's second call is still a 200.
+        state.cookClockAnchorT = null;
+        return _json(req, 200, cookClockJson(state));
+
       case ('GET', '/radio'):
         return _json(req, 200, {
           'frequency_hz': 910500000,

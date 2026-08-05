@@ -35,6 +35,7 @@
 #include "app_net.h"
 #include "app_power.h"
 #include "app_power_svc.h"
+#include "app_ui_cook.h"
 #include "app_ui_core.h"
 #include "app_ui_input.h"
 #include "app_ui_led.h"
@@ -263,8 +264,13 @@ static void fill_snapshot(app_ui_state_t *st, const ui_cfg_read_t *cfg) {
     const uint64_t ms = (uint64_t)esp_timer_get_time() / 1000ull;
     const uint64_t last = smoke_x_ctrl_last_valid_ms();
     st->base_ok = ms > last && (ms - last) < 60000ull;
-    st->session_active = cook_session_is_open();
-    st->elapsed_s = newest != NULL ? newest->t : 0u;
+    /* The ONLY elapsed time this device shows, and it comes from the app.
+     * This used to be `newest->t` — seconds since the storage session
+     * opened — which the bridge starts by itself the moment a probe warms
+     * up, so the strip counted up whether or not a cook existed. */
+    st->cook_elapsed_s = 0;
+    st->cook_clock_set =
+        app_ui_cook_get((uint32_t)(ms / 1000ull), &st->cook_elapsed_s);
     st->soc_pct = app_power_svc_soc();
     st->charging = app_power_svc_charging();
     st->saver = app_power_svc_saver();
@@ -289,20 +295,19 @@ static void fill_snapshot(app_ui_state_t *st, const ui_cfg_read_t *cfg) {
     (void)app_config_store_get_str(APP_CONFIG_NET_AP_PSK, st->psk,
                                    sizeof st->psk);
 
-    /* cook page */
-    if (st->session_active) {
-        st->session_id = cook_session_active_id();
-        bridge_session_header_t h;
-        if (cook_store_read_header(st->session_id, &h) == COOK_STORE_OK) {
-            /* Truncation is the point: 21 columns and a 16-char field.
-             * `%.*s` says so to the compiler as well as to the reader. */
-            snprintf(st->session_name, sizeof st->session_name, "%.*s",
-                     (int)(sizeof st->session_name - 1), h.name);
-            st->mark_count = (uint16_t)h.mark_count;
-        }
-        st->sample_count = cook_session_sample_count();
-    }
-    /* The sparkline reads the RAM ring and NEVER flash (04 §4.3). */
+    /* trends page — and note what is NOT here any more.
+     *
+     * The old cook page read the active session's 256 B header from
+     * LittleFS on every fill, for a name and a mark count. fill_snapshot
+     * runs UNDER s_lock, and the comment on ui_cfg_read_t above spells out
+     * why that is a trap: NVS and LittleFS share the SPI-flash bus, a
+     * contended read blocks ~17 ms, and s_lock is taken by three event-bus
+     * handlers that have a 5 ms budget (F1.3). That is the same shape as
+     * the panic-loop found on 2026-07-23; it survived here because the read
+     * only ran while a session was open. Dropping the session from the glass
+     * takes the last flash read out of s_lock with it.
+     *
+     * The sparkline reads the RAM ring and NEVER flash (04 §4.3). */
     int pit = 0;
     for (int i = 0; i < 4; i++) {
         if (st->probe[i].role == BRIDGE_PROBE_ROLE_PIT) {
@@ -345,7 +350,7 @@ static void fill_snapshot(app_ui_state_t *st, const ui_cfg_read_t *cfg) {
         st->storage_total_b = total;
         st->storage_used_b = used;
     }
-    st->sessions = (uint16_t)cook_store_index_count();
+    st->stored_files = (uint16_t)cook_store_index_count();
     st->heap_free = (uint32_t)esp_get_free_heap_size();
     st->heap_min = (uint32_t)esp_get_minimum_free_heap_size();
     app_ui_panel_counts(&st->i2c_ok, &st->i2c_err);
@@ -424,7 +429,10 @@ static void on_wake_event(void *arg, esp_event_base_t base, int32_t id,
     (void)base;
     (void)id;
     (void)data;
-    /* 07 §7.1's wake list: session start/end and network state change. */
+    /* 07 §7.1's wake list, minus one. Storage session start/end used to
+     * light the panel; it no longer does, because nothing on the glass
+     * changes when it happens. Waking a battery-powered display for an
+     * invisible event is a cost with no reader. */
     xSemaphoreTake(s_lock, portMAX_DELAY);
     app_ui_model_wake(&s_model, now_ms());
     xSemaphoreGive(s_lock);
@@ -555,8 +563,6 @@ int app_ui_init(void) {
                                       "app_ui.ble") != ESP_OK ||
         bridge_event_handler_register(BRIDGE_EVT_ALARM, on_alarm_event, NULL,
                                       "app_ui.alarm") != ESP_OK ||
-        bridge_event_handler_register(BRIDGE_EVT_SESSION, on_wake_event, NULL,
-                                      "app_ui.session") != ESP_OK ||
         bridge_event_handler_register(BRIDGE_EVT_NET, on_wake_event, NULL,
                                       "app_ui.net") != ESP_OK) {
         return -1;

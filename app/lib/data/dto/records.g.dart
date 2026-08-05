@@ -212,7 +212,9 @@ enum ControlOp {
   identify(10),
   ackAlarm(11),
   setBatterySaver(12),
-  powerOff(13);
+  powerOff(13),
+  setCookClock(14),
+  clearCookClock(15);
 
   const ControlOp(this.wire);
   final int wire;
@@ -290,6 +292,44 @@ enum ScanCmd {
   final int wire;
 
   static ScanCmd? fromWire(int v) {
+    for (final e in values) {
+      if (e.wire == v) {
+        return e;
+      }
+    }
+    return null;
+  }
+}
+
+enum HistoryReq {
+  cancel(0),
+  sessions(1),
+  samples(2),
+  marks(3);
+
+  const HistoryReq(this.wire);
+  final int wire;
+
+  static HistoryReq? fromWire(int v) {
+    for (final e in values) {
+      if (e.wire == v) {
+        return e;
+      }
+    }
+    return null;
+  }
+}
+
+enum HistoryKind {
+  end(0),
+  session(1),
+  samples(2),
+  marks(3);
+
+  const HistoryKind(this.wire);
+  final int wire;
+
+  static HistoryKind? fromWire(int v) {
     for (final e in values) {
       if (e.wire == v) {
         return e;
@@ -640,6 +680,82 @@ class MarkRec {
   bool get crcOk => crc16 == markRecCrc(encode());
 }
 
+/// history_session — fixed 56 B.
+class HistorySession {
+  HistorySession({
+    this.sessionId = 0,
+    this.startedUnixMs = 0,
+    this.endedUnixMs = 0,
+    this.sampleCount = 0,
+    this.samplePeriodS = 0,
+    this.numProbes = 0,
+    this.flags = 0,
+    Uint8List? nameRaw,
+  }) : nameRaw = nameRaw ?? Uint8List(28);
+
+  static const int size = 56;
+
+  final int sessionId;
+
+  /// 0 until the clock is known (04 §4.4); see flags.clock_valid
+  final int startedUnixMs;
+
+  /// 0 while the session is open
+  final int endedUnixMs;
+  final int sampleCount;
+
+  /// nominal 30
+  final int samplePeriodS;
+
+  /// 2 or 4
+  final int numProbes;
+
+  /// the session_header flags byte, unchanged
+  final int flags;
+
+  /// UTF-8, NUL-padded; truncated from the header's 40. 28 rather than 24 because the auto-name 04 §4.6 specifies — 'Cook — Sat 14 Mar, 06:12' — is 26 BYTES: the em-dash costs three. A 24-byte field clipped the canonical name of every clock-valid session, which the golden fixture caught.
+  final Uint8List nameRaw;
+
+  bool get clockValid => (flags & (1 << 0)) != 0;
+  bool get closed => (flags & (1 << 1)) != 0;
+  bool get pinned => (flags & (1 << 2)) != 0;
+  bool get sourceCelsius => (flags & (1 << 3)) != 0;
+  String get name => utf8FromPadded(nameRaw);
+
+  /// Parses 56 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory HistorySession.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return HistorySession(
+      sessionId: bd.getUint32(0, Endian.little),
+      startedUnixMs: bd.getUint64(4, Endian.little),
+      endedUnixMs: bd.getUint64(12, Endian.little),
+      sampleCount: bd.getUint32(20, Endian.little),
+      samplePeriodS: bd.getUint16(24, Endian.little),
+      numProbes: bd.getUint8(26),
+      flags: bd.getUint8(27),
+      nameRaw: Uint8List.fromList(
+        Uint8List.sublistView(buf, offset + 28, offset + 28 + 28),
+      ),
+    );
+  }
+
+  /// Serializes to 56 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint32(0, sessionId, Endian.little);
+    bd.setUint64(4, startedUnixMs, Endian.little);
+    bd.setUint64(12, endedUnixMs, Endian.little);
+    bd.setUint32(20, sampleCount, Endian.little);
+    bd.setUint16(24, samplePeriodS, Endian.little);
+    bd.setUint8(26, numProbes);
+    bd.setUint8(27, flags);
+    out.setRange(28, 28 + 28, nameRaw);
+    return out;
+  }
+}
+
 /// device_info — fixed 40 B.
 class DeviceInfo {
   DeviceInfo({
@@ -664,7 +780,7 @@ class DeviceInfo {
   /// 2 or 4
   final int probes;
 
-  /// b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN
+  /// b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN. b6 history_full: this bridge serves §5.10/§5.11, so a client can tell a v1.1 bridge from a v1.0 one that would silently never answer a history_ctrl write
   final int caps;
 
   /// ASCII hex, e.g. A4F2
@@ -682,6 +798,7 @@ class DeviceInfo {
   bool get historyPreview => (caps & (1 << 3)) != 0;
   bool get ota => (caps & (1 << 4)) != 0;
   bool get battery => (caps & (1 << 5)) != 0;
+  bool get historyFull => (caps & (1 << 6)) != 0;
   String get id => utf8FromPadded(idRaw);
   String get model => utf8FromPadded(modelRaw);
   String get fw => utf8FromPadded(fwRaw);
@@ -1376,6 +1493,161 @@ class HistoryPreview {
   }
 }
 
+/// history_ctrl — fixed 16 B.
+class HistoryCtrl {
+  HistoryCtrl({
+    this.ver = 1,
+    this.req = 0,
+    this.stride = 0,
+    this.sessionId = 0,
+    this.fromT = 0,
+    this.toT = 0,
+  });
+
+  static const int size = 16;
+
+  final int ver;
+  final int req;
+
+  /// samples only; 1 = every record, 0 is read as 1
+  final int stride;
+
+  /// ignored when req = sessions
+  final int sessionId;
+
+  /// session-relative seconds, inclusive
+  final int fromT;
+
+  /// inclusive; UINT32_MAX = to the end
+  final int toT;
+
+  HistoryReq? get reqEnum => HistoryReq.fromWire(req);
+
+  /// Parses 16 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory HistoryCtrl.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return HistoryCtrl(
+      ver: bd.getUint8(0),
+      req: bd.getUint8(1),
+      stride: bd.getUint16(2, Endian.little),
+      sessionId: bd.getUint32(4, Endian.little),
+      fromT: bd.getUint32(8, Endian.little),
+      toT: bd.getUint32(12, Endian.little),
+    );
+  }
+
+  /// Serializes to 16 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, ver);
+    bd.setUint8(1, req);
+    bd.setUint16(2, stride, Endian.little);
+    bd.setUint32(4, sessionId, Endian.little);
+    bd.setUint32(8, fromT, Endian.little);
+    bd.setUint32(12, toT, Endian.little);
+    return out;
+  }
+}
+
+/// history_data — variable length, ≤ 244 B on the wire.
+/// Explicit length fields are derived from the list/byte lengths.
+class HistoryData {
+  HistoryData({
+    this.ver = 1,
+    this.kind = 0,
+    this.seq = 0,
+    this.flags = 0,
+    this.count = 0,
+    Uint8List? payloadRaw,
+  }) : payloadRaw = payloadRaw ?? Uint8List(0);
+
+  static const int maxSize = 244;
+
+  final int ver;
+  final int kind;
+
+  /// frame counter within one response, from 0 — a gap means a dropped frame, which is the client's cue to re-request
+  final int seq;
+  final int flags;
+
+  /// items in this frame
+  final int count;
+
+  /// count × 52 B history_session · count × 16 B sample_rec · count × 32 B mark_rec · 1 B result_status when kind = end
+  final Uint8List payloadRaw;
+
+  HistoryKind? get kindEnum => HistoryKind.fromWire(kind);
+
+  bool get last => (flags & (1 << 0)) != 0;
+
+  /// Serializes to wire bytes. Throws [ArgumentError] if a variable
+  /// field exceeds its declared max.
+  Uint8List pack() {
+    if (payloadRaw.length > 237) {
+      throw ArgumentError('payload exceeds 237 elements');
+    }
+    final out = BytesBuilder();
+    out.addByte(ver & 0xFF);
+    out.addByte(kind & 0xFF);
+    out.addByte(seq & 0xFF);
+    out.addByte((seq >> 8) & 0xFF); // little-endian
+    out.addByte(flags & 0xFF);
+    out.addByte(count & 0xFF);
+    out.addByte(payloadRaw.length);
+    out.add(payloadRaw);
+    return out.toBytes();
+  }
+
+  /// Parses wire bytes. Throws [FormatException] on truncation or
+  /// out-of-range lengths.
+  static HistoryData unpack(Uint8List buf) {
+    final bd = ByteData.sublistView(buf);
+    var off = 0;
+    void need(int n) {
+      if (off + n > buf.length) {
+        throw FormatException('history_data: truncated at byte $off');
+      }
+    }
+
+    need(1);
+    final verV = bd.getUint8(off);
+    off += 1;
+    need(1);
+    final kindV = bd.getUint8(off);
+    off += 1;
+    need(2);
+    final seqV = bd.getUint16(off, Endian.little);
+    off += 2;
+    need(1);
+    final flagsV = bd.getUint8(off);
+    off += 1;
+    need(1);
+    final countV = bd.getUint8(off);
+    off += 1;
+    need(1);
+    final lenV = bd.getUint8(off);
+    off += 1;
+    if (lenV > 237) {
+      throw FormatException('history_data.payload: length over max');
+    }
+    need(lenV);
+    final payloadV = Uint8List.fromList(
+      Uint8List.sublistView(buf, off, off + lenV),
+    );
+    off += lenV;
+    return HistoryData(
+      ver: verV,
+      kind: kindV,
+      seq: seqV,
+      flags: flagsV,
+      count: countV,
+      payloadRaw: payloadV,
+    );
+  }
+}
+
 /// set_time — fixed 10 B. (device_control body)
 class CtrlSetTime {
   CtrlSetTime({this.unixMs = 0, this.tzOffsetMin = 0});
@@ -1483,6 +1755,30 @@ class CtrlSetUnits {
     final out = Uint8List(size);
     final bd = ByteData.sublistView(out);
     bd.setUint8(0, units);
+    return out;
+  }
+}
+
+/// set_cook_clock — fixed 4 B. (device_control body)
+class CtrlSetCookClock {
+  CtrlSetCookClock({this.elapsedS = 0});
+
+  static const int size = 4;
+
+  final int elapsedS;
+
+  /// Parses 4 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory CtrlSetCookClock.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return CtrlSetCookClock(elapsedS: bd.getUint32(0, Endian.little));
+  }
+
+  /// Serializes to 4 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint32(0, elapsedS, Endian.little);
     return out;
   }
 }

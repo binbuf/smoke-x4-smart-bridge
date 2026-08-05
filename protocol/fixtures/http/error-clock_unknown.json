@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "clock_unknown",
+    "message": "no wall clock yet — set /time first or send elapsed_s instead",
+    "detail": null
+  }
+}

@@ -128,7 +128,7 @@ extern const uint8_t app_ui_font12x24[APP_UI_LARGE_GLYPHS][APP_UI_LARGE_BYTES];
 
 typedef enum {
     APP_UI_PAGE_PROBES = 0, /* the default (07 §7.2) */
-    APP_UI_PAGE_COOK,
+    APP_UI_PAGE_TRENDS,
     APP_UI_PAGE_NETWORK,
     APP_UI_PAGE_RADIO,
     APP_UI_PAGE_SYSTEM,
@@ -181,8 +181,13 @@ typedef struct {
     bool base_ok;     /* a LoRa packet within the last 60 s */
     uint8_t net_mode; /* app_ui_net_mode_t */
     bool ap_client;   /* renders `ap*` */
-    bool session_active;
-    uint32_t elapsed_s;
+    /* The APP-CONFIRMED cook clock (app_ui_cook.h), and the only source of
+     * an elapsed time anywhere on this device. False renders BLANK — not
+     * `--:--`, which would claim there is a cook whose age is unknown. The
+     * bridge never infers a cook from an attached probe: it records
+     * continuously and lets the app say what a cook is. */
+    bool cook_clock_set;
+    uint32_t cook_elapsed_s;
     uint8_t soc_pct; /* BRIDGE_SOC_UNKNOWN renders as `--%` */
     bool charging;   /* renders `USB` */
     bool alarm_unacked;
@@ -191,14 +196,10 @@ typedef struct {
     app_ui_probe_t probe[4];
     uint8_t num_probes;
 
-    /* ── page 2: cook ── */
-    uint32_t session_id;
-    char session_name[APP_UI_NAME_LEN + 1];
-    uint32_t sample_count;
-    uint16_t mark_count;
-    bool eta_valid;
-    uint32_t eta_s;
-    bool stalled;
+    /* ── page 2: trends ──
+     * Every probe's current reading beside how fast it is moving, over the
+     * ring's rolling 10-minute window. There is nothing session-shaped here
+     * on purpose: no id, no name, no sample count, no ETA. */
     /* The pit over the RAM ring's 2 h window, oldest → newest.
      * BRIDGE_TEMP_DETACHED marks a hole. No flash reads on this path. */
     int16_t spark[APP_UI_SPARK_MAX];
@@ -233,7 +234,11 @@ typedef struct {
     uint32_t uptime_s;
     uint32_t storage_used_b;
     uint32_t storage_total_b;
-    uint16_t sessions;
+    /* Recorded log files on flash. A STORAGE number, rendered as `files`
+     * rather than `cooks`: the store keeps writing whether or not anyone
+     * ever calls a stretch of it a cook, and how it divides into cooks is
+     * the app's answer to give. */
+    uint16_t stored_files;
     uint32_t heap_free;
     uint32_t heap_min;
     uint16_t mv;
@@ -266,7 +271,11 @@ void app_ui_render_strip(const app_ui_state_t *st, app_ui_fb_t *fb);
 /* ── Pages (F11b.3–F11b.5; 07 §7.2) ─────────────────────────────────
  * Each clears `fb`, draws rows 0..6, and calls the strip. */
 void app_ui_render_page_probes(const app_ui_state_t *st, app_ui_fb_t *fb);
-void app_ui_render_page_cook(const app_ui_state_t *st, app_ui_fb_t *fb);
+/* Current temperature beside recent rate of change, per probe, plus the 2 h
+ * pit sparkline. This replaced the COOK page: that one led with a session id,
+ * a name and `Elapsed 04:12:30`, all three of which the bridge was inferring
+ * rather than knowing. */
+void app_ui_render_page_trends(const app_ui_state_t *st, app_ui_fb_t *fb);
 void app_ui_render_page_network(const app_ui_state_t *st, app_ui_fb_t *fb);
 void app_ui_render_page_radio(const app_ui_state_t *st, app_ui_fb_t *fb);
 void app_ui_render_page_system(const app_ui_state_t *st, app_ui_fb_t *fb);

@@ -5,12 +5,29 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cook_lifecycle.h"
 #include "cook_store_core.h"
 #include "test_cook_doubles.h"
 #include "test_util.h"
 
 static int g_evt_counts[8];
 static uint32_t g_last_evt_id;
+
+/* A streaming sink that only counts and remembers the ends — a 12 h read
+ * is 1,440 records and capturing them all would prove nothing extra. */
+static int g_read_count;
+static uint32_t g_read_first_t;
+static uint32_t g_read_last_t;
+
+static int count_rec(void *ctx, const bridge_sample_rec_t *rec) {
+    (void)ctx;
+    if (g_read_count == 0) {
+        g_read_first_t = rec->t;
+    }
+    g_read_last_t = rec->t;
+    g_read_count++;
+    return 0;
+}
 
 static void on_evt(cook_store_evt_t evt, uint32_t id, void *ctx) {
     (void)ctx;
@@ -321,6 +338,80 @@ static void test_partition_full_stops_loudly(void) {
     CHECK_EQ_INT(cook_store_index_count(), 1);
 }
 
+/* The partition is sized in firmware/partitions.csv, which nothing else
+ * checks against the workload it has to hold. This is the arithmetic of
+ * 04 §4.1, as an assertion: shrinking `cooks` to buy space for something
+ * else must be a red test rather than a cook that stops recording
+ * overnight. */
+static void test_twelve_hours_fits_the_cooks_partition(void) {
+    /* firmware/partitions.csv: cooks = 0x260000. */
+    const uint32_t partition_bytes = 0x260000u;
+    /* LittleFS metadata, block granularity, and the retention floor. The
+     * 10 % headroom is the same figure §4.1 budgets. */
+    const uint32_t usable = partition_bytes - partition_bytes / 10u;
+
+    const uint32_t twelve_h_samples = 12u * 3600u / 30u; /* 1440 */
+    const uint32_t twelve_h_bytes =
+        BRIDGE_SESSION_HEADER_SIZE +
+        twelve_h_samples * BRIDGE_SAMPLE_REC_SIZE;
+
+    CHECK_EQ_INT(twelve_h_samples, 1440);
+    CHECK_EQ_INT(twelve_h_bytes, 256 + 1440 * 16); /* 23,296 B */
+    CHECK(twelve_h_bytes < usable);
+
+    /* Not merely "fits": the ask is twelve hours, and the partition holds
+     * the 36 h session cap (04 §4.6) many times over. A ratio this large
+     * is what makes the always-recording rule affordable. */
+    CHECK(usable / twelve_h_bytes > 90u);
+
+    const uint32_t max_session_bytes =
+        BRIDGE_SESSION_HEADER_SIZE +
+        (COOK_LC_MAX_SESSION_S / 30u) * BRIDGE_SAMPLE_REC_SIZE;
+    CHECK(max_session_bytes < usable);
+    /* And a full retention set of them still fits the design's claim of
+     * ~48 complete 24 h cooks. */
+    CHECK(usable / max_session_bytes >= 30u);
+}
+
+/* The same twelve hours through the real write path, not just arithmetic:
+ * every record must read back at the `t` it was written with. */
+static void test_twelve_hours_round_trips(void) {
+    fresh_store();
+    CHECK_EQ_INT(cook_session_open(&k_params), COOK_STORE_OK);
+    const uint32_t id = cook_session_active_id();
+
+    const uint32_t n = 12u * 3600u / 30u;
+    for (uint32_t i = 0; i < n; i++) {
+        const int16_t temps[4] = {(int16_t)(2000 + (i % 400)), 1600,
+                                  BRIDGE_TEMP_DETACHED, 900};
+        CHECK_EQ_INT(cook_session_append(i * 30u, temps, 0, -70),
+                     COOK_STORE_OK);
+    }
+    CHECK_EQ_INT(cook_session_sample_count(), n);
+
+    /* Readable while still OPEN — the always-recording case, where the
+     * phone connects mid-cook and the session has never been closed. */
+    g_read_count = 0;
+    g_read_first_t = UINT32_MAX;
+    g_read_last_t = 0;
+    CHECK_EQ_INT(cook_store_read(id, 0, UINT32_MAX, 1, 0, COOK_AGG_NONE,
+                                 count_rec, NULL, NULL),
+                 COOK_STORE_OK);
+    CHECK_EQ_INT(g_read_count, (int)n);
+    CHECK_EQ_INT(g_read_first_t, 0);
+    CHECK_EQ_INT(g_read_last_t, (n - 1) * 30u);
+
+    /* And a range read seeks rather than scans: the delta a reconnecting
+     * phone asks for is the last six hours. */
+    g_read_count = 0;
+    g_read_first_t = UINT32_MAX;
+    CHECK_EQ_INT(cook_store_read(id, 6u * 3600u, UINT32_MAX, 1, 0,
+                                 COOK_AGG_NONE, count_rec, NULL, NULL),
+                 COOK_STORE_OK);
+    CHECK_EQ_INT(g_read_count, (int)n / 2);
+    CHECK_EQ_INT(g_read_first_t, 6u * 3600u);
+}
+
 static void test_clock_backpatch_rewrites_header_only(void) {
     fresh_store();
     CHECK_EQ_INT(cook_session_open(&k_params), COOK_STORE_OK);
@@ -354,6 +445,8 @@ int main(void) {
     test_marks_utf8_safe_truncation();
     test_retention_pinned_and_active_survive();
     test_partition_full_stops_loudly();
+    test_twelve_hours_fits_the_cooks_partition();
+    test_twelve_hours_round_trips();
     test_clock_backpatch_rewrites_header_only();
     return test_summary("test_cook_store");
 }

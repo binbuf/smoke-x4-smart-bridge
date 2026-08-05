@@ -13,6 +13,7 @@
 #include "app_api_ws.h"
 #include "app_config_store.h"
 #include "app_time_core.h"
+#include "app_ui_cook.h"
 #include "cook_novelty_log.h"
 #include "cook_power_log.h"
 #include "cook_ring.h"
@@ -1411,6 +1412,100 @@ static void test_debug_tasks(void) {
  * terminated; both names proving they were stored proves every object parsed,
  * not just the first. Plus the display_timeout_s clamp that keeps a passkey
  * screen readable. */
+/* ── the app-confirmed cook clock ─────────────────────────────────────
+ *
+ * The route that makes an elapsed time on the glass possible at all. Its
+ * whole reason for existing is that the device MUST NOT infer one: a probe
+ * warming up opens a storage session, and the old strip counted that as a
+ * cook. These assertions are about the difference between the two. */
+static void test_cook_clock_route(void) {
+    seed_world();
+    app_ui_cook_clear();
+
+    /* Unset is `null`, never 0 — zero is a cook that started this instant. */
+    do_req("GET", "/api/v1/cook-clock", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"set\":false") != NULL);
+    CHECK(strstr(g_body, "\"elapsed_s\":null") != NULL);
+
+    /* "The cook is already five minutes in." */
+    do_req("POST", "/api/v1/cook-clock", "{\"elapsed_s\":300}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"set\":true") != NULL);
+    CHECK(strstr(g_body, "\"elapsed_s\":300") != NULL);
+
+    /* Re-posting ADJUSTS. Not 409 — correcting the start time mid-cook is
+     * the normal use, and a bridge that refused would leave the app with a
+     * clock it could set once and never fix. */
+    do_req("POST", "/api/v1/cook-clock", "{\"elapsed_s\":7200}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"elapsed_s\":7200") != NULL);
+
+    /* It advances with uptime, not with request count. */
+    g_uptime_ms += 60000;
+    do_req("GET", "/api/v1/cook-clock", NULL, NULL);
+    CHECK(strstr(g_body, "\"elapsed_s\":7260") != NULL);
+
+    /* /status carries the same object, so a polling client needs no second
+     * call — and `session` beside it is a DIFFERENT fact. */
+    do_req("GET", "/api/v1/status", NULL, NULL);
+    CHECK(strstr(g_body, "\"cook_clock\":{\"set\":true,") != NULL);
+
+    /* Exactly one field. Both, or neither, is a 400: a client whose two
+     * fields disagree must not have to guess which one won. */
+    do_req("POST", "/api/v1/cook-clock", "{}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    do_req("POST", "/api/v1/cook-clock", NULL, NULL); /* no body at all */
+    CHECK_EQ_INT(g_out.status, 400);
+    do_req("POST", "/api/v1/cook-clock",
+           "{\"elapsed_s\":10,\"started_unix_ms\":1774094400000}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+
+    /* Beyond 99:59 is refused with the bound in the envelope, and the
+     * existing clock survives the refusal. */
+    do_req("POST", "/api/v1/cook-clock", "{\"elapsed_s\":400000}", NULL);
+    CHECK_EQ_INT(g_out.status, 400);
+    CHECK(strstr(g_body, "\"max_elapsed_s\":359940") != NULL);
+    do_req("GET", "/api/v1/cook-clock", NULL, NULL);
+    CHECK(strstr(g_body, "\"elapsed_s\":7260") != NULL);
+
+    /* An absolute start with no wall clock to measure it against is 409
+     * clock_unknown, not a guess. */
+    do_req("POST", "/api/v1/cook-clock",
+           "{\"started_unix_ms\":1774094400000}", NULL);
+    CHECK_EQ_INT(g_out.status, 409);
+    CHECK(strstr(g_body, "clock_unknown") != NULL);
+
+    /* With a clock, the same body works — and the epoch survives the trip.
+     * `long` is 32-bit on the device, so parsing 1.77e12 with strtol
+     * saturates at LONG_MAX there while passing here; both this and POST
+     * /time go through the int64 helper for that reason. */
+    do_req("POST", "/api/v1/time", "{\"unix_ms\":1774094400000}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    do_req("POST", "/api/v1/cook-clock",
+           "{\"started_unix_ms\":1774094100000}", NULL); /* 300 s earlier */
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"elapsed_s\":300") != NULL);
+
+    /* A start slightly in the future is phone/bridge skew, not an error. */
+    do_req("POST", "/api/v1/cook-clock",
+           "{\"started_unix_ms\":1774094402000}", NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"elapsed_s\":0") != NULL);
+
+    /* DELETE blanks the clock and is idempotent — a retrying client sends
+     * it twice. Recording is untouched either way. */
+    do_req("DELETE", "/api/v1/cook-clock", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+    CHECK(strstr(g_body, "\"set\":false") != NULL);
+    do_req("DELETE", "/api/v1/cook-clock", NULL, NULL);
+    CHECK_EQ_INT(g_out.status, 200);
+
+    /* PUT is not a verb here. */
+    do_req("PATCH", "/api/v1/cook-clock", "{\"elapsed_s\":1}", NULL);
+    CHECK_EQ_INT(g_out.status, 404);
+}
+
 static void test_config_probes_parser_and_timeout(void) {
     CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_DEV_API_TOKEN, ""),
                  APP_CONFIG_OK);
@@ -1485,5 +1580,6 @@ int main(void) {
     test_status_ota_object();
     test_debug_tasks();
     test_config_probes_parser_and_timeout();
+    test_cook_clock_route();
     return test_summary("test_app_api");
 }

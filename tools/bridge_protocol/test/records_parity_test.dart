@@ -217,6 +217,74 @@ void main() {
           }
           expect(h.pack(), bytes, reason: 'byte-identical round-trip');
 
+        // ── v1.1: full history over BLE (§5.10–§5.11) ────────────────
+        case 'history_ctrl':
+          final c = HistoryCtrl.decode(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(c.ver, int.parse(expected['ver']!));
+          expect(c.req, int.parse(expected['req']!));
+          expect(c.reqEnum, isNotNull, reason: 'req must name a history_req');
+          expect(c.stride, int.parse(expected['stride']!));
+          expect(c.sessionId, int.parse(expected['session_id']!));
+          expect(c.fromT, int.parse(expected['from_t']!));
+          expect(c.toT, int.parse(expected['to_t']!));
+          expect(c.encode(), bytes, reason: 'byte-identical round-trip');
+
+        case 'history_session':
+          final s = HistorySession.decode(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(s.sessionId, int.parse(expected['session_id']!));
+          expect(s.startedUnixMs, int.parse(expected['started_unix_ms']!));
+          expect(s.endedUnixMs, int.parse(expected['ended_unix_ms']!));
+          expect(s.sampleCount, int.parse(expected['sample_count']!));
+          expect(s.samplePeriodS, int.parse(expected['sample_period_s']!));
+          expect(s.numProbes, int.parse(expected['num_probes']!));
+          expect(s.flags, int.parse(expected['flags']!));
+          expect(s.clockValid, expected['flag_clock_valid'] == '1');
+          expect(s.closed, expected['flag_closed'] == '1');
+          expect(s.pinned, expected['flag_pinned'] == '1');
+          // 04 §4.6's auto-name is 26 BYTES — the em-dash costs three — so
+          // the field is 28. A shrink must be a red test, not a clipped
+          // cook name.
+          expect(s.name, expected['name']);
+          expect(s.encode(), bytes, reason: 'byte-identical round-trip');
+
+        case 'history_data':
+          final f = HistoryData.unpack(bytes);
+          expect(bytes.length, int.parse(expected['wire_len']!));
+          expect(f.ver, int.parse(expected['ver']!));
+          expect(f.kind, int.parse(expected['data_kind']!));
+          expect(f.kindEnum, isNotNull);
+          expect(f.seq, int.parse(expected['seq']!));
+          expect(f.flags, int.parse(expected['flags']!));
+          expect(f.last, expected['last'] == '1');
+          expect(f.count, int.parse(expected['count']!));
+          expect(f.payloadRaw, hasLength(int.parse(expected['len']!)));
+          // The 7-byte fixed prefix arrives whole in the first chunk even at
+          // the 20-byte default MTU (§4) — what makes the total length
+          // knowable from chunk one.
+          expect(bytes.length - f.payloadRaw.length, 7);
+          if (f.kindEnum == HistoryKind.samples) {
+            expect(f.payloadRaw, hasLength(f.count * SampleRec.size));
+            for (var i = 0; i < f.count; i++) {
+              // Verbatim records: decoding one out of the frame payload
+              // still verifies the CRC written to flash.
+              final r = SampleRec.decode(f.payloadRaw, i * SampleRec.size);
+              expect(r.crcOk, isTrue);
+              expect(r.t, int.parse(expected['s${i}_t']!));
+            }
+            expect(
+              SampleRec.decode(f.payloadRaw, SampleRec.size).tempOrNull(2),
+              expected['s1_temp2_null'] == '1' ? isNull : isNotNull,
+            );
+          } else if (f.kindEnum == HistoryKind.end) {
+            expect(f.count, 0);
+            expect(f.payloadRaw, hasLength(1));
+            expect(f.payloadRaw[0], int.parse(expected['status']!));
+            expect(f.last, isTrue, reason: 'the terminator always sets last');
+          }
+          expect(f.pack(), bytes, reason: 'byte-identical round-trip');
+
         default:
           fail('unknown fixture kind ${expected['kind']}');
       }

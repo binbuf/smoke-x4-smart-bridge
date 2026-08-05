@@ -297,11 +297,34 @@ Typical requests:
 Even the unaggregated raw form (46 KB for 24 h) is trivial over Wi-Fi; aggregation exists for the
 chart's sake and for the constrained BLE path, not to save the network.
 
-**Over BLE**, bandwidth is genuinely scarce (realistically single-digit KB/s). v1.0 therefore serves
-over BLE: live state (14 B notify per sample) and a `history_preview` characteristic — the pit
-probe at 1-minute buckets for the last 2 hours, 120 × `int16` = 240 B. Full history over BLE is a
-chunked-transfer feature deferred to v1.1 and noted in [11](11-roadmap-and-risks.md). **Full history
-requires Wi-Fi** in v1.0, and the app says so rather than silently showing a stub.
+**Over BLE**, bandwidth is genuinely scarce (realistically single-digit KB/s). v1.0 served only
+live state (14 B notify per sample) and a `history_preview` characteristic — the pit probe at
+1-minute buckets for the last 2 hours, 120 × `int16` = 240 B.
+
+**v1.1 lifts that ceiling** with `history_ctrl` / `history_data`
+([ble-gatt §5.10–§5.11](../../protocol/ble-gatt.md)): a chunked transfer that streams whole
+`sample_rec`s, 14 to a frame, terminated by a status frame.
+
+The reason the deferral was wrong is the same reason §4.6 removed the 90 °F start gate. **The
+device's resting state is recording with nobody watching** — powered on beside the smoker since
+the fire was lit — and the phone that finally walks up to it is standing in a yard, which is
+exactly where there is no Wi-Fi. Making that transfer conditional on joining a network meant the
+always-recording rule produced data the user could not reach on the transport they actually had.
+
+The bandwidth argument does not survive contact with the arithmetic either:
+
+| Cook  | Records | Bytes on the wire | At ~5 KB/s |
+| ----- | ------- | ----------------- | ---------- |
+| 12 h  | 1,440   | 23 KB             | ~5 s       |
+| 24 h  | 2,880   | 46 KB             | ~9 s       |
+| 36 h (the §4.6 cap) | 4,320 | 69 KB   | ~14 s      |
+
+Seconds, once, on connect — against a feature whose absence made an overnight cook unreachable.
+`history_preview` survives regardless: it answers a single Read with no round trips, so the
+dashboard paints immediately while the full stream is still arriving.
+
+**Wi-Fi is still faster and still preferred** when both are available (05 §5.7's transport race),
+and the app's cache-first design means the transfer happens once per session either way.
 
 ## 4.9 Flash endurance
 

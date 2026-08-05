@@ -37,7 +37,7 @@ Every response — success or failure — is JSON. The reference replies to `POS
 | 400    | `invalid_body`, `invalid_field`, `unsupported_mode` |
 | 401    | `unauthorized`                                      |
 | 404    | `session_not_found`, `not_found`                    |
-| 409    | `session_active`, `not_paired`, `busy`              |
+| 409    | `session_active`, `not_paired`, `busy`, `clock_unknown` |
 | 413    | `body_too_large`                                    |
 | 500    | `storage_error`, `internal`                         |
 | 503    | `radio_unavailable`, `ota_in_progress`              |
@@ -71,6 +71,9 @@ Every response — success or failure — is JSON. The reference replies to `POS
 | GET/POST | `/api/v1/config/device`         | Units, display, retention, probes, calibration                                    |
 | GET/POST | `/api/v1/config/alarms`         | Alarm rules                                                                       |
 | POST     | `/api/v1/time`                  | Set the clock                                                                     |
+| GET      | `/api/v1/cook-clock`            | The app-confirmed cook clock the screen shows                                      |
+| POST     | `/api/v1/cook-clock`            | Confirm — or adjust — the cook the screen should time                              |
+| DELETE   | `/api/v1/cook-clock`            | The cook is over; blank the strip's clock                                          |
 | GET      | `/api/v1/radio`                 | LoRa parameters + link stats                                                      |
 | POST     | `/api/v1/radio`                 | Set LoRa parameters (advanced)                                                    |
 | POST     | `/api/v1/ota`                   | Upload firmware                                                                   |
@@ -145,6 +148,7 @@ chattiness costs more than payload.
     "elapsed_s": 43200,
     "samples": 1440
   },
+  "cook_clock": { "set": true, "elapsed_s": 15150 },
   "alarms": [
     {
       "id": 3,
@@ -314,6 +318,43 @@ read back.
 
 `vbat_actual_mv` is the one-point battery calibration ([01 §1.3](01-hardware.md)): send a DMM
 reading and the firmware solves for the divider ratio and persists it.
+
+### `GET/POST/DELETE /api/v1/cook-clock`
+
+The only source of an elapsed time on the device's screen, and **not** the same fact as `session`.
+
+`session` is about **recording**: the bridge opens a log file by itself the moment samples arrive,
+whether or not anyone is cooking, and that is deliberate — the whole point of always-record is that a
+cook who never opens the app until hours in still finds the history waiting
+([04 §4.6](04-storage-and-history.md)). `cook_clock` is about **the glass**: it is set only because an
+app declared a cook. A client that reads `session.active` and calls it "a cook is running" is reading
+the wrong field.
+
+```
+POST /api/v1/cook-clock   {"elapsed_s": 300}
+POST /api/v1/cook-clock   {"started_unix_ms": 1774094100000}
+→ 200 {"set": true, "elapsed_s": 300}
+
+DELETE /api/v1/cook-clock
+→ 200 {"set": false, "elapsed_s": null}
+```
+
+Send exactly **one** of the two fields; both, or neither, is a `400`, because a client whose two
+fields disagree would otherwise never learn which one the bridge believed. Prefer `elapsed_s` — it
+needs no device clock. `started_unix_ms` is measured against the bridge's own wall clock and answers
+`409 clock_unknown` when it has none; a start slightly in the future is treated as phone/bridge skew
+and clamped to `00:00`.
+
+**Re-posting adjusts, and is the intended flow, not an edge case.** You light the fire, open the app
+five minutes later, and post `elapsed_s: 300` so the strip reads `00:05` rather than `00:00`. Post
+again at any point to correct it. `DELETE` is idempotent — a retrying client's second call is still a
+`200` — and blanks a clock without stopping any recording.
+
+`elapsed_s` is `null` and never `0` when unset: zero is a cook that started this instant. The clock is
+**not persisted** across a reboot, and is capped at `359940` (99:59), the width of the status strip's
+clock ([07 §7.1](07-display-and-controls.md)). BLE carries the same two operations as control ops 14
+and 15, because BLE is the transport that survives a yard with no Wi-Fi — which is exactly when the
+glass is the only thing anyone can read.
 
 ### `POST /api/v1/ota`
 

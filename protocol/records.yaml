@@ -108,6 +108,12 @@ enums:
     # v1.1 additive growth (ble-gatt §5.6.6): appended, never renumbered.
     set_battery_saver: 12
     power_off: 13
+    # The app-confirmed cook clock. The device shows an elapsed time only
+    # because an app declared a cook; it never infers one from a warming
+    # probe. Distinct from session_start/session_stop above, which are about
+    # the RECORDING and say nothing about what the glass shows.
+    set_cook_clock: 14
+    clear_cook_clock: 15
   result_status: # result.status
     ok: 0
     invalid: 1
@@ -125,6 +131,23 @@ enums:
   scan_cmd: # wifi_scan_ctrl.cmd
     cancel: 0
     start: 1
+  # v1.1 — full history over BLE (ble-gatt §5.10). What the phone is asking
+  # the bridge to stream back on history_data.
+  history_req: # history_ctrl.req
+    cancel: 0
+    sessions: 1
+    samples: 2
+    marks: 3
+  # What a history_data frame is carrying. `end` is the terminator and the
+  # ONLY frame that reports a status, which is why the request is not
+  # answered on `result`: a stream that failed halfway must be
+  # distinguishable from one that finished, and `result` has no room in its
+  # op_echo space for a characteristic that is not a device_control op.
+  history_kind: # history_data.kind
+    end: 0
+    session: 1
+    samples: 2
+    marks: 3
 
 # ── Storage records (04 §4.2) ────────────────────────────────────────────────
 #
@@ -274,6 +297,52 @@ records:
         }
       - { name: text, type: char, count: 24, doc: "UTF-8, NUL-padded" }
 
+  # 52 B — one session, as the BLE history stream carries it (ble-gatt §5.11).
+  # A LOSSY PROJECTION OF session_header, on purpose: the 256 B header is
+  # mostly probe metadata and reserved space, and paying 5× the bytes over a
+  # link measured in single-digit KB/s to send zeroes would be the kind of
+  # thoughtlessness this contract exists to prevent. Everything the app's
+  # `sessions` table actually stores is here, and nothing else is.
+  history_session:
+    size: 56
+    fields:
+      - { name: session_id, type: u32 }
+      - {
+          name: started_unix_ms,
+          type: u64,
+          doc: "0 until the clock is known (04 §4.4); see flags.clock_valid",
+        }
+      - { name: ended_unix_ms, type: u64, doc: "0 while the session is open" }
+      - { name: sample_count, type: u32 }
+      - { name: sample_period_s, type: u16, doc: "nominal 30" }
+      - { name: num_probes, type: u8, doc: "2 or 4" }
+      - {
+          name: flags,
+          type: u8,
+          bits:
+            [
+              clock_valid,
+              closed,
+              pinned,
+              source_celsius,
+              _rsv4,
+              _rsv5,
+              _rsv6,
+              _rsv7,
+            ],
+          doc: "the session_header flags byte, unchanged",
+        }
+      - {
+          name: name,
+          type: char,
+          count: 28,
+          doc: "UTF-8, NUL-padded; truncated from the header's 40. 28 rather
+            than 24 because the auto-name 04 §4.6 specifies —
+            'Cook — Sat 14 Mar, 06:12' — is 26 BYTES: the em-dash costs
+            three. A 24-byte field clipped the canonical name of every
+            clock-valid session, which the golden fixture caught.",
+        }
+
 # ── BLE characteristic payloads (05 §5.6) ────────────────────────────────────
 #
 # Packed little-endian with a leading version byte. device_info, wifi_scan_ctrl,
@@ -302,10 +371,13 @@ ble_payloads:
               history_preview,
               ota,
               battery,
-              _rsv6,
+              history_full,
               _rsv7,
             ],
-          doc: "b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN",
+          doc: "b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN.
+            b6 history_full: this bridge serves §5.10/§5.11, so a client can
+            tell a v1.1 bridge from a v1.0 one that would silently never
+            answer a history_ctrl write",
         }
       - { name: id, type: char, count: 4, doc: "ASCII hex, e.g. A4F2" }
       - { name: model, type: char, count: 16, doc: "UTF-8, NUL-padded" }
@@ -443,6 +515,51 @@ ble_payloads:
           sentinel: { -32768: detached, -32767: invalid },
         }
 
+  # v1.1 — the pair that lifts the 2 h preview ceiling (ble-gatt §5.10–§5.11).
+  # A cook that ran overnight with no phone anywhere near it is the NORMAL
+  # case for this device, so the transport that works in a yard with no Wi-Fi
+  # has to be able to hand that cook over.
+  history_ctrl: # write (encrypted): ask for a stream on history_data
+    size: 16
+    fields:
+      - { name: ver, type: u8, const: 1 }
+      - { name: req, type: u8, enum: history_req }
+      - {
+          name: stride,
+          type: u16,
+          doc: "samples only; 1 = every record, 0 is read as 1",
+        }
+      - { name: session_id, type: u32, doc: "ignored when req = sessions" }
+      - { name: from_t, type: u32, doc: "session-relative seconds, inclusive" }
+      - { name: to_t, type: u32, doc: "inclusive; UINT32_MAX = to the end" }
+
+  history_data: # notify (encrypted): one framed slice of the answer
+    max_size: 244
+    fields:
+      - { name: ver, type: u8, const: 1 }
+      - { name: kind, type: u8, enum: history_kind }
+      - {
+          name: seq,
+          type: u16,
+          doc: "frame counter within one response, from 0 — a gap means a
+            dropped frame, which is the client's cue to re-request",
+        }
+      - {
+          name: flags,
+          type: u8,
+          bits: [last, _rsv1, _rsv2, _rsv3, _rsv4, _rsv5, _rsv6, _rsv7],
+        }
+      - { name: count, type: u8, doc: "items in this frame" }
+      - { name: len, type: u8, doc: "payload bytes; ≤ 237" }
+      - {
+          name: payload,
+          type: u8,
+          var_len: len,
+          max: 237,
+          doc: "count × 52 B history_session · count × 16 B sample_rec ·
+            count × 32 B mark_rec · 1 B result_status when kind = end",
+        }
+
 # device_control op-specific bodies (offset 2 onward of device_control).
 # Ops not listed carry no body. See enums.control_op for the op numbers.
 control_bodies:
@@ -458,6 +575,13 @@ control_bodies:
   set_units: # op 9
     fields:
       - { name: units, type: u8, enum: units }
+  set_cook_clock: # op 14
+    fields:
+      # How old the cook is AT THIS MOMENT — not a start timestamp, which
+      # would need the bridge to have a wall clock to measure against. Also
+      # what makes the clock adjustable: "the cook is 5 minutes in" is the
+      # same call whether it is the first one or a correction.
+      - { name: elapsed_s, type: u32 }
   ack_alarm: # op 11
     fields:
       - { name: alarm_id, type: u8 }

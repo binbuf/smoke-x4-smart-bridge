@@ -1,10 +1,11 @@
-/// A24.1 — the app shell: four tabs over one seeded session (design 13 §13.3).
+/// A24.1 — the app shell: three tabs over one seeded session (design 13 §13.3,
+/// newapp §B.2).
 ///
 /// The shell is driven here through a seeded [ShellSession] — no `AppEnv`, no
 /// radio, no socket — so these assertions are about the shell's own behaviour:
-/// the four tabs exist, switching selects a tab and reveals the shell chrome,
+/// the three tabs exist, switching selects a tab and reveals the shell chrome,
 /// and the loudest unacked alarm raises an [AlarmBar] whose `Acknowledge` is one
-/// tap away (§13.3.3). Fonts are loaded so the seeded Cook body measures the
+/// tap away (§13.3.3). Fonts are loaded so the seeded reader body measures the
 /// metrics that ship.
 library;
 
@@ -54,7 +55,7 @@ Future<void> _sized(WidgetTester tester, Size size) async {
 void main() {
   setUpAll(loadAppFonts);
 
-  testWidgets('the four tabs are present on a phone', (tester) async {
+  testWidgets('the three tabs are present on a phone', (tester) async {
     await _sized(tester, const Size(400, 800));
     final session = _session();
     addTearDown(session.dispose);
@@ -64,7 +65,7 @@ void main() {
 
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
-    for (final tab in ['Cook', 'History', 'Alerts', 'Bridge']) {
+    for (final tab in ['Live', 'Cooks', 'Device']) {
       expect(find.text(tab), findsOneWidget, reason: 'nav tab "$tab"');
     }
   });
@@ -84,7 +85,7 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
     // The destinations and their order do not change with the chrome — that
     // is what keeps this a layout change and not an IA change.
-    for (final tab in ['Cook', 'History', 'Alerts', 'Bridge']) {
+    for (final tab in ['Live', 'Cooks', 'Device']) {
       expect(find.text(tab), findsWidgets, reason: 'rail destination "$tab"');
     }
   });
@@ -97,12 +98,12 @@ void main() {
     await tester.pumpWidget(_host(session));
     await tester.pump();
 
-    // Cook used to be the exception — it drew its own chip inside CookView
+    // The reader used to be the exception — it drew its own chip inside CookView
     // while the other three got the shell's, so the indicator moved when you
     // changed tabs. There is exactly one, everywhere, now.
     expect(find.byType(SystemStatusBar), findsOneWidget);
 
-    await tester.tap(find.text('History'));
+    await tester.tap(find.text('Cooks'));
     // Not pumpAndSettle: the live TransportChip's PulseDot animates forever.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -114,7 +115,7 @@ void main() {
     expect(find.byType(SystemStatusBar), findsOneWidget);
   });
 
-  testWidgets('the loudest unacked alarm raises an AlarmBar on the Cook tab', (
+  testWidgets('the loudest unacked alarm raises an AlarmBar on the reader', (
     tester,
   ) async {
     final session = _session(
@@ -146,7 +147,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('with no snapshot the Cook tab waits rather than throwing', (
+  testWidgets('with no snapshot the reader waits rather than throwing', (
     tester,
   ) async {
     final session = ShellSession.seeded(launch: const LaunchConnecting());
@@ -156,7 +157,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Cook'), findsOneWidget);
+    expect(find.text('Live'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

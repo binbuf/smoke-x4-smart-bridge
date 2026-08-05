@@ -8,6 +8,7 @@ library;
 export 'chart_series.dart';
 export 'cook_stats.dart';
 export 'eta.dart';
+export 'gaps.dart';
 export 'lid_open.dart';
 export 'lttb.dart';
 export 'rate_of_change.dart';

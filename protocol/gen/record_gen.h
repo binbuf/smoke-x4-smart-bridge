@@ -193,6 +193,8 @@ typedef enum {
     BRIDGE_CONTROL_OP_ACK_ALARM = 11,
     BRIDGE_CONTROL_OP_SET_BATTERY_SAVER = 12,
     BRIDGE_CONTROL_OP_POWER_OFF = 13,
+    BRIDGE_CONTROL_OP_SET_COOK_CLOCK = 14,
+    BRIDGE_CONTROL_OP_CLEAR_COOK_CLOCK = 15,
 } bridge_control_op_t;
 
 static inline const char *bridge_control_op_str(int v) {
@@ -223,6 +225,10 @@ static inline const char *bridge_control_op_str(int v) {
         return "set_battery_saver";
     case 13:
         return "power_off";
+    case 14:
+        return "set_cook_clock";
+    case 15:
+        return "clear_cook_clock";
     default:
         return "";
     }
@@ -299,6 +305,50 @@ static inline const char *bridge_scan_cmd_str(int v) {
         return "cancel";
     case 1:
         return "start";
+    default:
+        return "";
+    }
+}
+
+typedef enum {
+    BRIDGE_HISTORY_REQ_CANCEL = 0,
+    BRIDGE_HISTORY_REQ_SESSIONS = 1,
+    BRIDGE_HISTORY_REQ_SAMPLES = 2,
+    BRIDGE_HISTORY_REQ_MARKS = 3,
+} bridge_history_req_t;
+
+static inline const char *bridge_history_req_str(int v) {
+    switch (v) {
+    case 0:
+        return "cancel";
+    case 1:
+        return "sessions";
+    case 2:
+        return "samples";
+    case 3:
+        return "marks";
+    default:
+        return "";
+    }
+}
+
+typedef enum {
+    BRIDGE_HISTORY_KIND_END = 0,
+    BRIDGE_HISTORY_KIND_SESSION = 1,
+    BRIDGE_HISTORY_KIND_SAMPLES = 2,
+    BRIDGE_HISTORY_KIND_MARKS = 3,
+} bridge_history_kind_t;
+
+static inline const char *bridge_history_kind_str(int v) {
+    switch (v) {
+    case 0:
+        return "end";
+    case 1:
+        return "session";
+    case 2:
+        return "samples";
+    case 3:
+        return "marks";
     default:
         return "";
     }
@@ -598,6 +648,64 @@ static inline bool bridge_mark_rec_decode(const uint8_t *buf, bridge_mark_rec_t 
     return v->crc16 == bridge_mark_rec_crc(buf);
 }
 
+/* ── history_session (56 B) ── */
+
+#define BRIDGE_HISTORY_SESSION_SIZE 56u
+
+typedef struct __attribute__((packed)) {
+    uint32_t session_id;
+    uint64_t started_unix_ms; /* 0 until the clock is known (04 §4.4); see flags.clock_valid */
+    uint64_t ended_unix_ms; /* 0 while the session is open */
+    uint32_t sample_count;
+    uint16_t sample_period_s; /* nominal 30 */
+    uint8_t num_probes; /* 2 or 4 */
+    uint8_t flags; /* the session_header flags byte, unchanged */
+    char name[28]; /* UTF-8, NUL-padded; truncated from the header's 40. 28 rather than 24 because the auto-name 04 §4.6 specifies — 'Cook — Sat 14 Mar, 06:12' — is 26 BYTES: the em-dash costs three. A 24-byte field clipped the canonical name of every clock-valid session, which the golden fixture caught. */
+} bridge_history_session_t;
+
+_Static_assert(sizeof(bridge_history_session_t) == BRIDGE_HISTORY_SESSION_SIZE,
+               "history_session must pack to 56 bytes");
+
+#define BRIDGE_HISTORY_SESSION_FLAGS_CLOCK_VALID (1u << 0)
+#define BRIDGE_HISTORY_SESSION_FLAGS_CLOSED (1u << 1)
+#define BRIDGE_HISTORY_SESSION_FLAGS_PINNED (1u << 2)
+#define BRIDGE_HISTORY_SESSION_FLAGS_SOURCE_CELSIUS (1u << 3)
+static inline bool bridge_history_session_clock_valid(uint8_t flags) {
+    return (flags & (1u << 0)) != 0;
+}
+static inline bool bridge_history_session_closed(uint8_t flags) {
+    return (flags & (1u << 1)) != 0;
+}
+static inline bool bridge_history_session_pinned(uint8_t flags) {
+    return (flags & (1u << 2)) != 0;
+}
+static inline bool bridge_history_session_source_celsius(uint8_t flags) {
+    return (flags & (1u << 3)) != 0;
+}
+
+static inline void bridge_history_session_encode(const bridge_history_session_t *v, uint8_t out[BRIDGE_HISTORY_SESSION_SIZE]) {
+    bridge_put_u32(out + 0, v->session_id);
+    bridge_put_u64(out + 4, v->started_unix_ms);
+    bridge_put_u64(out + 12, v->ended_unix_ms);
+    bridge_put_u32(out + 20, v->sample_count);
+    bridge_put_u16(out + 24, v->sample_period_s);
+    out[26] = v->num_probes;
+    out[27] = v->flags;
+    memcpy(out + 28, v->name, 28);
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_history_session_decode(const uint8_t *buf, bridge_history_session_t *v) {
+    v->session_id = bridge_get_u32(buf + 0);
+    v->started_unix_ms = bridge_get_u64(buf + 4);
+    v->ended_unix_ms = bridge_get_u64(buf + 12);
+    v->sample_count = bridge_get_u32(buf + 20);
+    v->sample_period_s = bridge_get_u16(buf + 24);
+    v->num_probes = buf[26];
+    v->flags = buf[27];
+    memcpy(v->name, buf + 28, 28);
+}
+
 /* ── device_info (40 B) ── */
 
 #define BRIDGE_DEVICE_INFO_SIZE 40u
@@ -606,7 +714,7 @@ typedef struct __attribute__((packed)) {
     uint8_t ver;
     uint8_t api; /* HTTP/BLE API major version */
     uint8_t probes; /* 2 or 4 */
-    uint8_t caps; /* b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN */
+    uint8_t caps; /* b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN. b6 history_full: this bridge serves §5.10/§5.11, so a client can tell a v1.1 bridge from a v1.0 one that would silently never answer a history_ctrl write */
     char id[4]; /* ASCII hex, e.g. A4F2 */
     char model[16]; /* UTF-8, NUL-padded */
     char fw[16]; /* UTF-8, NUL-padded */
@@ -621,6 +729,7 @@ _Static_assert(sizeof(bridge_device_info_t) == BRIDGE_DEVICE_INFO_SIZE,
 #define BRIDGE_DEVICE_INFO_CAPS_HISTORY_PREVIEW (1u << 3)
 #define BRIDGE_DEVICE_INFO_CAPS_OTA (1u << 4)
 #define BRIDGE_DEVICE_INFO_CAPS_BATTERY (1u << 5)
+#define BRIDGE_DEVICE_INFO_CAPS_HISTORY_FULL (1u << 6)
 static inline bool bridge_device_info_wifi_ap(uint8_t caps) {
     return (caps & (1u << 0)) != 0;
 }
@@ -638,6 +747,9 @@ static inline bool bridge_device_info_ota(uint8_t caps) {
 }
 static inline bool bridge_device_info_battery(uint8_t caps) {
     return (caps & (1u << 5)) != 0;
+}
+static inline bool bridge_device_info_history_full(uint8_t caps) {
+    return (caps & (1u << 6)) != 0;
 }
 
 static inline void bridge_device_info_encode(const bridge_device_info_t *v, uint8_t out[BRIDGE_DEVICE_INFO_SIZE]) {
@@ -1187,6 +1299,121 @@ static inline int bridge_history_preview_unpack(const uint8_t *buf, size_t len, 
     return (int)off;
 }
 
+/* ── history_ctrl (16 B) ── */
+
+#define BRIDGE_HISTORY_CTRL_SIZE 16u
+
+typedef struct __attribute__((packed)) {
+    uint8_t ver;
+    uint8_t req;
+    uint16_t stride; /* samples only; 1 = every record, 0 is read as 1 */
+    uint32_t session_id; /* ignored when req = sessions */
+    uint32_t from_t; /* session-relative seconds, inclusive */
+    uint32_t to_t; /* inclusive; UINT32_MAX = to the end */
+} bridge_history_ctrl_t;
+
+_Static_assert(sizeof(bridge_history_ctrl_t) == BRIDGE_HISTORY_CTRL_SIZE,
+               "history_ctrl must pack to 16 bytes");
+
+static inline void bridge_history_ctrl_encode(const bridge_history_ctrl_t *v, uint8_t out[BRIDGE_HISTORY_CTRL_SIZE]) {
+    out[0] = v->ver;
+    out[1] = v->req;
+    bridge_put_u16(out + 2, v->stride);
+    bridge_put_u32(out + 4, v->session_id);
+    bridge_put_u32(out + 8, v->from_t);
+    bridge_put_u32(out + 12, v->to_t);
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_history_ctrl_decode(const uint8_t *buf, bridge_history_ctrl_t *v) {
+    v->ver = buf[0];
+    v->req = buf[1];
+    v->stride = bridge_get_u16(buf + 2);
+    v->session_id = bridge_get_u32(buf + 4);
+    v->from_t = bridge_get_u32(buf + 8);
+    v->to_t = bridge_get_u32(buf + 12);
+}
+
+/* ── history_data (variable, ≤ 244 B on the wire) ── */
+
+#define BRIDGE_HISTORY_DATA_MAX_SIZE 244u
+
+typedef struct {
+    uint8_t ver;
+    uint8_t kind;
+    uint16_t seq; /* frame counter within one response, from 0 — a gap means a dropped frame, which is the client's cue to re-request */
+    uint8_t flags;
+    uint8_t count; /* items in this frame */
+    uint8_t len; /* payload bytes; ≤ 237 */
+    uint8_t payload[237]; /* count × 52 B history_session · count × 16 B sample_rec · count × 32 B mark_rec · 1 B result_status when kind = end */
+} bridge_history_data_t;
+
+#define BRIDGE_HISTORY_DATA_FLAGS_LAST (1u << 0)
+static inline bool bridge_history_data_last(uint8_t flags) {
+    return (flags & (1u << 0)) != 0;
+}
+
+/* Serializes *v; returns the wire length, or -1 if a length field
+ * exceeds its max or cap is too small. */
+static inline int bridge_history_data_pack(const bridge_history_data_t *v, uint8_t *out, size_t cap) {
+    if (v->len > 237) {
+        return -1;
+    }
+    size_t off = 0;
+    size_t need = 0;
+    need = 7u + (size_t)v->len * 1u;
+    if (cap < need) {
+        return -1;
+    }
+    out[off++] = (uint8_t)v->ver;
+    out[off++] = (uint8_t)v->kind;
+    bridge_put_u16(out + off, (uint16_t)v->seq);
+    off += 2;
+    out[off++] = (uint8_t)v->flags;
+    out[off++] = (uint8_t)v->count;
+    out[off++] = (uint8_t)v->len;
+    memcpy(out + off, v->payload, v->len);
+    off += v->len;
+    return (int)off;
+}
+
+/* Parses len wire bytes into *v; returns bytes consumed or -1 on
+ * truncation / out-of-range lengths. */
+static inline int bridge_history_data_unpack(const uint8_t *buf, size_t len, bridge_history_data_t *v) {
+    size_t off = 0;
+    if (len < off + 1u) {
+        return -1;
+    }
+    v->ver = buf[off++];
+    if (len < off + 1u) {
+        return -1;
+    }
+    v->kind = buf[off++];
+    if (len < off + 2u) {
+        return -1;
+    }
+    v->seq = bridge_get_u16(buf + off);
+    off += 2;
+    if (len < off + 1u) {
+        return -1;
+    }
+    v->flags = buf[off++];
+    if (len < off + 1u) {
+        return -1;
+    }
+    v->count = buf[off++];
+    if (len < off + 1u) {
+        return -1;
+    }
+    v->len = buf[off++];
+    if (v->len > 237 || len < off + (size_t)v->len) {
+        return -1;
+    }
+    memcpy(v->payload, buf + off, (size_t)v->len);
+    off += (size_t)v->len;
+    return (int)off;
+}
+
 /* ── set_time (device_control body, 10 B) ── */
 
 #define BRIDGE_CTRL_SET_TIME_SIZE 10u
@@ -1277,6 +1504,26 @@ static inline void bridge_ctrl_set_units_encode(const bridge_ctrl_set_units_t *v
 /* Fills *v from the wire bytes. Never rejects on version. */
 static inline void bridge_ctrl_set_units_decode(const uint8_t *buf, bridge_ctrl_set_units_t *v) {
     v->units = buf[0];
+}
+
+/* ── set_cook_clock (device_control body, 4 B) ── */
+
+#define BRIDGE_CTRL_SET_COOK_CLOCK_SIZE 4u
+
+typedef struct __attribute__((packed)) {
+    uint32_t elapsed_s;
+} bridge_ctrl_set_cook_clock_t;
+
+_Static_assert(sizeof(bridge_ctrl_set_cook_clock_t) == BRIDGE_CTRL_SET_COOK_CLOCK_SIZE,
+               "set_cook_clock must pack to 4 bytes");
+
+static inline void bridge_ctrl_set_cook_clock_encode(const bridge_ctrl_set_cook_clock_t *v, uint8_t out[BRIDGE_CTRL_SET_COOK_CLOCK_SIZE]) {
+    bridge_put_u32(out + 0, v->elapsed_s);
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_ctrl_set_cook_clock_decode(const uint8_t *buf, bridge_ctrl_set_cook_clock_t *v) {
+    v->elapsed_s = bridge_get_u32(buf + 0);
 }
 
 /* ── ack_alarm (device_control body, 1 B) ── */

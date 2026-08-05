@@ -39,7 +39,23 @@ class FakePeripheralConfig {
     this.advertiseNothing = false,
     this.continuousScan = false,
     this.rssi = -58,
+    this.historyStatus = ResultStatus.ok,
+    this.historyDropFrame,
+    this.historyBusy = false,
   });
+
+  /// The status the end frame reports (§5.11). Anything but `ok` must
+  /// surface as a typed failure rather than a short cook.
+  final ResultStatus historyStatus;
+
+  /// Drop the frame at this index, keeping the seq chain's gap visible.
+  /// A dropped frame is the one history failure a client cannot detect by
+  /// looking at the data — only by the counter.
+  final int? historyDropFrame;
+
+  /// A stream is already running: answer `busy` on seq 0xFFFF without
+  /// disturbing it (§5.10).
+  final bool historyBusy;
 
   /// 23 is the value to fear: it is what a failed negotiation leaves, and
   /// the one `live_state` was designed at 16 B to survive (R7).
@@ -103,7 +119,13 @@ class FakePeripheralConfig {
     bool? advertiseMalformed,
     bool? advertiseNothing,
     bool? continuousScan,
+    ResultStatus? historyStatus,
+    int? historyDropFrame,
+    bool? historyBusy,
   }) => FakePeripheralConfig(
+    historyStatus: historyStatus ?? this.historyStatus,
+    historyDropFrame: historyDropFrame ?? this.historyDropFrame,
+    historyBusy: historyBusy ?? this.historyBusy,
     negotiatedMtu: negotiatedMtu ?? this.negotiatedMtu,
     rejectBond: rejectBond ?? this.rejectBond,
     dropOnWrite: dropOnWrite ?? this.dropOnWrite,
@@ -127,9 +149,11 @@ class FakeBridgeState {
     this.model = 'heltec-v3',
     this.fw = '1.0.0',
     this.probes = 4,
-    // wifi_ap | wifi_sta | history_preview. `battery` stays clear until
-    // F12 (M5), which is why socPct is socUnknown (ble-gatt §5.1.1).
-    this.caps = 0x0B,
+    // wifi_ap | wifi_sta | history_preview | history_full. `battery` stays
+    // clear until F12 (M5), which is why socPct is socUnknown
+    // (ble-gatt §5.1.1). Drop b6 (→ 0x0B) to model a v1.0 bridge that never
+    // answers a history_ctrl write at all.
+    this.caps = 0x4B,
     this.paired = true,
     this.sessionActive = true,
     this.pitTempF10 = 2431,
@@ -183,6 +207,54 @@ class FakeBridgeState {
         i == 3 ? tempDetached : pitTempF10 - count + i,
     ],
   );
+
+  // ── v1.1: what the bridge actually has on flash (§5.10–§5.11) ────────
+  //
+  // Populated by [recordCook], because the scenario this feature exists for
+  // is a bridge that recorded for hours with no phone anywhere near it.
+
+  /// Session id → the records the bridge holds, in `t` order.
+  final Map<int, List<SampleRec>> cooks = {};
+  final Map<int, List<MarkRec>> cookMarks = {};
+  final Map<int, HistorySession> cookHeaders = {};
+
+  /// Records `hours` of a cook at the nominal 30 s cadence, exactly as an
+  /// always-recording bridge would have while nobody was watching.
+  int recordCook({
+    int id = 0x1A,
+    int hours = 12,
+    bool closed = false,
+    String name = 'Cook — Sat 14 Mar, 06:12',
+    int startedUnixMs = 1774051200000,
+  }) {
+    final n = hours * 120;
+    cooks[id] = [
+      for (var i = 0; i < n; i++)
+        SampleRec(
+          t: i * 30,
+          // Probe 3 detached throughout: the sentinel has to survive the
+          // whole transfer and arrive as null, never as 0 °F.
+          temp: [2000 + (i % 400), 1600, tempDetached, 900],
+          rssi: -70,
+        ),
+    ];
+    cookMarks.putIfAbsent(id, () => []);
+    cookHeaders[id] = HistorySession(
+      sessionId: id,
+      startedUnixMs: startedUnixMs,
+      endedUnixMs: closed ? startedUnixMs + hours * 3600 * 1000 : 0,
+      // Authoritative for an OPEN session too: the firmware derives it from
+      // the file size rather than the header field, which is the difference
+      // between a phone syncing a live 12 h cook and one being told there
+      // is nothing there (04 §4.3).
+      sampleCount: n,
+      samplePeriodS: 30,
+      numProbes: 4,
+      flags: 0x01 | (closed ? 0x02 : 0),
+      nameRaw: utf8ToPadded(name, 28),
+    );
+    return id;
+  }
 }
 
 /// The §2.3 manufacturer status blob, built the same way the firmware
@@ -425,6 +497,8 @@ class FakePeripheral implements BleGattClient {
         await _onWifiConfig(value);
       case BridgeChar.deviceControl:
         await _onDeviceControl(value);
+      case BridgeChar.historyCtrl:
+        await _onHistoryCtrl(value);
       default:
         throw const BleStateException('characteristic is not writable');
     }
@@ -553,6 +627,119 @@ class FakePeripheral implements BleGattClient {
         break;
     }
     notify(BridgeChar.result, _result(ctrl.op, status));
+  }
+
+  // ── v1.1: full history over BLE (§5.10–§5.11) ──────────────────────
+  //
+  // Framed exactly as the firmware frames it — whole items only, the
+  // largest number that fits 237 B, one seq chain across the whole
+  // response including the terminator. A client that passes against this
+  // and fails against the board means the two disagree about the CONTRACT,
+  // which is the divergence this fake exists to catch early.
+
+  static const _payloadMax = 237;
+
+  /// Frames emitted for the last request, for assertion.
+  int historyFramesSent = 0;
+
+  Future<void> _onHistoryCtrl(Uint8List value) async {
+    final req = HistoryCtrl.decode(value);
+    var seq = 0;
+    historyFramesSent = 0;
+
+    void send(HistoryKind kind, int count, List<int> payload, {bool last = false}) {
+      final index = historyFramesSent;
+      historyFramesSent++;
+      // A dropped frame still burns its seq — that gap is the only trace
+      // it leaves, and the whole reason seq is on the wire.
+      final skip = config.historyDropFrame == index;
+      final frame = HistoryData(
+        kind: kind.wire,
+        seq: seq++,
+        flags: last ? 0x01 : 0,
+        count: count,
+        payloadRaw: Uint8List.fromList(payload),
+      );
+      if (!skip) {
+        notify(BridgeChar.historyData, frame.pack());
+      }
+    }
+
+    void end(ResultStatus status) =>
+        send(HistoryKind.end, 0, [status.wire], last: true);
+
+    if (config.historyBusy) {
+      // Rides seq 0xFFFF so it cannot be mistaken for a frame of the
+      // stream already in flight.
+      notify(
+        BridgeChar.historyData,
+        HistoryData(
+          kind: HistoryKind.end.wire,
+          seq: 0xFFFF,
+          flags: 0x01,
+          payloadRaw: Uint8List.fromList([ResultStatus.busy.wire]),
+        ).pack(),
+      );
+      return;
+    }
+
+    /// Packs `items` into frames of at most `perFrame` whole items.
+    void stream(HistoryKind kind, List<Uint8List> items, int itemSize) {
+      final perFrame = _payloadMax ~/ itemSize;
+      for (var i = 0; i < items.length; i += perFrame) {
+        final slice = items.sublist(
+          i,
+          (i + perFrame).clamp(0, items.length),
+        );
+        send(kind, slice.length, [for (final it in slice) ...it]);
+      }
+    }
+
+    switch (req.reqEnum) {
+      case HistoryReq.cancel:
+        end(ResultStatus.ok);
+      case HistoryReq.sessions:
+        stream(
+          HistoryKind.session,
+          [for (final h in state.cookHeaders.values) h.encode()],
+          HistorySession.size,
+        );
+        end(config.historyStatus);
+      case HistoryReq.samples:
+        final recs = state.cooks[req.sessionId];
+        if (recs == null) {
+          end(ResultStatus.invalid);
+          return;
+        }
+        final stride = req.stride == 0 ? 1 : req.stride;
+        final wanted = <Uint8List>[];
+        for (var i = 0; i < recs.length; i += stride) {
+          final r = recs[i];
+          if (r.t < req.fromT || r.t > req.toT) {
+            continue;
+          }
+          wanted.add(r.encode());
+        }
+        stream(HistoryKind.samples, wanted, SampleRec.size);
+        end(config.historyStatus);
+      case HistoryReq.marks:
+        final marks = state.cookMarks[req.sessionId];
+        if (marks == null) {
+          end(ResultStatus.invalid);
+          return;
+        }
+        stream(
+          HistoryKind.marks,
+          [
+            for (final m in marks)
+              if (m.t >= req.fromT && m.t <= req.toT) m.encode(),
+          ],
+          MarkRec.size,
+        );
+        end(config.historyStatus);
+      case null:
+        end(ResultStatus.invalid);
+    }
   }
 
   Uint8List _result(int opEcho, ResultStatus status, {String detail = ''}) =>

@@ -5,5 +5,6 @@
 /// feature layers. See design 08 §8.3, §8.5.
 library;
 
+export 'cook_repository.dart';
 export 'repositories.dart';
 export 'sync_engine.dart';
