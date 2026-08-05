@@ -166,15 +166,48 @@ on connect:
 Delta sync means reconnecting mid-cook transfers only what was missed. A phone that was away for
 three hours pulls 360 samples = 5.8 KB.
 
-Drift schema:
+Drift schema — **v2** (newapp §D.2, §E.4, §E.5):
 
-| Table      | Notes                                                                              |
-| ---------- | ---------------------------------------------------------------------------------- |
-| `bridges`  | id, name, last IP, last seen, BLE address, api token                               |
-| `sessions` | mirrors the on-device header + `syncedMaxT`, `isComplete`                          |
-| `samples`  | `(bridgeId, sessionId, t)` PK; `p1..p4` nullable ints (tenths °F); `flags`, `rssi` |
-| `marks`    | including app-only marks not yet pushed                                            |
-| `alarmLog` | local record of what fired and when it was seen                                    |
+| Table              | Notes                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `bridges`          | id, name, last seen                                                                              |
+| `sessions`         | mirrors the on-device header                                                                     |
+| `samples`          | `(bridgeId, sessionId, t)` PK; `p1..p4` nullable ints (tenths °F); `flags`, `rssi`; **`unixMs`** |
+| `marks`            | including `autoAnchor`, for marks offerable as a cook start                                      |
+| `alarmLog`         | local record of what fired and when it was seen                                                  |
+| **`cooks`**        | the annotation: name, `startUnixMs`, nullable `endUnixMs`, notes, preset, hazard, safety mode, favourite, `pulledAtUnixMs`, `anchorSessionId` |
+| **`cookProbeRoles`** | per-jack role, target, pull offset, doneness, hazard, `isIntact`                              |
+| **`alarmRules`**   | both tiers: scope, jack, type, threshold, window, `pushedToDevice`, `lastConfirmedUnixMs`        |
+| **`gaps`**         | `(bridge, session, fromT)` PK, with a **reason** — connectivity (recoverable) vs buffer rollover (permanent) |
+| **`syncStates`**   | per-(bridge, session) high-water mark beside the **device's** reported buffer extent             |
+
+### Why samples keep a session key
+
+newapp §D.2 proposes making samples session-agnostic so cook edits are pure metadata. §E.7 requires
+the opposite — *"key everything on device-authoritative IDs `(bridgeId, sessionId, t)`; never mint
+phone-side session IDs"* — because that key is what makes the delta-sync upsert idempotent and a
+mid-sync restart resumable.
+
+Both are satisfied by taking the *property* §D.2 wanted rather than its mechanism: samples keep the
+device's key and gain **`unixMs`**, a projection of it onto the wall clock. A cook resolves its
+membership with an indexed range query instead of owning a foreign key on every sample, so
+backdating, splitting and merging are metadata edits that touch no sample row — instant on an
+eighteen-hour cook rather than a progress bar.
+
+A bridge whose RTC was never set stores **NULL** there rather than a fabricated epoch time (§E.7),
+and a cook over such a session pins itself with `cooks.anchorSessionId`. `SampleDao.projectWallClock`
+backfills the column when a clock arrives mid-session, which is the ordinary case for a bridge that
+syncs its time from the phone.
+
+### The sync high-water protocol (§E.4, §E.5)
+
+The cursor used to be recomputed as `MAX(t)` on every connect. That is a correct resume point and
+says nothing about what the *device* still holds — so the app could not distinguish "I have
+everything" from "the bridge overwrote the part I was missing while I was indoors". `syncStates`
+stores our mark **beside the device's reported extent**, which is what makes a rollover detectable:
+`deviceMinT > highWater + 1` means the span between them exists nowhere, and it is recorded as a
+**permanent** gap that no later sync will clear. A connectivity gap is cleared the moment samples
+fill it. Rendering both as one dashed line would tell a user to wait for something that is not coming.
 
 One row per sample: a 24 h cook is 2,880 rows, 50 cached cooks is ~144 k rows — a size SQLite treats
 as trivial, and it buys free range queries and aggregation. If profiling ever disagrees, the

@@ -863,50 +863,62 @@ cooked yet — the bridge is logging anyway*.
 
 ### 13.3.2 Route tree
 
+**Revised to the newapp §B.2 IA.** The shipping tree:
+
 ```
 rootNavigatorKey
 ├─ /setup                  full-screen, above the shell   SetupRoute
-├─ /recover                full-screen                    BootFailureRoute
 └─ StatefulShellRoute.indexedStack → AppShell
-   ├─ 0  /cook                      ← initialLocation
-   │     ├─ /cook/setup      sheet (flow)     CookSetupSheet
-   │     ├─ /cook/presets    sheet (flow)     PresetLibrarySheet
-   │     ├─ /cook/mark       sheet (action)   MarkSheet
-   │     ├─ /cook/probe/:n   sheet (detail)   ProbeDetailSheet
-   │     └─ /cook/connection sheet (detail)   ConnectionSheet
-   ├─ 1  /history
-   │     └─ /history/:id     push             SessionDetailRoute
-   ├─ 2  /alarms
-   │     └─ /alarms/quiet-hours   sheet (flow)
-   └─ 3  /bridge
-         ├─ /bridge/probes · /alarms-device · /network · /device
-         ├─ /bridge/advanced · /firmware · /power · /about
-         ├─ /bridge/phones        push   PairedPhonesView (needs op 15)
-         └─ /bridge/pair-base     sheet (flow)  BasePairingSheet
+   ├─ 0  /live                      ← initialLocation. THE READER.
+   │     ├─ /live/probe/:jack  push            ProbeDetailRoute
+   │     ├─ cook setup         sheet (flow)    CookSetupSheet
+   │     ├─ mark               sheet (action)  MarkSheet
+   │     └─ connection         sheet (detail)  ConnectionSheet
+   ├─ 1  /cooks
+   │     └─ /cooks/:id         push            CookDetailRoute
+   │           ├─ /cooks/:id/edit  push        CookEditRoute
+   │           ├─ backdate     sheet (flow)    BackdateSheet
+   │           └─ split        sheet (flow)    SplitSheet
+   └─ 2  /device
+         ├─ /device/alarms              push   AlarmRulesRoute
+         └─ /device/settings/:section   push   SettingsRoute
 ```
 
-- `errorBuilder` → a branded `NotFoundScreen` with one action.
-- `redirect` owns the setup gate, fed by `refreshListenable`. The widget-level `context.go` at
-  `dashboard_route.dart:59-61` is deleted, which also deletes the `SizedBox.shrink()` blank frame at
-  `:119`.
-- `/history/:id` validates `int.tryParse` instead of fabricating session 0 (`router.dart:55`).
-- `features/debug/debug.dart` folds into `/bridge/advanced`; `features/alarms/alarms.dart` becomes
-  the `/alarms` branch. Neither is orphaned.
+Superseded paths all still resolve — `/cook`→`/live`, `/history[/:id]`→`/cooks[/:id]`,
+`/sessions[/:id]`→`/cooks[/:id]`, `/alerts`→`/device/alarms`, `/bridge`→`/device`,
+`/bridge/:section`→`/device/settings/:section`, `/settings*`→`/device*` — because a deep link a user
+saved or a notification already posted must not land on a 404.
 
-### 13.3.3 Four tabs, and why
+- `redirect` owns the setup gate and the superseded-path table, and nothing else.
+- `/cooks/:id` validates `int.tryParse` instead of fabricating cook 0.
+- `features/dashboard/{dashboard_route,dashboard_screen,header_strip,session_controls}.dart`,
+  `features/onboarding/*` and `/cook-preview` are **deleted** (newapp §I.0): pre-shell code that
+  still compiled, was partly routed, and was reachable from nothing.
+
+### 13.3.3 Three tabs, and why
 
 | Tab | Job |
 |---|---|
-| **Cook** | the live instrument; the only screen with a connection requirement |
-| **History** | cache-served; works with the bridge unplugged, by design |
-| **Alarms** | two tiers, quiet hours, **delivery status**, alarm log — configuration and history, not acknowledgement |
-| **Bridge** | the device: probes, network, power, firmware, pairing, paired phones, forget/replace |
+| **Live** | the reader — every plugged probe's temperature and whether it can be trusted. Default landing |
+| **Cooks** | annotations over the continuous recording: name, backdate, retarget, split, merge, repeat. Cache-served, works with the bridge unplugged |
+| **Device** | the device: status, connection mode, alarm rules, settings, firmware, power |
 
-**Presets is not a tab.** A tab you visit once per cook is wrong 95% of the time; it is a passage at
-`/cook/presets`. **Welcome is not a tab** — it is a gate above the shell, so the transport chip and
-nav bar cannot render behind an unprovisioned device. **Acknowledgement is not on the Alarms tab** —
-it is one tap on the Cook tab's `AlarmBar` and one tap on the notification. A 3 a.m. ack must never
-require a tab change.
+**It was four.** `/alerts` was a permissions verdict plus a test button occupying a quarter of the
+primary navigation — and a verdict is not a place anyone spends fourteen hours. It is now a
+`DeliveryBanner` on `/live` and `/device` that renders **only while something is wrong**, plus a
+one-time gate in setup; its test button moved to `/device/alarms`, beside the rules it tests. See
+newapp §B.1.
+
+**The live screen is not a cook.** `/cook` (singular) was named after the modal it used to be, which
+is exactly what made "End cook" read as "stop recording" to every user who tried it. The bridge
+records regardless; a cook is an *annotation* you may attach to that recording (§13.3.1, newapp §D.1),
+and the two now have two names.
+
+**Presets is not a tab.** A tab you visit once per cook is wrong 95% of the time; it is a sheet.
+**Welcome is not a tab** — it is a gate above the shell, so the transport chip and nav bar cannot
+render behind an unprovisioned device. **Acknowledgement is not a destination** — it is one tap on
+the shell's `AlarmBar`, which rides above every tab, and one tap on the notification. A 3 a.m. ack
+must never require a tab change.
 
 ### 13.3.4 Back behaviour
 
