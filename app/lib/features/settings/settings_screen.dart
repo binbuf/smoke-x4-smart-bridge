@@ -34,6 +34,11 @@ enum SettingsSection {
     Icons.home_outlined,
   ),
   power('Power', 'Restart, sleep, and factory reset', Icons.power_settings_new),
+  storage(
+    'Stored cooks',
+    'What this phone keeps, and how to clear it',
+    Icons.save_outlined,
+  ),
   about('About', 'Versions and licences', Icons.info_outline);
 
   const SettingsSection(this.title, this.subtitle, this.icon);
@@ -53,6 +58,11 @@ enum SettingsSection {
   /// behind a cost sheet — two routes to a factory reset is one too many.
   /// [advanced] is absent because it is a diagnostics console reached by a
   /// deliberate gesture, not a peer of "Probes" (see `BridgeTab`).
+  ///
+  /// [storage] is absent for a different reason than the others: it is not
+  /// about the device at all. It governs what THIS PHONE keeps, which
+  /// survives the bridge being unplugged, factory-reset, or replaced — so
+  /// filing it under the bridge would misdescribe what clearing it does.
   static const List<SettingsSection> deviceSections = [
     probes,
     network,
@@ -492,6 +502,166 @@ class PowerSettingsView extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// A29 — the phone's own copy of every cook it has seen, and the only way
+/// to get rid of it.
+///
+/// **The cache is unbounded on purpose.** It keeps cooks the bridge has
+/// long since deleted under its 64-session retention (04 §4.7), which is
+/// the entire reason it exists — a cook you did last spring outlives the
+/// device's own memory of it. A policy like that is only honest if the
+/// person it stores data for can end it, and that is this page.
+///
+/// Nothing here touches the bridge. Clearing the cache is a local erase;
+/// the next sync refills whatever the device still holds, which is what
+/// separates "clear a cache" from "delete my cooking history".
+class StorageSettingsView extends StatelessWidget {
+  const StorageSettingsView({
+    required this.sessions,
+    required this.samples,
+    required this.approxBytes,
+    this.onClear,
+    this.busy = false,
+    super.key,
+  });
+
+  final int sessions;
+  final int samples;
+
+  /// Rounded to whole megabytes on screen — a byte count implies a
+  /// precision SQLite's page allocation does not actually give us.
+  final int approxBytes;
+
+  /// Null while there is nothing to clear, which is why the tile reads as
+  /// disabled rather than offering an erase that would do nothing.
+  final Future<void> Function()? onClear;
+  final bool busy;
+
+  static String _size(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).round()} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  /// Hours of cooking, at the nominal 30 s cadence. The number people
+  /// actually recognise: "62 hours" means something, "7,440 samples" does
+  /// not.
+  static String _hours(int samples) {
+    final h = samples * 30 / 3600;
+    if (h < 1) {
+      return '${(h * 60).round()} min';
+    }
+    return '${h.toStringAsFixed(h < 10 ? 1 : 0)} h';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final empty = sessions == 0 && samples == 0;
+    return ListView(
+      key: const Key('settings-storage'),
+      children: [
+        const _SectionLabel('On this phone'),
+        ListTile(
+          key: const Key('storage-sessions'),
+          title: const Text('Cooks kept'),
+          subtitle: const Text(
+            'Including any the bridge has since deleted to make room',
+          ),
+          trailing: Text('$sessions'),
+        ),
+        ListTile(
+          key: const Key('storage-samples'),
+          title: const Text('Recorded time'),
+          subtitle: Text('$samples readings'),
+          trailing: Text(_hours(samples)),
+        ),
+        ListTile(
+          key: const Key('storage-size'),
+          title: const Text('Approximate size'),
+          trailing: Text(_size(approxBytes)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Text(
+            'Cooks are copied off the bridge as soon as this phone can reach '
+            'it — over Bluetooth or Wi-Fi — and then kept here until you '
+            'clear them. Nothing expires on its own.',
+            key: const Key('storage-explainer'),
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+        const _SectionLabel('Danger zone'),
+        ListTile(
+          key: const Key('storage-clear'),
+          leading: Icon(
+            Icons.delete_sweep_outlined,
+            color: empty ? theme.disabledColor : theme.colorScheme.error,
+          ),
+          title: Text(
+            'Clear stored cooks',
+            style: TextStyle(
+              color: empty ? theme.disabledColor : theme.colorScheme.error,
+            ),
+          ),
+          subtitle: Text(
+            empty
+                ? 'Nothing is stored on this phone yet'
+                : 'Removes every cook from this phone. The bridge keeps its '
+                      'own copy of whatever it still holds.',
+          ),
+          enabled: !empty && !busy && onClear != null,
+          onTap: (empty || busy || onClear == null)
+              ? null
+              : () async {
+                  final ok = await _confirmClear(context);
+                  if (ok) {
+                    await onClear!();
+                  }
+                },
+        ),
+      ],
+    );
+  }
+
+  Future<bool> _confirmClear(BuildContext context) async {
+    final theme = Theme.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear stored cooks?'),
+        content: Text(
+          'This removes $sessions ${sessions == 1 ? 'cook' : 'cooks'} and '
+          '${_hours(samples)} of readings from this phone. It cannot be '
+          'undone.\n\nThe bridge is not touched. Anything it still holds '
+          'will be copied back the next time this phone connects — but '
+          'cooks the bridge has already deleted will be gone for good.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('storage-clear-cancel'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('storage-clear-confirm'),
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.error,
+              foregroundColor: theme.colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
   }
 }
 

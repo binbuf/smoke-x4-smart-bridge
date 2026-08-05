@@ -142,8 +142,12 @@ add_executable(test_app_api
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_image.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_gate.c
+    # /cook-clock drives the display clock directly — the real module, not a
+    # double, so the route test and the strip test cannot drift apart.
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_cook.c
 )
 target_include_directories(test_app_api PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/include
@@ -311,6 +315,10 @@ add_executable(test_app_ble
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_ctrl.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_adv.c
+    # §5.10–§5.11 full history over BLE. It streams through cook_store_core,
+    # which is already in this binary over the real VFS — so the 12 h
+    # transfer is exercised end to end here, with no radio and no board.
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_history.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
@@ -323,6 +331,8 @@ add_executable(test_app_ble
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_fb.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_font.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_render.c
+    # app_ble_ctrl.c dispatches set/clear_cook_clock straight into it.
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_cook.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
@@ -362,6 +372,7 @@ add_executable(test_app_ui
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_input.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_model.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_led.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_cook.c
 )
 target_include_directories(test_app_ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include

@@ -40,6 +40,7 @@ Thumbs.db
 
 # Host test build trees
 firmware/test/build*/
+firmware/build-test/
 
 # Packaged app artefacts. `build/` already covers the usual output path; these
 # catch a copy dropped anywhere else (a shared APK, a signing key).

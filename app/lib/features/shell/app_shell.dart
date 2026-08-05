@@ -1,5 +1,5 @@
-/// A24.1 — the app shell: four branches over one live session (design 13
-/// §13.3), now adaptive and branch-stacked.
+/// A24.1 — the app shell: **three** branches over one live session (design 13
+/// §13.3), re-shaped to the newapp §B.2 IA.
 ///
 /// The shell boots the connection race **once** (via [ShellSession]), publishes
 /// it through [ShellScope], and frames whichever branch is showing. Branch
@@ -9,11 +9,11 @@
 /// and back (§13.3.3).
 ///
 /// **Chrome is uniform (§13.5.7).** [SystemStatusBar] and the shared [AlarmBar]
-/// ride above **every** branch, including Cook. Previously Cook drew its own
-/// chip and bar inside `CookView` while the other three got the shell's, so the
-/// transport indicator changed position, container and scroll behaviour with
-/// the tab, and a ringing alarm raised two bars. `CookView.showChrome` (the
-/// one-line flag its own doc comment asked for) closes that seam.
+/// ride above **every** branch, including the reader. Previously the reader drew
+/// its own chip and bar inside `CookView` while the others got the shell's, so
+/// the transport indicator changed position, container and scroll behaviour
+/// with the tab, and a ringing alarm raised two bars. `CookView.showChrome`
+/// closes that seam.
 ///
 /// **Adaptive (§13.3).** Bottom [NavigationBar] on compact; [NavigationRail]
 /// from 600 dp, extended past 1240 dp. The destinations and their indices never
@@ -33,37 +33,34 @@ import '../../app/router.dart';
 import '../../design/design.dart';
 import '../../domain/entities/entities.dart';
 import '../../ui/ui.dart';
-import '../alarms/alerts_tab.dart';
 import '../bridge/bridge_tab.dart';
-import '../cook/cook_tab.dart';
+import '../cooks/cooks_tab.dart';
 import '../dashboard/dashboard_snapshot.dart';
-import '../sessions/sessions_route.dart';
+import '../live/live_tab.dart';
 import 'connection_sheet.dart';
 import 'refresh_banner.dart';
 import 'shell_scope.dart';
 import 'shell_session.dart';
 import 'system_status_bar.dart';
 
-/// The four destinations, in branch order. One table, read by both the bar and
+/// The three destinations, in branch order. One table, read by both the bar and
 /// the rail, so the two can never drift.
 const List<NavigationDestination> _destinations = [
   NavigationDestination(
-    icon: Icon(Icons.local_fire_department_outlined),
-    selectedIcon: Icon(Icons.local_fire_department_rounded),
-    label: 'Cook',
+    icon: Icon(Icons.thermostat_outlined),
+    selectedIcon: Icon(Icons.thermostat_rounded),
+    // The product sentence, in one word: this is the reader.
+    label: 'Live',
   ),
-  NavigationDestination(icon: Icon(Icons.history_rounded), label: 'History'),
   NavigationDestination(
-    icon: Icon(Icons.notifications_outlined),
-    selectedIcon: Icon(Icons.notifications_rounded),
-    // "Alarms" collided with the *device's* alarm rules, and this branch's
-    // real job is whether this phone will actually wake you.
-    label: 'Alerts',
+    icon: Icon(Icons.outdoor_grill_outlined),
+    selectedIcon: Icon(Icons.outdoor_grill_rounded),
+    label: 'Cooks',
   ),
   NavigationDestination(
     icon: Icon(Icons.router_outlined),
     selectedIcon: Icon(Icons.router_rounded),
-    label: 'Bridge',
+    label: 'Device',
   ),
 ];
 
@@ -265,12 +262,7 @@ class _AppShellState extends State<AppShell> {
     // ShellScope, so what is exercised is what ships.
     return IndexedStack(
       index: _localIndex,
-      children: const [
-        CookTab(),
-        SessionsRoute(embedded: true),
-        AlertsTab(),
-        BridgeTab(),
-      ],
+      children: const [LiveTab(), CooksTab(), BridgeTab()],
     );
   }
 
