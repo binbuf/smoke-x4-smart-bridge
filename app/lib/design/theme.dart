@@ -88,9 +88,121 @@ abstract final class SmokeTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
       ),
-      listTileTheme: const ListTileThemeData(
+      // ── the settings tree, brought into the design system (newapp §F) ──
+      //
+      // §F names the settings pages as "the largest visual inconsistency in
+      // the app": four files, ~76 Material-default rows, and not one reference
+      // to a token. The fix is not to hand-restyle seventy-six widgets — it is
+      // to say what a row IS, once, here. That is what a ThemeExtension-driven
+      // design system is for, and it means the daylight profile reaches those
+      // pages for free rather than needing a second pass.
+      listTileTheme: ListTileThemeData(
         minVerticalPadding: 14,
-        contentPadding: EdgeInsets.symmetric(horizontal: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+        titleTextStyle: SmokeType.title.copyWith(color: t.textHi),
+        // Prose under a title is `textBody`; a *value* under a title is the
+        // same ink, because a settings row's subtitle is usually the value and
+        // muting it would make the answer quieter than the question.
+        subtitleTextStyle: SmokeType.bodySm.copyWith(color: t.textBody),
+        iconColor: t.textMuted,
+        selectedTileColor: t.cardRaised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SmokeTokens.radiusControl),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        // The track is chrome, so it takes a status hue at chrome strength;
+        // `pit` rather than `positive`, because green is transport health and
+        // a page of green switches would compete with the one chip that means
+        // "connected" (§14.6).
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? t.chromeDim
+              : states.contains(WidgetState.selected)
+              ? StatusPalette.pit
+              : t.textMuted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? StatusPalette.fill(StatusRole.pit)
+              : t.cardSubtle,
+        ),
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? StatusPalette.border(StatusRole.pit)
+              : t.hairlineStrong,
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          textStyle: WidgetStatePropertyAll(SmokeType.labelSm),
+          side: WidgetStatePropertyAll(BorderSide(color: t.hairlineStrong)),
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? t.cardRaised
+                : t.cardSubtle,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? t.chromeDim
+                : t.textHi,
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(SmokeTokens.radiusChip),
+            ),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: t.cardSubtle,
+        // A form field is an inset, so it gets the control radius and a
+        // hairline — never Material's default underline, which reads as a
+        // different app on the same screen.
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(SmokeTokens.radiusControl),
+          borderSide: BorderSide(color: t.hairline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(SmokeTokens.radiusControl),
+          borderSide: BorderSide(color: t.hairline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(SmokeTokens.radiusControl),
+          borderSide: BorderSide(color: StatusPalette.pit),
+        ),
+        labelStyle: SmokeType.bodySm.copyWith(color: t.textMuted),
+        helperStyle: SmokeType.labelSm.copyWith(color: t.textMuted),
+        helperMaxLines: 3,
+        hintStyle: SmokeType.bodySm.copyWith(color: t.chromeDim),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: t.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SmokeTokens.radiusCard),
+        ),
+        titleTextStyle: SmokeType.displayS.copyWith(color: t.textHi),
+        contentTextStyle: SmokeType.body.copyWith(color: t.textBody),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: t.surface,
+        surfaceTintColor: Colors.transparent,
+        modalBarrierColor: t.scrim,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(SmokeTokens.radiusCard),
+          ),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: t.cardSubtle,
+        side: BorderSide(color: t.hairlineStrong),
+        labelStyle: SmokeType.bodySm.copyWith(color: t.textHi),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SmokeTokens.radiusChip),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

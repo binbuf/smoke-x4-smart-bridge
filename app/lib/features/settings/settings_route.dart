@@ -35,6 +35,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/app.dart' show SmokeBridgeApp, ThemeProfile;
 import '../../app/app_env.dart';
 import '../../app/router.dart';
+import '../../core/format.dart';
 import '../../data/local/database.dart' show CacheStats;
 import '../../data/transport/ble_transport.dart';
 import '../../data/transport/bridge_transport.dart';
@@ -124,14 +125,51 @@ class _SettingsRouteState extends State<SettingsRoute> {
   /// `baseUrl == null` guard below: a phone that has never been paired
   /// still has a cache page, and one whose bridge is unreachable must
   /// still be able to clear it.
+  /// §F's Diagnostics rows the app itself owns: the sync high-water marks and
+  /// the device's reported buffer extent, which are the two numbers that
+  /// explain a chart with a hole in it.
+  Map<String, Object?> _syncRows = const {};
+
   Future<void> _loadCache() async {
     final db = AppEnv.instance?.db;
     if (db == null) {
       return;
     }
     final stats = await db.cacheStats();
+    final bridgeId = await db.sessionDao.knownBridgeId();
+    final rows = <String, Object?>{};
+    if (bridgeId != null) {
+      final sessions = await db.sessionDao.allSessions(bridgeId);
+      for (final session in sessions.take(3)) {
+        final sync = await db.syncStateDao.forSession(bridgeId, session.id);
+        if (sync == null) {
+          continue;
+        }
+        rows['cook ${session.id} synced to'] = '${sync.highWaterT}s';
+        if (sync.deviceMinT != null && sync.deviceMaxT != null) {
+          rows['cook ${session.id} on the bridge'] =
+              '${sync.deviceMinT}s–${sync.deviceMaxT}s';
+        }
+      }
+      final gaps = <String>[];
+      for (final session in sessions.take(3)) {
+        final holes = await db.syncStateDao.forBridgeSession(
+          bridgeId,
+          session.id,
+        );
+        for (final g in holes.where((g) => g.reason.isPermanent)) {
+          gaps.add('cook ${session.id}: ${formatDuration(g.durationS)}');
+        }
+      }
+      if (gaps.isNotEmpty) {
+        rows['lost to buffer rollover'] = gaps.join(', ');
+      }
+    }
     if (mounted) {
-      setState(() => _cache = stats);
+      setState(() {
+        _cache = stats;
+        _syncRows = rows;
+      });
     }
   }
 
@@ -571,9 +609,37 @@ class _SettingsRouteState extends State<SettingsRoute> {
           : '',
     ),
     SettingsSection.advanced => AdvancedSettingsView(
+      // newapp §F — "Replace today's stub with real read-outs."
+      //
+      // This map was `{firmware, packets_seen: numProbes}` — and the second
+      // was **mislabelled**: `numProbes` is how many probes the base reports,
+      // not a packet count. A diagnostics page that states a wrong fact is
+      // worse than one that states nothing, because it is the page someone
+      // reads when they already suspect something is wrong.
+      //
+      // Every row below is either measured or absent.
       radio: {
         if (_status != null) 'firmware': _status!.fw,
-        if (_status != null) 'packets_seen': _status!.numProbes,
+        if (_status != null) 'model': _status!.model,
+        if (_status != null) 'device id': _status!.deviceId,
+        if (_status != null) 'uptime': formatDuration(_status!.uptimeS),
+        if (_status != null) 'probes reported': _status!.numProbes,
+        if (_status?.lastPacketSAgo != null)
+          'last packet': '${_status!.lastPacketSAgo}s ago',
+        if (_status != null) 'base station lost': _status!.baseLost,
+        if (_status != null) 'storage free': '${_status!.storageFreePct}%',
+        // Absent ≠ zero: a bridge that cannot measure a battery says nothing
+        // rather than 0%.
+        if (_status?.socPct != null) 'battery': '${_status!.socPct}%',
+        'transport': switch (_transport) {
+          null => 'not connected',
+          BleTransport() => 'Bluetooth',
+          _ => 'Wi-Fi',
+        },
+        if (_transport != null)
+          'full history': _transport!.capabilities.fullHistory,
+        if (_transport != null) 'can configure': _transport!.capabilities.config,
+        ..._syncRows,
       },
       paired: _status?.paired ?? false,
       // D15 moved these off the button; this screen is now the only way to
