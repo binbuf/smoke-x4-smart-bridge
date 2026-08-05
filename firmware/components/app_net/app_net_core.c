@@ -73,6 +73,70 @@ int app_net_core_apply_later(const app_net_pending_cfg_t *cfg,
 
 bool app_net_core_apply_pending(void) { return s_apply_pending; }
 
+/* ── §E.3's rollback ───────────────────────────────────────────────── */
+
+static bool s_revert_armed;
+static uint64_t s_revert_at_ms;
+static app_net_pending_cfg_t s_revert_cfg;
+
+/* What we are running RIGHT NOW, so we can put it back. Read from the config
+ * store rather than from a cached copy: the store is what a reboot would
+ * restore, so it is the honest definition of "known good". */
+static void snapshot_running_cfg(app_net_pending_cfg_t *out) {
+    memset(out, 0, sizeof *out);
+    uint8_t mode = APP_CONFIG_NET_MODE_AP;
+    (void)app_config_store_get_u8(APP_CONFIG_NET_MODE, &mode);
+    out->mode = mode;
+    (void)app_config_store_get_str(APP_CONFIG_NET_STA_SSID, out->sta_ssid,
+                                   sizeof out->sta_ssid);
+    (void)app_config_store_get_str(APP_CONFIG_NET_STA_PSK, out->sta_psk,
+                                   sizeof out->sta_psk);
+    (void)app_config_store_get_u8(APP_CONFIG_NET_STA_AUTH, &out->sta_auth);
+    (void)app_config_store_get_str(APP_CONFIG_NET_STA_USER, out->sta_user,
+                                   sizeof out->sta_user);
+}
+
+int app_net_core_arm_revert(uint32_t revert_after_s, uint64_t now_ms) {
+    if (revert_after_s == 0) {
+        s_revert_armed = false;
+        return 0;
+    }
+    if (revert_after_s < APP_NET_REVERT_MIN_S ||
+        revert_after_s > APP_NET_REVERT_MAX_S) {
+        return -1;
+    }
+    /* Re-arming keeps the ORIGINAL known-good config. Two switches in a row
+     * without a commit must roll back to what worked, not to the first
+     * unconfirmed guess — otherwise a second typo strands the device on the
+     * first typo. */
+    if (!s_revert_armed) {
+        snapshot_running_cfg(&s_revert_cfg);
+    }
+    /* The clock starts when the new mode is applied, not when the request
+     * arrives, so the 500 ms deferred apply does not eat the window. */
+    s_revert_at_ms = now_ms + APP_NET_APPLY_DELAY_MS +
+                     (uint64_t)revert_after_s * 1000u;
+    s_revert_armed = true;
+    return 0;
+}
+
+bool app_net_core_commit(void) {
+    if (!s_revert_armed) {
+        return false;
+    }
+    s_revert_armed = false;
+    return true;
+}
+
+bool app_net_core_revert_pending(void) { return s_revert_armed; }
+
+uint32_t app_net_core_revert_remaining_s(uint64_t now_ms) {
+    if (!s_revert_armed || now_ms >= s_revert_at_ms) {
+        return 0;
+    }
+    return (uint32_t)((s_revert_at_ms - now_ms + 999u) / 1000u);
+}
+
 static void apply_pending_cfg(uint64_t now_ms) {
     s_apply_pending = false;
     (void)app_config_store_set_u8(APP_CONFIG_NET_MODE, s_pending_cfg.mode);
@@ -138,6 +202,9 @@ int app_net_core_init(const app_net_ops_t *ops, void *ctx, uint8_t mode,
     s_last_activity_ms = now_ms;
     s_sta_pending_switch = false;
     s_apply_pending = false;
+    /* Init disarms any revert: a deadline left over from a previous run would
+     * fire against a config it was never the rollback for. */
+    s_revert_armed = false;
     s_expect_disconnect = false;
 
     if (s_mode == APP_CONFIG_NET_MODE_STA) {
@@ -281,6 +348,16 @@ static int set_mode_internal(uint8_t mode, uint64_t now_ms, bool force) {
 void app_net_core_tick(uint64_t now_ms) {
     if (s_apply_pending && now_ms >= s_apply_at_ms) {
         apply_pending_cfg(now_ms);
+    }
+    /* §E.3 — nobody confirmed. Put back what worked.
+     *
+     * Checked AFTER the pending apply so a revert armed alongside a config
+     * cannot fire in the same tick that installs it; and it goes through the
+     * same deferred path, so the rollback flushes any reply in flight exactly
+     * as the original switch did. */
+    if (s_revert_armed && now_ms >= s_revert_at_ms) {
+        s_revert_armed = false;
+        (void)app_net_core_apply_later(&s_revert_cfg, now_ms);
     }
     switch (s_state) {
         case APP_NET_STATE_STA_CONNECTING:

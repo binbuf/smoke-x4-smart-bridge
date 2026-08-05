@@ -83,6 +83,7 @@ class _FakeTransport implements BridgeTransport {
     required NetworkMode mode,
     String ssid = '',
     String psk = '',
+    int revertAfterS = 0,
   }) async => '';
 
   @override
@@ -91,6 +92,9 @@ class _FakeTransport implements BridgeTransport {
     required int lengthBytes,
     bool force = false,
   }) async {}
+
+  @override
+  Future<void> commitNetworkMode() async {}
 
   @override
   Future<Map<String, Object?>> alarmConfig() async => const {};

@@ -34,7 +34,7 @@ AlarmSeverity severityFromWire(Object? v) => switch (v) {
 
 /// The device's error envelope, mapped by `code` so callers switch on
 /// meaning — never on strings or status ints.
-class BridgeApiException implements Exception {
+class BridgeApiException implements BridgeRefusal {
   BridgeApiException(this.statusCode, this.code, this.message);
 
   final int statusCode;
@@ -423,12 +423,18 @@ class HttpTransport implements BridgeTransport {
     required NetworkMode mode,
     String ssid = '',
     String psk = '',
+    int revertAfterS = 0,
   }) async {
     final body = <String, Object?>{'mode': mode.name};
     if (mode == NetworkMode.sta) {
       // Ignored for `ap` — the device generates that SSID/PSK itself.
       body['ssid'] = ssid;
       body['psk'] = psk;
+    }
+    // §E.3 — omitted when 0, so an older bridge sees exactly the request it
+    // has always seen and provisioning during setup is unchanged.
+    if (revertAfterS > 0) {
+      body['revert_after_s'] = revertAfterS;
     }
     final res = await _postJson('/api/v1/config/wifi', body);
     // Switching to AP returns generated credentials in `expect` because the
@@ -439,6 +445,12 @@ class HttpTransport implements BridgeTransport {
   }
 
   /// newapp §G.3 — `GET /api/v1/config/alarms`, the read-back half.
+  /// newapp §E.3 — `POST /api/v1/config/wifi/commit`.
+  @override
+  Future<void> commitNetworkMode() async {
+    await _postJson('/api/v1/config/wifi/commit', const <String, Object?>{});
+  }
+
   @override
   Future<Map<String, Object?>> alarmConfig() async {
     final j = await _getJson('/api/v1/config/alarms');

@@ -697,6 +697,7 @@ class BleTransport implements BridgeTransport {
     required NetworkMode mode,
     String ssid = '',
     String psk = '',
+    int revertAfterS = 0,
   }) async {
     final r = await applyWifiConfig(
       mode: mode == NetworkMode.ap ? dto.NetMode.ap : dto.NetMode.sta,
@@ -728,6 +729,15 @@ class BleTransport implements BridgeTransport {
   /// Throwing the typed condition is what makes the editor render its rows
   /// disabled-with-a-reason instead of offering switches that write nothing —
   /// which is the exact bug the settings tree shipped with.
+  /// newapp §E.3 — BLE has no `netmode/commit` op, and that is the honest
+  /// answer rather than a problem: BLE is the **escape hatch** the switch
+  /// keeps open, not the lane the switch is confirmed on. A confirmation over
+  /// Bluetooth would prove the phone can reach the bridge over Bluetooth,
+  /// which was never in doubt and is not what the rollback is protecting.
+  @override
+  Future<void> commitNetworkMode() =>
+      throw const BridgeUnsupportedException('Confirming a network switch');
+
   @override
   Future<Map<String, Object?>> alarmConfig() =>
       throw const BridgeUnsupportedException('Changing the bridge’s alarms');

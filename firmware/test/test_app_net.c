@@ -392,6 +392,175 @@ static void test_deferred_apply(void) {
     CHECK(strcmp(ssid, "Garage") == 0);
 }
 
+/* ── newapp §E.3: the rollback timer ──────────────────────────────────
+ *
+ * The case this exists for: a user on Wi-Fi tells the bridge to join a network
+ * whose password has a typo. The bridge leaves, cannot join, and is now
+ * reachable by nobody — the phone cannot retract the instruction because the
+ * phone can no longer talk to it, and someone walks to the smoker with a USB
+ * cable. With a revert armed, the bridge notices nobody confirmed and puts
+ * back what worked.
+ */
+static void test_revert_puts_back_what_worked(void) {
+    cfg_erase(NULL);
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+                 APP_CONFIG_OK);
+    /* Known good: joined "Backyard". */
+    CHECK_EQ_INT(app_config_store_set_u8(APP_CONFIG_NET_MODE,
+                                         APP_CONFIG_NET_MODE_STA),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_NET_STA_SSID, "Backyard"),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_NET_STA_PSK, "goodpass"),
+                 APP_CONFIG_OK);
+    reset_doubles();
+    CHECK_EQ_INT(
+        app_net_core_init(&g_ops, NULL, APP_CONFIG_NET_MODE_STA, false, 0), 0);
+
+    /* Arm BEFORE applying, while the running config is still known good. */
+    CHECK_EQ_INT(app_net_core_arm_revert(120, 1000), 0);
+    CHECK(app_net_core_revert_pending());
+
+    app_net_pending_cfg_t typo = {.mode = APP_CONFIG_NET_MODE_STA,
+                                  .sta_auth = 1};
+    snprintf(typo.sta_ssid, sizeof typo.sta_ssid, "Nieghbour");
+    snprintf(typo.sta_psk, sizeof typo.sta_psk, "wrong");
+    CHECK_EQ_INT(app_net_core_apply_later(&typo, 1000), 0);
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 1);
+
+    char ssid[33] = {0};
+    CHECK_EQ_INT(
+        app_config_store_get_str(APP_CONFIG_NET_STA_SSID, ssid, sizeof ssid),
+        APP_CONFIG_OK);
+    CHECK(strcmp(ssid, "Nieghbour") == 0); /* the typo IS applied */
+
+    /* The window is still open, so nothing has been undone. */
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 119000);
+    CHECK(app_net_core_revert_pending());
+    CHECK_EQ_INT(
+        app_config_store_get_str(APP_CONFIG_NET_STA_SSID, ssid, sizeof ssid),
+        APP_CONFIG_OK);
+    CHECK(strcmp(ssid, "Nieghbour") == 0);
+
+    /* Nobody committed. The deadline passes, and the revert is itself a
+     * deferred apply — so it flushes anything in flight the same way. */
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 120001);
+    CHECK(!app_net_core_revert_pending());
+    CHECK(app_net_core_apply_pending());
+    app_net_core_tick(1000 + 2 * APP_NET_APPLY_DELAY_MS + 120002);
+    CHECK_EQ_INT(
+        app_config_store_get_str(APP_CONFIG_NET_STA_SSID, ssid, sizeof ssid),
+        APP_CONFIG_OK);
+    CHECK(strcmp(ssid, "Backyard") == 0);
+    char psk[65] = {0};
+    CHECK_EQ_INT(
+        app_config_store_get_str(APP_CONFIG_NET_STA_PSK, psk, sizeof psk),
+        APP_CONFIG_OK);
+    CHECK(strcmp(psk, "goodpass") == 0);
+}
+
+static void test_commit_keeps_the_new_config(void) {
+    cfg_erase(NULL);
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_set_u8(APP_CONFIG_NET_MODE,
+                                         APP_CONFIG_NET_MODE_AP),
+                 APP_CONFIG_OK);
+    reset_doubles();
+    CHECK_EQ_INT(
+        app_net_core_init(&g_ops, NULL, APP_CONFIG_NET_MODE_AP, false, 0), 0);
+    app_net_core_on_ap_started(100);
+
+    CHECK_EQ_INT(app_net_core_arm_revert(120, 1000), 0);
+    app_net_pending_cfg_t good = {.mode = APP_CONFIG_NET_MODE_STA,
+                                  .sta_auth = 1};
+    snprintf(good.sta_ssid, sizeof good.sta_ssid, "Backyard");
+    CHECK_EQ_INT(app_net_core_apply_later(&good, 1000), 0);
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 1);
+
+    /* The phone found us on the new network. */
+    CHECK(app_net_core_commit());
+    CHECK(!app_net_core_revert_pending());
+
+    /* Long past the old deadline: nothing rolls back. */
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 600000);
+    CHECK(!app_net_core_apply_pending());
+    uint8_t mode = 99;
+    CHECK_EQ_INT(app_config_store_get_u8(APP_CONFIG_NET_MODE, &mode),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(mode, APP_CONFIG_NET_MODE_STA);
+}
+
+static void test_revert_edges(void) {
+    cfg_erase(NULL);
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+                 APP_CONFIG_OK);
+    reset_doubles();
+    CHECK_EQ_INT(
+        app_net_core_init(&g_ops, NULL, APP_CONFIG_NET_MODE_AP, false, 0), 0);
+
+    /* A commit with nothing armed is a refusal, not a cheerful success: the
+     * app uses the difference to tell "the switch stuck" from "there was
+     * never a switch to confirm". */
+    CHECK(!app_net_core_commit());
+
+    /* Out-of-range is REFUSED rather than clamped — a caller asking for a
+     * 2-second window has misunderstood something, and quietly giving them
+     * ten would hide it. */
+    CHECK(app_net_core_arm_revert(1, 1000) != 0);
+    CHECK(app_net_core_arm_revert(3600, 1000) != 0);
+    CHECK(!app_net_core_revert_pending());
+
+    /* 0 is the documented "no rollback", not an error. */
+    CHECK_EQ_INT(app_net_core_arm_revert(0, 1000), 0);
+    CHECK(!app_net_core_revert_pending());
+
+    /* The countdown is reported for the UI, and never runs past zero. */
+    CHECK_EQ_INT(app_net_core_arm_revert(120, 1000), 0);
+    /* 120 s plus the 500 ms deferred apply, rounded UP: the countdown must
+     * never claim less time than the device will actually give. */
+    CHECK_EQ_INT((int)app_net_core_revert_remaining_s(1000), 121);
+    CHECK_EQ_INT((int)app_net_core_revert_remaining_s(999999999), 0);
+}
+
+static void test_second_switch_still_rolls_back_to_known_good(void) {
+    cfg_erase(NULL);
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_set_u8(APP_CONFIG_NET_MODE,
+                                         APP_CONFIG_NET_MODE_STA),
+                 APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_NET_STA_SSID, "Backyard"),
+                 APP_CONFIG_OK);
+    reset_doubles();
+    CHECK_EQ_INT(
+        app_net_core_init(&g_ops, NULL, APP_CONFIG_NET_MODE_STA, false, 0), 0);
+
+    /* Two unconfirmed switches in a row. The rollback target must stay the
+     * config that WORKED — rolling back to the first typo would strand the
+     * device on a network that was never reachable either. */
+    CHECK_EQ_INT(app_net_core_arm_revert(120, 1000), 0);
+    app_net_pending_cfg_t typo1 = {.mode = APP_CONFIG_NET_MODE_STA,
+                                   .sta_auth = 1};
+    snprintf(typo1.sta_ssid, sizeof typo1.sta_ssid, "Typo1");
+    CHECK_EQ_INT(app_net_core_apply_later(&typo1, 1000), 0);
+    app_net_core_tick(1000 + APP_NET_APPLY_DELAY_MS + 1);
+
+    CHECK_EQ_INT(app_net_core_arm_revert(120, 60000), 0);
+    app_net_pending_cfg_t typo2 = typo1;
+    snprintf(typo2.sta_ssid, sizeof typo2.sta_ssid, "Typo2");
+    CHECK_EQ_INT(app_net_core_apply_later(&typo2, 60000), 0);
+    app_net_core_tick(60000 + APP_NET_APPLY_DELAY_MS + 1);
+
+    app_net_core_tick(60000 + APP_NET_APPLY_DELAY_MS + 120001);
+    app_net_core_tick(60000 + 2 * APP_NET_APPLY_DELAY_MS + 120002);
+    char ssid[33] = {0};
+    CHECK_EQ_INT(
+        app_config_store_get_str(APP_CONFIG_NET_STA_SSID, ssid, sizeof ssid),
+        APP_CONFIG_OK);
+    CHECK(strcmp(ssid, "Backyard") == 0);
+}
+
 /* A minimal query for "abc.io", type/class parameterised. */
 static size_t make_query(uint8_t *buf, uint16_t qtype, uint16_t qclass) {
     static const uint8_t head[12] = {0x12, 0x34, 0x01, 0x00,
@@ -502,6 +671,10 @@ int main(void) {
     test_channel_pick();
     test_deferred_apply();
     test_reprovision_while_already_sta();
+    test_revert_puts_back_what_worked();
+    test_commit_keeps_the_new_config();
+    test_revert_edges();
+    test_second_switch_still_rolls_back_to_known_good();
     test_dns_shim();
     test_txt_builder();
     return test_summary("test_app_net");

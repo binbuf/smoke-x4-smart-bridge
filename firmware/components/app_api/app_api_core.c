@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "app_alarm_svc.h"
+#include "app_net_core.h"
 #include "app_power_svc.h"
 #include "app_api_internal.h"
 #include "app_config_store.h"
@@ -661,6 +662,21 @@ static void handle_pairing_get(app_api_out_t *out) {
 
 /* ── config groups + time (F9.7) ───────────────────────────────────────── */
 
+/* newapp §E.3 — "I reached you on the new network; keep it."
+ *
+ * A 409 for an unarmed commit rather than a cheerful 200: the app uses this to
+ * tell "the switch stuck" from "there was never a switch to confirm", and the
+ * difference matters when the wizard is deciding whether to keep counting
+ * down. */
+static void handle_netmode_commit(app_api_out_t *out) {
+    if (!app_net_core_commit()) {
+        return app_api_error(out, 409, "not_pending",
+                             "no mode change is waiting to be confirmed");
+    }
+    app_api_out_begin(out, 200, "application/json");
+    app_api_emit_str(out, "{\"committed\":true}");
+}
+
 static void handle_config_wifi_get(app_api_out_t *out) {
     app_api_net_snapshot_t net;
     s_ops->net_status(&net);
@@ -684,8 +700,14 @@ static void handle_config_wifi_get(app_api_out_t *out) {
     app_api_emit_fmt(out,
                      ",\"auth\":\"wpa2_psk\"},\"ap\":{\"ssid\":"
                      "\"SmokeBridge-%s\",\"psk\":\"%s\","
-                     "\"ip\":\"192.168.4.1\"}}",
+                     "\"ip\":\"192.168.4.1\"}",
                      sys.id, ap_psk);
+    /* §E.3 — so an app that has just re-found us can render the countdown it
+     * is racing, rather than a spinner with no number on it. */
+    app_api_emit_fmt(out, ",\"revert_pending\":%s,\"revert_in_s\":%u}",
+                     app_net_core_revert_pending() ? "true" : "false",
+                     (unsigned)app_net_core_revert_remaining_s(
+                         s_ops->uptime_ms()));
 }
 
 static void handle_config_wifi_post(const app_api_req_t *req,
@@ -711,6 +733,30 @@ static void handle_config_wifi_post(const app_api_req_t *req,
         (void)app_api_json_str(req->body, "username", cfg.sta_user,
                                sizeof cfg.sta_user);
         cfg.sta_auth = 1;
+    }
+
+    /* newapp §E.3 — the rollback timer.
+     *
+     * A mode switch kills the link that carried the command, so the command is
+     * a request for a FUTURE state with a deadline: arm the revert BEFORE the
+     * apply (while the running config is still the known-good one), and if the
+     * phone does not reach us on the new network and commit in time, we put
+     * back what worked. Absent or 0 keeps the old fire-and-forget behaviour,
+     * which is right for guided setup with a human watching it.
+     *
+     * A rejected value is a 400 rather than a silent clamp: a caller asking
+     * for a 2-second window has misunderstood something, and quietly giving
+     * them 10 would hide it. */
+    long revert_after_s = 0;
+    if (app_api_json_int(req->body, "revert_after_s", &revert_after_s) == 0 &&
+        revert_after_s != 0) {
+        if (app_net_core_arm_revert((uint32_t)revert_after_s, s_ops->uptime_ms()) !=
+            0) {
+            return app_api_error(out, 400, "invalid_field",
+                                 "revert_after_s must be 0 or 10..600");
+        }
+    } else {
+        (void)app_net_core_arm_revert(0, s_ops->uptime_ms());
     }
 
     /* Reply FIRST; the deferred apply tears the interface down after the
@@ -1532,6 +1578,12 @@ int app_api_handle(const app_api_req_t *req, app_api_out_t *out) {
      * have to be reachable from the app. Each answers FIRST and acts after
      * the deferral in the glue, exactly like the OTA reboot: a client that
      * never sees its 200 cannot tell success from a dropped connection. */
+    /* newapp §E.3 — the confirmation half of a mode switch. */
+    if (strcmp(req->method, "POST") == 0 &&
+        strcmp(api, "/config/wifi/commit") == 0) {
+        handle_netmode_commit(out);
+        return 0;
+    }
     if (strcmp(req->method, "POST") == 0 && strcmp(api, "/restart") == 0) {
         if (s_ops->reboot == NULL) {
             app_api_error(out, 501, "unsupported",

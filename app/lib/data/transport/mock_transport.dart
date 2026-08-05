@@ -177,6 +177,7 @@ class MockTransport implements BridgeTransport {
     required NetworkMode mode,
     String ssid = '',
     String psk = '',
+    int revertAfterS = 0,
   }) async {
     networkLog.add((mode: mode, ssid: ssid, psk: psk));
     return mode == NetworkMode.ap ? 'MockApPsk1' : '';
@@ -219,6 +220,12 @@ class MockTransport implements BridgeTransport {
     'pit_band_sustain_s': 120,
     'base_lost_s': 300,
   };
+
+  /// §E.3 — records the commit so a test can assert the wizard sent one.
+  int commits = 0;
+
+  @override
+  Future<void> commitNetworkMode() async => commits++;
 
   @override
   Future<Map<String, Object?>> alarmConfig() async =>

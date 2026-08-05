@@ -580,7 +580,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "501":
-          description: This build has no restart support.
+          description: |
+            This build has no restart support. `code` = `unsupported`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -603,7 +608,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "501":
-          description: This build has no factory reset support.
+          description: |
+            This build has no factory reset support. `code` = `unsupported`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -627,7 +637,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "501":
-          description: This build has no power-off support.
+          description: |
+            This build has no power-off support. `code` = `unsupported`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -704,6 +719,45 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/config/wifi/commit:
+    post:
+      tags: [config]
+      operationId: commitWifiConfig
+      summary: Confirm a mode change so the device keeps it
+      description: |
+        The second half of `revert_after_s` (newapp §E.3). Sent on the **new**
+        network after a real `GET /api/v1/status` 200 — not after a ping and not
+        after a socket merely opening, because only a status read is evidence the
+        bridge is actually serving.
+
+        A commit with nothing armed is `409 not_pending` rather than a cheerful
+        200: the app uses that difference to tell "the switch stuck" from "there
+        was never a switch to confirm", and the distinction decides whether its
+        wizard keeps counting down.
+
+        Bluetooth deliberately cannot carry this. BLE is the escape hatch the
+        switch keeps open, not the lane it is confirmed on — a confirmation over
+        Bluetooth would prove the phone can reach the bridge over Bluetooth,
+        which was never in doubt and is not what the rollback protects.
+      responses:
+        "200":
+          description: Committed; the rollback is cancelled.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [committed]
+                properties:
+                  committed:
+                    type: boolean
+                    example: true
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -2280,6 +2334,19 @@ components:
             ip:
               type: string
               example: 192.168.4.1
+        revert_pending:
+          type: boolean
+          description: |
+            A mode change is waiting to be confirmed (newapp §E.3). An app that
+            has just re-found the bridge reads this to know whether it still
+            owes a commit.
+        revert_in_s:
+          type: integer
+          description: |
+            Seconds until the device rolls back, or 0 when nothing is armed.
+            This is the **authoritative** countdown — a client showing its own
+            estimate while hunting should replace it with this the moment it can
+            read it.
         sta:
           type: object
           description: Present when STA credentials are stored. No `psk`, ever.
@@ -2326,6 +2393,28 @@ components:
           nullable: true
           maxLength: 32
           description: WPA2-Enterprise identity; null otherwise.
+        revert_after_s:
+          type: integer
+          minimum: 0
+          maximum: 600
+          default: 0
+          description: |
+            **The rollback timer** (newapp §E.3). A mode switch kills the very
+            link that carried the command, so a bad credential leaves the bridge
+            reachable by nobody and the phone unable to retract the instruction.
+
+            Non-zero makes this a request for a *future* state with a deadline:
+            the device snapshots what it is running, applies the new config, and
+            reverts to the snapshot unless `POST /api/v1/config/wifi/commit`
+            arrives within `revert_after_s` seconds of the switch taking effect.
+
+            Must be `0` or `10..600`; anything else is `400 invalid_field`
+            rather than a silent clamp — a caller asking for a two-second window
+            has misunderstood something, and quietly granting ten would hide it.
+
+            `0` keeps the original fire-and-forget behaviour, which is right for
+            guided setup with a human watching and wrong for a switch fired from
+            a settings screen.
 
     WifiAccept:
       type: object

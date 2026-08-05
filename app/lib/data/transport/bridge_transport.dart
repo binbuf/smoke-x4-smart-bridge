@@ -99,6 +99,16 @@ class LinkSignal {
   bool get isEmpty => linkDbm == null && wifiDbm == null && apClients == null;
 }
 
+/// A refusal the device stated in words, whatever transport carried it.
+///
+/// Lives here rather than in `http_transport.dart` so a caller can catch "the
+/// bridge said no, and here is why" without knowing which lane it is on — the
+/// §E.3 mode-switch wizard has to distinguish that from "the link died mid
+/// switch", and it runs over BLE as readily as over Wi-Fi.
+abstract interface class BridgeRefusal implements Exception {
+  String get message;
+}
+
 /// Push events, as a sealed union so a `switch` over variants is exhaustive —
 /// adding a variant without handling it everywhere fails analysis.
 @freezed
@@ -264,10 +274,15 @@ abstract interface class BridgeTransport {
   /// Both real transports implement it — HTTP via `POST /api/v1/config/wifi`,
   /// BLE via the `wifi_config` characteristic — because provisioning has to
   /// work on whichever one is currently reachable.
+  /// [revertAfterS] arms §E.3's rollback: the device snapshots what it is
+  /// running and puts it back unless [commitNetworkMode] arrives in time. 0 is
+  /// the old fire-and-forget behaviour, which is right for guided setup with a
+  /// human watching it and wrong for a switch fired from settings.
   Future<String> applyNetwork({
     required NetworkMode mode,
     String ssid = '',
     String psk = '',
+    int revertAfterS = 0,
   });
 
   /// A12.6 — stream a firmware image to `POST /api/v1/ota` (F14.5).
@@ -291,6 +306,13 @@ abstract interface class BridgeTransport {
   /// via `GET /api/v1/config/mqtt`; BLE throws [BridgeUnsupportedException]
   /// because the broker is only reachable over the Wi-Fi LAN.
   Future<MqttConfig> mqttConfig();
+
+  /// newapp §E.3 — confirm a mode change so the device keeps it.
+  ///
+  /// Sent on the **new** network after a real `GET /status` 200. Throws when
+  /// there was nothing to confirm (the device answers 409), which is how the
+  /// wizard tells "the switch stuck" from "there was never a switch".
+  Future<void> commitNetworkMode();
 
   /// newapp §G.3 — the device's alarm configuration, exactly as it reports it
   /// (`GET /api/v1/config/alarms`, 06 §6.2).

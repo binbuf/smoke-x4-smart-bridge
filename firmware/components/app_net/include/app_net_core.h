@@ -112,6 +112,44 @@ int app_net_core_apply_later(const app_net_pending_cfg_t *cfg,
 /* Exposed for tests: is an apply armed? */
 bool app_net_core_apply_pending(void);
 
+/* ── Rollback on an unconfirmed mode change (newapp §E.3) ──
+ *
+ * THE PROBLEM: a mode switch kills the very link that carried the command.
+ * Tell the bridge over Wi-Fi to join a network whose password has a typo in
+ * it and the bridge leaves, fails to join, and is now reachable by nobody —
+ * the phone cannot retract the instruction because the phone can no longer
+ * talk to it. Someone walks to the smoker with a USB cable.
+ *
+ * THE FIX: the command is a request for a FUTURE state with a deadline. The
+ * device snapshots what it is running now, applies the new config, and starts
+ * a timer. If the phone does not reach it on the new network and commit
+ * before the timer expires, the device puts back what it had.
+ *
+ * The phone's half is the connection race it already runs: it tears down the
+ * old transport, races the expected new endpoint, and commits on the first
+ * real `GET /status` 200. BLE stays up as the escape hatch throughout, which
+ * is why "hold Bluetooth as backup" defaults on.
+ *
+ * A revert of 0 means "no rollback" — the old fire-and-forget behaviour, kept
+ * because provisioning during setup has a human watching it. */
+#define APP_NET_REVERT_MIN_S 10u
+#define APP_NET_REVERT_MAX_S 600u
+
+/* Snapshot the running config and arm a revert for `revert_after_s` seconds.
+ * Call BEFORE app_net_core_apply_later, while the current config is still
+ * the running one. 0 disarms. */
+int app_net_core_arm_revert(uint32_t revert_after_s, uint64_t now_ms);
+
+/* The phone reached us on the new network. Cancels the revert. Returns false
+ * when nothing was armed, which the API surfaces as a 409 rather than a
+ * cheerful 200 for a commit that committed nothing. */
+bool app_net_core_commit(void);
+
+/* Exposed for tests and for `GET /api/v1/config/wifi`: is a revert armed, and
+ * how long is left? */
+bool app_net_core_revert_pending(void);
+uint32_t app_net_core_revert_remaining_s(uint64_t now_ms);
+
 #ifdef __cplusplus
 }
 #endif
