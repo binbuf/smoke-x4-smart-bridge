@@ -303,6 +303,7 @@ class AdvancedSettingsView extends StatelessWidget {
     this.paired = false,
     this.onPair,
     this.onUnpair,
+    this.onFieldReport,
     super.key,
   });
 
@@ -321,12 +322,30 @@ class AdvancedSettingsView extends StatelessWidget {
   final VoidCallback? onPair;
   final VoidCallback? onUnpair;
 
+  /// Opens the one-shot on-device harness. Null hides the row entirely —
+  /// never a dead button.
+  final VoidCallback? onFieldReport;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return ListView(
       key: const Key('settings-advanced'),
       children: [
+        if (onFieldReport != null) ...[
+          const _SectionLabel('Field report'),
+          ListTile(
+            key: const Key('settings-field-report'),
+            leading: const Icon(Icons.fact_check_outlined),
+            title: const Text('Run the field checks'),
+            subtitle: const Text(
+              'Tests what only a real phone and a real bridge can answer, '
+              'then hands you one log to send back.',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: onFieldReport,
+          ),
+        ],
         const _SectionLabel('LoRa'),
         for (final e in radio.entries)
           ListTile(

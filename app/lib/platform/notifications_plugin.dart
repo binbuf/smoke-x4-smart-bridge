@@ -160,9 +160,20 @@ class PluginNotificationSink implements NotificationSink {
       // appears in the shade, and it is still there at 07:00 (§9.5).
       playSound: !n.silent,
       enableVibration: !n.silent,
-      // §9.5's full-screen intent for critical, so it lights the screen
-      // of a phone face-down on a bedside table.
-      fullScreenIntent: n.channel == NotificationChannel.critical,
+      // §9.5/§G.5's full-screen intent, so it lights the screen of a phone
+      // face-down on a bedside table.
+      //
+      // **The policy decides, not the channel.** It used to fire on every
+      // critical alarm including the first, which means a takeover for
+      // something the user is already looking at — the fastest way to get the
+      // permission revoked, and revoking it costs the 3 a.m. case that the
+      // whole `USE_FULL_SCREEN_INTENT` declaration exists for. It is now the
+      // top rung of the escalation ladder: unacknowledged for ten minutes.
+      fullScreenIntent: n.fullScreen,
+      // A repost is the SAME notification climbing a rung, so it must replace
+      // rather than stack — `_idFor(n.key)` already guarantees that; this
+      // just stops the shade animating it as new when nothing changed.
+      onlyAlertOnce: !n.repost && n.escalation == 0,
       category: n.channel == NotificationChannel.critical
           ? AndroidNotificationCategory.alarm
           : null,

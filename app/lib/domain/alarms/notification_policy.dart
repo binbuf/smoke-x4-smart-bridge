@@ -87,6 +87,9 @@ class PendingNotification {
     required this.body,
     required this.silent,
     this.alarmId,
+    this.fullScreen = false,
+    this.repost = false,
+    this.escalation = 0,
   });
 
   /// Stable across polls, so "already told them" is decidable. Device
@@ -101,9 +104,28 @@ class PendingNotification {
   final bool silent;
   final int? alarmId;
 
+  /// newapp §G.5 — light the screen. Only ever true for a critical alarm that
+  /// has gone unacknowledged past [kEscalateToFullScreen]; the first post of
+  /// even a critical alarm is a heads-up, because a full-screen takeover for
+  /// something the user is already looking at is how an app teaches people to
+  /// revoke the permission that makes it possible.
+  final bool fullScreen;
+
+  /// This key is **already on screen** and is being posted again deliberately
+  /// (§G.5's "repeat sound if unacknowledged after N minutes"). The sink must
+  /// replace rather than stack — the id is derived from [key], so it does.
+  final bool repost;
+
+  /// Which rung of the ladder: 0 = first post, 1 = repeat, 2 = full screen.
+  /// Carried so the monitor can record what it actually did, and so the field
+  /// report can show whether escalation ever fired on a real phone.
+  final int escalation;
+
   @override
   String toString() =>
-      'PendingNotification($key, ${channel.name}, silent: $silent)';
+      'PendingNotification($key, ${channel.name}, silent: $silent'
+      '${escalation > 0 ? ', escalation: $escalation' : ''}'
+      '${fullScreen ? ', fullScreen' : ''})';
 }
 
 /// What the policy decided this pass.
@@ -178,6 +200,50 @@ NotificationChannel channelForFinding(AppFinding f) => switch (f) {
 String alarmKey(Alarm a) => 'alarm:${a.id}';
 String findingKey(AppFinding f) => 'finding:${f.name}';
 
+// ── §G.5's escalation ladder ──────────────────────────────────────────
+//
+// "For critical rules, escalate: silent → heads-up → full-screen intent +
+// repeat sound if unacknowledged after N minutes."
+//
+// The rungs are deliberately far apart. A brisket alarm that a user has seen
+// and is walking towards must not turn into a full-screen takeover thirty
+// seconds later; and a phone face-down on a bedside table at 3 a.m. must not
+// take twenty minutes to reach the rung that actually lights the screen. Five
+// and ten minutes is the span that covers both — long enough that anybody
+// awake has already acted, short enough that the brisket is still a brisket.
+//
+// **Only critical escalates.** A warning that repeated itself every five
+// minutes would be an app nobody leaves notifications on for, which costs the
+// critical rung too.
+
+/// Repeat the sound once the alarm has gone unacknowledged this long.
+const Duration kEscalateToRepeat = Duration(minutes: 5);
+
+/// Light the screen. This is the rung the whole `USE_FULL_SCREEN_INTENT`
+/// declaration exists for (§G.4).
+const Duration kEscalateToFullScreen = Duration(minutes: 10);
+
+/// Which rung an unacknowledged critical alarm has reached.
+///
+/// Pure over [since] and [now]; a null [since] (a device that reported an
+/// alarm without a timestamp) stays at rung 0 rather than being assumed old —
+/// escalating on a missing field would let one firmware quirk light the screen.
+int escalationRung(DateTime now, int? sinceUnixMs) {
+  if (sinceUnixMs == null) {
+    return 0;
+  }
+  final age = now.difference(
+    DateTime.fromMillisecondsSinceEpoch(sinceUnixMs),
+  );
+  if (age >= kEscalateToFullScreen) {
+    return 2;
+  }
+  if (age >= kEscalateToRepeat) {
+    return 1;
+  }
+  return 0;
+}
+
 /// The whole policy, as one pure function.
 ///
 /// [alreadyPosted] is the set of keys the caller has live on screen —
@@ -191,6 +257,12 @@ NotificationPlan planNotifications({
   QuietHours quiet = const QuietHours(),
   bool monitoringEnabled = true,
   String Function(int probe)? probeName,
+
+  /// §G.5 — the rung each live key was last posted at, so an alarm climbs the
+  /// ladder exactly once per rung rather than re-posting on every 30 s poll.
+  /// The caller owns this map for the same reason it owns [alreadyPosted]:
+  /// this function stays pure, and "what have I already done" is state.
+  Map<String, int> escalatedTo = const {},
 }) {
   if (!monitoringEnabled) {
     // Everything comes down: the user turned monitoring off, and leaving
@@ -210,10 +282,24 @@ NotificationPlan planNotifications({
       continue;
     }
     live.add(key);
-    if (alreadyPosted.contains(key)) {
-      continue; // already on screen; do not re-post on every poll
-    }
     final channel = channelFor(a.severity);
+
+    // §G.5 — the escalation ladder. Only critical climbs it: a warning that
+    // repeated every five minutes is an app nobody leaves notifications on
+    // for, which would cost the critical rung too.
+    final rung = channel == NotificationChannel.critical
+        ? escalationRung(now, a.sinceUnixMs)
+        : 0;
+    final onScreen = alreadyPosted.contains(key);
+    final lastRung = escalatedTo[key] ?? 0;
+
+    if (onScreen && rung <= lastRung) {
+      // Already on screen at this rung or higher: do NOT re-post on every
+      // poll. Re-posting an unchanged alarm every 30 seconds is how an app
+      // gets its notifications turned off before the cook it matters for.
+      continue;
+    }
+
     final silent =
         channel != NotificationChannel.critical && quiet.contains(now);
     final who = a.probe > 0
@@ -229,6 +315,11 @@ NotificationPlan planNotifications({
             : who,
         silent: silent,
         alarmId: a.id,
+        // Rung 2 is the one that lights the screen — and it is never the
+        // first post, even for a critical alarm.
+        fullScreen: rung >= 2,
+        repost: onScreen,
+        escalation: rung,
       ),
     );
   }

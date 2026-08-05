@@ -54,6 +54,7 @@ import '../features/alarms/alarm_rules_route.dart';
 import '../features/bridge/bridge_tab.dart';
 import '../features/cooks/cook_detail_route.dart';
 import '../features/cooks/cooks_tab.dart';
+import '../features/fieldreport/field_report_route.dart';
 import '../features/live/live_tab.dart';
 import '../features/live/probe_detail_route.dart';
 import '../features/settings/settings_route.dart';
@@ -89,6 +90,9 @@ abstract final class AppRoutes {
 
   /// `/device/settings/:section`.
   static const String deviceSettings = '/device/settings';
+
+  /// The one-shot on-device diagnostic harness.
+  static const String fieldReport = '/device/field-report';
 
   static String probeDetail(int jack) => '$live/probe/$jack';
   static String cookDetail(int id) => '$cooks/$id';
@@ -251,6 +255,15 @@ GoRouter createRouter({ShellSession? session}) => GoRouter(
                   path: 'alarms',
                   name: 'device-alarms',
                   builder: (context, state) => const AlarmRulesRoute(),
+                ),
+                // The field report — the one-shot on-device harness. A real
+                // route rather than a debug flag, because a diagnostic that
+                // needs a special build is a diagnostic nobody runs at the
+                // smoker, which is the only place its answers exist.
+                GoRoute(
+                  path: 'field-report',
+                  name: 'field-report',
+                  builder: (context, state) => const FieldReportRoute(),
                 ),
                 GoRoute(
                   path: 'settings/:section',

@@ -650,6 +650,7 @@ class _SettingsRouteState extends State<SettingsRoute> {
       onUnpair: _transport == null
           ? null
           : () => unawaited(_power(const ControlCommand.unpair())),
+      onFieldReport: () => context.push(AppRoutes.fieldReport),
     ),
     SettingsSection.firmware => FirmwareSettingsView(
       currentVersion: _status?.fw ?? '',

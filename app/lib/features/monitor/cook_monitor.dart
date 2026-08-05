@@ -82,6 +82,12 @@ class CookMonitor {
   final List<Sample> _history = [];
   final Set<String> _posted = {};
 
+  /// newapp §G.5 — the rung each live notification was last posted at, so an
+  /// unacknowledged critical alarm climbs the ladder exactly once per rung
+  /// rather than re-posting on every 30 s poll. Kept here rather than inside
+  /// `planNotifications` because that function is pure and this is state.
+  final Map<String, int> _escalatedTo = {};
+
   DateTime? _lastData;
   DateTime? _lastOngoing;
   DateTime? _lastConnected;
@@ -235,6 +241,7 @@ class CookMonitor {
     final plan = planNotifications(
       alarms: _status?.alarms ?? const [],
       alreadyPosted: Set<String>.from(_posted),
+      escalatedTo: Map<String, int>.from(_escalatedTo),
       now: _clock(),
       findings: findings,
       quiet: settings.quiet,
@@ -249,10 +256,16 @@ class CookMonitor {
     for (final n in plan.post) {
       await sink.post(n);
       _posted.add(n.key);
+      _escalatedTo[n.key] = n.escalation;
     }
     for (final key in plan.withdraw) {
       await sink.cancel(key);
       _posted.remove(key);
+      // Acknowledged or resolved: the ladder resets. An alarm that fires
+      // again later starts at rung 0, because the user HAS seen this one —
+      // carrying the rung over would light the screen on the first post of
+      // the next alarm.
+      _escalatedTo.remove(key);
     }
 
     await _updateOngoing();
