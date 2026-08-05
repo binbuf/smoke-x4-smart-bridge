@@ -113,14 +113,10 @@ class _AlarmRulesRouteState extends State<AlarmRulesRoute> {
       if (payload == null) {
         throw StateError('not a device rule');
       }
-      await transport.setAlarmRule(payload);
+      await transport.setAlarmConfig(payload);
       // The read-back is the claim. A write that returned 200 and changed
       // nothing is the exact failure this whole pattern exists to catch.
-      final echoed = await transport.alarmRules();
-      final match = echoed
-          .where((e) => e['rule'] == payload['rule'] && e['probe'] == payload['probe'])
-          .firstOrNull;
-      if (match == null || !rule.matchesReadBack(match)) {
+      if (!rule.matchesReadBack(await transport.alarmConfig())) {
         throw StateError('read-back mismatch');
       }
       await db.alarmRuleDao.markConfirmed(

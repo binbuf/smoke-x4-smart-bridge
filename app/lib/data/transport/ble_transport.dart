@@ -729,11 +729,11 @@ class BleTransport implements BridgeTransport {
   /// disabled-with-a-reason instead of offering switches that write nothing —
   /// which is the exact bug the settings tree shipped with.
   @override
-  Future<List<Map<String, Object?>>> alarmRules() =>
+  Future<Map<String, Object?>> alarmConfig() =>
       throw const BridgeUnsupportedException('Changing the bridge’s alarms');
 
   @override
-  Future<void> setAlarmRule(Map<String, Object?> rule) =>
+  Future<void> setAlarmConfig(Map<String, Object?> patch) =>
       throw const BridgeUnsupportedException('Changing the bridge’s alarms');
 
   @override

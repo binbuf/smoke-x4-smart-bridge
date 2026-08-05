@@ -178,34 +178,49 @@ enum AlarmRuleType {
     _ => false,
   };
 
-  /// Which tiers can actually run this. A device-only rule offered as an app
-  /// rule would be a control that cannot work, which this app does not ship.
-  Set<AlarmTier> get tiers => switch (this) {
-    AlarmRuleType.timeBeforeEnd => const {AlarmTier.app},
-    AlarmRuleType.baseLost ||
-    AlarmRuleType.batteryLow ||
-    AlarmRuleType.storageFull ||
-    AlarmRuleType.restart ||
-    AlarmRuleType.baseStationAlarm => const {AlarmTier.device},
-    _ => const {AlarmTier.device, AlarmTier.app},
-  };
+  /// Which tiers can actually run this.
+  ///
+  /// **Derived from [deviceRuleId], not hand-listed**, so the two can never
+  /// disagree: a type the firmware has no rule for is app-tier by definition,
+  /// and offering it as a device rule would be a control that cannot work.
+  /// The device-health rules go the other way — the phone cannot see the
+  /// bridge's battery or its flash, so they are device-only.
+  Set<AlarmTier> get tiers {
+    if (deviceRuleId == null) {
+      return const {AlarmTier.app};
+    }
+    return switch (this) {
+      AlarmRuleType.baseLost ||
+      AlarmRuleType.batteryLow ||
+      AlarmRuleType.storageFull ||
+      AlarmRuleType.restart ||
+      AlarmRuleType.baseStationAlarm => const {AlarmTier.device},
+      _ => const {AlarmTier.device, AlarmTier.app},
+    };
+  }
 
-  /// The device's nine, by their firmware rule ids (09 §9.2). Used to mirror a
-  /// raised [Alarm] back onto the rule that produced it.
+  /// The device's nine, by their firmware rule ids
+  /// (`bridge_alarm_rule_str`, 09 §9.2). Used to mirror a raised [Alarm] back
+  /// onto the rule that produced it.
   static AlarmRuleType? fromDeviceRule(String rule) => switch (rule) {
     'smoke_x_alarm' => AlarmRuleType.baseStationAlarm,
     'target_reached' => AlarmRuleType.targetReached,
     'pit_out_of_band' => AlarmRuleType.pitOutOfBand,
     'pit_crash' => AlarmRuleType.pitCrash,
-    'probe_detached' || 'probe_unplugged' => AlarmRuleType.probeUnplugged,
+    'probe_detached' => AlarmRuleType.probeUnplugged,
     'base_lost' => AlarmRuleType.baseLost,
     'battery_low' => AlarmRuleType.batteryLow,
-    'storage_full' => AlarmRuleType.storageFull,
-    'restart' || 'unexpected_restart' => AlarmRuleType.restart,
+    'storage_low' => AlarmRuleType.storageFull,
+    'system_fault' => AlarmRuleType.restart,
     _ => null,
   };
 
-  /// The wire name, for pushing an edit to the device.
+  /// The wire name, or **null for a rule the firmware does not have**.
+  ///
+  /// The nine are the nine: `bridge_alarm_rule_str` is the contract and the app
+  /// does not get to invent a tenth. Everything else here is app-tier by
+  /// construction, which is why [tiers] declines to offer those as device rules
+  /// rather than letting the editor write a name the bridge would ignore.
   String? get deviceRuleId => switch (this) {
     AlarmRuleType.baseStationAlarm => 'smoke_x_alarm',
     AlarmRuleType.targetReached => 'target_reached',
@@ -214,15 +229,28 @@ enum AlarmRuleType {
     AlarmRuleType.probeUnplugged => 'probe_detached',
     AlarmRuleType.baseLost => 'base_lost',
     AlarmRuleType.batteryLow => 'battery_low',
-    AlarmRuleType.storageFull => 'storage_full',
-    AlarmRuleType.restart => 'restart',
-    AlarmRuleType.ambientBelow => 'ambient_below',
-    AlarmRuleType.ambientAbove => 'ambient_above',
-    AlarmRuleType.internalBelow => 'internal_below',
-    AlarmRuleType.internalAbove => 'internal_above',
-    AlarmRuleType.preAlarm => 'pre_alarm',
-    AlarmRuleType.timeElapsed => 'time_elapsed',
-    AlarmRuleType.timeBeforeEnd => null, // app-only: needs the ETA
+    AlarmRuleType.storageFull => 'storage_low',
+    AlarmRuleType.restart => 'system_fault',
+    _ => null,
+  };
+
+  /// The firmware tunables this rule's [AlarmRuleSpec.threshold] and
+  /// [AlarmRuleSpec.windowS] map onto, as `(thresholdKey, windowKey)`.
+  ///
+  /// **The device's thresholds are global tunables, not per-rule fields.**
+  /// `/api/v1/config/alarms` carries `pit_band_f10`, `pit_crash_sustain_s`,
+  /// `battery_warn_pct` and nine more beside a rules array holding only
+  /// `{rule, enabled, severity}`. That is the shape the firmware has, so it is
+  /// the shape this maps onto — inventing a per-rule threshold field would
+  /// produce a settings screen writing JSON the bridge discards, which is the
+  /// same class of bug as the settings tree's silent no-op.
+  (String?, String?) get deviceTunables => switch (this) {
+    AlarmRuleType.pitOutOfBand => ('pit_band_f10', 'pit_band_sustain_s'),
+    AlarmRuleType.pitCrash => ('pit_crash_below_f10', 'pit_crash_sustain_s'),
+    AlarmRuleType.baseLost => (null, 'base_lost_s'),
+    AlarmRuleType.batteryLow => ('battery_warn_pct', null),
+    AlarmRuleType.storageFull => ('storage_free_pct', null),
+    _ => (null, null),
   };
 }
 
@@ -311,32 +339,54 @@ class AlarmRuleSpec {
     cookId: cookId ?? this.cookId,
   );
 
-  /// The wire payload for a device-tier push. Null for a rule the device
-  /// cannot run, which is what disables the row rather than letting a write
-  /// appear to succeed and write nothing.
+  /// The **merge patch** for `POST /api/v1/config/alarms`, or null for a rule
+  /// the device cannot run — which is what disables the row rather than letting
+  /// a write appear to succeed and write nothing.
+  ///
+  /// A rules array of exactly one entry, plus whichever global tunables this
+  /// rule owns; the firmware treats every absent field as "leave it alone".
   Map<String, Object?>? toDeviceJson() {
     final ruleId = type.deviceRuleId;
     if (tier != AlarmTier.device || ruleId == null) {
       return null;
     }
+    final (thresholdKey, windowKey) = type.deviceTunables;
     return {
-      'rule': ruleId,
-      'enabled': enabled,
-      if (jack != null) 'probe': jack,
-      if (threshold != null) 'threshold': threshold,
-      if (windowS != null) 'window_s': windowS,
+      'rules': [
+        {'rule': ruleId, 'enabled': enabled},
+      ],
+      if (thresholdKey != null && threshold != null) thresholdKey: threshold,
+      if (windowKey != null && windowS != null) windowKey: windowS,
     };
   }
 
-  /// Whether a device read-back matches what we asked for. Compares only the
-  /// fields we sent — a device that echoes extra state is not a mismatch.
-  bool matchesReadBack(Map<String, Object?> echoed) {
+  /// Whether the device's own `GET /config/alarms` shows what we asked for.
+  ///
+  /// The write-then-verify pattern in one method (§G.3). It compares **only
+  /// what was sent** — a device echoing the other eleven tunables is not a
+  /// mismatch — and it **fails closed**: a config it cannot find the rule in is
+  /// a config that did not take.
+  bool matchesReadBack(Map<String, Object?> config) {
     final sent = toDeviceJson();
     if (sent == null) {
       return false;
     }
+    final rules = config['rules'];
+    if (rules is! List) {
+      return false;
+    }
+    final echoed = rules
+        .whereType<Map<Object?, Object?>>()
+        .where((r) => r['rule'] == type.deviceRuleId)
+        .firstOrNull;
+    if (echoed == null || echoed['enabled'] != enabled) {
+      return false;
+    }
     for (final entry in sent.entries) {
-      if (echoed[entry.key] != entry.value) {
+      if (entry.key == 'rules') {
+        continue;
+      }
+      if (config[entry.key] != entry.value) {
         return false;
       }
     }

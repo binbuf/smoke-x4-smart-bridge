@@ -197,20 +197,58 @@ class MockTransport implements BridgeTransport {
   /// page and the contract suite can drive it with no broker.
   MqttConfig mqtt = const MqttConfig();
 
-  /// newapp §G.3 — an in-memory rule table, so the write-then-read-back
-  /// pattern is exercised end to end by the transport contract suite.
-  final List<Map<String, Object?>> rules = [];
+  /// newapp §G.3 — an in-memory alarm config that **merge-patches** exactly as
+  /// the firmware does, so the write-then-read-back pattern is exercised end to
+  /// end rather than against a store that accepts anything.
+  final Map<String, Object?> alarms = <String, Object?>{
+    'rules': <Map<String, Object?>>[
+      for (final r in const [
+        'smoke_x_alarm',
+        'target_reached',
+        'pit_out_of_band',
+        'pit_crash',
+        'probe_detached',
+        'base_lost',
+        'battery_low',
+        'storage_low',
+        'system_fault',
+      ])
+        {'rule': r, 'enabled': true, 'severity': 'warning'},
+    ],
+    'pit_band_f10': 250,
+    'pit_band_sustain_s': 120,
+    'base_lost_s': 300,
+  };
 
   @override
-  Future<List<Map<String, Object?>>> alarmRules() async =>
-      [for (final r in rules) Map<String, Object?>.from(r)];
+  Future<Map<String, Object?>> alarmConfig() async =>
+      Map<String, Object?>.from(alarms);
 
   @override
-  Future<void> setAlarmRule(Map<String, Object?> rule) async {
-    rules.removeWhere(
-      (r) => r['rule'] == rule['rule'] && r['probe'] == rule['probe'],
-    );
-    rules.add(Map<String, Object?>.from(rule));
+  Future<void> setAlarmConfig(Map<String, Object?> patch) async {
+    for (final entry in patch.entries) {
+      if (entry.key != 'rules') {
+        alarms[entry.key] = entry.value;
+        continue;
+      }
+      final incoming = entry.value;
+      if (incoming is! List) {
+        continue;
+      }
+      final current = (alarms['rules'] as List).cast<Map<String, Object?>>();
+      for (final raw in incoming) {
+        if (raw is! Map) {
+          continue;
+        }
+        final r = raw.cast<String, Object?>();
+        final at = current.indexWhere((c) => c['rule'] == r['rule']);
+        if (at >= 0) {
+          current[at] = {...current[at], ...r};
+        }
+        // An unknown rule name is DROPPED, exactly as the firmware drops it —
+        // a mock that accepted it would hide the app inventing a tenth rule.
+      }
+    }
   }
 
   @override

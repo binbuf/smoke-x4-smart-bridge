@@ -292,21 +292,23 @@ abstract interface class BridgeTransport {
   /// because the broker is only reachable over the Wi-Fi LAN.
   Future<MqttConfig> mqttConfig();
 
-  /// newapp §G.3 — the device's own alarm rules, as it reports them.
+  /// newapp §G.3 — the device's alarm configuration, exactly as it reports it
+  /// (`GET /api/v1/config/alarms`, 06 §6.2).
   ///
-  /// Each map is `{rule, enabled, probe?, threshold?, window_s?}` — the same
-  /// shape [AlarmRuleSpec.toDeviceJson] sends. This is the **read-back** half
+  /// `{"rules": [{rule, enabled, severity}, ...], "pit_band_f10": ..., ...}` —
+  /// a rules array plus twelve global tunables. This is the **read-back** half
   /// of the write-then-verify pattern, and it is why the rule editor can say
-  /// "Saved to the bridge" and mean it: nothing in this app is allowed to
-  /// report success on the strength of a return value alone.
+  /// "Saved to the bridge" and mean it: nothing in this app reports success on
+  /// the strength of a return value alone.
   ///
   /// A transport that cannot carry rules throws [BridgeUnsupportedException],
   /// which the editor renders as a disabled row with its reason rather than a
   /// live switch that writes nothing.
-  Future<List<Map<String, Object?>>> alarmRules();
+  Future<Map<String, Object?>> alarmConfig();
 
-  /// newapp §G.3 — write one rule. Verify with [alarmRules]; never assume.
-  Future<void> setAlarmRule(Map<String, Object?> rule);
+  /// newapp §G.3 — a **merge patch**: absent fields are left alone. Verify with
+  /// [alarmConfig]; never assume.
+  Future<void> setAlarmConfig(Map<String, Object?> patch);
 
   /// A16 — update it via `POST /api/v1/config/mqtt`. Every field is optional:
   /// an omitted field keeps the device's stored value, and [password] omitted

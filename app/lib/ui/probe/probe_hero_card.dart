@@ -39,6 +39,8 @@ class ProbeHeroCard extends StatelessWidget {
     required this.freshness,
     this.celsius = false,
     this.onTap,
+    this.phase,
+    this.onPulled,
   });
 
   final ProbeView view;
@@ -49,6 +51,16 @@ class ProbeHeroCard extends StatelessWidget {
   final ProbeFreshness freshness;
   final bool celsius;
   final VoidCallback? onTap;
+
+  /// newapp §D.5 — where this probe is in the guided progression. Null keeps
+  /// the card exactly as it was, which is what instrument mode and the
+  /// existing goldens want.
+  final CookPhaseState? phase;
+
+  /// The user saying they took it off the heat — **the one input the phase
+  /// engine may not infer**. Absent means no button, which is correct
+  /// everywhere except at [CookPhase.pullNow].
+  final VoidCallback? onPulled;
 
   bool get _isPit => view.role == ProbeRole.pit;
 
@@ -105,7 +117,9 @@ class ProbeHeroCard extends StatelessWidget {
         accent: _isPit ? hue : null,
         onTap: onTap,
         child: SizedBox(
-          height: 176,
+          // The phase row costs ~22 dp and must not squeeze the 96 pt number,
+          // which is the one thing on this card that may never be scaled.
+          height: phase == null ? 176 : 202,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -140,10 +154,63 @@ class ProbeHeroCard extends StatelessWidget {
                   ],
                 ),
               ),
+              // §D.5 — the phase rides under the number as a MARK, never as a
+              // colour: green is transport health, and target-reached closes
+              // the gauge ring rather than turning it green (§14.6).
+              if (freshness.showsDerived && phase != null) _phaseRow(context),
               if (freshness.showsDerived) ..._insights(context),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// The phase pill plus its one sentence, and — only at `Pull now` — the
+  /// button that moves it on.
+  ///
+  /// The rest countdown is labelled as an estimate wherever it appears, because
+  /// carryover is not measurable from one interior point and this app does not
+  /// present a physics guess as a reading.
+  Widget _phaseRow(BuildContext context) {
+    final t = context.tokens;
+    final state = phase!;
+    return Padding(
+      padding: const EdgeInsets.only(top: SmokeTokens.s1),
+      child: Row(
+        children: [
+          Container(
+            key: Key('phase-${state.phase.name}'),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: t.cardSubtle,
+              borderRadius: BorderRadius.circular(SmokeTokens.radiusPill),
+              border: Border.all(color: t.hairlineStrong),
+            ),
+            child: Text(
+              state.phase == CookPhase.resting && state.restRemainingS != null
+                  ? '${state.phase.label} · '
+                        '${formatDuration(state.restRemainingS!)} left'
+                  : state.phase.label,
+              style: SmokeType.labelSm.copyWith(color: t.textHi),
+            ),
+          ),
+          const SizedBox(width: SmokeTokens.s2),
+          Expanded(
+            child: Text(
+              state.estimated ? '${state.detail} (estimate)' : state.detail,
+              style: SmokeType.labelSm.copyWith(color: t.textMuted),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (state.phase == CookPhase.pullNow && onPulled != null)
+            TextButton(
+              key: const Key('phase-pulled'),
+              onPressed: onPulled,
+              child: const Text('I pulled it'),
+            ),
+        ],
       ),
     );
   }

@@ -51,6 +51,9 @@ class CookView extends StatelessWidget {
     this.onPair,
     this.onRefresh,
     this.showChrome = true,
+    this.pulledAtUnixMs,
+    this.nowUnixMs,
+    this.onPulled,
   });
 
   /// Whether to draw this screen's own transport chip and alarm bar.
@@ -97,7 +100,40 @@ class CookView extends StatelessWidget {
   /// shell's top bar carries the reason.
   final Future<void> Function()? onRefresh;
 
+  /// newapp §D.5 — when the user said the food came off the heat, and the
+  /// clock to measure the rest against. Null on both keeps the pre-§D.5 card:
+  /// no phase row, no pull button, which is what instrument mode wants and
+  /// what the existing goldens still assert.
+  final int? pulledAtUnixMs;
+  final int? nowUnixMs;
+
+  /// Tapping "I pulled it". **The one input the phase engine may not infer** —
+  /// a cooling probe could be a pull, a lid, or a probe knocked into the fire.
+  final VoidCallback? onPulled;
+
   bool get _guided => plan != null;
+
+  /// The phase for one food jack, or null where there is nothing to progress
+  /// through (the pit, no plan, no clock).
+  CookPhaseState? _phaseFor(ProbeView view) {
+    final p = plan;
+    final now = nowUnixMs;
+    if (p == null || now == null || view.role == ProbeRole.pit) {
+      return null;
+    }
+    final planProbe = p.probes.where((pp) => pp.jack == view.probe).firstOrNull;
+    if (planProbe == null || planProbe.isPit) {
+      return null;
+    }
+    return cookPhaseFor(
+      tempF10: view.tempF10,
+      targetF10: planProbe.targetF10 ?? view.targetF10,
+      pullF10: planProbe.pullF10,
+      nowUnixMs: now,
+      pulledAtUnixMs: pulledAtUnixMs,
+      safetyRestS: (p.floor?.restMinutes ?? 0) * 60,
+    );
+  }
 
   /// The single loudest alarm still ringing — highest severity, device-scope
   /// (`probe == 0`) included. Ties keep device order (the first seen).
@@ -419,6 +455,8 @@ class CookView extends StatelessWidget {
         if (pit != null)
           ProbeHeroCard(
             view: pit,
+            phase: _phaseFor(pit),
+            onPulled: onPulled,
             plan: plan,
             freshness: freshness,
             celsius: celsius,
@@ -428,6 +466,8 @@ class CookView extends StatelessWidget {
         if (food != null)
           ProbeHeroCard(
             view: food,
+            phase: _phaseFor(food),
+            onPulled: onPulled,
             plan: plan,
             freshness: freshness,
             celsius: celsius,

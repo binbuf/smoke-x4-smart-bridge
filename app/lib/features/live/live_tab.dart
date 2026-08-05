@@ -143,6 +143,18 @@ class _LiveTabState extends State<LiveTab> {
     }
   }
 
+  /// §D.5 — cached from the running annotation so the phase row does not
+  /// await a database read on every frame.
+  int? _pulledAtUnixMs;
+
+  Future<void> _markPulled(ShellSession session) async {
+    await session.markPulled();
+    final cook = await session.runningCook();
+    if (mounted) {
+      setState(() => _pulledAtUnixMs = cook?.pulledAtUnixMs);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ShellScope.maybeOf(context);
@@ -207,6 +219,13 @@ class _LiveTabState extends State<LiveTab> {
       // The chevron was drawn unconditionally; now it goes somewhere. Pushed
       // **inside this branch**, so the nav bar stays and back means back.
       onProbeTap: (jack) => context.push(AppRoutes.probeDetail(jack)),
+      // §D.5 — the guided progression. The pull time is a fact the user
+      // supplies and the app never guesses at.
+      nowUnixMs: DateTime.now().millisecondsSinceEpoch,
+      pulledAtUnixMs: _pulledAtUnixMs,
+      onPulled: session.plan == null
+          ? null
+          : () => unawaited(_markPulled(session)),
     );
 
     // A **builder**, not a widget, and the `SizedBox` lands *inside* the card.

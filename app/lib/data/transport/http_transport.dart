@@ -440,24 +440,17 @@ class HttpTransport implements BridgeTransport {
 
   /// newapp §G.3 — `GET /api/v1/config/alarms`, the read-back half.
   @override
-  Future<List<Map<String, Object?>>> alarmRules() async {
+  Future<Map<String, Object?>> alarmConfig() async {
     final j = await _getJson('/api/v1/config/alarms');
-    final list = j is Map ? j['rules'] : j;
-    if (list is! List) {
-      return const [];
-    }
-    return [
-      for (final r in list)
-        if (r is Map) r.cast<String, Object?>(),
-    ];
+    return j is Map ? j.cast<String, Object?>() : const {};
   }
 
-  /// newapp §G.3 — `POST /api/v1/config/alarms`. Deliberately **not** a fire
-  /// and forget: the caller reads back with [alarmRules] and compares before
-  /// claiming anything was saved.
+  /// newapp §G.3 — `POST /api/v1/config/alarms`, a merge patch. Deliberately
+  /// **not** fire-and-forget: the caller reads back with [alarmConfig] and
+  /// compares before claiming anything was saved.
   @override
-  Future<void> setAlarmRule(Map<String, Object?> rule) =>
-      _postJson('/api/v1/config/alarms', rule);
+  Future<void> setAlarmConfig(Map<String, Object?> patch) =>
+      _postJson('/api/v1/config/alarms', patch);
 
   @override
   Future<MqttConfig> mqttConfig() async {
