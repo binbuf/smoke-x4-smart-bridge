@@ -23,6 +23,7 @@ system diagram; everything else expands one part of it.
 | [12 — Task Planning Notes](12-task-planning-notes.md)                   | **Briefing for a future task-creation session** — epics, dependencies, task conventions, anti-tasks |
 | [13 — UX Architecture](13-ux-architecture.md)                           | **The user-facing contract** — the three pairing hops, app IA, the truth model, failure matrix, on-device UX, required protocol changes |
 | [14 — Design System](14-design-system.md)                               | Flutter tokens, typography, colour, the component library, chart rules, accessibility                |
+| [15 — newapp decisions](15-newapp-decisions.md)                         | The redesign record: the eight open decisions, where the spec was followed against its own letter, and what is deliberately not built |
 
 ## The short version
 
