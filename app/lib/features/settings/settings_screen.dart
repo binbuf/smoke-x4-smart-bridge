@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/app.dart' show ThemeProfile;
 import '../../core/format.dart';
+import '../../design/design.dart';
 import '../../domain/entities/entities.dart';
 
 /// The sections, in the §8.6 order.
@@ -775,19 +776,30 @@ class AboutView extends StatelessWidget {
   }
 }
 
+/// A section header, in the design system's own label style (newapp §F).
+///
+/// It used to reach for `textTheme.labelMedium` with a hand-written letter
+/// spacing and `onSurfaceVariant` — three Material defaults doing the job of
+/// one token, on the pages §F calls the app's largest visual inconsistency.
+/// `SmokeType.label` already *is* the tracked, upper-case section label the
+/// rest of the app uses; this now uses it, so these headers and the ones on
+/// `/live` and `/device` are the same object rather than two things that
+/// happen to look similar.
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.label);
   final String label;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
+    padding: const EdgeInsets.fromLTRB(
+      SmokeTokens.s4,
+      SmokeTokens.s5,
+      SmokeTokens.s4,
+      SmokeTokens.s2,
+    ),
     child: Text(
       label.toUpperCase(),
-      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-        letterSpacing: 2,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      style: SmokeType.label.copyWith(color: context.tokens.textMuted),
     ),
   );
 }
