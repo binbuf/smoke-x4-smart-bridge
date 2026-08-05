@@ -60,6 +60,10 @@ dependencies:
   permission_handler: ^11.3.1
   connectivity_plus: ^6.0.5
   share_plus: ^10.0.0
+  # newapp §C.5 — the OTA file picker. First-party, and needs no storage
+  # permission: the Storage Access Framework grants per-file access at pick
+  # time, which is exactly the scope wanted for "choose one .bin".
+  file_selector: ^1.0.3
 
 dev_dependencies:
   flutter_test:

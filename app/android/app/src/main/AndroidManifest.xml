@@ -45,6 +45,25 @@
          "reconnects and catches up when you open it", which still works
          because the DEVICE never stopped recording. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- newapp §G.4 — THE MECHANISM THAT LIGHTS THE SCREEN AT 3 A.M.
+         Without this a critical alarm is a notification you find in the
+         morning, which is the entire failure this product exists to
+         prevent. Since 22 January 2025, apps targeting Android 14+ only
+         get it granted by default if they have calling or ALARM
+         functionality — this app qualifies as an alarm app, and the Play
+         Console declaration (mandatory since 31 May 2024) says so. The
+         user can still revoke it, so `NotificationSink.canUseFullScreenIntent`
+         checks at runtime rather than assuming. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- §G.4 — time-based rules (an amount elapsed, a time before the end)
+         must fire ON TIME in Doze, not whenever the OS next feels like it.
+         USE_EXACT_ALARM is the alarm-app grant that needs no runtime
+         prompt; SCHEDULE_EXACT_ALARM is the pre-33 fallback. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32"/>
+    <!-- The wake lock the monitor holds between 30 s ticks. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="smoke_bridge"
         android:name="${applicationName}"
@@ -72,6 +91,32 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- newapp §G.4 — the background monitor, and the ONE attribute that
+             decides whether a fourteen-hour cook survives.
+             `flutter_foreground_task` does not declare this service in its own
+             manifest; the app must, and the type declared here is the type the
+             OS enforces whatever Dart asks for.
+
+             It is `connectedDevice`, deliberately and not `dataSync`:
+             Android 15's behaviour-changes doc states that "the system permits
+             dataSync and mediaProcessing foreground services to run for a total
+             of 6 hours in a 24-hour period, after which the system calls
+             Service.onTimeout()". Six hours is a third of a brisket. A cook
+             that goes silent at hour six, at 2 a.m., with the phone reporting
+             nothing wrong, is the exact failure mode this whole product is
+             built to prevent. `connectedDevice` carries no such cap — and it is
+             also the truthful description of what the service does, which is
+             stay attached to a BLE peripheral.
+
+             Android 15 additionally broke background BLE scanning without
+             `foregroundServiceType="connectedDevice"` plus
+             FOREGROUND_SERVICE_CONNECTED_DEVICE, declared above.
+
+             Warning: do not change the service name — the plugin binds it. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

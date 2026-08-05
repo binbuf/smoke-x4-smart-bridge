@@ -40,6 +40,11 @@ void main() {
       'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE',
       'android.permission.POST_NOTIFICATIONS',
       'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
+      // newapp §G.4 — the delivery-hardening rows.
+      'android.permission.USE_FULL_SCREEN_INTENT',
+      'android.permission.USE_EXACT_ALARM',
+      'android.permission.SCHEDULE_EXACT_ALARM',
+      'android.permission.WAKE_LOCK',
     ];
     final found = RegExp(
       'android:name="(android\\.permission\\.[^"]+)"',
@@ -97,6 +102,65 @@ void main() {
       manifest,
       contains('android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS'),
     );
+  });
+
+  group('newapp §G.4 — what actually wakes someone at 3 a.m.', () {
+    test('the full-screen intent is declared', () {
+      // Without it a critical alarm is a notification found at breakfast,
+      // which is the failure the whole product exists to prevent. This app
+      // qualifies for it as an ALARM app (Play Console declaration required
+      // since 31 May 2024; default grant narrowed on 22 January 2025).
+      expect(manifest, contains('android.permission.USE_FULL_SCREEN_INTENT'));
+    });
+
+    test('exact alarms are declared so time rules fire in Doze', () {
+      expect(manifest, contains('android.permission.USE_EXACT_ALARM'));
+      expect(
+        RegExp(
+          r'SCHEDULE_EXACT_ALARM"\s+android:maxSdkVersion="32"',
+        ).hasMatch(manifest),
+        isTrue,
+        reason: 'the pre-33 fallback only, since USE_EXACT_ALARM covers 33+',
+      );
+    });
+
+    test('the foreground service is declared, and is connectedDevice', () {
+      // `flutter_foreground_task` does not declare this service itself, so
+      // without this block the Dart-side service type has nothing to bind to.
+      expect(
+        manifest,
+        contains(
+          'com.pravera.flutter_foreground_task.service.ForegroundService',
+        ),
+        reason: 'the plugin does not declare its own service',
+      );
+      expect(
+        manifest,
+        contains('android:foregroundServiceType="connectedDevice"'),
+      );
+    });
+
+    test('the service is NOT dataSync — that cap kills a 14-hour cook', () {
+      // Android 15: dataSync and mediaProcessing foreground services get a
+      // total of 6 hours per 24, then the system calls Service.onTimeout().
+      // Six hours is a third of a brisket, and the phone would report
+      // nothing wrong.
+      // The ATTRIBUTE, not the file: the comment above the service block
+      // names the capped types precisely so nobody reintroduces them, and a
+      // naive substring search would fail on that explanation.
+      final types = RegExp('android:foregroundServiceType="([^"]+)"')
+          .allMatches(manifest)
+          .map((m) => m.group(1))
+          .toList();
+      expect(types, ['connectedDevice']);
+      expect(
+        manifest,
+        isNot(contains('FOREGROUND_SERVICE_DATA_SYNC')),
+        reason:
+            'declaring the permission is how the type creeps back in during '
+            'a dependency bump',
+      );
+    });
   });
 
   test('cleartext is an NSC decision, never the global manifest flag', () {

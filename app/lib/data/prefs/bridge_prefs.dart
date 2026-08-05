@@ -30,6 +30,15 @@ abstract interface class BridgePrefs {
   /// `F` or `C`. Null = never chosen; D14 makes °F the default.
   String? get displayUnits;
 
+  /// newapp §H.3 — `dark` · `daylight` · `auto`. Null = never chosen, which
+  /// means dark: a white screen outdoors at night is worse than a
+  /// high-contrast dark one, and that is why there is no light theme at all.
+  /// The daylight profile is not a light theme — it keeps the same surfaces
+  /// and lifts the ink ramp, because in direct sun the eye adapts to the
+  /// field, not to the page (design 14 §14.3.3).
+  String? get themeProfile;
+  Future<void> setThemeProfile(String profile);
+
   /// A13.6 — quiet hours and background monitoring (09 §9.5, §9.6).
   /// Both default ON: the design's defaults, and the ones a user who
   /// never opens settings should get.
@@ -90,6 +99,7 @@ class InMemoryBridgePrefs implements BridgePrefs {
     this.lastBridgeId,
     this.lastSeenUnixMs,
     this.displayUnits,
+    this.themeProfile,
     this.quietHoursEnabled = true,
     this.monitoringEnabled = true,
     this.preferredTransport = PreferredTransport.auto,
@@ -106,6 +116,9 @@ class InMemoryBridgePrefs implements BridgePrefs {
   int? lastSeenUnixMs;
   @override
   String? displayUnits;
+
+  @override
+  String? themeProfile;
   @override
   bool quietHoursEnabled;
   @override
@@ -151,6 +164,11 @@ class InMemoryBridgePrefs implements BridgePrefs {
       lastBridgeId = bridgeId;
     }
     lastSeenUnixMs = atMs ?? DateTime.now().millisecondsSinceEpoch;
+  }
+
+  @override
+  Future<void> setThemeProfile(String profile) async {
+    themeProfile = profile;
   }
 
   @override
@@ -201,6 +219,7 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
   static const _kBridgeId = 'bridge.id';
   static const _kLastSeen = 'bridge.last_seen_ms';
   static const _kUnits = 'display.units';
+  static const _kThemeProfile = 'display.theme_profile';
   static const _kQuiet = 'alarms.quiet_hours';
   static const _kMonitor = 'alarms.monitoring';
   static const _kPreferredTransport = 'transport.preferred';
@@ -239,6 +258,13 @@ class SharedPrefsBridgePrefs implements BridgePrefs {
 
   @override
   String? get displayUnits => _read<String>(_kUnits);
+
+  @override
+  String? get themeProfile => _read<String>(_kThemeProfile);
+
+  @override
+  Future<void> setThemeProfile(String profile) =>
+      _prefs.setString(_kThemeProfile, profile);
 
   /// Absent means never chosen, which is ON for both — the §9.5/§9.6
   /// defaults. `?? true` rather than `?? false` is the whole decision.

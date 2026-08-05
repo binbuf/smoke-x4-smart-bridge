@@ -1,9 +1,30 @@
-/// The settings composition root (A12).
+/// The settings composition root (A12), on the **shared** connection
+/// (newapp §F, §I.1 Phase 0).
 ///
-/// A single route with an inner section stack, so the seven pages share
-/// one connection and one set of reads. Everything it renders is one of
-/// the pure views in this folder, which is what keeps them testable
-/// without a transport.
+/// A single route with an inner section stack, so the pages share one
+/// connection and one set of reads. Everything it renders is one of the pure
+/// views in this folder, which is what keeps them testable without a transport.
+///
+/// **The bug this fixes was the worst one in the app.** This route used to
+/// build its *own* `HttpTransport` from the remembered base URL while the rest
+/// of the shell reused the supervisor's open link. Two consequences, both bad:
+///
+///  * on a **Bluetooth-only setup there was no base URL at all**, so
+///    `_transport` stayed null — and because every write went through a
+///    null-aware `_transport?.configure(...)`, **saving probe settings appeared
+///    to succeed while writing nothing**. A form that reports success and
+///    changes nothing is the single most expensive kind of lie an app can tell;
+///  * even over Wi-Fi it opened a second socket to a device that had one.
+///
+/// So the transport now comes from [ShellScope] — the same link the reader and
+/// the Device tab use — and **every write verifies by read-back** before the
+/// UI reports anything, which is house rule 7 ("verify by behaviour, not by
+/// return value") applied where it was being skipped.
+///
+/// The second half of §F's complaint is also fixed: the device pages used to
+/// render **constructor defaults as if they were facts read from the bridge**
+/// (display timeout 60 s, status LED on, 64 cooks kept). Absent is now absent —
+/// see [DeviceSettingsView]'s nullable inputs.
 library;
 
 import 'dart:async';
@@ -11,6 +32,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/app.dart' show SmokeBridgeApp, ThemeProfile;
 import '../../app/app_env.dart';
 import '../../app/router.dart';
 import '../../data/local/database.dart' show CacheStats;
@@ -19,6 +41,7 @@ import '../../data/transport/bridge_transport.dart';
 import '../../data/transport/http_transport.dart';
 import '../../domain/entities/entities.dart';
 import '../bridge/verb_progress.dart';
+import '../shell/shell_scope.dart';
 import 'settings_mqtt.dart';
 import 'settings_network.dart';
 import 'settings_probes.dart';
@@ -46,7 +69,8 @@ class _SettingsRouteState extends State<SettingsRoute> {
   List<Probe> _probes = const [];
   BridgeStatus? _status;
   String _units = 'F';
-  String _saver = 'auto';
+  String? _saver;
+  ThemeProfile _themeProfile = ThemeProfile.dark;
   bool _quietHours = true;
   bool _monitoring = true;
   bool _batteryExempt = false;
@@ -82,9 +106,18 @@ class _SettingsRouteState extends State<SettingsRoute> {
     super.initState();
     _section = widget.initialSection;
     _units = AppEnv.instance?.prefs.displayUnits ?? 'F';
+    _themeProfile = ThemeProfile.fromName(
+      AppEnv.instance?.prefs.themeProfile,
+    );
     _quietHours = AppEnv.instance?.prefs.quietHoursEnabled ?? true;
     _monitoring = AppEnv.instance?.prefs.monitoringEnabled ?? true;
-    unawaited(_load());
+    unawaited(_loadCache());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _adoptSharedTransport();
   }
 
   /// The cache's size, read straight from drift. Deliberately outside the
@@ -118,15 +151,27 @@ class _SettingsRouteState extends State<SettingsRoute> {
     }
   }
 
+  /// Takes the shell's live transport. Called from `didChangeDependencies`
+  /// as well as `initState`, because the supervisor can swap BLE for Wi-Fi
+  /// while this screen is open and a settings page holding the old link would
+  /// keep writing down a socket nobody is listening to.
+  void _adoptSharedTransport() {
+    final shared = ShellScope.maybeOf(context)?.bridge?.transport;
+    if (shared != null && !identical(shared, _transport)) {
+      _transport = shared;
+      unawaited(_load());
+    }
+  }
+
   Future<void> _load() async {
     unawaited(_loadCache());
     final env = AppEnv.instance;
-    final baseUrl = env?.prefs.lastBaseUrl;
-    if (env == null || baseUrl == null) {
+    final t = _transport;
+    if (env == null || t == null) {
+      // No shared link yet. The pages that need the device say so
+      // individually; nothing here fabricates a second connection.
       return;
     }
-    final t = env.transportFor(baseUrl);
-    _transport = t;
     try {
       final status = await t.status();
       final live = await t.live();
@@ -210,6 +255,66 @@ class _SettingsRouteState extends State<SettingsRoute> {
     }
   }
 
+  /// **Write, then read back, then report** (house rule 7; newapp §F).
+  ///
+  /// The old shape was `await _transport?.configure(cfg); setState(...)` — a
+  /// null-aware call whose failure mode is silence and whose success mode is
+  /// unverified. This one:
+  ///
+  ///  1. refuses when there is no link, and says so;
+  ///  2. writes;
+  ///  3. **re-reads `live()` and adopts what the device actually reports**, so
+  ///     the form shows the bridge's truth rather than the user's intent;
+  ///  4. reports what happened either way.
+  ///
+  /// Step 3 is the one that matters. A device that clamps a target, rejects a
+  /// name, or ignores a field it does not support will now show that on screen
+  /// instead of leaving the user's typing there looking saved.
+  Future<void> _writeAndVerify(BridgeConfig cfg, String okMessage) async {
+    final t = _transport;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (t == null) {
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('Not connected to the bridge — nothing was saved.'),
+        ),
+      );
+      return;
+    }
+    try {
+      await t.configure(cfg);
+      final live = await t.live();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _probes = live.probes);
+      final expected = cfg.probes;
+      if (expected != null && !probeWriteWasHonoured(expected, live.probes)) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The bridge kept its own values for some of those. What you see '
+              'now is what it actually has.',
+            ),
+            duration: Duration(seconds: 6),
+          ),
+        );
+        return;
+      }
+      messenger?.showSnackBar(SnackBar(content: Text(okMessage)));
+    } on BridgeUnsupportedException catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('${e.what} needs a Wi-Fi connection.')),
+      );
+    } on Object {
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('The bridge didn’t take that. Nothing was saved.'),
+        ),
+      );
+    }
+  }
+
   /// D15's verbs. The bridge answers *before* it acts and then drops the
   /// link, so a transport error here is as likely to be the success path as
   /// a failure — there is nothing honest to report and nothing to retry.
@@ -254,7 +359,8 @@ class _SettingsRouteState extends State<SettingsRoute> {
   @override
   void dispose() {
     unawaited(_otaEvents?.cancel());
-    unawaited(_transport?.close());
+    // The supervisor owns this link's lifetime now. Closing it here would take
+    // the live readings down every time somebody backed out of settings.
     super.dispose();
   }
 
@@ -288,14 +394,17 @@ class _SettingsRouteState extends State<SettingsRoute> {
       celsius: _units == 'C',
       // A6's typed condition, surfaced as copy: `BleTransport` has no
       // `device_control` op for probe names or roles, and v1 leaves that
-      // surface HTTP-only rather than silently dropping the write.
-      unsupportedReason: _transport is BleTransport
-          ? 'Probe names and targets need a Wi-Fi connection to the bridge.'
-          : '',
-      onSave: (probes) async {
-        await _transport?.configure(BridgeConfig(probes: probes));
-        setState(() => _probes = probes);
+      // surface HTTP-only rather than silently dropping the write. Also true
+      // when there is no shared link at all — a disabled row with a reason
+      // beats a form that reports success and writes nothing.
+      unsupportedReason: switch (_transport) {
+        null => 'Not connected to the bridge — reconnect to change probes.',
+        BleTransport() =>
+          'Probe names and targets need a Wi-Fi connection to the bridge.',
+        _ => '',
       },
+      onSave: (probes) =>
+          _writeAndVerify(BridgeConfig(probes: probes), 'Probes saved'),
     ),
     SettingsSection.alarms => AlarmSettingsView(
       quietHours: _quietHours,
@@ -424,17 +533,29 @@ class _SettingsRouteState extends State<SettingsRoute> {
     ),
     SettingsSection.device => DeviceSettingsView(
       units: _units,
+      // §H.3 — the daylight profile, wired to the token architecture that was
+      // built for it. Applied live, so a user standing in the sun sees the
+      // change rather than being told to relaunch.
+      themeProfile: _themeProfile,
+      onThemeProfile: (p) async {
+        setState(() => _themeProfile = p);
+        SmokeBridgeApp.setProfile(context, p);
+        await AppEnv.instance?.prefs.setThemeProfile(p.name);
+      },
       onUnits: (u) async {
         setState(() => _units = u);
         await AppEnv.instance?.prefs.setDisplayUnits(u);
         // The DEVICE renders temperatures on its own OLED; the two
         // screens must agree, so the setting travels.
-        await _transport?.configure(BridgeConfig(displayUnits: u));
+        await _writeAndVerify(BridgeConfig(displayUnits: u), 'Units saved');
       },
+      // Absent, not defaulted: the saver mode is only known once the bridge
+      // has said so, and rendering `auto` before it does is a constructor
+      // default masquerading as a fact (§F, §I.0).
       batterySaver: _saver,
       onBatterySaver: (v) async {
         setState(() => _saver = v);
-        await _transport?.configure(
+        await _writeAndVerify(
           BridgeConfig(
             batterySaver: switch (v) {
               'off' => BatterySaverMode.off,
@@ -442,8 +563,12 @@ class _SettingsRouteState extends State<SettingsRoute> {
               _ => BatterySaverMode.auto,
             },
           ),
+          'Battery saver saved',
         );
       },
+      unsupportedReason: _transport == null
+          ? 'Not connected to the bridge — reconnect to change these.'
+          : '',
     ),
     SettingsSection.advanced => AdvancedSettingsView(
       radio: {
@@ -513,3 +638,23 @@ class _SettingsRouteState extends State<SettingsRoute> {
 /// that can take an image is an [HttpTransport], and nothing else claims
 /// otherwise.
 bool otaCapable(BridgeTransport t) => t is HttpTransport && t.capabilities.ota;
+
+/// §G.3's read-back comparison, hoisted out of the widget so the rule can be
+/// tested directly: **did the device actually take what we sent?**
+///
+/// Compares only the fields that were written. A device echoing extra state it
+/// manages itself (an alarm band, a probe we said nothing about) is not a
+/// mismatch; a device that kept its own name, clamped a target, or dropped the
+/// probe entirely is.
+bool probeWriteWasHonoured(List<Probe> sent, List<Probe> echoed) {
+  for (final p in sent) {
+    final back = echoed.where((e) => e.n == p.n).firstOrNull;
+    if (back == null ||
+        back.name != p.name ||
+        back.role != p.role ||
+        back.targetF10 != p.targetF10) {
+      return false;
+    }
+  }
+  return true;
+}
