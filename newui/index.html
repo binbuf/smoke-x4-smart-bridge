@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Smoke X4 Smart Bridge — New UI Prototype</title>
+<!-- Fonts: Archivo (display/temps), Inter (text), JetBrains Mono (keys/ids).
+     If offline the system fallbacks in styles.css take over. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===================== PHONE ===================== -->
+<div class="phone-wrap">
+  <div class="phone">
+    <div class="phone-screen" id="phoneScreen">
+
+      <!-- System status bar -->
+      <div class="statusbar">
+        <span id="clock">9:41</span>
+        <span class="sb-right">
+          <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="5" width="3" height="7" rx="1"/><rect x="9" y="2.5" width="3" height="9.5" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1" opacity="0.35"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 10.5a1.3 1.3 0 100 2.6 1.3 1.3 0 000-2.6zM8 6.5c-1.6 0-3 .6-4 1.7l1.3 1.4A4 4 0 018 8.4c1 0 2 .4 2.7 1.2L12 8.2A5.9 5.9 0 008 6.5zM8 2.5c-2.7 0-5.1 1-6.9 2.8l1.3 1.4A8 8 0 018 4.4c2.1 0 4 .8 5.6 2.3l1.3-1.4A10 10 0 008 2.5z"/></svg>
+          <span class="sb-batt"><i></i></span>
+        </span>
+      </div>
+
+      <!-- App chrome -->
+      <div class="app">
+        <div class="appbar" id="appbar"></div>
+        <div class="scroll" id="view"></div>
+
+        <!-- Bottom navigation -->
+        <nav class="bottom-nav" id="nav"></nav>
+
+        <!-- Overlays mount here -->
+        <div id="overlays"></div>
+        <div class="toast" id="toast"></div>
+      </div>
+    </div>
+  </div>
+  <div class="tiny muted" style="max-width:390px;text-align:center">
+    Static prototype · click around freely · use the panel on the right to switch scenarios and screens
+  </div>
+</div>
+
+<!-- ===================== DEV PANEL ===================== -->
+<aside class="devpanel">
+  <h3>Prototype controls</h3>
+  <p class="dp-hint">These switches only exist in the mock. In Flutter, scenarios become live bridge state and the screen list becomes the real router.</p>
+
+  <div class="dp-label">Scenario (bridge state)</div>
+  <div id="dpScenarios"></div>
+
+  <div class="dp-label">Screens</div>
+  <div class="dp-grid" id="dpScreens"></div>
+
+  <div class="dp-label">Overlays / flows</div>
+  <div class="dp-grid" id="dpOverlays"></div>
+
+  <div class="dp-label">Settings</div>
+  <div id="dpSettings"></div>
+</aside>
+
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

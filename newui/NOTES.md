@@ -1,0 +1,289 @@
+# NOTES — Smoke X4 Smart Bridge, new UI prototype → Flutter
+
+This folder is a **static HTML prototype** of a proposed UI/UX for the Smoke X4
+Smart Bridge app. It is deliberately *not* Flutter and deliberately *not* a copy
+of the existing app. Its job is to let every screen, state and flow be argued
+about in a browser before any Dart is written.
+
+> **Read `components_research_notes.md` first.** It is the parts bin. This file
+> is the translation plan for the prototype built on top of it.
+
+---
+
+## 1. What is in this folder
+
+| File | What it is |
+|---|---|
+| `index.html` | The shell: phone frame, status bar, app bar, scroll view, bottom nav, overlay host, dev panel. Loads the other three files. |
+| `styles.css` | The design system: tokens, phone chrome, and every component used. Ported from `docs/design/14-design-system.md` and `app/lib/design/`. |
+| `mock-data.js` | **The data model.** The preset catalog, the expected-cook (timeline) database, four bridge scenarios, history, connection modes, alarm rules. This is the most important file to read. |
+| `app.js` | Renderers + interactions. §1 state, §2 formatting, §3 SVG, §4 domain, §5 chrome, §6 views, §7 overlays, §8 actions, §9 boot. |
+| `NOTES.md` | This file. |
+
+**Open it:** double-click `index.html`. No build, no server. The panel on the
+right switches scenarios, screens and overlays. Deep links also work:
+
+```
+index.html#screen=graph
+index.html#overlay=setup
+index.html#scenario=existing
+index.html?screen=timeline&units=C
+```
+
+---
+
+## 2. Information architecture
+
+Five bottom-nav destinations, one overlay stack.
+
+```
+Live        The "now" screen. Alarms, cook header + stopwatch, grate hero,
+            the 4-timer board, mini graph, quick actions.
+Timeline    Database-driven expectation. Gantt of every item on the grill,
+            upcoming interventions (wrap/spritz/turn), event rail.
+Graph       Full multi-series chart, range chips, tap-to-isolate legend,
+            per-probe window stats.
+Cooks       History list grouped by recency + "start a new cook".
+Device      Connection (mode switcher, two-hop signal, re-sync, disconnect),
+            settings (units, profile, alarms, transport), bridge facts.
+```
+
+Overlays (sheets/modals), all reachable from the dev panel:
+
+`onboarding` · `setup` (the catalog + three start modes) · `connect` ·
+`modes` · `alarms` · `mark` · `probe` (tap a timer tile) · `adopt` ·
+`editStart`.
+
+**Why this shape.** The brief asks for timers front-and-centre *and* a graph
+*and* a timeline *and* a catalog. Those are four different mental modes, so they
+get four destinations; the alarm strip and transport chip are global chrome that
+persist across all of them.
+
+---
+
+## 3. The business logic that must survive the port
+
+These are the rules the prototype encodes. They are carried from
+`components_research_notes.md` §1 (the invariants). **A redesign may re-express
+these; it may not violate them.**
+
+### 3.1 Device is authoritative; the app mirrors (I2)
+
+- The bridge records with or without the phone. The UI says so in three places:
+  the cook header ("Recording on the bridge — safe even if this phone drops"),
+  the Cooks empty notice, and the alarms sheet.
+- **Pausing the stopwatch does NOT stop device recording.** Pause only freezes
+  the *displayed* clock. In Dart this is a UI-only flag over `cook.startedAtMs`.
+- App alarms are labelled **Advisory**; device alarms are labelled **Device**.
+  The two tiers are never merged in a list without their tag.
+
+### 3.2 Absent ≠ zero (I3)
+
+A detached probe renders `—` + "Unplugged", never `0°`. See `timerTile()`:
+`attached === false` short-circuits the whole tile.
+
+### 3.3 Never present stale data as current (I4)
+
+The freshness ladder is live / aging / stale / frozen. When a probe is not
+`live`, **derived values (ETA, trend) are removed, not greyed**. See the
+`canShowDerived` branches in `timerTile()`. The offline scenario demonstrates it.
+
+### 3.4 Food safety is a hard gate (I12)
+
+Every target in the catalog runs through the same floors as
+`domain/plan/presets.dart`:
+- Poultry carryover is **always zero** — the app never predicts a bird upward.
+- Carryover (`carryoverFor`) is by cut thickness, not doneness.
+- Pull temp (`pullTempFor`) is clamped at the safety floor.
+
+The prototype approximates these in `app.js §4`. **In Flutter, call the real
+`CookPreset.pullF10For` / `safePullF10` — do not port the approximation.**
+
+### 3.5 One ember primary action per screen (I14)
+
+Each screen/overlay has at most one `.btn.primary`. Grep for `btn primary` to
+see the intended call to action on each surface.
+
+### 3.6 Colour discipline (17 §17.2)
+
+Three channels, and the prototype honours all three:
+
+| Channel | Where | Rule |
+|---|---|---|
+| **Series** | probe hues P1–P4 | marks only; legend swatches show the stroke pattern too, because hue is never the only identity channel |
+| **Status** | critical/warning/info/positive | chrome only; icon **and** word; green = transport health only |
+| **Identity** | food avatars | may fill and carry a word; never encodes state |
+
+The hero temperature is always ink. "Target reached" closes the ring and says
+"DONE"; it is never green.
+
+### 3.7 The colour rule scales with live state (17 §17.5)
+
+Onboarding, the catalog and the empty reader may be warm and saturated (no cook
+exists, so nothing can lie). A running cook cools to ink-and-chrome. The
+prototype follows this: the setup sheet is vivid, the live probe board is
+disciplined.
+
+---
+
+## 4. The Timeline database — the one genuinely new system
+
+`MOCK.TIMELINES` in `mock-data.js` is a **per-cut expected-cook database**. The
+existing app has nothing like it. It is what makes the Timeline tab possible.
+
+```js
+beef_brisket: {
+  totalMin: [600, 840],                              // expected cook, pre-rest
+  stall: { minF: 150, maxF: 170, durationMin: [120, 240] },
+  wrap:  { tempF: 165, label: 'Wrap in butcher paper', note: '…' },
+  spritzEveryMin: 45,
+  turn:  { elapsedMin: 5, note: '…' } | null,
+  restMin: 60,
+  phases: [ { id, label, note }, … ],                // the honest arc
+}
+```
+
+**To seed it properly**, every cut in the catalog needs an entry. The prototype
+covers all ~35 items (some with an empty timeline, which the Timeline view
+tolerates). When this moves to Dart:
+
+1. Make it a table (Drift table or a const map). The existing `Presets.all`
+   already keys by `id`; key the timeline by the same `presetId`.
+2. Add a **named reviewer** for the whole table. `presets.dart` already flags
+   that the preset table needs one; this table is the same class of data.
+3. The Timeline view derives everything from it:
+   - Gantt bar length = `totalMin` midpoint.
+   - Stall band = 38–72 % of the bar (placeholder fraction; replace with a
+     temperature-triggered estimate once analysis is wired).
+   - Wrap milestone = 55 % of the bar (placeholder; replace with the temp
+     crossing from the rate engine).
+   - Upcoming interventions = `wrap`, `spritzEveryMin`, `turn`.
+   - Event rail = actual marks ∪ predicted `phases`.
+4. **Every intervention is optional and editable.** The `autoWrapReminder`
+   setting gates whether the app nudges. A cut with `wrap: null` simply has no
+   wrap reminder.
+
+The expected times are **estimates and must say so** (the same honesty rule as
+the ETA and rest timer in `cook_phase.dart`).
+
+---
+
+## 5. The three ways to start a cook (the flexibility requirement)
+
+`overlaySetup` in `app.js` offers a segmented switch. These map to three
+distinct code paths:
+
+### 5.1 `new` — set up before you light the fire
+Pick category → cut → doneness (red meat defaults to **medium rare**) → assign a
+probe → optional wrap/spritz reminders. Start.
+Maps to `CookRepository.startFromPlan`.
+
+### 5.2 `existing` — hook into data already collected
+This is the brief's "grill already fired up, bridge already recording" case.
+
+- On connect, if the bridge has a session the app has not adopted, the Live
+  screen shows an **adopt banner** and the `adopt` modal (`overlayAdopt`).
+- The user picks what is on the grill and confirms the start time; the app
+  **backdates the cook** to the bridge session start and **pulls the samples
+  already collected**.
+- The prototype shows the sample count (`pendingSession.samples`) and the start
+  time, so the cost is stated before the action (I8).
+
+Maps to `CookRepository.backdate` / `candidateAnchors` + the SyncEngine's
+high-water-mark protocol (`components_research_notes.md` §5.3). The bridge is
+the source of truth for what was already recorded; the app only annotates a
+window over it (I10).
+
+### 5.3 `watch` — no targets, just live numbers
+Instrument mode. No cook, no timers, no alarms. The Live screen renders the
+instrument card instead of the cook header. A cook can be turned on later
+without losing anything.
+
+---
+
+## 6. Feature-by-feature translation map
+
+| Prototype feature | Existing Flutter piece to reuse |
+|---|---|
+| Transport chip + connection sheet | `ConnectionSupervisor`, `TransportChip`, capability flags (§4 matrix) |
+| Mode switcher (BLE / AP / STA) | `app_net` modes; `applyNetwork`; the rollback timer + BLE escape hatch (§5 of research notes) |
+| Live probe board | `buildDashboard()` projection; `ProbeHeroCard`, `ProbeStripRow`, `ProbeCompactCard` |
+| Timer tiles | **new** — a glanceable wrapper over the projection. Consider `ProbeCompactCard` as the base. |
+| Stopwatch / start-time edit | Cook `startedAtMs`; `CookAnnotation.backdatedTo` |
+| Graph | `features/chart` (fl_chart); keep run-splitting, LTTB, labelled target lines, ≤16 % area fill |
+| Legend tap-to-isolate | `SeriesLegend` (exists, currently unwired — wire it) |
+| Timeline / Gantt | **new** — built on the timeline DB above |
+| Catalog | `Presets.all` + a **new** timeline table + `FoodGlyph`/`FoodAvatar` |
+| Marks (wrap/spritz/turn) | `CookRepository` marks; `MarkKind` enum |
+| Alarm strip + sheet | `AlarmBar`, `planNotifications()`, `AlarmRuleSpec`, two-tier model (§6.4) |
+| Prefer-my-own-alarms | **new setting** — device alarms are authoritative; this only changes which *notification* wins |
+| Background monitoring | `CookMonitor` + `ForegroundServiceHost` |
+| Cooks history | `CookRepository.list/watch`, `CookDetailView` |
+| Onboarding | `SetupMachine` (§12), `BridgeIllustration`, `PasskeyDisplay` |
+| Units toggle | `domain/analysis/units.dart`; storage stays tenths-°F |
+| Daylight profile | `SmokeTokens.daylight` |
+| Empty / problem states | `EmptyState`, `ProblemState`, `CapabilityNotice` |
+
+---
+
+## 7. Specific decisions the prototype makes (review these)
+
+1. **Timer board over a probe list.** The four timer tiles are the primary
+   surface on Live. Tapping one opens the probe detail sheet. This is the
+   "timers front and centre" requirement.
+2. **Jack 4 is the grate by default**, but every jack can be re-roled in the
+   probe sheet (`probe-role`). The tile gets a "Grate" tag when it is the pit.
+3. **The stopwatch is always visible** while a cook is active, with pause and an
+   "adjust start" modal that only moves the cook window — never the samples.
+4. **Alarms live in a sheet**, not a tab. The strip is global; the sheet holds
+   active alarms, delivery verdict, the nine device rules, the three app
+   advisories and the preferences. (Open question: see §9.)
+5. **The catalog is the setup flow.** There is no separate "presets" screen.
+6. **Food imagery is a placeholder** (coloured disc + emoji). Replace with the
+   vector `FoodGlyph` set (`design/food_glyph.dart`) or real photography later.
+   The avatar circle is an *identity* fill, exempt from the series rule.
+7. **The timeline DB is editable per cook.** The setup sheet's wrap/spritz
+   toggle is the seed of that.
+
+---
+
+## 8. Design tokens (copy verbatim)
+
+Surfaces `#07090E / #0F131D / #161C2A / #121824 / #1E2638 / #04060A`; ink
+`#F8FAFC / #CBD5E1 / #94A3B8 / #64748B`. Series `#D95926 / #9085E9 / #008300 /
+#3987E5`. Status `#F04444 / #FAB219 / #10B981 / #94A3B8`. Radii 20 / 14 / 8 /
+999. Spacing is a 4 dp scale. Fonts Archivo (display), Inter (text),
+JetBrains Mono (keys/ids). All of this already exists in `app/lib/design/` — the
+prototype does not invent a single new token.
+
+---
+
+## 9. Open questions for the Flutter build
+
+1. **Is "Alarms" a destination or a sheet?** The prototype uses a sheet. If the
+   product wants a permanent alert history, it becomes a tab or a Cooks sub-page.
+2. **How much of the timeline DB is shipped vs user-tunable?** Every cut has an
+   expectation; should the user be able to edit the stall window per cook?
+3. **Do we adopt automatically?** The prototype requires a tap. An auto-adopt
+   with an undo could be better for the "already started" case.
+4. **Pause semantics.** Does pause also suppress alarms/notifications, or only
+   the displayed clock? The prototype assumes the latter (device is authoritative).
+5. **Spritz cadence** is a single number per cut; real cooks vary it. Consider a
+   per-cook override.
+6. **Catalog size.** 35 items is a starting set. Decide whether categories are
+   fixed or data-driven before building the picker.
+7. **Food imagery** — vector glyphs vs photography. `17-identity-and-warmth.md`
+   argues for vector (licensing, bundle size, daylight theming).
+
+---
+
+## 10. How to iterate on the prototype
+
+- Switch **scenario** in the dev panel to see the same screen handle
+  offline / idle / running / existing-session.
+- Switch **screen** and open any **overlay** directly.
+- Toggle **units** and **profile** (daylight is a contrast profile, not a light
+  theme).
+- The prototype never talks to a bridge. Every value is in `mock-data.js`.
+- `app.js` is commented with `[BIZ]` (rules that must survive) and `[FLUTTER]`
+  (which engine to reuse). Search for those markers when porting.
