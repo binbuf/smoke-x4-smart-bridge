@@ -28,6 +28,25 @@ import 'field_probes.dart';
 import 'field_report.dart';
 import 'field_runner.dart';
 
+/// The chrome role one check marker is drawn in.
+///
+/// **A pass is not green.** Green means transport health and nothing else
+/// (16 §16.5), and a run of this harness puts dozens of markers on screen at
+/// once — notification permission, full-screen intent, storage headroom, alarm
+/// rules, clock skew. A wall of green here is the fastest way to teach a reader
+/// that the app's green is decorative, and the one place it must not be is the
+/// transport chip. `pit` is the app's own accent and reads as "this went the
+/// way it should" without making a claim about the link.
+///
+/// A top-level function rather than a `switch` buried in the row builder so the
+/// rule can be pinned by a test that needs no phone.
+StatusRole roleForCheck(CheckStatus s) => switch (s) {
+  CheckStatus.pass => StatusRole.pit,
+  CheckStatus.fail => StatusRole.critical,
+  CheckStatus.skipped => StatusRole.info,
+  CheckStatus.info => StatusRole.info,
+};
+
 class FieldReportRoute extends StatefulWidget {
   const FieldReportRoute({super.key, this.deviceInfo});
 
@@ -255,12 +274,7 @@ class _FieldReportRouteState extends State<FieldReportRoute> {
   }
 
   Widget _resultRow(SmokeTokens t, CheckResult r) {
-    final role = switch (r.status) {
-      CheckStatus.pass => StatusRole.positive,
-      CheckStatus.fail => StatusRole.critical,
-      CheckStatus.skipped => StatusRole.info,
-      CheckStatus.info => StatusRole.info,
-    };
+    final role = roleForCheck(r.status);
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Row(

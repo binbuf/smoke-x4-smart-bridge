@@ -19,6 +19,13 @@
 /// measures a 1″ steak gaining "a degree or two" against a 4–6″ prime rib
 /// gaining 5–10 °F, which is a property of the mass, not of how done it is.
 ///
+/// **Carryover never crosses a safety floor.** `target − carryover` is clamped
+/// at the enforced minimum ([safePullF10]), because "take it off early and let
+/// it coast up" is precisely the promise USDA declines to make about poultry,
+/// and its pork and whole-cut wording is 145 °F *before* the meat leaves the
+/// heat. The offset is a doneness convenience on cuts that have no floor, not a
+/// way under one that does.
+///
 /// Temperatures are tenths of °F throughout, the storage-canonical unit.
 library;
 
@@ -38,7 +45,85 @@ enum CutThickness {
 
   /// Sous-vide. ThermoWorks is explicit: there is **no** carryover, because
   /// the food is already isothermal with the bath.
-  sousVide,
+  sousVide;
+
+  /// The chip's word. Thickness is the honest question to ask a custom cook —
+  /// §D.4 derives carryover from mass, not from doneness — so the picker asks
+  /// about the cut, never "how many degrees would you like to pull early?".
+  String get label => switch (this) {
+    CutThickness.thin => 'Thin',
+    CutThickness.medium => 'Medium',
+    CutThickness.thick => 'Thick',
+    CutThickness.sousVide => 'Sous vide',
+  };
+
+  /// The sentence under the chips, naming a real cut so the choice is
+  /// answerable by looking at the food rather than by guessing a number.
+  String get blurb => switch (this) {
+    CutThickness.thin =>
+      'About an inch — a steak, a chop, a chicken piece, a fillet. It coasts a '
+          'degree or two off the heat.',
+    CutThickness.medium =>
+      'Two to three inches — a thick-cut steak, a small roast, a tenderloin.',
+    CutThickness.thick =>
+      'Four inches or more — a prime rib, a brisket, a shoulder, a whole bird. '
+          'It keeps climbing 5 to 10°F after it comes off.',
+    CutThickness.sousVide =>
+      'In a water bath. It is already the temperature of the bath, so there is '
+          'no carryover to allow for.',
+  };
+}
+
+/// Carryover for a cut, tenths °F — the one place thickness becomes a number.
+///
+/// Shared by [CookPreset.carryoverF10] and by the custom-cook path in the setup
+/// sheet. A preset and a hand-built cook that disagreed about how far a 4″ roast
+/// coasts would be a drift nobody notices until a roast comes out grey.
+///
+/// **Poultry is always zero**, whatever the thickness: USDA is explicit that you
+/// cannot rely on carryover to bring an under-cooked bird up to 165 °F, so the
+/// app verifies poultry by sensor and never predicts it upward.
+int carryoverF10For({
+  required HazardClass hazard,
+  required CutThickness thickness,
+}) => switch (hazard) {
+  HazardClass.poultry => 0,
+  _ => switch (thickness) {
+    CutThickness.thin => 20,
+    CutThickness.medium => 50,
+    CutThickness.thick => 80,
+    CutThickness.sousVide => 0,
+  },
+};
+
+/// The pull-early temperature for [targetF10], tenths °F — and **never below
+/// the enforced safe minimum**.
+///
+/// Carryover says "take it off early and let it coast up". Where a hard floor
+/// exists, that is exactly the promise USDA says you may not make: FSIS's pork
+/// and whole-cut wording is 145 °F *"before removing meat from the heat
+/// source"*, and its poultry guidance is that carryover cannot be relied on to
+/// finish an under-cooked bird. So the offset is clamped at the floor: a
+/// 160 °F ground-beef target on a thick patty pulls at 160 °F, not 152 °F.
+///
+/// Intact whole-muscle red meat in enthusiast mode has no floor, so nothing is
+/// clamped there — a medium-rare roast still comes off 8 °F early, which is the
+/// case carryover was measured for (AmazingRibs, ThermoWorks).
+int safePullF10({
+  required int targetF10,
+  required int carryoverF10,
+  required HazardClass hazard,
+  bool isIntact = true,
+  SafetyMode mode = SafetyMode.enthusiast,
+}) {
+  final pull = targetF10 - carryoverF10;
+  final floor = SafetyFloor.forClass(hazard, isIntact: isIntact, mode: mode);
+  if (floor != null && pull < floor.minF10) {
+    // Clamp, never raise: a target already above the floor keeps its offset,
+    // and one at the floor simply loses it.
+    return targetF10 < floor.minF10 ? targetF10 : floor.minF10;
+  }
+  return pull;
 }
 
 /// A single doneness level within a preset. [targetF10] is the **final,
@@ -62,9 +147,10 @@ class Doneness {
   /// custom cook can say something the thickness table cannot.
   final int? restOffsetF10;
 
-  /// Pull-early temperature against a given carryover, tenths °F.
-  int pullF10Against(int carryoverF10) =>
-      targetF10 - (restOffsetF10 ?? carryoverF10);
+  // There is deliberately no `pullF10Against` here any more. It computed
+  // `target − carryover` with no knowledge of the hazard, which is exactly the
+  // subtraction that can hand someone an under-cooked bird; the derivation
+  // lives in [safePullF10], where the floor is in scope.
 }
 
 /// The doneness ladder for whole-muscle red meat, as MEATER publishes it —
@@ -147,22 +233,11 @@ class CookPreset {
   /// One line under the name in the picker.
   final String blurb;
 
-  /// Carryover for this cut, tenths °F.
-  ///
-  /// **Poultry is always zero**, whatever the thickness. USDA is explicit that
-  /// you cannot rely on carryover to bring an under-cooked bird up to 165 °F,
-  /// so the app must verify poultry by sensor and never predict it upward —
-  /// a non-zero offset here would be the app pulling a turkey early on a
-  /// promise the physics does not make.
-  int get carryoverF10 => switch (hazard) {
-    HazardClass.poultry => 0,
-    _ => switch (thickness) {
-      CutThickness.thin => 20,
-      CutThickness.medium => 50,
-      CutThickness.thick => 80,
-      CutThickness.sousVide => 0,
-    },
-  };
+  /// Carryover for this cut, tenths °F. Delegates so a preset and a custom cook
+  /// cannot disagree — see [carryoverF10For], which also explains why poultry
+  /// is always zero.
+  int get carryoverF10 =>
+      carryoverF10For(hazard: hazard, thickness: thickness);
 
   /// The default doneness: the last level for low-and-slow proteins whose only
   /// real answer is "probe-tender", the middle for steaks.
@@ -171,8 +246,16 @@ class CookPreset {
       ? doneness[doneness.length ~/ 2]
       : doneness.last;
 
-  /// Pull temperature for [d] on this cut, tenths °F.
-  int pullF10For(Doneness d) => d.pullF10Against(carryoverF10);
+  /// Pull temperature for [d] on this cut, tenths °F, floor-clamped — a preset
+  /// may not talk the user into taking ground beef off at 152 °F either.
+  int pullF10For(Doneness d, {SafetyMode mode = SafetyMode.enthusiast}) =>
+      safePullF10(
+        targetF10: d.targetF10,
+        carryoverF10: d.restOffsetF10 ?? carryoverF10,
+        hazard: hazard,
+        isIntact: isIntact,
+        mode: mode,
+      );
 }
 
 /// The v1.0 library. Ordered by category, then by how common the cut is.
@@ -342,10 +425,43 @@ abstract final class Presets {
       pitBandMaxF10: 2750,
       doneness: [Doneness(id: 'done', label: 'Flaky (145°F)', targetF10: 1450)],
     ),
+    // ── Eggs ──────────────────────────────────────────────────────────
+    //
+    // §D.4's sixth row, and the reason it is here: without an egg preset and an
+    // egg hazard class, a custom quiche had nothing to be but red meat, and red
+    // meat is the one class with no floor. A 130 °F quiche built freely.
+    CookPreset(
+      id: 'egg_bake',
+      category: 'Eggs',
+      name: 'Quiche or egg bake',
+      hazard: HazardClass.egg,
+      thickness: CutThickness.medium,
+      blurb: 'Custard set through at 160°F — USDA’s minimum for egg dishes',
+      pitBandMinF10: 3250,
+      pitBandMaxF10: 3750,
+      doneness: [Doneness(id: 'set', label: 'Set (160°F)', targetF10: 1600)],
+    ),
+    CookPreset(
+      id: 'egg_casserole',
+      category: 'Eggs',
+      name: 'Breakfast casserole',
+      hazard: HazardClass.egg,
+      thickness: CutThickness.thick,
+      blurb: 'A deep bake — same 160°F, read at the centre',
+      pitBandMinF10: 3000,
+      pitBandMaxF10: 3500,
+      doneness: [Doneness(id: 'set', label: 'Set (160°F)', targetF10: 1600)],
+    ),
   ];
 
-  /// The four category chips, in the order the sheet shows them.
-  static const List<String> categories = ['Beef', 'Pork', 'Poultry', 'Fish'];
+  /// The category chips, in the order the sheet shows them.
+  static const List<String> categories = [
+    'Beef',
+    'Pork',
+    'Poultry',
+    'Fish',
+    'Eggs',
+  ];
 
   static List<CookPreset> inCategory(String c) =>
       all.where((p) => p.category == c).toList(growable: false);

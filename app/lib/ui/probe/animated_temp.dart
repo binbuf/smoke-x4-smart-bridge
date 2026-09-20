@@ -41,6 +41,13 @@ class AnimatedTemp extends StatelessWidget {
   final bool celsius;
   final TextStyle style;
   final TextStyle unitStyle;
+
+  /// **Ink — never a series hue.** It paints the digits, the tenth and the
+  /// unit, which is a word-sized shape at headline size, and §16.5 lets a
+  /// series hue be a mark only: a stroke, an arc, a ≤12 dp dot, a left rule.
+  /// `textHi` for a live reading, `textMuted` for a detached one. A caller that
+  /// wants to say *which probe* this is spends the hue on something beside the
+  /// number — [TempReadout]'s 3 dp underline, or a 12 dp dot in the row.
   final Color color;
 
   /// "Brisket flat" — spelled into the semantics label with the value.

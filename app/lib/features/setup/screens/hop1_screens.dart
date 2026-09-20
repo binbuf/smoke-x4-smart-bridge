@@ -14,14 +14,49 @@
 /// phone never learns them, so the screen points at the glass, it does not host
 /// a field. This file also exposes [setupScreenFor], the hop-0/hop-1 slice of
 /// the `/setup` screen dispatcher.
+///
+/// ## What 17 §17.3 C added, and why
+///
+/// A bench run found hop 1 *correct and empty*: a rail, a title, one sentence,
+/// one device row, on black. 17 §17.1 #4 names that as the fourth gap against
+/// the competitors — *"`Meater-1` and `Meater-3` sell the product on the setup
+/// screen"* — so hop 1 now has a **subject** ([BridgeIllustration], drawn not
+/// bundled) and a found-device row substantial enough to be the moment of
+/// contact it is: the device drawn small, its name, its signal as bars **and a
+/// word** (never a dBm figure — 16 §16.4 rule 3), and its pairing state.
+///
+/// And it added the one thing on this hop that was actively misleading. Tapping
+/// a row used to start bonding immediately, at which point the *platform* puts
+/// up its own pairing dialog hinting **"Usually 0000 or 1234"**. That is wrong
+/// for this device and cannot be changed from here, so the last thing a user
+/// read before being asked for six digits was a wrong guess at them. There is
+/// now a step between the tap and the bond — [_ScanningScreenState._coach] —
+/// that says what is about to happen and corrects the hint *before* the dialog
+/// can appear. It is screen state, not machine state: the flow, its guards and
+/// its persistence are untouched.
+///
+/// **On the palette:** 17 §17.5 makes the colour discipline proportional to
+/// live state — §16.5 guards against a hue lying about how a cook is going, and
+/// hop 1 has no session, no probes and no readings for a hue to lie about. So
+/// these screens are warm: a lit illustration, ember-accented device cards,
+/// ember-filled step markers, an ember progress rail. The two clauses that hold
+/// in every state hold here too — no colour is the *sole* carrier of anything
+/// (every warm mark is paired with a glyph, a numeral or a word), and there is
+/// no green anywhere on this hop, because green means transport health and a
+/// bond is not a celebration to spend it on.
 library;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/signal.dart';
 import '../../../data/transport/ble_transport.dart';
 import '../../../design/design.dart';
+import '../../../ui/setup/device_art.dart';
+import '../../../ui/setup/setup_steps.dart';
 import '../../../ui/ui.dart';
 import '../copy/setup_copy.dart';
+import '../copy/setup_resume_copy.dart';
+import '../setup_entry.dart';
 import '../setup_machine.dart';
 import 'preflight_screens.dart';
 
@@ -56,7 +91,7 @@ Widget? hop1ScreenFor(
     SetupPasskeyNotSeen() => _PasskeyNotSeenScreen(machine, externals),
     SetupBonded() => _BondedScreen(state, machine, externals),
     SetupPasskeyWrong() => _PasskeyWrongScreen(machine, externals),
-    SetupRebondNeeded() => _RebondNeededScreen(machine, externals),
+    SetupRebondNeeded() => _RebondNeededScreen(state, machine, externals),
     SetupBondSlotsFull() => _BondSlotsFullScreen(machine, externals),
     SetupNotABridge() => _NotABridgeScreen(machine, externals),
   };
@@ -64,7 +99,7 @@ Widget? hop1ScreenFor(
 
 // ── the scan / find list (§13.2.1) ──────────────────────────────────────────
 
-class _ScanningScreen extends StatelessWidget {
+class _ScanningScreen extends StatefulWidget {
   const _ScanningScreen(this.state, this.machine, this.externals);
 
   final SetupScanning state;
@@ -72,45 +107,166 @@ class _ScanningScreen extends StatelessWidget {
   final SetupExternals externals;
 
   @override
+  State<_ScanningScreen> createState() => _ScanningScreenState();
+}
+
+class _ScanningScreenState extends State<_ScanningScreen> {
+  /// The row the user tapped, held while the coach is on screen.
+  ///
+  /// **Screen state, deliberately not machine state.** The `SetupMachine` is
+  /// the flow's single source of truth and is not this task's to extend; what
+  /// sits here is a page of the *find* step, not a new step, and it owns
+  /// nothing the machine persists. It survives the machine re-emitting
+  /// `SetupScanning` as more devices arrive (same widget type, same position →
+  /// same `State`), and it is disposed the instant the machine moves on,
+  /// because the dispatcher then returns a different widget type.
+  BridgeDiscovery? _pending;
+
+  @override
   Widget build(BuildContext context) {
+    final pending = _pending;
+    return pending == null ? _list(context) : _coach(context, pending);
+  }
+
+  Widget _list(BuildContext context) {
+    final state = widget.state;
     // Strongest signal first (§13.2.1). The machine already sorts; re-sorting
     // here keeps the screen correct even if handed an unsorted list.
     final rows = [...state.found]..sort((a, b) => b.rssi.compareTo(a.rssi));
-    final Widget body = rows.isEmpty
-        ? const _SearchingPulse()
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (state.scanning) const _SearchingBar(),
-              Expanded(
-                child: ListView.separated(
-                  key: const Key('setup-scan-list'),
-                  padding: const EdgeInsets.symmetric(vertical: SmokeTokens.s2),
-                  itemCount: rows.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: SmokeTokens.s3),
-                  itemBuilder: (context, i) => _BridgeRow(
-                    bridge: rows[i],
-                    // NEEDS blob bits bonds_full/paired+net (13 §13.8.3): the
-                    // parser is another task's, so both forks pass false for now
-                    // and every row runs the full flow.
-                    onTap: () => machine.select(rows[i]),
-                  ),
-                ),
-              ),
-            ],
-          );
+    // A finished scan with nothing in it is not a spinner. It used to be —
+    // `cancel()` at hop 1 rests here — and a pulse that never resolves is the
+    // one outcome the rails forbid (R2). Give it the same next step the
+    // checklist has.
+    final settledEmpty = rows.isEmpty && !state.scanning;
+
     return SetupScaffold(
       hop: 1,
       title: SetupCopy.scanningTitle,
-      subtitle: SetupCopy.scanningBody,
-      onExit: externals.onLeaveSetup,
-      body: body,
-      secondary: _TextAction(SetupCopy.scanningCancel, () => machine.cancel()),
+      // A returning user is told why setup is open before being asked to look
+      // at a radar (§16.4). Adoption is the case that needs it most: the code
+      // they remember typing will not be asked for again.
+      subtitle: state.resume == SetupResumeKind.adoptBridge
+          ? SetupResumeCopy.adoptScanBody
+          : SetupCopy.scanningBody,
+      onExit: widget.externals.onLeaveSetup,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (state.scanning && rows.isNotEmpty) const _SearchingBar(),
+          Expanded(
+            // The header rides *inside* the list rather than above it, so the
+            // one arrangement is correct whether the body slot is 500 dp or
+            // 180 dp at 200 % text scale — it scrolls instead of overflowing.
+            child: ListView(
+              key: const Key('setup-scan-list'),
+              padding: const EdgeInsets.symmetric(vertical: SmokeTokens.s2),
+              children: [
+                // The subject (§17.3 C). It is present while the screen is
+                // still a search, and it steps aside once there is a list to
+                // read — by then every row carries the same drawing small, so
+                // the object never actually leaves the screen.
+                if (rows.length <= 1) ...[
+                  Center(
+                    child: BridgeIllustration(
+                      key: const Key('setup-scan-art'),
+                      mood: state.scanning
+                          ? BridgeMood.scanning
+                          : BridgeMood.ready,
+                    ),
+                  ),
+                  const SizedBox(height: SmokeTokens.s6),
+                ],
+                for (final bridge in rows)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: SmokeTokens.s3),
+                    child: _BridgeRow(
+                      bridge: bridge,
+                      // The tap no longer starts bonding. It opens the coach,
+                      // which is the only place the platform's wrong passkey
+                      // hint can still be contradicted (§17.3 C).
+                      onTap: () => setState(() => _pending = bridge),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      primary: settledEmpty
+          ? PrimaryAction(
+              key: const Key('setup-scan-look-again'),
+              label: SetupCopy.noBridgesLookAgain,
+              icon: Icons.refresh_rounded,
+              onPressed: () => widget.machine.startScan(),
+            )
+          : null,
+      secondary: SetupTextAction(
+        SetupCopy.scanningCancel,
+        () => widget.machine.cancel(),
+      ),
     );
   }
+
+  /// "What happens next" — the step between the tap and the bond (§17.3 C).
+  ///
+  /// It exists for one sentence: [SetupCopy.coachStep3]. Everything after this
+  /// screen belongs to the platform's pairing dialog, which draws over us and
+  /// tells the user the code is *"usually 0000 or 1234"*. This is the last
+  /// frame the app owns, so this is where that gets corrected — and the
+  /// correction is chrome, not a sentence in a paragraph, so a tired reader
+  /// cannot skim it.
+  ///
+  /// Still exactly one primary and one named secondary (rail R1/R2).
+  Widget _coach(BuildContext context, BridgeDiscovery bridge) => SetupScaffold(
+    hop: 1,
+    title: SetupCopy.coachTitle,
+    subtitle: SetupCopy.coachBody(bridge.name),
+    onExit: widget.externals.onLeaveSetup,
+    body: const SetupBodyCenter(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          BridgeIllustration(
+            key: Key('setup-coach-art'),
+            mood: BridgeMood.passkey,
+            size: 152,
+          ),
+          SizedBox(height: SmokeTokens.s5),
+          SetupSteps(
+            steps: [
+              SetupStep(SetupCopy.coachStep1),
+              SetupStep(SetupCopy.coachStep2),
+              SetupStep(SetupCopy.coachStep3, caution: true),
+            ],
+          ),
+        ],
+      ),
+    ),
+    primary: PrimaryAction(
+      key: const Key('setup-coach-pair'),
+      label: SetupCopy.coachPrimary,
+      icon: Icons.bluetooth_rounded,
+      onPressed: () => widget.machine.select(bridge),
+    ),
+    secondary: SetupTextAction(
+      SetupCopy.coachBack,
+      () => setState(() => _pending = null),
+    ),
+  );
 }
 
+/// The moment of contact (§17.3 C). It used to be an icon, a name and a line of
+/// blob text; it is now the four things a person actually decides on — *is this
+/// mine* (the drawing and the name), *am I close enough* (bars **and** a word),
+/// and *what state is it in* (the blob line, kept verbatim because "not paired
+/// with a Smoke X yet" is honest and useful).
+///
+/// **Bars plus a word, never a number.** `BridgeDiscovery.rssi` is parsed and
+/// was rendered nowhere; 16 §16.4 rule 3 keeps dBm inside Diagnostics, so the
+/// figure is spent on [SignalBars] and one of `core/signal.dart`'s four words.
+/// The bars are drawn in neutrals — a bar glyph carries no icon and no word of
+/// its own, so a status hue on it would break the separation rule and duplicate
+/// what the word beside it already says.
 class _BridgeRow extends StatelessWidget {
   const _BridgeRow({required this.bridge, required this.onTap});
 
@@ -120,39 +276,98 @@ class _BridgeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return SmokeCard(
-      key: Key('setup-bridge-${bridge.deviceId}'),
+    final level = signalLevel(bridge.rssi, kind: SignalKind.bluetooth);
+    final signal = SetupCopy.rowSignal(signalLabel(level));
+    final detail = _blobLine(bridge);
+
+    return Semantics(
+      button: true,
+      // One sentence, not four fragments: a drawing, a bar glyph and two lines
+      // of text read out in order is a list, not a row.
+      label: SetupCopy.rowSemantics(bridge.name, signal, detail),
+      excludeSemantics: true,
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(Icons.outdoor_grill_rounded, color: StatusPalette.pit, size: 28),
-          const SizedBox(width: SmokeTokens.s3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  bridge.name,
-                  style: SmokeType.title.copyWith(color: t.textHi),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: SmokeTokens.s1),
-                Text(
-                  _blobLine(bridge),
-                  style: SmokeType.bodySm.copyWith(color: t.textMuted),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+      child: SmokeCard(
+        key: Key('setup-bridge-${bridge.deviceId}'),
+        onTap: onTap,
+        // Ember-accented: the border, the shadow and the bloom (17 §17.5 —
+        // there is no session and no reading on this screen, so a warm card
+        // cannot misstate one, and finding your bridge should feel like an
+        // arrival rather than like a row in a list). The accent is on every
+        // row, so it is identity — "these are bridges" — and never a ranking.
+        accent: StatusPalette.pit,
+        child: Row(
+          children: [
+            const _DeviceGlyph(),
+            const SizedBox(width: SmokeTokens.s3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bridge.name,
+                    style: SmokeType.title.copyWith(color: t.textHi),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: SmokeTokens.s1),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: SignalBars(
+                          bars: signalBars(
+                            bridge.rssi,
+                            kind: SignalKind.bluetooth,
+                          ),
+                          size: 14,
+                        ),
+                      ),
+                      const SizedBox(width: SmokeTokens.s2),
+                      Expanded(
+                        child: Text(
+                          '$signal · $detail',
+                          style: SmokeType.bodySm.copyWith(color: t.textMuted),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: SmokeTokens.s2),
-          Icon(Icons.chevron_right_rounded, color: t.textMuted),
-        ],
+            const SizedBox(width: SmokeTokens.s2),
+            Icon(Icons.chevron_right_rounded, color: t.textMuted),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// The row's leading mark: the same bridge drawing, small, in a well.
+///
+/// 17 §17.3 C asks for *"a food-neutral device glyph"* here, and reusing the
+/// hero drawing rather than picking an icon is what makes the list feel like it
+/// is looking at the object above it: the thing that was 168 dp while we
+/// searched is 56 dp once it is found.
+class _DeviceGlyph extends StatelessWidget {
+  const _DeviceGlyph();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 56,
+    height: 56,
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: StatusPalette.fill(StatusRole.pit),
+      borderRadius: BorderRadius.circular(SmokeTokens.radiusControl),
+      border: Border.all(color: StatusPalette.border(StatusRole.pit)),
+    ),
+    child: const BridgeIllustration(mood: BridgeMood.ready, size: 56),
+  );
 }
 
 // ── 10 s, nothing found — the checklist (§13.2.1) ────────────────────────────
@@ -169,20 +384,32 @@ class _NoBridgesScreen extends StatelessWidget {
     title: SetupCopy.noBridgesTitle,
     onExit: externals.onLeaveSetup,
     body: const SingleChildScrollView(
-      child: _Checklist([
-        SetupCopy.noBridgesCheck1,
-        SetupCopy.noBridgesCheck2,
-        SetupCopy.noBridgesCheck3,
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // The first check is *"is its screen lit?"*, so the screen shows a
+          // lit one. The checklist asks the user to compare the object in
+          // front of them with something; giving them the something is the
+          // whole job (§17.3 C).
+          Center(child: BridgeIllustration(mood: BridgeMood.ready, size: 132)),
+          SizedBox(height: SmokeTokens.s6),
+          _Checklist([
+            SetupCopy.noBridgesCheck1,
+            SetupCopy.noBridgesCheck2,
+            SetupCopy.noBridgesCheck3,
+          ]),
+        ],
+      ),
     ),
     primary: PrimaryAction(
       label: SetupCopy.noBridgesLookAgain,
       icon: Icons.refresh_rounded,
       onPressed: () => machine.startScan(),
     ),
-    secondary: _TextAction(
+    secondary: SetupTextAction(
       SetupCopy.noBridgesManual,
       externals.enterAddressManually,
+      reason: SetupCopy.noManualAddress,
     ),
   );
 }
@@ -199,10 +426,22 @@ class _AddThisPhoneScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    // The same three reads, two reasons for doing them: a second phone
+    // joining a household bridge, or this phone reconnecting to one it lost
+    // its record of (§16.3 #4). "Add this phone" is the wrong sentence for the
+    // second, so it is not used there.
+    final adopting = state.resume == SetupResumeKind.adoptBridge;
     return SetupScaffold(
       hop: 1,
-      title: SetupCopy.addPhoneTitle,
-      subtitle: SetupCopy.addPhoneBody,
+      title: adopting
+          ? SetupResumeCopy.relinkTitle(state.bridge.name)
+          : SetupCopy.addPhoneTitle,
+      subtitle: adopting
+          ? SetupResumeCopy.relinkBody(
+              SetupResumeKind.adoptBridge,
+              state.bridge.name,
+            )
+          : SetupCopy.addPhoneBody,
       onExit: externals.onLeaveSetup,
       body: Align(
         alignment: Alignment.topCenter,
@@ -244,7 +483,7 @@ class _AddThisPhoneScreen extends StatelessWidget {
         label: SetupCopy.addPhonePrimary,
         onPressed: () => machine.confirmAddThisPhone(),
       ),
-      secondary: _TextAction(
+      secondary: SetupTextAction(
         SetupCopy.addPhoneOther,
         () => machine.startScan(),
       ),
@@ -263,6 +502,10 @@ class _PairingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resume = state.resume;
+    if (resume != null) {
+      return _relink(context, resume);
+    }
     final t = context.tokens;
     final status = state.passkeyShown
         ? SetupCopy.pairWaiting
@@ -272,12 +515,32 @@ class _PairingScreen extends StatelessWidget {
       title: SetupCopy.pairTitle,
       subtitle: SetupCopy.pairBody,
       onExit: externals.onLeaveSetup,
-      body: Center(
+      // Object, then detail, then the correction. The drawing says *where* to
+      // look, `PasskeyDisplay` says *what it looks like* at a size that reads
+      // across a kitchen, and the caution is the last thing on screen before
+      // the platform's dialog covers all of it (§17.3 C).
+      body: SetupBodyCenter(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const BridgeIllustration(
+              key: Key('setup-pair-art'),
+              mood: BridgeMood.passkey,
+              size: 144,
+            ),
+            const SizedBox(height: SmokeTokens.s3),
+            Text(
+              SetupCopy.pairCallout,
+              textAlign: TextAlign.center,
+              style: SmokeType.bodySm.copyWith(color: t.textMuted),
+            ),
+            const SizedBox(height: SmokeTokens.s4),
             const PasskeyDisplay(),
-            const SizedBox(height: SmokeTokens.s6),
+            const SizedBox(height: SmokeTokens.s5),
+            const SetupSteps(
+              steps: [SetupStep(SetupCopy.pairIgnoreHint, caution: true)],
+            ),
+            const SizedBox(height: SmokeTokens.s5),
             Text(
               status,
               key: const Key('setup-pair-status'),
@@ -293,7 +556,41 @@ class _PairingScreen extends StatelessWidget {
         label: SetupCopy.pairNoPrompt,
         onPressed: () => machine.passkeyNotSeen(),
       ),
-      secondary: _TextAction(SetupCopy.pairCancel, () => machine.cancel()),
+      secondary: SetupTextAction(SetupCopy.pairCancel, () => machine.cancel()),
+    );
+  }
+
+  /// The re-link (§16.3): a bond that already exists is being reused, so no
+  /// code is coming.
+  ///
+  /// **This is why [PasskeyDisplay] is absent rather than blank.** The passkey
+  /// screen's whole job is to point at six digits on the bridge's glass; a
+  /// bridge that recognises this phone never generates them, so showing the
+  /// frame and pointing at an empty screen would be the same broken promise
+  /// the state exists to end. There is nothing for the user to do while the
+  /// link comes back, so there is no primary — only a way out (R2).
+  Widget _relink(BuildContext context, SetupResumeKind resume) {
+    final name = state.bridge.name;
+    return SetupScaffold(
+      hop: 1,
+      title: SetupResumeCopy.relinkTitle(name),
+      subtitle: SetupResumeCopy.relinkBody(resume, name),
+      onExit: externals.onLeaveSetup,
+      body: const SetupBodyCenter(
+        child: SizedBox(
+          key: Key('setup-relink'),
+          width: 150,
+          height: 150,
+          // Reaching back out to a bridge we already know — the same drawing,
+          // the same outward rings as the first search. A spinner here said
+          // "something is happening"; this says *what*.
+          child: BridgeIllustration(mood: BridgeMood.scanning),
+        ),
+      ),
+      secondary: SetupTextAction(
+        SetupResumeCopy.relinkCancel,
+        () => machine.restart(),
+      ),
     );
   }
 }
@@ -313,12 +610,19 @@ class _PasskeyNotSeenScreen extends StatelessWidget {
     subtitle: SetupCopy.notSeenBody,
     onExit: externals.onLeaveSetup,
     body: const _Glyph(Icons.notifications_active_rounded),
-    primary: PrimaryAction(
-      label: SetupCopy.notSeenCheckNotifications,
-      icon: Icons.open_in_new_rounded,
-      onPressed: externals.openNotificationSettings,
+    primary: Builder(
+      builder: (context) => disabledReason(
+        context,
+        PrimaryAction(
+          label: SetupCopy.notSeenCheckNotifications,
+          icon: Icons.open_in_new_rounded,
+          onPressed: externals.openNotificationSettings,
+        ),
+        enabled: externals.openNotificationSettings != null,
+        reason: SetupCopy.noDeepLinkNotifications,
+      ),
     ),
-    secondary: _TextAction(
+    secondary: SetupTextAction(
       SetupCopy.notSeenRetry,
       () => machine.retryPasskey(),
     ),
@@ -342,11 +646,19 @@ class _BondedScreen extends StatelessWidget {
       title: SetupCopy.bondedTitle,
       subtitle: SetupCopy.bondedBody,
       onExit: externals.onLeaveSetup,
-      body: Center(
+      // The payoff shows the *device*, with the tick on its own glass — the
+      // same thing the bridge's OLED is displaying at this instant (§13.2.1's
+      // `PAIRED ✓` stance). A checkmark floating on black would have been the
+      // app congratulating itself; this is the two screens agreeing.
+      body: SetupBodyCenter(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const _Glyph(Icons.check_circle_rounded, tone: _Tone.pit),
+            const BridgeIllustration(
+              key: Key('setup-bonded-art'),
+              mood: BridgeMood.linked,
+              size: 150,
+            ),
             const SizedBox(height: SmokeTokens.s4),
             Text(
               state.bridge.name,
@@ -386,33 +698,82 @@ class _PasskeyWrongScreen extends StatelessWidget {
       label: SetupCopy.wrongRetry,
       onPressed: () => machine.retryPasskey(),
     ),
-    secondary: _TextAction(SetupCopy.wrongStartOver, () => machine.restart()),
+    secondary: SetupTextAction(
+      SetupCopy.wrongStartOver,
+      () => machine.restart(),
+    ),
   );
 }
 
 // ── bond outcome 2 of 4: the bridge was reset (§13.2.1) ──────────────────────
 
 class _RebondNeededScreen extends StatelessWidget {
-  const _RebondNeededScreen(this.machine, this.externals);
+  const _RebondNeededScreen(this.state, this.machine, this.externals);
 
+  final SetupRebondNeeded state;
   final SetupMachine machine;
   final SetupExternals externals;
 
   @override
-  Widget build(BuildContext context) => SetupScaffold(
-    hop: 1,
-    title: SetupCopy.rebondTitle,
-    subtitle: SetupCopy.rebondBody,
-    errorTint: true,
-    onExit: externals.onLeaveSetup,
-    body: const _Glyph(Icons.bluetooth_disabled_rounded, tone: _Tone.critical),
-    primary: PrimaryAction(
-      label: SetupCopy.rebondOpenSettings,
-      icon: Icons.open_in_new_rounded,
-      onPressed: externals.openBluetoothSettings,
-    ),
-    secondary: _TextAction(SetupCopy.rebondRetry, () => machine.retryPasskey()),
-  );
+  Widget build(BuildContext context) {
+    // Two shapes of one situation (§16.3 #7), told apart by whether the two
+    // identities are known to disagree.
+    if (state.identityChanged) {
+      return SetupScaffold(
+        hop: 1,
+        title: SetupResumeCopy.resetTitle,
+        subtitle: SetupResumeCopy.resetBody(
+          reachedId: state.reachedBridgeId ?? '',
+          rememberedId: state.rememberedBridgeId ?? '',
+        ),
+        errorTint: true,
+        onExit: externals.onLeaveSetup,
+        body: const _Glyph(Icons.restart_alt_rounded, tone: _Tone.critical),
+        // Retrying cannot make a different device into the old one, so it is
+        // not offered. Setting it up as new is the only honest next step —
+        // and it is the user's decision, never the app's (§16.3).
+        primary: PrimaryAction(
+          key: const Key('setup-reset-as-new'),
+          label: SetupResumeCopy.resetPrimary,
+          icon: Icons.refresh_rounded,
+          onPressed: () => machine.restart(),
+        ),
+        secondary: SetupTextAction(
+          SetupResumeCopy.resetLeave,
+          externals.onLeaveSetup,
+        ),
+      );
+    }
+    return SetupScaffold(
+      hop: 1,
+      title: SetupCopy.rebondTitle,
+      subtitle: SetupCopy.rebondBody,
+      errorTint: true,
+      onExit: externals.onLeaveSetup,
+      body: const _Glyph(
+        Icons.bluetooth_disabled_rounded,
+        tone: _Tone.critical,
+      ),
+      // Without the deep-link the shortcut cannot work, so it says what to do
+      // by hand instead of looking live and doing nothing (16 §16.5).
+      primary: Builder(
+        builder: (context) => disabledReason(
+          context,
+          PrimaryAction(
+            label: SetupCopy.rebondOpenSettings,
+            icon: Icons.open_in_new_rounded,
+            onPressed: externals.openBluetoothSettings,
+          ),
+          enabled: externals.openBluetoothSettings != null,
+          reason: SetupCopy.noDeepLinkBluetoothSettings,
+        ),
+      ),
+      secondary: SetupTextAction(
+        SetupCopy.rebondRetry,
+        () => machine.retryPasskey(),
+      ),
+    );
+  }
 }
 
 // ── bond outcome 3 of 4: bond slots full (§13.2.1) ───────────────────────────
@@ -437,9 +798,10 @@ class _BondSlotsFullScreen extends StatelessWidget {
       label: SetupCopy.fullChooseOther,
       onPressed: () => machine.startScan(),
     ),
-    secondary: _TextAction(
+    secondary: SetupTextAction(
       SetupCopy.fullRemovePhone,
       externals.removeAPairedPhone,
+      reason: SetupCopy.noRemovePhone,
     ),
   );
 }
@@ -491,9 +853,10 @@ String _blobLine(BridgeDiscovery b) {
 
 // ── shared presentation, internal to hop 1 ───────────────────────────────────
 
-/// The tint of a [_Glyph] anchor icon: neutral, a failure red, or the ember of
-/// a success payoff.
-enum _Tone { muted, critical, pit }
+/// The tint of a [_Glyph] anchor icon: neutral, or a failure red. There is no
+/// success tone — a payoff draws the *device* (see `_BondedScreen`), not a
+/// coloured tick on black.
+enum _Tone { muted, critical }
 
 class _Glyph extends StatelessWidget {
   const _Glyph(this.icon, {this.tone = _Tone.muted});
@@ -507,7 +870,6 @@ class _Glyph extends StatelessWidget {
     final color = switch (tone) {
       _Tone.muted => t.textMuted,
       _Tone.critical => StatusPalette.critical,
-      _Tone.pit => StatusPalette.pit,
     };
     return Center(child: Icon(icon, size: 64, color: color));
   }
@@ -551,23 +913,10 @@ class _Checklist extends StatelessWidget {
   }
 }
 
-/// The searching cue while the list is still empty.
-class _SearchingPulse extends StatelessWidget {
-  const _SearchingPulse();
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: SizedBox(
-      width: 28,
-      height: 28,
-      child: CircularProgressIndicator(
-        strokeWidth: 3,
-        valueColor: AlwaysStoppedAnimation<Color>(StatusPalette.pit),
-        backgroundColor: context.tokens.cardSubtle,
-      ),
-    ),
-  );
-}
+// The 28 dp `_SearchingPulse` spinner that used to fill the empty scan body and
+// the re-link body is gone: both now show the bridge itself, with the ripple
+// carrying "still looking" (§17.3 C). A spinner says *something is happening*;
+// a lit board with rings coming off it says *what*.
 
 /// A thin "still searching" bar above a list that already has a row or two.
 class _SearchingBar extends StatelessWidget {
@@ -586,29 +935,6 @@ class _SearchingBar extends StatelessWidget {
           backgroundColor: t.cardSubtle,
         ),
       ),
-    );
-  }
-}
-
-/// The named secondary — a plain text action under the primary. A `null`
-/// callback disables it in place, so the layout stays stable and the control
-/// reads as "not available here" rather than vanishing.
-class _TextAction extends StatelessWidget {
-  const _TextAction(this.label, this.onPressed);
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return TextButton(
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        foregroundColor: t.textBody,
-        disabledForegroundColor: t.textMuted,
-      ),
-      child: Text(label, textAlign: TextAlign.center),
     );
   }
 }

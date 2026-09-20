@@ -28,14 +28,19 @@ import '../../app/app_env.dart';
 import '../../app/bridge_session.dart';
 import '../../app/connection.dart';
 import '../../app/connection_supervisor.dart';
+import '../../data/dto/dto.dart' as dto;
 import '../../data/repos/cook_repository.dart';
+import '../../data/repos/repositories.dart';
 import '../../data/transport/ble_transport.dart'
-    show BridgeControlException, BridgeUnsupportedException;
+    show BleTransport, BridgeControlException, BridgeUnsupportedException;
 import '../../data/transport/bridge_transport.dart';
 import '../../data/transport/http_transport.dart' show BridgeApiException;
 import '../../domain/plan/plan.dart';
+import '../../domain/situation/situation.dart';
 import '../../features/dashboard/dashboard_snapshot.dart';
 import '../../ui/probe/probe_freshness.dart';
+import 'situation_probe_platform.dart';
+import 'situation_resolver.dart';
 
 /// A26 — why the last pull-to-refresh could not produce a new reading.
 ///
@@ -66,11 +71,19 @@ class ShellSession extends ChangeNotifier {
   /// The stored cook plan is read **in the constructor**, not in [start]:
   /// the shell picks instrument-versus-guided on its very first frame, and a
   /// plan that landed one await later would render the wrong mode and snap.
-  ShellSession({AppEnv? env})
+  ShellSession({AppEnv? env, int Function()? now, SituationProbe? probe})
     : _env = env ?? AppEnv.instance,
+      _now = now ?? _wallClock,
+      // A named parameter cannot be a private initializing formal, and the
+      // field is private because only the resolver build reads it.
+      // ignore: prefer_initializing_formals
+      _probe = probe,
       _seededCelsius = false {
     _plan = _readStoredPlan();
+    _startAgeTicker();
   }
+
+  static int _wallClock() => DateTime.now().millisecondsSinceEpoch;
 
   /// Test seam: a session that never boots, pre-loaded with a snapshot and a
   /// launch state. `start()` is a no-op, so no radio, socket or database is
@@ -80,15 +93,64 @@ class ShellSession extends ChangeNotifier {
     LaunchState launch = const LaunchConnecting(),
     CookPlan? plan,
     bool celsius = false,
+    int Function()? now,
+    SituationResolver? resolver,
   }) : _env = null,
+       _now = now ?? _wallClock,
+       _probe = null,
        _booted = true,
        _seededCelsius = celsius {
     _snapshot = snapshot;
     _launch = launch;
     _plan = plan;
+    // A seeded session never boots, so nothing would build one — a test that
+    // wants to drive the reader's banner hands one in already wired to its
+    // own fake probe and shell.
+    _resolver = resolver?..addListener(_onSituation);
   }
 
   final AppEnv? _env;
+
+  /// Injected by tests that want a known phone (radio off, permission
+  /// missing, a bond present). Null in production, where the resolver takes
+  /// the real platform probe.
+  final SituationProbe? _probe;
+
+  /// The wall clock the freshness ladder ages against. Injectable so a test
+  /// can assert a rung without sleeping for it.
+  final int Function() _now;
+
+  /// Re-notifies listeners so ages advance with no new data.
+  ///
+  /// Staleness is the one piece of state that becomes true by the passage of
+  /// time rather than by an event, so nothing else will ever wake the screen
+  /// to say so: when a bridge goes quiet, the *absence* of packets is the
+  /// signal, and an absence fires no callback. Without this the veil only
+  /// ever appeared on the next reading — which is exactly the reading that
+  /// would have made it unnecessary.
+  ///
+  /// 15 s keeps every rung of the ladder (45 s / 90 s / 600 s) accurate to
+  /// well within its own resolution, at one no-op rebuild per quarter minute.
+  Timer? _ageTicker;
+  static const Duration _agePulse = Duration(seconds: 15);
+
+  void _startAgeTicker() {
+    _ageTicker = Timer.periodic(_agePulse, (_) {
+      if (_disposed) {
+        return;
+      }
+      notifyListeners();
+      // §16.3 #11: an unreachable bridge "keeps trying, and says so". The
+      // resolver is otherwise only driven by a link change — and while the
+      // bridge is off, the link never changes, so the auto-retry fired once
+      // and then sat there. Every other pulse (30 s) it re-reconciles, which
+      // is also what keeps "last seen 12 minutes ago" counting up.
+      _agePulses++;
+      if (_agePulses.isEven && !situation.isHealthy) {
+        unawaited(reconcile());
+      }
+    });
+  }
 
   AppConnection? _connection;
   ConnectionSupervisor? _supervisor;
@@ -114,6 +176,106 @@ class ShellSession extends ChangeNotifier {
 
   LaunchState get launch => _launch;
   DashboardSnapshot? get snapshot => _snapshot;
+
+  // ── reconciliation (16 §16.3) ────────────────────────────────────────
+  //
+  // One resolver, owned by the shell, for the whole app.
+  //
+  // It used to be built inside `BridgeTab.initState`, which meant the entire
+  // recovery layer only existed while the Device tab was on screen. Branches
+  // of a `StatefulShellRoute` are not preloaded, so on launch — and forever,
+  // for anyone who never tapped Device — no OS fact was ever gathered and no
+  // automatic remedy ever ran. `/live` fell back to a weaker reconciler that
+  // could only diagnose, and every mismatch in the world still collapsed into
+  // "Offline · retry 6". That is the bug 16 §16.3 opens by naming.
+  //
+  // Living here it starts with the app, survives every tab switch, and gives
+  // `/live` and `/device` the *same* situation — which §16.3 requires, and
+  // which two separate engines could never guarantee.
+
+  SituationResolver? _resolver;
+
+  /// The resolver, or null on a seeded session that was given no probe.
+  SituationResolver? get situationResolver => _resolver;
+
+  /// The one situation, highest-priority first. [Situation.ok] before the
+  /// first reconciliation, and on a test session with no resolver.
+  Situation get situation => _resolver?.situation ?? Situation.ok;
+
+  /// When this phone last actually reached the bridge, from the store.
+  ///
+  /// The store rather than the snapshot, because this is wanted exactly when
+  /// no snapshot is arriving. §16.3: *"can't reach it" is a state; "can't
+  /// reach it, last seen 12 minutes ago" is information.*
+  int? get lastSeenUnixMs => _connection?.prefs.lastSeenUnixMs ?? _env?.prefs.lastSeenUnixMs;
+
+  /// Which reconciliation tick we are on, so the unhealthy re-check runs at
+  /// half the age ticker's rate rather than every pulse.
+  int _agePulses = 0;
+
+  /// The device's own answer about its network, over whichever lane is up.
+  ///
+  /// Wi-Fi already carries it in the snapshot. **Bluetooth is the case that
+  /// matters**: `net_status` is readable over GATT, so a bridge that failed
+  /// to join your Wi-Fi and came up hosting its own can say so on the only
+  /// lane that can still reach it. This is the read that ends the bench
+  /// failure §16.3 was written from.
+  Future<({String? mode, String? ssid})> _readDeviceNetStatus() async {
+    final t = _session?.transport;
+    String? mode;
+    String? ssid;
+    if (t is BleTransport) {
+      try {
+        final net = await t.readNetStatus();
+        ssid = net.ssid;
+        mode = switch (net.modeEnum) {
+          dto.NetMode.ap => 'ap',
+          dto.NetMode.sta => 'sta',
+          // `off` is the radio down, which is neither of the two modes a user
+          // picks between — so it stays unknown rather than being rounded.
+          dto.NetMode.off || null => null,
+        };
+      } on Object {
+        mode = null;
+      }
+    }
+    return (mode: mode ?? _snapshot?.netMode, ssid: ssid);
+  }
+
+  /// The bridge the running cook was recorded against.
+  ///
+  /// Read off the annotation itself rather than off what the phone currently
+  /// remembers, because the two diverging is precisely the condition
+  /// [SituationKind.staleCook] reports: adopting a different bridge moves the
+  /// remembered id and leaves the cook where it was.
+  Future<String?> _runningCookBridgeId() async {
+    if (_plan == null) {
+      return null;
+    }
+    try {
+      return (await runningCook())?.bridgeId;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Race every lane again. True when a link came up.
+  Future<bool> retryNow() async {
+    final supervisor = _supervisor;
+    if (supervisor == null) {
+      return false;
+    }
+    return supervisor.retryNow();
+  }
+
+  /// Reconcile now. Safe to call at any time; the resolver coalesces.
+  Future<void> reconcile() async {
+    final r = _resolver;
+    if (r == null || _disposed) {
+      return;
+    }
+    await r.evaluate();
+  }
 
   // ── the guided cook (13 §13.3.1) ─────────────────────────────────────
 
@@ -257,24 +419,41 @@ class ShellSession extends ChangeNotifier {
   /// that needs the cache repositories (History's export) can reach them.
   BridgeSession? get bridge => _session;
 
-  /// Freshness from the live packet age (13 §13.6.1), so a stale reading is
-  /// visibly stale rather than a frozen number under a green chip. Copied from
-  /// `cook_preview_route.dart:106` — the shell now owns the one instance.
+  /// Freshness from how long ago the reading on screen actually reached this
+  /// phone (13 §13.6.1), so a stale reading is visibly stale rather than a
+  /// frozen number under a green chip.
+  ///
+  /// **This is a getter, not a stored value, on purpose.** It is recomputed
+  /// against the wall clock every time it is read, so a screen nobody is
+  /// pushing data to still ages: the veil arrives on its own, without needing
+  /// a packet to arrive first. [ShellSession] runs a ticker so the frame
+  /// showing it keeps up.
+  ///
+  /// It deliberately does not use the device's `last_packet_s_ago`. That
+  /// counter measures the *base station's* silence, not ours; it is re-read
+  /// only when an alarm, session or pairing frame happens to arrive, so a
+  /// quiet fourteen-hour cook would read it once and call the screen live for
+  /// the duration; and the BLE lane has no `/status` to carry it at all,
+  /// where the old code read absent age as *live*. Absent is now unknown.
   ProbeFreshness get freshness {
     final s = _snapshot;
     if (s == null) {
       return ProbeFreshness.unknown;
     }
+    // The bridge itself says the base station went quiet. That outranks our
+    // own arithmetic: we may be hearing the bridge perfectly and still be
+    // looking at numbers no longer being measured.
     if (s.baseLost) {
       return ProbeFreshness.frozen;
     }
-    final age = s.lastPacketSAgo;
-    if (age == null) {
-      return s.anyAttached ? ProbeFreshness.live : ProbeFreshness.unknown;
+    final at = s.readingAtUnixMs;
+    if (at == null) {
+      return ProbeFreshness.unknown;
     }
-    if (age <= 45) return ProbeFreshness.live;
-    if (age <= 90) return ProbeFreshness.aging;
-    if (age <= 600) return ProbeFreshness.stale;
+    final ageS = (_now() - at) ~/ 1000;
+    if (ageS <= 45) return ProbeFreshness.live;
+    if (ageS <= 90) return ProbeFreshness.aging;
+    if (ageS <= 600) return ProbeFreshness.stale;
     return ProbeFreshness.frozen;
   }
 
@@ -297,11 +476,92 @@ class ShellSession extends ChangeNotifier {
     // URL, and keying this on the URL alone bounced those users back into
     // onboarding on every launch (the board-found setup loop).
     _neverMet = !connection.prefs.hasBridge;
+    // The reader renders from drift *before* a lane is raced, not after
+    // (§B.3). A `BridgeSession` is only built once the supervisor yields a
+    // transport, so waiting for one meant an out-of-range cold start showed
+    // four dashes and "No readings yet." over a database holding fourteen
+    // hours of the cook.
+    await _renderFromCache();
     final supervisor = ConnectionSupervisor(connection: connection);
     _supervisor = supervisor;
+    _resolver = SituationResolver(
+      prefs: connection.prefs,
+      probe: _probe ?? DeferredSituationProbe(PlatformSituationProbe.create()),
+      shell: LiveSituationShell(
+        snapshotOf: () => _snapshot,
+        transportOf: () => _session?.transport,
+        runningCook: () => _plan != null,
+        cookBridgeOf: _runningCookBridgeId,
+        netStatusOf: _readDeviceNetStatus,
+        onRetry: retryNow,
+      ),
+    )..addListener(_onSituation);
     // Subscribe before starting so no link update is missed.
     _linkSub = supervisor.links.listen(_onLink);
     await supervisor.start();
+  }
+
+  void _onSituation() {
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  /// §B.3's first frame: the reader's real layout, filled from drift, before
+  /// any lane has been raced.
+  ///
+  /// The values are the last ones this phone stored and they are dated by
+  /// [SampleDao.newestUnixMs], so a six-minute-old reading arrives already
+  /// wearing its age and a fourteen-hour-old one arrives frozen. The link is
+  /// [LinkKind.offline] because at this instant it genuinely is — the race
+  /// has not started — and the first real snapshot replaces this wholesale a
+  /// moment later.
+  ///
+  /// Probe *names* are not cached, so the jacks read "Probe 1"…"Probe 4" until
+  /// a lane answers. That is a known, honest degradation: the contract is that
+  /// the temperatures are on screen instantly, not that every label is.
+  ///
+  /// Never throws. A cold start that cannot read drift still gets the shell.
+  Future<void> _renderFromCache() async {
+    if (_snapshot != null) {
+      return;
+    }
+    try {
+      final db = _env?.db;
+      if (db == null) {
+        return;
+      }
+      final bridgeId = await db.sessionDao.knownBridgeId();
+      if (bridgeId == null || bridgeId.isEmpty) {
+        return; // nothing was ever recorded — the empty state is the truth
+      }
+      final repo = SessionRepository(db, bridgeId: bridgeId);
+      final sessions = await repo.sessions();
+      final newest = sessions.firstOrNull;
+      if (newest == null) {
+        return;
+      }
+      final samples = await repo.samples(newest.id);
+      if (samples.isEmpty) {
+        return;
+      }
+      if (_disposed || _snapshot != null) {
+        return; // a lane won the race while drift was reading — it wins
+      }
+      _snapshot = buildDashboard(
+        status: null,
+        live: null,
+        history: samples,
+        link: LinkKind.offline,
+        marks: await repo.marks(newest.id),
+        session: newest,
+        readingAtUnixMs: await db.sampleDao.newestUnixMs(bridgeId),
+      );
+      notifyListeners();
+    } on Object {
+      // Drift is unavailable or mid-migration. The shell renders its empty
+      // state, which is the same thing this method would have produced.
+    }
   }
 
   /// The supervisor changed the active transport (first connect, a Wi-Fi
@@ -332,6 +592,12 @@ class ShellSession extends ChangeNotifier {
     } finally {
       _applyingLink = false;
     }
+    // The link settled — coming up, going down, or swapping lanes. Every one
+    // of those changes the answer to "what is actually wrong?", so reconcile
+    // once here rather than leaving it to whichever screen happens to be
+    // mounted. Deliberately after the loop, so a burst of supervisor updates
+    // reconciles once at the end instead of once per step.
+    unawaited(reconcile());
   }
 
   Future<void> _handleLink(LiveLink link) async {
@@ -362,6 +628,15 @@ class ShellSession extends ChangeNotifier {
       _launch = _neverMet && _session == null
           ? const LaunchNeedsOnboarding()
           : const LaunchOffline();
+      // Say so in the snapshot too, not just in the launch state. The chip,
+      // the pulse dot and every control that asks "is there a link?" read
+      // `snapshot.link`; leaving it on its last value is how a screen ends up
+      // claiming live Wi-Fi with a breathing dot while the masthead beside it
+      // says the bridge cannot be reached.
+      final last = _snapshot;
+      if (last != null && last.link != LinkKind.offline) {
+        _snapshot = last.disconnected();
+      }
       notifyListeners();
       return;
     }
@@ -544,6 +819,10 @@ class ShellSession extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _ageTicker?.cancel();
+    _resolver
+      ?..removeListener(_onSituation)
+      ..dispose();
     unawaited(_linkSub?.cancel());
     unawaited(_sub?.cancel());
     // Session first (cancels its event subscriptions), then the supervisor

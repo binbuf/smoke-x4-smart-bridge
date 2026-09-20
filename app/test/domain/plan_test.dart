@@ -74,6 +74,288 @@ void main() {
     });
   });
 
+  group('§D.4 — the table covers every class the app can name', () {
+    test('only intact red meat in enthusiast mode is floor-free', () {
+      // The guard for the next class somebody adds: a member with no case and
+      // no citation is a protein that silently inherits "no floor".
+      for (final h in HazardClass.values) {
+        final floor = SafetyFloor.forClass(h, mode: SafetyMode.enthusiast);
+        if (h == HazardClass.wholeMuscleRedMeat) {
+          expect(floor, isNull, reason: 'an intact cut is surface-only');
+          continue;
+        }
+        expect(floor, isNotNull, reason: '${h.name} must carry a floor');
+        expect(
+          floor!.source,
+          isNotNull,
+          reason: '${h.name} must cite where its floor comes from',
+        );
+      }
+    });
+
+    test('every class has words for a chip and for a sentence', () {
+      for (final h in HazardClass.values) {
+        expect(h.label, isNotEmpty, reason: h.name);
+        expect(h.phrase, isNotEmpty, reason: h.name);
+      }
+    });
+
+    test('egg dishes take the 160 °F floor', () {
+      // §D.4's sixth row. Without it a custom quiche fell through to red meat,
+      // which is the one class with no floor at all.
+      final floor = SafetyFloor.forClass(HazardClass.egg);
+      expect(floor?.minF10, 1600);
+      expect(floor?.source, contains('USDA FSIS'));
+      expect(() => _plan(HazardClass.egg, 1550), throwsArgumentError);
+      expect(() => _plan(HazardClass.egg, 1600), returnsNormally);
+    });
+
+    test('nothing stated takes the 160 °F ground-meat floor', () {
+      // The precautionary default §D.4 applies to tenderized meat, applied to
+      // the case where the app has not been told what the meat *is*.
+      final floor = SafetyFloor.forClass(HazardClass.unstated);
+      expect(floor?.minF10, 1600);
+      expect(() => _plan(HazardClass.unstated, 1400), throwsArgumentError);
+      expect(() => _plan(HazardClass.unstated, 1600), returnsNormally);
+    });
+
+    test('neither mode moves the egg or the unstated floor', () {
+      for (final mode in SafetyMode.values) {
+        expect(
+          () => _plan(HazardClass.egg, 1550, mode: mode),
+          throwsArgumentError,
+          reason: '${mode.name} must not move the 160 °F egg floor',
+        );
+        expect(
+          () => _plan(HazardClass.unstated, 1550, mode: mode),
+          throwsArgumentError,
+          reason: '${mode.name} is a reading of a known hazard; there is none',
+        );
+      }
+    });
+
+    test('an unstated jack cannot inherit a permissive plan hazard', () {
+      // The shape of the bug this closes: a red-meat plan with chicken on
+      // jack 3. The jack states its own class, so the plan's does not apply.
+      expect(
+        () => CookPlan(
+          presetId: 'custom',
+          title: 'mixed',
+          hazard: HazardClass.wholeMuscleRedMeat,
+          doneness: '',
+          probes: [
+            PlanProbe(jack: 1, isPit: true, name: 'Pit'),
+            PlanProbe(
+              jack: 2,
+              isPit: false,
+              name: 'Something',
+              targetF10: 1400,
+              hazard: HazardClass.unstated,
+            ),
+          ],
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('the refusal names both temperatures and the protein', () {
+      // The message is read on the setup sheet by a tired person, so it has to
+      // stand on its own without a status code or an enum name.
+      try {
+        _plan(HazardClass.poultry, 1400);
+        fail('the gate should have refused');
+      } on ArgumentError catch (e) {
+        final message = e.message.toString();
+        expect(message, contains('140°F'));
+        expect(message, contains('165°F'));
+        expect(message, contains('poultry'));
+        expect(message, contains('USDA FSIS'));
+      }
+    });
+  });
+
+  group('§D.4 — carryover never crosses a floor', () {
+    test('carryoverF10For is the one table both paths read', () {
+      for (final t in CutThickness.values) {
+        expect(
+          carryoverF10For(hazard: HazardClass.poultry, thickness: t),
+          0,
+          reason:
+              'USDA is explicit that carryover cannot be relied on to bring '
+              'an under-cooked bird up to 165 °F, at any thickness',
+        );
+      }
+      expect(
+        carryoverF10For(
+          hazard: HazardClass.wholeMuscleRedMeat,
+          thickness: CutThickness.thin,
+        ),
+        20,
+      );
+      expect(
+        carryoverF10For(
+          hazard: HazardClass.wholeMuscleRedMeat,
+          thickness: CutThickness.thick,
+        ),
+        80,
+      );
+      expect(
+        carryoverF10For(
+          hazard: HazardClass.wholeMuscleRedMeat,
+          thickness: CutThickness.sousVide,
+        ),
+        0,
+        reason: 'ThermoWorks: sous vide has no carryover at all',
+      );
+      // The preset table and the custom path must not be able to disagree.
+      final roast = Presets.byId('beef_prime_rib')!;
+      expect(
+        roast.carryoverF10,
+        carryoverF10For(hazard: roast.hazard, thickness: roast.thickness),
+      );
+    });
+
+    test('an intact roast still comes off 8 °F early', () {
+      expect(
+        safePullF10(
+          targetF10: 1350,
+          carryoverF10: 80,
+          hazard: HazardClass.wholeMuscleRedMeat,
+        ),
+        1270,
+        reason: 'no floor to cross, so the measured carryover stands',
+      );
+    });
+
+    test('ground beef at 160 °F comes off at 160 °F, not 152 °F', () {
+      expect(
+        safePullF10(
+          targetF10: 1600,
+          carryoverF10: 80,
+          hazard: HazardClass.ground,
+        ),
+        1600,
+        reason:
+            '"take it off early and let it coast up" is exactly the promise '
+            'USDA declines to make about a floor',
+      );
+    });
+
+    test('an unstated cut cannot be pulled below 160 °F either', () {
+      expect(
+        safePullF10(
+          targetF10: 1700,
+          carryoverF10: 80,
+          hazard: HazardClass.unstated,
+        ),
+        1620,
+      );
+      expect(
+        safePullF10(
+          targetF10: 1650,
+          carryoverF10: 80,
+          hazard: HazardClass.unstated,
+        ),
+        1600,
+      );
+    });
+
+    test('USDA-compliant mode holds red meat at 145 °F on the way off', () {
+      expect(
+        safePullF10(
+          targetF10: 1450,
+          carryoverF10: 80,
+          hazard: HazardClass.wholeMuscleRedMeat,
+          mode: SafetyMode.usdaCompliant,
+        ),
+        1450,
+        reason:
+            'FSIS says 145 °F "before removing meat from the heat source" — '
+            'the 3-minute rest is after that, not instead of it',
+      );
+    });
+
+    test('a tenderized cut is clamped like the ground meat it behaves as', () {
+      expect(
+        safePullF10(
+          targetF10: 1600,
+          carryoverF10: 80,
+          hazard: HazardClass.wholeMuscleRedMeat,
+          isIntact: false,
+        ),
+        1600,
+      );
+    });
+
+    test('pull is never above target, even below a floor', () {
+      // A target under its floor is refused by the gate, but the sheet renders
+      // a pull temperature before the gate runs, and "pull at 165, target 140"
+      // is nonsense on the way to a refusal.
+      expect(
+        safePullF10(
+          targetF10: 1400,
+          carryoverF10: 50,
+          hazard: HazardClass.poultry,
+        ),
+        1400,
+      );
+    });
+
+    test('every preset pulls at or above its own floor', () {
+      for (final preset in Presets.all) {
+        for (final mode in SafetyMode.values) {
+          for (final d in preset.doneness) {
+            final pull = preset.pullF10For(d, mode: mode);
+            final floor = SafetyFloor.forClass(
+              preset.hazard,
+              isIntact: preset.isIntact,
+              mode: mode,
+            );
+            expect(
+              pull,
+              lessThanOrEqualTo(d.targetF10),
+              reason: '${preset.id}/${d.id}',
+            );
+            if (floor != null && d.targetF10 >= floor.minF10) {
+              expect(
+                pull,
+                greaterThanOrEqualTo(floor.minF10),
+                reason:
+                    '${preset.id}/${d.id} in ${mode.name}: a preset may not '
+                    'talk anyone into taking food off below its minimum',
+              );
+            }
+          }
+        }
+      }
+    });
+  });
+
+  group('§D.4 — the safety strip is one list of words', () {
+    test('the raw-meat line is always there, and always last', () {
+      expect(safetyStripFor(), [rawMeatAdvisory]);
+      expect(safetyStripFor(intactRedMeat: true).last, rawMeatAdvisory);
+    });
+
+    test('an intact red-meat cook adds the tenderized-cut caveat', () {
+      expect(safetyStripFor(intactRedMeat: true), [
+        intactCutAdvisory,
+        rawMeatAdvisory,
+      ]);
+      final plan = _plan(HazardClass.wholeMuscleRedMeat, 1350);
+      expect(plan.safetyStripLines, [intactCutAdvisory, rawMeatAdvisory]);
+    });
+
+    test('a poultry cook carries the raw-meat line alone', () {
+      // The intact caveat is about a fact the app is trusting the user for.
+      // There is no such fact on a chicken, so the second sentence would be
+      // noise on the one screen that must stay readable at 3 a.m.
+      expect(_plan(HazardClass.poultry, 1650).safetyStripLines, [
+        rawMeatAdvisory,
+      ]);
+    });
+  });
+
   group('intact whole-muscle red meat has NO floor', () {
     test('a 125 °F rare steak constructs freely', () {
       expect(
@@ -410,6 +692,37 @@ void main() {
           lessThan(preset.pitBandMaxF10),
           reason: preset.id,
         );
+      }
+    });
+
+    test('§D.4 — the library has a preset for every hazard class it gates', () {
+      // Eggs were the missing row: no preset meant no path to the class, and
+      // no path to the class meant a custom quiche was gated as steak.
+      final covered = {for (final p in Presets.all) p.hazard};
+      for (final h in HazardClass.values) {
+        if (h == HazardClass.unstated) {
+          continue; // not a thing you can cook — it is the absence of an answer
+        }
+        expect(
+          covered,
+          contains(h),
+          reason: '${h.name} has a floor but nothing in the picker reaches it',
+        );
+      }
+    });
+
+    test('§D.4 — the egg presets sit on the 160 °F floor', () {
+      final eggs = Presets.all.where((p) => p.hazard == HazardClass.egg);
+      expect(eggs, isNotEmpty);
+      for (final p in eggs) {
+        for (final d in p.doneness) {
+          expect(d.targetF10, greaterThanOrEqualTo(1600), reason: p.id);
+          expect(
+            p.pullF10For(d),
+            greaterThanOrEqualTo(1600),
+            reason: '${p.id}: a custard may not be pulled under 160 °F either',
+          );
+        }
       }
     });
 

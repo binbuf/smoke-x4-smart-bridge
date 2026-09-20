@@ -80,7 +80,10 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Live readings'), findsOneWidget);
-    expect(find.text('Set up a cook'), findsOneWidget);
+    // §16.6 — the cook affordance is the action row's second slot, named as a
+    // verb. It used to be a button inside the header card, competing with the
+    // screen title on the one screen that may not push its numbers down.
+    expect(find.text('Set a target'), findsOneWidget);
     // The shell owns the chip, so this must not draw a second one — but the
     // BLE capability line is this screen's own and stays.
     expect(find.textContaining('On Bluetooth'), findsOneWidget);

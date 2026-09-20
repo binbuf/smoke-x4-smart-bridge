@@ -1,37 +1,39 @@
 text "Bluetooth"
-icon 62916
-text "On Bluetooth — live readings only."
-[bridge-header]
-  text "Live readings"
-  text "Nothing is being cooked yet — the bridge is logging anyway"
-  button disabled
-    paint _ShapeBorderPainter
-      icon 62922
-      text "Set up a cook"
+text "Live readings"
+text "Updated just now."
 [instrument]
+  text "1"
+  icon 63595
   text "PIT"
   icon 983634
   text "-17.1°/hr"
-  paint _SparkPainter
   text "246"
   text ".7"
   text "°F"
   icon 63035
+  text "2"
+  paint _FoodGlyphPainter
   text "BRISKET"
   icon 983636
   text "+24.0°/hr"
-  paint _SparkPainter
   text "107"
   text ".8"
   text "°F"
   icon 63035
+  text "Target 203° · ready in 4h"
+  text "3"
+  paint _FoodGlyphPainter
   text "POINT"
   text "unplugged"
   text "—"
   text "°F"
   icon 63035
+  text "4"
+  paint _FoodGlyphPainter
   text "FLAT"
   text "unplugged"
   text "—"
   text "°F"
   icon 63035
+icon 62916
+text "On Bluetooth — live readings only."

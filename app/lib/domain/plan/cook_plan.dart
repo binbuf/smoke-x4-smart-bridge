@@ -155,11 +155,15 @@ class CookPlan {
         mode: safetyMode,
       );
       if (floor != null && t < floor.minF10) {
+        // The message is read by a person on the setup sheet, not by a log, so
+        // it names the two temperatures and the class in plain words and
+        // carries its citation.
         throw ArgumentError.value(
           t,
           'probes[${p.jack}].targetF10',
-          'below the ${h.name} safe minimum of ${floor.minF10 / 10}°F'
-              '${floor.source == null ? '' : ' (${floor.source})'}',
+          '${(t / 10).round()}°F is below the '
+              '${(floor.minF10 / 10).round()}°F safe minimum for ${h.phrase}'
+              '${floor.source == null ? '' : ' (${floor.source})'}.',
         );
       }
     }
@@ -206,6 +210,14 @@ class CookPlan {
           isIntact: p.isIntact,
         ),
   );
+
+  /// §D.4's safety strip, ready to render, for **every** screen that shows this
+  /// plan's targets — the setup sheet, the guided overlay on `/live`, and
+  /// `/cooks/:id`. §D.4 asks for it to be persistent as MEATER's is, and a
+  /// strip that lives on the setup sheet alone is absent from every screen
+  /// anyone reads once the cook is running.
+  List<String> get safetyStripLines =>
+      safetyStripFor(intactRedMeat: needsIntactAdvisory);
 
   /// The pit probe, if the plan names one.
   PlanProbe? get pit {

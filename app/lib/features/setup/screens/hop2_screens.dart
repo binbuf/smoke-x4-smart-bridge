@@ -19,9 +19,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../design/design.dart';
+import '../../../ui/setup/device_art.dart';
 import '../../../ui/ui.dart';
 import '../copy/base_sync_copy.dart';
 import '../copy/setup_net_copy.dart';
+import '../copy/setup_resume_copy.dart';
+import '../setup_entry.dart';
 import '../setup_machine.dart';
 
 /// `SetupBaseIntro` — the illustrated SYNC-hold instruction (§13.2.2).
@@ -37,12 +40,18 @@ class BaseIntroScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Opened straight at hop 2 because it is the only unfinished hop (§16.3
+    // #8). Saying so first is what stops a returning user reading this as the
+    // whole flow having started over.
+    final resumed = state.resume == SetupResumeKind.pairBase;
     return SetupScaffold(
       hop: state.hop,
       title: BaseSyncCopy.introHeadline,
-      subtitle: BaseSyncCopy.introGesture,
+      subtitle: resumed
+          ? '${SetupResumeCopy.pairBaseWhy} ${BaseSyncCopy.introGesture}'
+          : BaseSyncCopy.introGesture,
       onExit: () => machine.cancel(),
-      body: const Center(child: _SyncIllustration()),
+      body: const SetupBodyCenter(child: _SyncIllustration()),
       primary: PrimaryAction(
         key: const Key('base-intro-primary'),
         label: BaseSyncCopy.introPrimary,
@@ -81,11 +90,25 @@ class BaseListeningScreen extends StatelessWidget {
           : BaseSyncCopy.listeningKeepClose,
       errorTint: false,
       onExit: () => machine.cancel(),
-      body: Center(
-        child: _ListeningRing(
-          elapsed: state.elapsed,
-          budget: BaseSyncTiming.listenBudget,
-          faint: faint,
+      // The bridge is the thing doing the listening, so it is on screen doing
+      // it: the same drawing as hop 1, with its rings travelling *inward*
+      // because now something is arriving rather than being sent (§17.3 C).
+      body: SetupBodyCenter(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BridgeIllustration(
+              key: Key('base-listen-art'),
+              mood: BridgeMood.listening,
+              size: 120,
+            ),
+            const SizedBox(height: SmokeTokens.s5),
+            _ListeningRing(
+              elapsed: state.elapsed,
+              budget: BaseSyncTiming.listenBudget,
+              faint: faint,
+            ),
+          ],
         ),
       ),
       secondary: TextButton(
@@ -116,7 +139,20 @@ class BaseHeardScreen extends StatelessWidget {
       title: BaseSyncCopy.heard(state.deviceId),
       subtitle: BasePayoffCopy.heardBody,
       onExit: () => machine.cancel(),
-      body: const Center(child: _HeardPulse()),
+      body: const SetupBodyCenter(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BridgeIllustration(
+              key: Key('base-heard-art'),
+              mood: BridgeMood.listening,
+              size: 120,
+            ),
+            SizedBox(height: SmokeTokens.s5),
+            _HeardPulse(),
+          ],
+        ),
+      ),
       secondary: TextButton(
         onPressed: () => machine.cancel(),
         child: const Text(SetupNetCopy.cancel),
@@ -257,54 +293,47 @@ class BaseFailedScreen extends StatelessWidget {
 
 // ── local presentation pieces (no flow logic) ─────────────────────────────
 
-/// A vector stand-in for the X4 base with its SYNC control lit — the design's
-/// "full-bleed illustration" without a bundled asset. `pit` glow on the control
-/// is the one thing the eye should land on.
+/// The X4 base, drawn, with its SYNC control lit and named beneath it.
+///
+/// **17 §17.3 C carried into hop 2.** Hop 1 now has a subject, and leaving the
+/// rest of the flow bare would have made the polish read as a one-screen trick
+/// rather than as the app. It matters more here than anywhere: this screen is
+/// the only one that asks the user to walk to a *second device* and hold a
+/// control they have probably never looked for, and a paragraph over an empty
+/// field is a poor way to ask that. The drawing says which box; the pill under
+/// it says which button, in the word printed on it.
 class _SyncIllustration extends StatelessWidget {
   const _SyncIllustration();
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(SmokeTokens.s5),
-      decoration: BoxDecoration(
-        color: t.cardSubtle,
-        borderRadius: BorderRadius.circular(SmokeTokens.radiusCard),
-        border: Border.all(color: t.hairline),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.thermostat_rounded, size: 40, color: t.textMuted),
-          const SizedBox(height: SmokeTokens.s4),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: SmokeTokens.s4,
-              vertical: SmokeTokens.s2,
-            ),
-            decoration: BoxDecoration(
-              color: StatusPalette.fill(StatusRole.pit),
-              borderRadius: BorderRadius.circular(SmokeTokens.radiusPill),
-              border: Border.all(color: StatusPalette.border(StatusRole.pit)),
-              boxShadow: [?t.glowTight(StatusPalette.pit)],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.touch_app_rounded,
-                  size: 18,
-                  color: StatusPalette.pit,
-                ),
-                const SizedBox(width: SmokeTokens.s2),
-                Text('SYNC', style: SmokeType.label.copyWith(color: t.textHi)),
-              ],
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const BaseStationIllustration(key: Key('base-intro-art')),
+        const SizedBox(height: SmokeTokens.s4),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SmokeTokens.s4,
+            vertical: SmokeTokens.s2,
           ),
-        ],
-      ),
+          decoration: BoxDecoration(
+            color: StatusPalette.fill(StatusRole.pit),
+            borderRadius: BorderRadius.circular(SmokeTokens.radiusPill),
+            border: Border.all(color: StatusPalette.border(StatusRole.pit)),
+            boxShadow: [?t.glowTight(StatusPalette.pit)],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.touch_app_rounded, size: 18, color: StatusPalette.pit),
+              const SizedBox(width: SmokeTokens.s2),
+              Text('SYNC', style: SmokeType.label.copyWith(color: t.textHi)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -395,8 +424,17 @@ class _HeardPulse extends StatelessWidget {
   }
 }
 
-/// One probe row of the payoff: a colour-coded reading with an attached/detached
-/// dot. The pit row (index 0) wears the reference weight and a lit dot.
+/// One probe row of the payoff: a reading with an attached/detached dot. The pit
+/// row (index 0) wears the reference weight and a lit dot.
+///
+/// **The series hue is the dot and only the dot** (16 §16.5: a mark — a stroke,
+/// an arc, a ≤12 dp dot, a left rule — never a fill and never a word). The
+/// number used to be drawn in it at 34 pt, which is the most direct breach of
+/// that rule the app had: every sibling readout (`TempReadout` → hero, compact,
+/// strip, detail) keeps the digits at `textHi` and spends the hue on a 3 dp
+/// underline, and this is the first screen a new user ever sees working — so it
+/// is the last place to teach a different rule. Detached stays `textMuted`,
+/// which is freshness, not identity.
 class _ProbeReadingRow extends StatelessWidget {
   const _ProbeReadingRow({required this.index, required this.tempF10});
 
@@ -408,7 +446,7 @@ class _ProbeReadingRow extends StatelessWidget {
     final t = context.tokens;
     final attached = tempF10 != null;
     final hue = ProbePalette.hue(index + 1);
-    final color = attached ? hue : t.textMuted;
+    final ink = attached ? t.textHi : t.textMuted;
     final label = BasePayoffCopy.probeLabel(index);
 
     return Container(
@@ -432,7 +470,7 @@ class _ProbeReadingRow extends StatelessWidget {
             celsius: false,
             style: SmokeType.midTemp,
             unitStyle: SmokeType.displayS,
-            color: color,
+            color: ink,
             semanticName: label,
           ),
         ],

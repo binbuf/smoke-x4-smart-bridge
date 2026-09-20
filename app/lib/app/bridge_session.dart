@@ -27,7 +27,10 @@ class BridgeSession {
     this.address = '',
     this.onLinkLost,
     this.ownsTransport = true,
-  });
+    int Function()? now,
+  }) : _now = now ?? _wallClock;
+
+  static int _wallClock() => DateTime.now().millisecondsSinceEpoch;
 
   final AppDatabase db;
 
@@ -78,6 +81,24 @@ class BridgeSession {
   /// from the address.
   String? _netMode;
 
+  /// The phone's wall clock when the newest reading we hold actually arrived.
+  ///
+  /// This is the freshness ladder's only input (13 §13.6.1), and it is
+  /// deliberately **not** the device's `last_packet_s_ago`: that counter
+  /// measures the base station's silence rather than ours, it is re-read only
+  /// when an alarm/session/pairing frame happens to arrive, and the BLE lane
+  /// has no `/status` to carry it at all. A cook with no alarms would read
+  /// it once and call the screen live for fourteen hours.
+  ///
+  /// Set from [_now] whenever a reading genuinely lands, and seeded from the
+  /// cache's stored wall clock on a cold start so last night's numbers do not
+  /// come back looking live.
+  int? _readingAtMs;
+
+  /// Injectable clock. Production passes nothing; tests pass a fixed one so a
+  /// freshness assertion is not a race against the suite's own runtime.
+  final int Function() _now;
+
   /// Guards against a storm of push-stream errors each firing its own status
   /// probe (or its own failover): one link check runs at a time.
   bool _checkingLink = false;
@@ -117,11 +138,13 @@ class BridgeSession {
 
     try {
       _live = await transport.live(window: const Duration(hours: 2));
+      _readingAtMs = _now();
     } on Object {
       _live = null;
     }
 
     await _reloadCache();
+    _seedReadingAgeFromCache();
     _emit();
 
     _events = transport.events.listen(
@@ -243,6 +266,10 @@ class BridgeSession {
       final live = await transport.live(window: const Duration(hours: 2));
       if (_live == null || live.t > _live!.t) {
         _live = live;
+        // A *newer* reading — this is the moment the screen stopped being
+        // stale. A poll that finds nothing new deliberately does not touch
+        // the age: nothing arrived, so nothing got fresher.
+        _readingAtMs = _now();
         _emit();
       }
     } on Object {
@@ -264,7 +291,25 @@ class BridgeSession {
       _history = await repo.samples(id);
       _marks = await repo.marks(id);
     }
+    _newestCachedReadingUnixMs = await db.sampleDao.newestUnixMs(_bridgeId);
   }
+
+  /// Dates the cached reading from what the cache itself stored, so a cold
+  /// start renders last night's numbers with last night's age.
+  ///
+  /// Only runs when no live read succeeded — a live read is by definition
+  /// newer than anything in drift. `samples.unix_ms` is NULL for a bridge
+  /// whose clock was never set (§E.7 forbids inventing one), and null here
+  /// means [ProbeFreshness.unknown]: the app does not know how old this is,
+  /// which is a different and more honest statement than "live".
+  void _seedReadingAgeFromCache() {
+    if (_readingAtMs != null || _bridgeId.isEmpty) {
+      return;
+    }
+    _readingAtMs = _newestCachedReadingUnixMs;
+  }
+
+  int? _newestCachedReadingUnixMs;
 
   void _onEvent(BridgeEvent e) {
     switch (e) {
@@ -283,6 +328,7 @@ class BridgeSession {
           t: sample.t,
           tempsF10: sample.tempsF10,
         );
+        _readingAtMs = _now();
         _emit();
       case BridgeAlarmEvent():
       case BridgeSessionEvent():
@@ -352,6 +398,7 @@ class BridgeSession {
       netMode: _netMode,
       session: _session,
       fullHistory: transport.capabilities.fullHistory,
+      readingAtUnixMs: _readingAtMs,
     );
     _last = snap;
     if (!_snapshots.isClosed) {

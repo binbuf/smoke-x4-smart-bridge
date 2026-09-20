@@ -19,6 +19,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../design/design.dart';
+import '../../../ui/setup/device_art.dart';
 import '../../../ui/ui.dart';
 import '../copy/setup_net_copy.dart';
 import '../setup_machine.dart';
@@ -136,13 +137,21 @@ class SetupDoneScreen extends StatelessWidget {
       title: SetupFinishCopy.doneTitle(summary.bridgeName),
       body: ListView(
         children: [
-          const Center(
-            child: Icon(
-              Icons.check_circle_rounded,
-              size: 56,
-              color: StatusPalette.positive,
-            ),
-          ),
+          // The finish gets the same subject the rest of the flow now has
+          // (17 §17.3 C): the bridge, drawn, with the tick badged on it rather
+          // than floating over black. Presence carries all the way through —
+          // this is the frame the user leaves setup on.
+          //
+          // The one green in this file, and it survives the §16.5 audit on a
+          // technicality worth writing down: this screen's entire subject *is*
+          // transport — the three rows under the tick are BLE, LoRa and Wi-Fi,
+          // and the phone is holding a live BLE link to the bridge at the
+          // moment it renders. Green here is claiming that link, which is
+          // exactly what green is allowed to claim. It is not claiming "wizard
+          // finished" — a skipped hop still reads "— not set up" beneath it.
+          // It stays an `Icon` on purpose: a hue painted into a `CustomPainter`
+          // is invisible to the colour-rule audit that walks the element tree.
+          const Center(child: _DoneMark()),
           const SizedBox(height: SmokeTokens.s6),
           _SummaryRow(
             label: SetupFinishCopy.doneBluetooth,
@@ -196,11 +205,17 @@ class ResetDoneScreen extends StatelessWidget {
       hop: state.hop,
       title: SetupNetCopy.resetDoneTitle,
       subtitle: SetupNetCopy.resetDoneSubtitle,
-      body: const Center(
+      // **Not `positive`.** "The bridge is factory-fresh" is the opposite of a
+      // healthy link — the wipe dropped it, and the next screen asks the user
+      // to forget the OS pairing and start over. Green means transport health
+      // and nothing else (16 §16.5); `pit` is the accent that says "this is
+      // the app's own state", and the glyph and the title still carry the
+      // meaning.
+      body: Center(
         child: Icon(
           Icons.restart_alt_rounded,
           size: 56,
-          color: StatusPalette.positive,
+          color: StatusPalette.pit,
         ),
       ),
       primary: PrimaryAction(
@@ -284,6 +299,58 @@ class FaultScreen extends StatelessWidget {
 
 // ── local presentation pieces ─────────────────────────────────────────────
 
+/// The landing's hero: the bridge, with the link tick badged on it.
+///
+/// The badge is deliberately *on* the device and not beside it — the sentence
+/// the screen is making is "this bridge is connected", and a tick with nothing
+/// under it is the app congratulating itself. The `surface` ring around the
+/// glyph is what keeps it legible where it overlaps the board's own edge.
+class _DoneMark extends StatelessWidget {
+  const _DoneMark();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return SizedBox(
+      width: 160,
+      height: 160,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const BridgeIllustration(
+            key: Key('setup-done-art'),
+            mood: BridgeMood.ready,
+            size: 160,
+          ),
+          Positioned(
+            right: 6,
+            bottom: 32,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(color: t.bg, shape: BoxShape.circle),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                size: 34,
+                color: StatusPalette.positive,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One line of the §13.2.4 summary: what a hop ended up as.
+///
+/// **A status hue never carries the words.** [warn] used to be spent on the
+/// value's text colour, which is the half of the rule that does not work: on
+/// the amber's own weight the string reads quieter than the `textHi` beside it,
+/// and a reader who cannot see amber gets no signal at all. §14.6.5 puts the
+/// hue on the icon and the border and the words at 13:1, so that is where it
+/// goes — a 16 dp caution glyph ahead of the value, the value at `textHi` in
+/// both states. The signal is now stated three ways: the glyph, the string
+/// ("— not set up"), and the rail drawing that hop as a dash.
 class _SummaryRow extends StatelessWidget {
   const _SummaryRow({
     required this.label,
@@ -305,13 +372,28 @@ class _SummaryRow extends StatelessWidget {
         children: [
           Text(label, style: SmokeType.title.copyWith(color: t.textBody)),
           Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: SmokeType.body.copyWith(
-                color: warn ? StatusPalette.warning : t.textHi,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (warn) ...[
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: StatusPalette.warning,
+                  ),
+                  const SizedBox(width: SmokeTokens.s1),
+                ],
+                Flexible(
+                  child: Text(
+                    value,
+                    textAlign: TextAlign.right,
+                    style: SmokeType.body.copyWith(
+                      color: t.textHi,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

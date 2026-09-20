@@ -234,18 +234,24 @@ void main() {
       expect(pulls, 1);
     });
 
-    testWidgets('the offline empty state is pullable — the branch where a '
-        'manual retry matters most', (tester) async {
-      // No snapshot at all: the shell renders the empty state, which is
-      // shorter than the screen and would not scroll without help.
+    testWidgets('offline with no snapshot is still the reader, and still '
+        'pullable — the branch where a manual retry matters most', (
+      tester,
+    ) async {
+      // No snapshot at all. This used to replace the screen with an empty
+      // state; §B.3 and 16 §16.6 say the reader renders its own layout on the
+      // first frame in every case, so what is on screen is four jacks reading
+      // `—` under the last-seen. It is a `CookView`, so it already scrolls.
       final session = ShellSession.seeded(launch: const LaunchOffline());
       addTearDown(session.dispose);
 
       await tester.pumpWidget(_host(session));
       await settle(tester);
+      expect(find.byType(CookView), findsOneWidget);
       expect(find.text('Can’t reach your bridge'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
 
-      await pull(tester, find.byType(SingleChildScrollView).first);
+      await pull(tester, find.byType(CookView));
 
       expect(find.byKey(const Key('refresh-banner')), findsOneWidget);
       expect(find.text('Not connected'), findsOneWidget);

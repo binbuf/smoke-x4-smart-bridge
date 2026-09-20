@@ -30,6 +30,15 @@
 /// `LaunchNeedsOnboarding` to weigh a partial setup) remain a separate task;
 /// what IS wired here is the one that makes "finish → dashboard" not bounce:
 /// the verified base URL is recorded so the launch race has a known-good lane.
+///
+/// **Re-entry (design 16 §16.3).** Every door into `/setup` used to open on
+/// hop 0. This route now reconciles first: what the phone remembers becomes
+/// [SituationFacts], [setupResumePlanFor] turns that into the hop that is
+/// actually unfinished, and [SetupMachine.startFrom] opens there. A caller
+/// that already knows more than preferences do — a situation banner, a
+/// recovery card — passes [SetupRoute.resumeFrom] instead; with no argument
+/// the route derives it, so the automatic path is the default rather than an
+/// opt-in.
 library;
 
 import 'dart:async';
@@ -42,23 +51,79 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../app/app_env.dart';
 import '../../app/router.dart';
+import '../../data/prefs/bridge_prefs.dart';
 import '../../data/transport/ble_gatt_fbp.dart';
 import '../../data/transport/ble_transport.dart';
 import '../../data/transport/connection_manager.dart';
 import '../../data/transport/http_transport.dart';
 import '../../design/design.dart';
+import '../../domain/situation/situation.dart';
 import '../../platform/network_binder.dart';
+import '../shell/situation_probe_platform.dart';
 import 'preflight.dart';
 import 'screens/finish_screens.dart';
 import 'screens/hop1_screens.dart';
 import 'screens/preflight_screens.dart';
+import 'setup_entry.dart';
 import 'setup_machine.dart';
 
 class SetupRoute extends StatefulWidget {
-  const SetupRoute({super.key});
+  const SetupRoute({super.key, this.resumeFrom});
+
+  /// Where this entry into setup should pick up (§16.3). Null means "work it
+  /// out": [setupResumePlanFor] over what this phone has stored, which is the
+  /// case every existing caller takes and the reason none of them had to
+  /// change.
+  final SetupResumePlan? resumeFrom;
 
   @override
   State<SetupRoute> createState() => _SetupRouteState();
+}
+
+/// What this phone remembers, as the same facts the reconciler on `/live`
+/// reads (§16.3). Preferences are the only source available before any radio
+/// is up — the *observable* and *device says* columns fill in during the
+/// re-link, and the machine reconciles them there.
+/// [bondedBridgeName] is the *observable* column, and it is the one fact that
+/// separates "a stranger" from "this phone forgot a bridge it is still paired
+/// to". Without it `setupResumePlanFor` can only ever see an empty name
+/// against empty preferences and return [SetupResumePlan.fresh] — which made
+/// [SetupResumeKind.adoptBridge] unreachable in the shipping app, and sent a
+/// user whose phone had been reset (or restored from backup) through the full
+/// three-hop first-time wizard, scan and all, while the OS bond to their
+/// bridge sat there the whole time.
+SetupResumePlan resumePlanFromPrefs(
+  BridgePrefs? prefs, {
+  int nowUnixMs = 0,
+  String? bondedBridgeName,
+}) {
+  if (prefs == null && bondedBridgeName == null) {
+    return SetupResumePlan.fresh;
+  }
+  return setupResumePlanFor(
+    SituationFacts(
+      rememberedBridgeId: prefs?.lastBridgeId,
+      rememberedBaseUrl: prefs?.lastBaseUrl,
+      rememberedBleDeviceId: prefs?.lastBleDeviceId,
+      lastSeenUnixMs: prefs?.lastSeenUnixMs,
+      bondedBridgeName: bondedBridgeName,
+      nowUnixMs: nowUnixMs,
+    ),
+  );
+}
+
+/// The OS bond, if this phone still holds one to a `SmokeBridge-*`.
+///
+/// Best-effort and never throws: a phone that will not answer is simply a
+/// phone with no bond to report, and setup then greets the user as new —
+/// which is what it did unconditionally before.
+Future<String?> bondedBridgeNameNow() async {
+  try {
+    final probe = await PlatformSituationProbe.create();
+    return (await probe?.bondedBridge())?.name;
+  } on Object {
+    return null;
+  }
 }
 
 class _SetupRouteState extends State<SetupRoute> {
@@ -87,7 +152,41 @@ class _SetupRouteState extends State<SetupRoute> {
     );
     _state = _machine.state;
     _sub = _machine.states.listen(_onState);
-    unawaited(_machine.start());
+    // Reconcile before the first frame: a phone that already knows a bridge
+    // must never be greeted as a stranger (§16.3).
+    //
+    // The bond read is a round trip, so the wizard starts from what
+    // preferences alone can say and re-plans if the bond turns out to name a
+    // bridge. That only ever *upgrades* the plan — a stranger becomes an
+    // adoption — so the first frame is never wrong, only sometimes less
+    // informed than the second.
+    final injected = widget.resumeFrom;
+    final prefs = AppEnv.instance?.prefs;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final plan = injected ?? resumePlanFromPrefs(prefs, nowUnixMs: now);
+    unawaited(_machine.startFrom(plan));
+    if (injected == null && plan.kind == SetupResumeKind.fresh) {
+      unawaited(_adoptIfBonded(prefs, now));
+    }
+  }
+
+  /// Ask the OS whether this phone is still bonded to a bridge, and re-plan
+  /// if it is. Only runs when preferences produced a from-scratch plan, which
+  /// is exactly the reset-phone case.
+  Future<void> _adoptIfBonded(BridgePrefs? prefs, int nowUnixMs) async {
+    final name = await bondedBridgeNameNow();
+    if (!mounted || name == null || name.isEmpty) {
+      return;
+    }
+    final better = resumePlanFromPrefs(
+      prefs,
+      nowUnixMs: nowUnixMs,
+      bondedBridgeName: name,
+    );
+    if (better.kind == SetupResumeKind.fresh) {
+      return; // nothing gained — leave the wizard where it is
+    }
+    await _machine.startFrom(better);
   }
 
   void _onState(SetupState s) {
@@ -211,9 +310,14 @@ class _SetupRouteState extends State<SetupRoute> {
           context.go(AppRoutes.home);
         }
       },
-      // The OS deep-links live in platform/system_settings.dart, which is not
-      // built yet (§13.2.0): a null callback disables that button while the
-      // machine-backed secondary ("I turned it on") keeps a live next step.
+      // The one OS deep-link this build genuinely has. It is also the one that
+      // matters most: a permanently denied permission has no other route, and
+      // leaving it dark left that screen with no working control at all.
+      openAppSettings: () => unawaited(_openAppSettings()),
+      // The rest live in platform/system_settings.dart, which is not built yet
+      // (§13.2.0). A null callback disables the control **and renders its
+      // reason beneath it** (16 §16.5), while the machine-backed action beside
+      // it keeps a live next step.
     );
     final screen =
         setupScreenFor(_state, _machine, externals: externals) ??
@@ -223,6 +327,18 @@ class _SetupRouteState extends State<SetupRoute> {
           onFinish: () => unawaited(_finish()),
         );
     return Scaffold(backgroundColor: context.tokens.bg, body: screen);
+  }
+}
+
+/// `permission_handler`'s app-settings deep link, wrapped so a platform that
+/// refuses simply leaves the user where they were (the [SetupExternals]
+/// contract: a callback must not throw).
+Future<void> _openAppSettings() async {
+  try {
+    await openAppSettings();
+  } on Object {
+    // A refusal is not an error the user can act on; the "I've allowed it"
+    // re-check beside this button is still live.
   }
 }
 
@@ -285,9 +401,12 @@ class _FbpPreflightProbe implements PreflightProbe {
     }
   }
 
-  static PreflightPermission _mapPerm(PermissionStatus scan,
-      PermissionStatus connect) {
-    bool ok(PermissionStatus s) => s.isGranted || s.isLimited || s.isProvisional;
+  static PreflightPermission _mapPerm(
+    PermissionStatus scan,
+    PermissionStatus connect,
+  ) {
+    bool ok(PermissionStatus s) =>
+        s.isGranted || s.isLimited || s.isProvisional;
     if (ok(scan) && ok(connect)) {
       return PreflightPermission.granted;
     }

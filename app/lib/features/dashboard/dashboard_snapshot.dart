@@ -87,6 +87,7 @@ class DashboardSnapshot {
     this.batteryKnown = false,
     this.baseLost = false,
     this.lastPacketSAgo,
+    this.readingAtUnixMs,
     this.fullHistory = true,
     this.paired = true,
     this.alarms = const [],
@@ -127,7 +128,27 @@ class DashboardSnapshot {
   /// The distinct failure only the header can state: the *bridge* is
   /// reachable but the *base station* is not.
   final bool baseLost;
+
+  /// The **device's** count of how long the base station has been silent —
+  /// base→bridge, not bridge→phone. It is a genuine fact and it drives the
+  /// base-lost copy, but it is NOT how old the number on screen is: it is
+  /// read from `/status`, which is re-read only on alarm/session/pairing
+  /// frames, and it is null on the BLE lane, which has no `/status` at all.
   final int? lastPacketSAgo;
+
+  /// **The phone's** wall clock when the newest reading on screen actually
+  /// arrived — the only honest answer to "how old is this number?".
+  ///
+  /// This is what the freshness ladder (13 §13.6.1) runs on. Measuring on the
+  /// phone's clock rather than the device's is what makes the ladder work on
+  /// every lane, with or without a device RTC, and what makes it *advance*:
+  /// a snapshot that stops being rebuilt still ages, because the age is
+  /// computed against `now` at read time rather than baked in here.
+  ///
+  /// Null means genuinely unknown — a cache read from a bridge whose clock
+  /// was never set, so `samples.unix_ms` is NULL (§E.7 forbids inventing
+  /// one). Unknown renders as [ProbeFreshness.unknown], never as live.
+  final int? readingAtUnixMs;
 
   /// Drives A10.5's "full history needs Wi-Fi" notice. False on HTTP-less
   /// transports **and on a bridge whose firmware predates ble-gatt §5.10** —
@@ -169,6 +190,44 @@ class DashboardSnapshot {
 
   bool get anyAttached => probes.any((p) => p.attached);
   bool get anyUnacked => alarms.any((a) => !a.acked);
+
+  /// The same readings, re-stated as unreachable.
+  ///
+  /// Losing the link is not new data — it is the same numbers with a
+  /// different answer to "can I trust this?". [ShellSession] emits this when
+  /// the supervisor runs out of lanes, because otherwise the snapshot keeps
+  /// its old [link] and the chip goes on claiming live Wi-Fi, with a
+  /// breathing pulse dot, above numbers nobody is refreshing — while the
+  /// masthead two lines down says the bridge cannot be reached. A screen
+  /// that contradicts itself is worse than either statement alone.
+  ///
+  /// [readingAtUnixMs] is deliberately untouched: the reading is exactly as
+  /// old as it was a moment ago, and the ladder ages it from here.
+  DashboardSnapshot disconnected() => DashboardSnapshot(
+    probes: probes,
+    link: LinkKind.offline,
+    sessionName: sessionName,
+    sessionActive: sessionActive,
+    sessionId: sessionId,
+    elapsedS: elapsedS,
+    startedUnixMs: startedUnixMs,
+    // The address is kept: it is where the bridge *was*, which is what the
+    // reconciler compares against to notice it has moved. Only the mode is
+    // dropped, because "hosting" and "joined" are claims about a live link.
+    address: address,
+    netMode: null,
+    socPct: socPct,
+    charging: charging,
+    batteryKnown: batteryKnown,
+    baseLost: baseLost,
+    lastPacketSAgo: lastPacketSAgo,
+    readingAtUnixMs: readingAtUnixMs,
+    fullHistory: fullHistory,
+    paired: paired,
+    alarms: alarms,
+    marks: marks,
+    samples: samples,
+  );
 }
 
 /// The window the tile sparkline and the rate-of-change use.
@@ -193,6 +252,12 @@ DashboardSnapshot buildDashboard({
   /// not the name, and the cache has both — so the caller passes it
   /// rather than this function guessing.
   CookSession? session,
+
+  /// The phone's wall clock when the newest reading arrived. The caller
+  /// owns this because only the caller knows whether the values came off
+  /// the wire just now or out of drift from last night; this function stays
+  /// a pure projection and never reads a clock.
+  int? readingAtUnixMs,
 }) {
   // The live push is fresher than the cache by construction, so it wins
   // for the current values; the cache is what the chart and the analysis
@@ -291,6 +356,7 @@ DashboardSnapshot buildDashboard({
     batteryKnown: status?.socPct != null,
     baseLost: status?.baseLost ?? false,
     lastPacketSAgo: status?.lastPacketSAgo,
+    readingAtUnixMs: readingAtUnixMs,
     fullHistory: fullHistory,
     // Unknown (no /status, e.g. the BLE lane or a cache read) stays paired so
     // the UI does not cry wolf; a real status.paired == false surfaces the

@@ -36,6 +36,7 @@ import '../../design/design.dart';
 import '../../domain/alarms/alarm_rule.dart';
 import '../../ui/ui.dart';
 import '../cooks/cook_actions.dart';
+import '../settings/settings_kit.dart' show SettingsGroup;
 import '../shell/shell_scope.dart';
 import 'alarm_rule_sheet.dart';
 import 'delivery_banner.dart';
@@ -188,7 +189,9 @@ class _AlarmRulesRouteState extends State<AlarmRulesRoute> {
     return Scaffold(
       backgroundColor: t.bg,
       appBar: AppBar(
-        title: const Text('Alarms'),
+        // "Alarms" matched neither of the two rows that reach this screen. It
+        // edits rules, and it is the only screen that does.
+        title: const Text('Alarm rules'),
         actions: [
           IconButton(
             key: const Key('alarm-rule-add'),
@@ -218,13 +221,17 @@ class _AlarmRulesRouteState extends State<AlarmRulesRoute> {
     );
   }
 
-  Widget _tierSection(
-    SmokeTokens t,
-    AlarmTier tier, {
-    required bool canPush,
-  }) {
+  /// One tier, **one card** (16 §16.5: never one card per row).
+  ///
+  /// Every rule used to arrive in its own [SmokeCard] — about eleven of them,
+  /// floating down the screen with nothing to say which belonged together, on
+  /// the one screen whose entire point is that the two tiers are different
+  /// things. Hairline-divided rows inside a card per tier is what
+  /// [SettingsGroup] already does everywhere else in the app, so this uses it.
+  Widget _tierSection(SmokeTokens t, AlarmTier tier, {required bool canPush}) {
     final rules = _rules.where((r) => r.tier == tier).toList()
       ..sort((a, b) => a.type.index.compareTo(b.type.index));
+    final locked = tier == AlarmTier.device && !canPush;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -232,11 +239,8 @@ class _AlarmRulesRouteState extends State<AlarmRulesRoute> {
           tier.label.toUpperCase(),
           style: SmokeType.label.copyWith(color: t.textMuted),
         ),
-        const SizedBox(height: 2),
-        Text(
-          tier.promise,
-          style: SmokeType.bodySm.copyWith(color: t.textBody),
-        ),
+        const SizedBox(height: SmokeTokens.s1),
+        Text(tier.promise, style: SmokeType.bodySm.copyWith(color: t.textBody)),
         const SizedBox(height: SmokeTokens.s3),
         if (rules.isEmpty)
           Text(
@@ -244,21 +248,27 @@ class _AlarmRulesRouteState extends State<AlarmRulesRoute> {
             style: SmokeType.bodySm.copyWith(color: t.textMuted),
           )
         else
-          for (final rule in rules)
-            _RuleRow(
-              key: Key('alarm-rule-${rule.id}'),
-              rule: rule,
-              celsius: ShellScope.maybeOf(context)?.celsius ?? false,
-              busy: _pushing.contains(rule.id),
-              // A control that cannot work is disabled **with its reason**.
-              disabledReason: tier == AlarmTier.device && !canPush
-                  ? 'Connect over Wi-Fi to change the bridge’s own rules.'
-                  : '',
-              onToggle: (v) =>
-                  unawaited(_save(rule.copyWith(enabled: v))),
-              onEdit: () => unawaited(_edit(rule)),
-              onDelete: () => unawaited(_delete(rule)),
-            ),
+          SettingsGroup(
+            // A control that cannot work is disabled **with its reason**, and
+            // the reason is printed once at the foot of the card rather than
+            // under each of nine identical rows.
+            reason: locked
+                ? 'Connect over Wi-Fi to change the bridge’s own rules.'
+                : '',
+            children: [
+              for (final rule in rules)
+                _RuleRow(
+                  key: Key('alarm-rule-${rule.id}'),
+                  rule: rule,
+                  celsius: ShellScope.maybeOf(context)?.celsius ?? false,
+                  busy: _pushing.contains(rule.id),
+                  locked: locked,
+                  onToggle: (v) => unawaited(_save(rule.copyWith(enabled: v))),
+                  onEdit: () => unawaited(_edit(rule)),
+                  onDelete: () => unawaited(_delete(rule)),
+                ),
+            ],
+          ),
       ],
     );
   }
@@ -290,7 +300,9 @@ class _AlarmRulesRouteState extends State<AlarmRulesRoute> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'PROVE IT',
+          // Not "PROVE IT". 16 §16.4: never cute, and a section label that
+          // shouts an imperative reads as a dare rather than a heading.
+          'TEST ALARM',
           style: SmokeType.label.copyWith(color: t.textMuted),
         ),
         const SizedBox(height: SmokeTokens.s2),
@@ -312,8 +324,11 @@ class _AlarmRulesRouteState extends State<AlarmRulesRoute> {
   );
 }
 
-/// One rule row. Stateless over plain values, so the whole editor renders in a
-/// widget test with no transport and no database.
+/// One rule row, shaped like every other settings row: label left, value
+/// right, a subtitle that **explains** (16 §16.5).
+///
+/// Stateless over plain values, so the whole editor renders in a widget test
+/// with no transport and no database.
 class _RuleRow extends StatelessWidget {
   const _RuleRow({
     required this.rule,
@@ -322,14 +337,18 @@ class _RuleRow extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     this.busy = false,
-    this.disabledReason = '',
+    this.locked = false,
     super.key,
   });
 
   final AlarmRuleSpec rule;
   final bool celsius;
   final bool busy;
-  final String disabledReason;
+
+  /// The lane cannot push device rules. The card carries the sentence once, at
+  /// its foot, so the row only has to go inert.
+  final bool locked;
+
   final ValueChanged<bool> onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -337,31 +356,50 @@ class _RuleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final locked = disabledReason.isNotEmpty;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: SmokeTokens.s2),
-      child: SmokeCard(
-        onTap: locked ? null : onEdit,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final params = _parameters();
+    final body = Padding(
+      padding: const EdgeInsets.symmetric(vertical: SmokeTokens.s2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         rule.type.label,
                         style: SmokeType.title.copyWith(color: t.textHi),
                       ),
+                      const SizedBox(height: SmokeTokens.s1),
                       Text(
-                        _summary(),
+                        // The blurbs are the best copy on this screen and they
+                        // used to be hidden on exactly the rules somebody had
+                        // configured: `_summary()` returned the blurb only
+                        // when nothing was set, so a working rule read "Probe
+                        // 3 · 203°F · held 5m" and never said what it does.
+                        // The blurb explains; the parameters are the value.
+                        rule.type.blurb,
                         style: SmokeType.bodySm.copyWith(color: t.textMuted),
                       ),
                     ],
                   ),
                 ),
+                if (params.isNotEmpty) ...[
+                  const SizedBox(width: SmokeTokens.s3),
+                  Flexible(
+                    child: Text(
+                      params,
+                      textAlign: TextAlign.right,
+                      style: SmokeType.body.copyWith(color: t.textHi),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: SmokeTokens.s3),
                 if (busy)
                   const SizedBox(
                     width: 20,
@@ -376,50 +414,47 @@ class _RuleRow extends StatelessWidget {
                   ),
               ],
             ),
-            if (locked)
-              Padding(
-                padding: const EdgeInsets.only(top: SmokeTokens.s2),
-                child: Text(
-                  disabledReason,
-                  style: SmokeType.bodySm.copyWith(color: t.textMuted),
-                ),
-              )
-            else if (rule.tier == AlarmTier.device)
-              Padding(
-                padding: const EdgeInsets.only(top: SmokeTokens.s2),
-                child: Text(
-                  // Never "Saved" on the strength of a return value.
-                  rule.pushedToDevice
-                      ? 'Saved to the bridge'
-                      : 'Not saved to the bridge yet — it will be sent again '
-                            'when the bridge answers.',
-                  style: SmokeType.labelSm.copyWith(
-                    color: rule.pushedToDevice ? t.textMuted : t.textBody,
-                  ),
-                ),
+          ),
+          if (!locked && rule.tier == AlarmTier.device)
+            Text(
+              // Never "Saved" on the strength of a return value.
+              rule.pushedToDevice
+                  ? 'Saved to the bridge'
+                  : 'Not saved to the bridge yet — it will be sent again when '
+                        'the bridge answers.',
+              style: SmokeType.labelSm.copyWith(
+                color: rule.pushedToDevice ? t.textMuted : t.textBody,
               ),
-          ],
-        ),
+            ),
+        ],
       ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SmokeTokens.s4),
+      child: locked ? body : InkWell(onTap: onEdit, child: body),
     );
   }
 
-  String _summary() {
+  /// What this rule is set to — the probe, the threshold, the dwell. Empty
+  /// when the rule carries none, which is the honest way to say "it just
+  /// watches".
+  String _parameters() {
     final unit = rule.type.thresholdUnit;
     final v = rule.threshold;
-    final parts = <String>[
+    return <String>[
       if (rule.jack != null) 'Probe ${rule.jack}',
       if (v != null && unit != null)
         switch (unit) {
-          AlarmThresholdUnit.temperatureF10 =>
-            formatSetpoint(v, celsius: celsius),
+          AlarmThresholdUnit.temperatureF10 => formatSetpoint(
+            v,
+            celsius: celsius,
+          ),
           AlarmThresholdUnit.degreesBelowTarget =>
             '${(v / 10).round()}° before target',
           AlarmThresholdUnit.seconds => formatDuration(v),
           AlarmThresholdUnit.percent => '$v%',
         },
       if (rule.windowS != null) 'held ${formatDuration(rule.windowS!)}',
-    ];
-    return parts.isEmpty ? rule.type.blurb : parts.join(' · ');
+    ].join(' · ');
   }
 }

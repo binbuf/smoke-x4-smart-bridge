@@ -33,7 +33,10 @@ class MonoWell extends StatelessWidget {
       onTap: copyable
           ? () {
               Clipboard.setData(ClipboardData(text: value));
-              HapticFeedback.selectionClick();
+              // Through the vocabulary, not a raw impact: this is a discrete
+              // choice landing, and `selection` is the one intent that means
+              // that (design/haptics.dart).
+              SmokeHaptics.fire(SmokeHaptic.selection);
               ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                 SnackBar(content: Text('Copied ${label ?? value}')),
               );

@@ -1614,7 +1614,11 @@ String toString() {
 /// @nodoc
 mixin _$BridgeConfig {
 
- String? get displayUnits; List<Probe>? get probes; BatterySaverMode? get batterySaver;
+ String? get displayUnits; List<Probe>? get probes; BatterySaverMode? get batterySaver;/// The bridge's own OLED timeout, seconds. The firmware has taken this
+/// since F13; nothing could send it.
+ int? get displayTimeoutS;/// The status LED. Likewise.
+ bool? get ledEnabled;/// How many cooks the bridge keeps before the oldest are dropped.
+ int? get maxSessions;
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1625,16 +1629,16 @@ $BridgeConfigCopyWith<BridgeConfig> get copyWith => _$BridgeConfigCopyWithImpl<B
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other.probes, probes)&&(identical(other.batterySaver, batterySaver) || other.batterySaver == batterySaver));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other.probes, probes)&&(identical(other.batterySaver, batterySaver) || other.batterySaver == batterySaver)&&(identical(other.displayTimeoutS, displayTimeoutS) || other.displayTimeoutS == displayTimeoutS)&&(identical(other.ledEnabled, ledEnabled) || other.ledEnabled == ledEnabled)&&(identical(other.maxSessions, maxSessions) || other.maxSessions == maxSessions));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(probes),batterySaver);
+int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(probes),batterySaver,displayTimeoutS,ledEnabled,maxSessions);
 
 @override
 String toString() {
-  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes, batterySaver: $batterySaver)';
+  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes, batterySaver: $batterySaver, displayTimeoutS: $displayTimeoutS, ledEnabled: $ledEnabled, maxSessions: $maxSessions)';
 }
 
 
@@ -1645,7 +1649,7 @@ abstract mixin class $BridgeConfigCopyWith<$Res>  {
   factory $BridgeConfigCopyWith(BridgeConfig value, $Res Function(BridgeConfig) _then) = _$BridgeConfigCopyWithImpl;
 @useResult
 $Res call({
- String? displayUnits, List<Probe>? probes, BatterySaverMode? batterySaver
+ String? displayUnits, List<Probe>? probes, BatterySaverMode? batterySaver, int? displayTimeoutS, bool? ledEnabled, int? maxSessions
 });
 
 
@@ -1662,12 +1666,15 @@ class _$BridgeConfigCopyWithImpl<$Res>
 
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? displayUnits = freezed,Object? probes = freezed,Object? batterySaver = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? displayUnits = freezed,Object? probes = freezed,Object? batterySaver = freezed,Object? displayTimeoutS = freezed,Object? ledEnabled = freezed,Object? maxSessions = freezed,}) {
   return _then(_self.copyWith(
 displayUnits: freezed == displayUnits ? _self.displayUnits : displayUnits // ignore: cast_nullable_to_non_nullable
 as String?,probes: freezed == probes ? _self.probes : probes // ignore: cast_nullable_to_non_nullable
 as List<Probe>?,batterySaver: freezed == batterySaver ? _self.batterySaver : batterySaver // ignore: cast_nullable_to_non_nullable
-as BatterySaverMode?,
+as BatterySaverMode?,displayTimeoutS: freezed == displayTimeoutS ? _self.displayTimeoutS : displayTimeoutS // ignore: cast_nullable_to_non_nullable
+as int?,ledEnabled: freezed == ledEnabled ? _self.ledEnabled : ledEnabled // ignore: cast_nullable_to_non_nullable
+as bool?,maxSessions: freezed == maxSessions ? _self.maxSessions : maxSessions // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -1752,10 +1759,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver,  int? displayTimeoutS,  bool? ledEnabled,  int? maxSessions)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BridgeConfig() when $default != null:
-return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
+return $default(_that.displayUnits,_that.probes,_that.batterySaver,_that.displayTimeoutS,_that.ledEnabled,_that.maxSessions);case _:
   return orElse();
 
 }
@@ -1773,10 +1780,10 @@ return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver,  int? displayTimeoutS,  bool? ledEnabled,  int? maxSessions)  $default,) {final _that = this;
 switch (_that) {
 case _BridgeConfig():
-return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
+return $default(_that.displayUnits,_that.probes,_that.batterySaver,_that.displayTimeoutS,_that.ledEnabled,_that.maxSessions);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1793,10 +1800,10 @@ return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? displayUnits,  List<Probe>? probes,  BatterySaverMode? batterySaver,  int? displayTimeoutS,  bool? ledEnabled,  int? maxSessions)?  $default,) {final _that = this;
 switch (_that) {
 case _BridgeConfig() when $default != null:
-return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
+return $default(_that.displayUnits,_that.probes,_that.batterySaver,_that.displayTimeoutS,_that.ledEnabled,_that.maxSessions);case _:
   return null;
 
 }
@@ -1808,7 +1815,7 @@ return $default(_that.displayUnits,_that.probes,_that.batterySaver);case _:
 
 
 class _BridgeConfig implements BridgeConfig {
-  const _BridgeConfig({this.displayUnits, final  List<Probe>? probes, this.batterySaver}): _probes = probes;
+  const _BridgeConfig({this.displayUnits, final  List<Probe>? probes, this.batterySaver, this.displayTimeoutS, this.ledEnabled, this.maxSessions}): _probes = probes;
   
 
 @override final  String? displayUnits;
@@ -1822,6 +1829,13 @@ class _BridgeConfig implements BridgeConfig {
 }
 
 @override final  BatterySaverMode? batterySaver;
+/// The bridge's own OLED timeout, seconds. The firmware has taken this
+/// since F13; nothing could send it.
+@override final  int? displayTimeoutS;
+/// The status LED. Likewise.
+@override final  bool? ledEnabled;
+/// How many cooks the bridge keeps before the oldest are dropped.
+@override final  int? maxSessions;
 
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -1833,16 +1847,16 @@ _$BridgeConfigCopyWith<_BridgeConfig> get copyWith => __$BridgeConfigCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other._probes, _probes)&&(identical(other.batterySaver, batterySaver) || other.batterySaver == batterySaver));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BridgeConfig&&(identical(other.displayUnits, displayUnits) || other.displayUnits == displayUnits)&&const DeepCollectionEquality().equals(other._probes, _probes)&&(identical(other.batterySaver, batterySaver) || other.batterySaver == batterySaver)&&(identical(other.displayTimeoutS, displayTimeoutS) || other.displayTimeoutS == displayTimeoutS)&&(identical(other.ledEnabled, ledEnabled) || other.ledEnabled == ledEnabled)&&(identical(other.maxSessions, maxSessions) || other.maxSessions == maxSessions));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(_probes),batterySaver);
+int get hashCode => Object.hash(runtimeType,displayUnits,const DeepCollectionEquality().hash(_probes),batterySaver,displayTimeoutS,ledEnabled,maxSessions);
 
 @override
 String toString() {
-  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes, batterySaver: $batterySaver)';
+  return 'BridgeConfig(displayUnits: $displayUnits, probes: $probes, batterySaver: $batterySaver, displayTimeoutS: $displayTimeoutS, ledEnabled: $ledEnabled, maxSessions: $maxSessions)';
 }
 
 
@@ -1853,7 +1867,7 @@ abstract mixin class _$BridgeConfigCopyWith<$Res> implements $BridgeConfigCopyWi
   factory _$BridgeConfigCopyWith(_BridgeConfig value, $Res Function(_BridgeConfig) _then) = __$BridgeConfigCopyWithImpl;
 @override @useResult
 $Res call({
- String? displayUnits, List<Probe>? probes, BatterySaverMode? batterySaver
+ String? displayUnits, List<Probe>? probes, BatterySaverMode? batterySaver, int? displayTimeoutS, bool? ledEnabled, int? maxSessions
 });
 
 
@@ -1870,12 +1884,15 @@ class __$BridgeConfigCopyWithImpl<$Res>
 
 /// Create a copy of BridgeConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? displayUnits = freezed,Object? probes = freezed,Object? batterySaver = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? displayUnits = freezed,Object? probes = freezed,Object? batterySaver = freezed,Object? displayTimeoutS = freezed,Object? ledEnabled = freezed,Object? maxSessions = freezed,}) {
   return _then(_BridgeConfig(
 displayUnits: freezed == displayUnits ? _self.displayUnits : displayUnits // ignore: cast_nullable_to_non_nullable
 as String?,probes: freezed == probes ? _self._probes : probes // ignore: cast_nullable_to_non_nullable
 as List<Probe>?,batterySaver: freezed == batterySaver ? _self.batterySaver : batterySaver // ignore: cast_nullable_to_non_nullable
-as BatterySaverMode?,
+as BatterySaverMode?,displayTimeoutS: freezed == displayTimeoutS ? _self.displayTimeoutS : displayTimeoutS // ignore: cast_nullable_to_non_nullable
+as int?,ledEnabled: freezed == ledEnabled ? _self.ledEnabled : ledEnabled // ignore: cast_nullable_to_non_nullable
+as bool?,maxSessions: freezed == maxSessions ? _self.maxSessions : maxSessions // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

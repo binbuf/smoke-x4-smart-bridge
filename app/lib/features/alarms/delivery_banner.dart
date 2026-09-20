@@ -21,7 +21,6 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_env.dart';
 import '../../design/design.dart';
-import '../../ui/ui.dart';
 import 'delivery.dart';
 
 class DeliveryBanner extends StatefulWidget {

@@ -77,10 +77,37 @@ class StaleVeil extends StatelessWidget {
           opacity: frozen ? 0.40 : 0.55,
           child: ColorFiltered(
             colorFilter: ColorFilter.matrix(matrix),
-            child: child,
+            // Tell everything underneath that the dimming is already being
+            // done for it. Without this the veil and each probe card both
+            // applied `freshness.ink`, and opacity composes by multiplying:
+            // 0.40 × 0.40 = **0.16** at frozen, 0.55² = 0.30 at stale — a
+            // hero temperature at well under half the ink 13 §13.6.1
+            // specifies, on the screen whose whole job is being readable
+            // across a dark yard.
+            child: _VeilScope(child: child),
           ),
         ),
       ],
     );
   }
 }
+
+/// Marks a subtree as already dimmed by a [StaleVeil].
+///
+/// A card that dims itself is right when it stands alone (the lab, a test, a
+/// list that has no veil above it) and wrong inside a veil, which dims the
+/// whole body at once. Rather than thread a flag through every caller, the
+/// veil says so and each card asks.
+class _VeilScope extends InheritedWidget {
+  const _VeilScope({required super.child});
+
+  @override
+  bool updateShouldNotify(_VeilScope oldWidget) => false;
+}
+
+/// Whether a [StaleVeil] above this context is already applying the dim.
+///
+/// Widgets that carry their own `Opacity(freshness.ink)` must skip it when
+/// this is true, or the two multiply.
+bool veilAlreadyDims(BuildContext context) =>
+    context.dependOnInheritedWidgetOfExactType<_VeilScope>() != null;

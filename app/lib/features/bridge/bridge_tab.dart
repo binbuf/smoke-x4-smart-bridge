@@ -1,40 +1,41 @@
-/// A24.3 — the Bridge tab: the device screen (design 13 §13.5.6).
+/// `/device` — "Is my bridge healthy, and how do I control it?" (design 16
+/// §16.6, newapp §C.5).
 ///
-/// Tab 4 of the shell. It answers "which bridge is this, is it reachable, and
-/// what can I do to it" — identity (name/id/ip/fw/last-seen), the two safe
-/// actions (Identify, re-run Wi-Fi setup), and the disruptive verbs
-/// (restart / forget / factory-reset / power-off), **each gated behind a cost
-/// sheet that spells out what it keeps and what it loses** rather than a generic
-/// "Are you sure?" (§13.5.6).
+/// **The lead card IS the situation.** That is the whole of this rebuild. The
+/// app has always had a connection *supervisor* that reconnects; what it never
+/// had was a layer that **reconciles** — that compares what the phone
+/// remembers against what it can observe and what the device says when
+/// reached, and turns the difference into a named cause with a remedy. Without
+/// one, every mismatch in the world collapsed into "Offline · retry 6": on the
+/// bench, a reflashed bridge came up hosting its own network and the app — which
+/// knew its Bluetooth bond, its device id and its last address — sat on a retry
+/// counter indefinitely, telling the user nothing and doing nothing.
 ///
-/// **State-first (A24.10).** The screen leads with a connection card that
-/// names the truth of right now — Bluetooth / Wi-Fi (hosted) / Wi-Fi (joined) /
-/// not connected / no bridge set up — and everything below it declares which
-/// state it belongs to: identity rows say "last known" when the bridge is not
-/// reachable instead of presenting stale prefs as live facts (the board-found
-/// bug: a factory-reset bridge whose old id and IP still read as current), and
-/// the verbs that need a link are disabled with their reason when there is
-/// none.
+/// So this screen leads with [SituationCard], fed by [SituationResolver], and
+/// the rule underneath it is §16.3's: **act, then report.** Anything the app
+/// can fix, it fixes — re-learning a moved address, adopting a bridge the phone
+/// forgot but is still bonded to, setting the clock, retrying — and the card
+/// then says what was done, in the past tense. It never offers to do something
+/// it could simply have done. The one exception is identity: a bridge that has
+/// been reset is never adopted automatically, because attaching a phone's
+/// history to a device that did not record it is not the app's decision to
+/// make.
 ///
-/// **Data source.** The shell passes its shared [ShellSession]: the live
-/// [DashboardSnapshot] (link, mode, address, last reading, paired), the
-/// supervisor's [LiveLink] health, and the already-open transport (a `status()`
-/// read for firmware and id). With no session (bare tests), it falls back to
-/// `AppEnv.instance` prefs, explicitly framed as last-known.
+/// Below the lead card, in §C.5's order: how it connects (§E.1's three plain
+/// choices, switched through §E.3's rollback wizard), the bridge's own facts,
+/// the way in to alarms and every settings page, and the four disruptive verbs
+/// — each still behind a cost sheet that spells out what it keeps and what it
+/// loses, and each still verified by watching the bridge actually go down.
 ///
-/// **No dead controls** (`settings_screen.dart:5-11`, rail R2): Identify has no
-/// wire verb in this build, so it is present-and-disabled *with its reason on
-/// screen*, the same discipline the settings epic used for battery calibration.
+/// **Never a wall of dashes.** A phone that has never met a bridge gets one
+/// card and one action; a bridge that cannot be reached says when it was last
+/// seen rather than showing a page of "—" where facts used to be.
 ///
-/// **Signal (A26).** The connection card names not just *which* link but *how
-/// strong* it is, from [BridgeTransport.signal]. The two hops are labelled
-/// separately and never conflated, because only one of them is measurable on
-/// each lane: Bluetooth reads the phone↔bridge RSSI off the phone's own radio,
-/// Wi-Fi can only report the bridge's uplink to the router, and on the
-/// bridge's own hosted network neither end can see the other's radio at all —
-/// so that state says so and shows the client count instead of inventing bars.
-/// The rows poll only while this tab is the visible one; a signal meter is not
-/// worth waking the radio behind three other screens.
+/// **Signal (A26), unchanged.** Two hops, never conflated: only Bluetooth can
+/// measure phone↔bridge, only the bridge can measure bridge↔router, and on the
+/// bridge's own network neither end can see the other's radio — so that state
+/// says so and shows the client count instead of inventing bars. The rows poll
+/// only while this tab is the visible one.
 library;
 
 import 'dart:async';
@@ -42,32 +43,43 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'connection_mode_card.dart';
+import 'netmode_sheet.dart';
+import 'situation_card.dart';
 import 'verb_progress.dart';
 
 import '../../app/app_env.dart';
 import '../../app/router.dart';
 import '../../core/core.dart';
+import '../../data/dto/dto.dart' as dto;
 import '../../data/prefs/bridge_prefs.dart';
+import '../../data/transport/ble_transport.dart' show BleTransport;
 import '../../data/transport/bridge_transport.dart';
 import '../../design/design.dart';
 import '../../domain/entities/entities.dart';
+import '../../domain/situation/situation.dart';
 import '../../ui/ui.dart';
+import '../alarms/delivery_banner.dart';
 import '../dashboard/dashboard_snapshot.dart';
+import '../settings/netmode_switch.dart' show kNetModeRevertS;
 import '../settings/settings_screen.dart' show SettingsSection;
 import '../shell/connection_sheet.dart';
 import '../shell/shell_scope.dart';
 import '../shell/shell_session.dart';
+import '../shell/situation_probe_platform.dart';
+import '../shell/situation_resolver.dart';
 
 class BridgeTab extends StatefulWidget {
-  /// [session] and [prefs] are both optional so the shell's `const BridgeTab()`
-  /// keeps compiling: a one-line import swap lands the real screen, and passing
-  /// `session:` later lights up its live data. Tests inject a seeded session.
+  /// Every seam is optional so the shell's `const BridgeTab()` keeps
+  /// compiling; tests inject a seeded session, prefs, a stub transport and a
+  /// fake [SituationProbe].
   const BridgeTab({
     super.key,
     this.session,
     this.prefs,
     this.transport,
     this.active,
+    this.probe,
   });
 
   /// Injected by tests. In the app it is null and the tab reads the one live
@@ -76,26 +88,29 @@ class BridgeTab extends StatefulWidget {
   final ShellSession? session;
   final BridgePrefs? prefs;
 
-  /// Test seam: the transport the identity and signal rows read from.
-  /// Production passes nothing and the tab reaches through the session (or,
-  /// failing that, the remembered address) exactly as it always has.
+  /// Test seam: the transport the identity, signal and reconciliation reads
+  /// go through. Production passes nothing and the tab reaches through the
+  /// session (or, failing that, the remembered address).
   final BridgeTransport? transport;
 
-  /// Whether this tab is the one on screen. All four shell branches stay
-  /// mounted, so "mounted" is not "visible" — and the signal poll must not run
-  /// against a bridge nobody is looking at. Null reads it from [ShellScope]
-  /// (and is true with no shell above, as in a bare test).
+  /// Whether this tab is the one on screen. All branches stay mounted, so
+  /// "mounted" is not "visible" — and the signal poll must not run against a
+  /// bridge nobody is looking at. Null reads it from [ShellScope] (and is true
+  /// with no shell above, as in a bare test).
   final bool? active;
+
+  /// The observable middle column of §16.3 — the radio, the permission, the
+  /// surviving bond. Null builds the real one on a bootstrapped app and
+  /// [UnknownSituationProbe] everywhere else, which knows nothing and
+  /// therefore claims nothing.
+  final SituationProbe? probe;
 
   @override
   State<BridgeTab> createState() => _BridgeTabState();
 }
 
 class _BridgeTabState extends State<BridgeTab> {
-  /// Fetched for the firmware and device-id rows; null until it lands. Retried
-  /// from [build] whenever the session connects after this tab first mounted —
-  /// the shell rebuilds on every session change, so a late link still fills
-  /// the rows.
+  /// Fetched for the firmware and device-id rows; null until it lands.
   BridgeStatus? _status;
 
   /// A26 — the live signal, or null when it has not landed (or the last read
@@ -108,10 +123,14 @@ class _BridgeTabState extends State<BridgeTab> {
   /// not" — two states that must never read the same.
   bool _signalFailed = false;
 
-  /// The link the value in [_signal] was measured on. A dBm from the Wi-Fi
-  /// lane rendered under a Bluetooth heading is the same class of lie as the
-  /// stale-IP bug this screen was rebuilt to kill, so a swap discards it.
+  /// The link the value in [_signal] was measured on. A swap discards it.
   LinkKind? _signalLink;
+
+  /// What the **bridge** says its own network mode is, as opposed to what the
+  /// link can infer. Null until it answers. This is the fact that ends the
+  /// bench failure: over Bluetooth the snapshot knows nothing about Wi-Fi, and
+  /// "the bridge is hosting its own network" is only discoverable by asking.
+  String? _deviceNetMode;
 
   bool _fetching = false;
   Timer? _poll;
@@ -119,6 +138,27 @@ class _BridgeTabState extends State<BridgeTab> {
   /// A signal that is older than this is not worth showing; the poll keeps it
   /// fresher than that whenever the tab is visible.
   static const Duration _pollEvery = Duration(seconds: 20);
+
+  /// The resolver this screen is reading, and whether it owns it.
+  ///
+  /// **Normally it does not.** The shell owns one resolver for the whole app
+  /// (16 §16.3), because a reconciliation layer that only exists while this
+  /// tab is mounted is a reconciliation layer that never runs for anyone who
+  /// stays on the reader — which is what it used to be. This screen borrows
+  /// that one so `/live` and `/device` state the *same* situation.
+  ///
+  /// It builds its own only when there is no shell above it (a direct-mount
+  /// test) or when a test injected a [SituationProbe] to describe a
+  /// particular phone. [_ownsResolver] is what dispose keys off, so a
+  /// borrowed resolver outlives this screen and an owned one does not leak.
+  SituationResolver? _bound;
+  bool _ownsResolver = false;
+
+  SituationResolver get _resolver => _bound!;
+
+  /// The link the last reconciliation ran against, so a supervisor swap
+  /// (offline → Bluetooth, Bluetooth → Wi-Fi) re-reconciles exactly once.
+  ({LinkKind? link, String? netMode})? _reconciledAt;
 
   BridgePrefs? get _prefs => widget.prefs ?? AppEnv.instance?.prefs;
 
@@ -133,17 +173,9 @@ class _BridgeTabState extends State<BridgeTab> {
   bool? _activeResolved;
   bool get _active => _activeResolved ?? true;
 
-  /// The one question every section of this screen keys off: is the bridge
-  /// reachable right now?
+  /// The one question every section of this screen keys off.
   bool get _connected =>
       _snapshot != null && _snapshot!.link != LinkKind.offline;
-
-  /// Whether this phone knows a bridge at all — false on a fresh install and
-  /// after a factory reset has forgotten it.
-  bool get _remembered =>
-      (_prefs?.lastBaseUrl ?? '').isNotEmpty ||
-      (_prefs?.lastBridgeId ?? '').isNotEmpty ||
-      _snapshot != null;
 
   @override
   void initState() {
@@ -151,17 +183,70 @@ class _BridgeTabState extends State<BridgeTab> {
     unawaited(_fetchDeviceInfo());
   }
 
+  /// Attach to the shell's resolver, or build one if there is nothing to
+  /// borrow. Runs from [didChangeDependencies], which is the first point a
+  /// [ShellScope] is reachable.
+  void _bindResolver() {
+    // An injected probe means a test is describing a specific phone, so it
+    // gets its own resolver rather than the shell's real one.
+    final shared = widget.probe == null ? _live?.situationResolver : null;
+    final next = shared ?? _bound ?? _buildOwnResolver();
+    if (identical(next, _bound)) {
+      return;
+    }
+    _releaseResolver();
+    _bound = next;
+    _ownsResolver = shared == null;
+    next.addListener(_onResolved);
+  }
+
+  SituationResolver _buildOwnResolver() => SituationResolver(
+    prefs: _prefs,
+    probe: widget.probe ?? _buildProbe(),
+    shell: LiveSituationShell(
+      snapshotOf: () => _snapshot,
+      transportOf: () => _open,
+      runningCook: () => _live?.plan != null,
+      netStatusOf: _readDeviceNetStatus,
+      onRetry: _retryNow,
+    ),
+  );
+
+  void _releaseResolver() {
+    final old = _bound;
+    if (old == null) {
+      return;
+    }
+    old.removeListener(_onResolved);
+    if (_ownsResolver) {
+      old.dispose();
+    }
+    _bound = null;
+  }
+
+  /// The real probe only on a bootstrapped app. A widget test has no
+  /// `AppEnv`, no channels and no radio, and a probe that reached for them
+  /// would be answering questions about a phone that is not there.
+  SituationProbe _buildProbe() => AppEnv.instance == null
+      ? const UnknownSituationProbe()
+      : DeferredSituationProbe(PlatformSituationProbe.create());
+
+  void _onResolved() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   /// Both the session and the visibility come from [ShellScope], which is only
-  /// reachable once dependencies are available — so the poll is (re)armed here
-  /// rather than in `initState`.
+  /// reachable once dependencies are available.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _session = ShellScope.maybeOf(context);
+    _bindResolver();
     _syncActive();
   }
 
-  /// An explicitly passed `active` (tests) changes through here.
   @override
   void didUpdateWidget(BridgeTab old) {
     super.didUpdateWidget(old);
@@ -169,7 +254,7 @@ class _BridgeTabState extends State<BridgeTab> {
   }
 
   void _syncActive() {
-    final active = widget.active ?? ShellScope.isActive(context, 3);
+    final active = widget.active ?? ShellScope.isActive(context, 2);
     if (active == _activeResolved) {
       return;
     }
@@ -187,6 +272,7 @@ class _BridgeTabState extends State<BridgeTab> {
   @override
   void dispose() {
     _poll?.cancel();
+    _releaseResolver();
     super.dispose();
   }
 
@@ -199,8 +285,7 @@ class _BridgeTabState extends State<BridgeTab> {
   }
 
   /// The transport this screen asks, in preference order: an injected one
-  /// (tests), the shell session's open link (no second socket), then nothing —
-  /// the remembered-address fallback is built per read in [_fetchDeviceInfo].
+  /// (tests), the shell session's open link (no second socket), then nothing.
   BridgeTransport? get _open => widget.transport ?? _live?.bridge?.transport;
 
   void _maybeRefetch() {
@@ -210,10 +295,7 @@ class _BridgeTabState extends State<BridgeTab> {
   }
 
   /// One `status()` + one `signal()` read, for the identity rows and the
-  /// signal rows. Reuses the shell session's open transport when present (no
-  /// second socket); otherwise builds one from the remembered address and
-  /// closes it straight after — the same build-ask-close shape `AppConnection`
-  /// uses to probe a lane.
+  /// signal rows. Reuses the shell session's open transport when present.
   Future<void> _fetchDeviceInfo() async {
     if (_fetching) {
       return; // a pull landing on top of a tick must not double the reads
@@ -228,8 +310,9 @@ class _BridgeTabState extends State<BridgeTab> {
       final env = AppEnv.instance;
       final url = env?.prefs.lastBaseUrl;
       if (env == null || url == null || url.isEmpty) {
-        // BLE, a fresh install, or a bare test — the rows fall back to prefs
-        // and the signal block stays absent rather than showing a stale dBm.
+        // Bluetooth, a fresh install, or a bare test — the rows fall back to
+        // prefs and the signal block stays absent rather than showing a stale
+        // reading.
         return;
       }
       await _readInto(env.transportFor(url), close: true);
@@ -271,18 +354,282 @@ class _BridgeTabState extends State<BridgeTab> {
     }
   }
 
-  /// Pull-to-refresh (13 §13.5.2): ask the unit for a new value, then
-  /// re-read this screen's own rows. The session reports its own failure
-  /// through the shell's top bar; the device rows just refill or stay `—`.
+  /// What the device says about its own network, over whichever lane is up.
+  ///
+  /// Wi-Fi already carries it in the snapshot. **Bluetooth is the case that
+  /// matters**: `net_status` is readable over GATT, so a bridge that failed to
+  /// join your Wi-Fi and came up hosting its own can say so on the only lane
+  /// that can still reach it.
+  /// The SSID rides along because it comes from the same frame and it is what
+  /// lets the hosting copy name the network.
+  Future<({String? mode, String? ssid})> _readDeviceNetStatus() async {
+    final t = _open;
+    String? mode;
+    String? ssid;
+    if (t is BleTransport) {
+      try {
+        final net = await t.readNetStatus();
+        ssid = net.ssid;
+        mode = switch (net.modeEnum) {
+          dto.NetMode.ap => 'ap',
+          dto.NetMode.sta => 'sta',
+          // `off` is the radio down, which is neither of the two modes a
+          // user picks between — so it stays unknown rather than being
+          // rounded to one of them.
+          dto.NetMode.off || null => null,
+        };
+      } on Object {
+        mode = null;
+      }
+    }
+    mode ??= _snapshot?.netMode;
+    if (mounted && mode != _deviceNetMode) {
+      setState(() => _deviceNetMode = mode);
+    }
+    return (mode: mode, ssid: ssid);
+  }
+
+  /// Race every lane again. True when a link came up.
+  Future<bool> _retryNow() async {
+    final session = _live;
+    if (session == null) {
+      return false;
+    }
+    await session.refresh();
+    return !(session.liveLink?.offline ?? true);
+  }
+
+  /// Pull-to-refresh (13 §13.5.2): ask the unit for a new value, re-read this
+  /// screen's own rows, then reconcile against what came back.
   Future<void> _onRefresh() async {
     await _live?.refresh();
     await _fetchDeviceInfo();
+    await _resolver.evaluate();
   }
 
+  // ── the situation ─────────────────────────────────────────────────────
+
+  /// The lead card's subject.
+  ///
+  /// Renders from what the phone already knows **on the first frame** —
+  /// `reconcile` is pure, so a remembered-but-unreachable bridge says "last
+  /// seen 12 minutes ago" before any read lands, and a phone with no bridge
+  /// says so instead of showing an empty page. Once the resolver has gathered
+  /// real facts, its answer takes over.
+  Situation get _situation {
+    if (_resolver.facts != null) {
+      final s = _resolver.situation;
+      // A phone that is talking to a bridge *right now* does not have "no
+      // bridge set up", whatever the store says. That pair of facts happens
+      // for the few seconds between a first successful connection and the
+      // write that records it, and rendering it would put a card on screen
+      // that the connection card underneath immediately contradicts.
+      if (s.kind == SituationKind.neverSetUp && _connected) {
+        return Situation.ok;
+      }
+      return s;
+    }
+    if (_connected) {
+      // Reached, and nothing has yet said anything is wrong. Guessing at a
+      // cause here is how a healthy bridge gets accused of being reset.
+      return Situation.ok;
+    }
+    return reconcile(
+      SituationFacts(
+        rememberedBridgeId: _blank(_prefs?.lastBridgeId),
+        rememberedBaseUrl: _blank(_prefs?.lastBaseUrl),
+        rememberedBleDeviceId: _blank(_prefs?.lastBleDeviceId),
+        lastSeenUnixMs: _prefs?.lastSeenUnixMs,
+        hasRunningCook: _live?.plan != null,
+        nowUnixMs: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  static String? _blank(String? v) => v == null || v.isEmpty ? null : v;
+
+  /// Reconcile again whenever the link changes underneath us.
+  void _reconcileIfLinkMoved() {
+    final now = (link: _snapshot?.link, netMode: _snapshot?.netMode);
+    if (_reconciledAt == now) {
+      return;
+    }
+    _reconciledAt = now;
+    unawaited(_resolver.evaluate());
+  }
+
+  /// The single action the lead card offers. Null when nothing can perform it
+  /// right now, which renders the button disabled **with its reason beneath**
+  /// rather than live-and-inert.
+  /// A past-tense report normally carries no label at all, so there is nothing
+  /// to wire; the one that does — "Put it back on your Wi-Fi" after the app
+  /// joined the bridge's own network — is a real next step and stays live.
+  VoidCallback? _situationAction(Situation s) {
+    final act = actFor(s.kind);
+    if (act == SituationAct.none || s.actionLabel.isEmpty) {
+      return null;
+    }
+    if (_actionBlockedReason(act).isNotEmpty) {
+      return null;
+    }
+    return () => unawaited(_runAct(act));
+  }
+
+  /// Why the lead card's action cannot run, in the user's terms.
+  String _actionBlockedReason(SituationAct act) => switch (act) {
+    SituationAct.switchNetwork || SituationAct.updateFirmware => _connected
+        ? ''
+        : 'The bridge has to be reachable before this can change.',
+    SituationAct.adoptBridge => _connected
+        ? ''
+        : 'The bridge has to be reachable before this can change.',
+    _ => '',
+  };
+
+  Future<void> _runAct(SituationAct act) async {
+    switch (act) {
+      case SituationAct.none:
+        return;
+      case SituationAct.openBluetooth:
+      case SituationAct.grantPermission:
+        await _resolver.runOsAct();
+        await _resolver.evaluate();
+      case SituationAct.runSetup:
+      case SituationAct.pairBase:
+        if (mounted) {
+          context.go(AppRoutes.setup);
+        }
+      case SituationAct.adoptBridge:
+        await _confirmAdopt();
+      case SituationAct.switchNetwork:
+        await _switchMode(NetworkMode.sta);
+      case SituationAct.updateFirmware:
+        if (mounted) {
+          context.push(AppRoutes.settingsSection(SettingsSection.firmware));
+        }
+      case SituationAct.endCook:
+        await _live?.endCook();
+        await _resolver.evaluate();
+    }
+  }
+
+  /// #7 — identity, and the one thing the resolver refuses to do by itself.
+  Future<void> _confirmAdopt() async {
+    final reached = _resolver.facts?.reachedDeviceId ?? _deviceId;
+    final ok = await showCostSheet(
+      context,
+      title: 'Use this bridge instead?',
+      body:
+          'The bridge answering is $reached. This phone was set up with a '
+          'different one. From now on, readings and settings go to this one.',
+      keeps: 'Every cook already saved on this phone.',
+      loses: 'The link to the bridge this phone used to use.',
+      confirmLabel: 'Use this bridge',
+      cancelLabel: 'Keep looking for the old one',
+    );
+    if (ok) {
+      await _resolver.adoptReachedBridge();
+    }
+  }
+
+  // ── §E.1 / §E.3: changing how it connects ─────────────────────────────
+
+  Future<void> _choose(ConnectionChoice choice) async {
+    switch (choice) {
+      case ConnectionChoice.bluetooth:
+        await _preferBluetooth();
+      case ConnectionChoice.bridgeHosts:
+        await _switchMode(NetworkMode.ap);
+      case ConnectionChoice.joinsYours:
+        await _switchMode(NetworkMode.sta);
+    }
+  }
+
+  /// Bluetooth is a *phone-side* preference, not a device change — so it does
+  /// not go through the rollback wizard. It is still confirmed by read-back:
+  /// nothing on this screen claims a write it has not read back.
+  Future<void> _preferBluetooth() async {
+    final session = _live;
+    if (session == null) {
+      return;
+    }
+    await session.setPreferredTransport(PreferredTransport.ble);
+    if (!mounted) {
+      return;
+    }
+    if (session.preferredTransport == PreferredTransport.ble) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: Text('Set to prefer Bluetooth. Wi-Fi stays as a backup.'),
+        ),
+      );
+    }
+  }
+
+  /// §E.3 — the mode switch that kills the link carrying it.
+  ///
+  /// The protocol lives in `netmode_switch.dart` and the four screens in
+  /// `netmode_sheet.dart`; this only supplies the three seams they need. The
+  /// probe and the commit deliberately share one transport: a commit sent down
+  /// a *different* connection than the one that proved the bridge is serving
+  /// would be confirming something we never verified.
+  Future<void> _switchMode(NetworkMode target) async {
+    final transport = _open;
+    final env = AppEnv.instance;
+    if (transport == null) {
+      return;
+    }
+    final expected = target == NetworkMode.ap
+        ? 'http://192.168.4.1'
+        : 'http://smokebridge.local';
+    BridgeTransport? found;
+
+    await showNetModeSheet(
+      context,
+      target: target,
+      knownSsid: (_snapshot?.netMode == 'sta' && _signal != null)
+          ? _signal!.ssid
+          : '',
+      apply: (mode, ssid, psk) => transport.applyNetwork(
+        mode: mode,
+        ssid: ssid,
+        psk: psk,
+        revertAfterS: kNetModeRevertS,
+      ),
+      probe: () async {
+        if (env == null) {
+          return false;
+        }
+        final t = found ??= env.transportFor(expected);
+        try {
+          final s = await t.status();
+          return s.deviceId.isNotEmpty;
+        } on Object {
+          return false;
+        }
+      },
+      commit: () async {
+        final t = found;
+        if (t == null) {
+          // Nothing proved the bridge is serving on the new network, so there
+          // is nothing to confirm. Throwing keeps the wizard hunting rather
+          // than letting it report a success with a two-minute fuse on it.
+          throw StateError('no verified link to commit on');
+        }
+        await t.commitNetworkMode();
+        await _prefs?.recordConnection(expected);
+      },
+    );
+    await found?.close();
+    if (mounted) {
+      await _onRefresh();
+    }
+  }
+
+  // ── verbs ─────────────────────────────────────────────────────────────
+
   /// Runs a disruptive verb inside the completion sheet (A24.9): send, then
-  /// verify by watching the bridge actually go down, then a done state. The
-  /// send goes through the shared session when present; otherwise a
-  /// per-command transport that also serves as the probe.
+  /// verify by watching the bridge actually go down, then a done state.
   Future<void> _runVerb(DisruptiveVerb verb, ControlCommand cmd) async {
     final session = _live;
     final bridge = session?.bridge;
@@ -331,17 +678,21 @@ class _BridgeTabState extends State<BridgeTab> {
     await fallback?.close();
   }
 
-  /// The diagnostics gate. Five taps on the firmware row — the convention
+  /// The diagnostics gate. Five taps on the device-id row — the convention
   /// every Android user already knows from Build number.
-  int _fwTaps = 0;
+  ///
+  /// It used to live on the firmware row, which now has a real destination of
+  /// its own (the update page §C.5 asks for). A row cannot both navigate on
+  /// the first tap and count to five.
+  int _idTaps = 0;
 
-  void _tapFirmware() {
-    _fwTaps++;
-    if (_fwTaps < 5) {
+  void _tapDeviceId() {
+    _idTaps++;
+    if (_idTaps < 5) {
       return;
     }
-    _fwTaps = 0;
-    context.push('${AppRoutes.bridge}/${SettingsSection.advanced.slug}');
+    _idTaps = 0;
+    context.push(AppRoutes.settingsSection(SettingsSection.advanced));
   }
 
   Future<void> _forget() async {
@@ -361,10 +712,7 @@ class _BridgeTabState extends State<BridgeTab> {
             ? _live!.bridge!.bridgeId
             : (_prefs?.lastBridgeId ?? noValue));
 
-  /// The address the app is USING, never a stale one presented as live: the
-  /// snapshot's address while on Wi-Fi, an explicit "none — via Bluetooth"
-  /// while on BLE (there is no address in use), and the remembered one only
-  /// inside the last-known framing when disconnected.
+  /// The address the app is USING, never a stale one presented as live.
   String get _address {
     if (_connected && _snapshot!.link == LinkKind.ble) {
       return 'none — via Bluetooth';
@@ -392,23 +740,65 @@ class _BridgeTabState extends State<BridgeTab> {
     return when.isEmpty ? noValue : when;
   }
 
+  /// **Absent is not zero.** Null battery with `batteryKnown` false means this
+  /// device cannot report one, which is a different fact from a flat one.
+  String get _battery {
+    final s = _snapshot;
+    if (s == null || !s.batteryKnown || s.socPct == null) {
+      return noValue;
+    }
+    return s.charging ? '${s.socPct}% · charging' : '${s.socPct}%';
+  }
+
+  /// Why the battery reads `—`, told apart the way [_storageWhy] already
+  /// tells storage apart.
+  ///
+  /// "This bridge does not report a battery level" is a claim about the
+  /// *hardware*, and it was being made about a bridge that was merely
+  /// unreachable, or reachable but not yet read — because
+  /// `DashboardSnapshot.batteryKnown` is false in all three cases. Accusing a
+  /// device of lacking a sensor because a read has not come back yet is the
+  /// same class of lie as rendering a default as a fact.
+  String get _batteryWhy {
+    if (_battery != noValue) {
+      return '';
+    }
+    if (_snapshot == null) {
+      return 'Not read yet.';
+    }
+    return _snapshot!.batteryKnown
+        ? 'Not read yet.'
+        : 'This bridge does not report a battery level.';
+  }
+
+  /// Storage, or an honest absence. `BridgeStatus.storageFreePct` defaults to
+  /// 0 and the Bluetooth lane leaves it there, so a bare 0 would read as "the
+  /// bridge is full" on the one transport that cannot know.
+  String get _storage {
+    if (_snapshot?.link == LinkKind.ble || _status == null) {
+      return noValue;
+    }
+    return '${_status!.storageFreePct}% free';
+  }
+
+  String get _storageWhy {
+    if (_snapshot?.link == LinkKind.ble) {
+      return 'The bridge only reports its storage over Wi-Fi.';
+    }
+    return _status == null ? 'Not read yet.' : '';
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     _maybeRefetch();
-    // A phone with no bridge at all gets ONE clear card and its one action —
-    // not a page of dashes pretending there is something to manage.
-    final children = (!_remembered && !_connected)
-        ? [_connectionCard(t)]
-        : [
-            _connectionCard(t),
-            const SizedBox(height: SmokeTokens.s4),
-            _identityCard(t),
-            const SizedBox(height: SmokeTokens.s4),
-            _actionsCard(t),
-            const SizedBox(height: SmokeTokens.s4),
-            _dangerCard(t),
-          ];
+    _reconcileIfLinkMoved();
+
+    final situation = _situation;
+    // A phone with no bridge at all gets ONE card and its one action — not a
+    // page of dashes pretending there is something to manage.
+    final onlySituation = situation.kind == SituationKind.neverSetUp;
+
     return SafeArea(
       top: false,
       child: RefreshIndicator(
@@ -419,227 +809,63 @@ class _BridgeTabState extends State<BridgeTab> {
           // that cannot scroll cannot be pulled.
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(SmokeTokens.s4),
-          children: children,
-        ),
-      ),
-    );
-  }
-
-  // ── the connection card: the state of right now, always first ─────────
-
-  ({IconData icon, String title, String caption}) get _connectionState {
-    final link = _snapshot?.link;
-    final upgrading = _live?.liveLink?.upgrading ?? false;
-    if (link == LinkKind.http) {
-      final hosted = _snapshot?.netMode == 'ap';
-      return (
-        icon: hosted ? Icons.wifi_tethering_rounded : Icons.wifi_rounded,
-        title: hosted
-            ? 'Wi-Fi — the bridge’s own network'
-            : 'Wi-Fi — your network',
-        caption: hosted
-            ? 'Connected on the bridge’s own network at $_address. '
-                  'Full history, settings, and updates are available.'
-            : 'Connected through your network at $_address. '
-                  'Full history, settings, and updates are available.',
-      );
-    }
-    if (link == LinkKind.ble) {
-      return (
-        icon: Icons.bluetooth_rounded,
-        title: 'Bluetooth',
-        caption: upgrading
-            ? 'Live readings now, over Bluetooth. Connecting to Wi-Fi in '
-                  'the background for full history.'
-            : 'Live readings over Bluetooth. Connect Wi-Fi for full '
-                  'history, settings, and updates.',
-      );
-    }
-    if (_remembered) {
-      return (
-        icon: Icons.cloud_off_rounded,
-        title: 'Not connected',
-        caption:
-            'Can’t reach the bridge right now. The app keeps trying '
-            'and reconnects on its own — Bluetooth first, then Wi-Fi.',
-      );
-    }
-    return (
-      icon: Icons.add_link_rounded,
-      title: 'No bridge set up',
-      caption:
-          'This phone isn’t linked to a bridge yet. Setup takes a few '
-          'minutes and starts over Bluetooth.',
-    );
-  }
-
-  Widget _connectionCard(SmokeTokens t) {
-    final s = _connectionState;
-    final session = _live;
-    return SmokeCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'CONNECTION',
-            style: SmokeType.label.copyWith(color: t.textMuted),
-          ),
-          const SizedBox(height: SmokeTokens.s3),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                s.icon,
-                size: 26,
-                color: _connected ? t.textHi : t.textMuted,
+          children: [
+            Text('Device', style: SmokeType.displayS.copyWith(color: t.textHi)),
+            const SizedBox(height: SmokeTokens.s4),
+            // §B.2 puts the "will this phone wake you?" verdict on `/live`
+            // **and** `/device`; it was mounted only on the reader, so a user
+            // whose notifications are blocked saw nothing on the one screen
+            // whose job is "how do I control this?".
+            const DeliveryBanner(),
+            if (!situation.isHealthy) ...[
+              SituationCard(
+                situation: situation,
+                onAct: _situationAction(situation),
+                disabledReason: _actionBlockedReason(actFor(situation.kind)),
+                busy: _resolver.acting,
               ),
-              const SizedBox(width: SmokeTokens.s3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.title,
-                      key: const Key('bridge-connection-title'),
-                      style: SmokeType.title.copyWith(color: t.textHi),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      s.caption,
-                      key: const Key('bridge-connection-caption'),
-                      style: SmokeType.bodySm.copyWith(color: t.textMuted),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(height: SmokeTokens.s4),
             ],
-          ),
-          if (_connected) ...[
-            const SizedBox(height: SmokeTokens.s3),
-            Divider(height: 1, color: t.hairline),
-            const SizedBox(height: SmokeTokens.s3),
-            _signalSection(t),
+            if (!onlySituation) ...[
+              ConnectionModeCard(
+                link: _snapshot?.link ?? LinkKind.offline,
+                netMode: _snapshot?.netMode,
+                deviceNetMode:
+                    _deviceNetMode ?? _resolver.facts?.reachedNetMode,
+                address: _snapshot?.address ?? '',
+                // A transport swap makes the last reading a fact about a
+                // different radio. Hide it until the next poll rather than
+                // relabel it.
+                signal: _signalLink == _snapshot?.link ? _signal : null,
+                signalFailed: _signalFailed,
+                disabledReason: _connected
+                    ? ''
+                    : 'The bridge has to be reachable before this can change.',
+                onChoose: (c) => unawaited(_choose(c)),
+                onManageConnection: _live == null
+                    ? null
+                    : () => unawaited(showConnectionSheet(context, _live!)),
+              ),
+              const SizedBox(height: SmokeTokens.s4),
+              _bridgeCard(t),
+              const SizedBox(height: SmokeTokens.s3),
+              // §16.6's order: the bridge's own state and its power controls
+              // sit together, above the way-in to the settings tree. Power off
+              // is a peer of "is it healthy?", not a footnote after ten
+              // navigation rows.
+              _dangerCard(t),
+              const SizedBox(height: SmokeTokens.s3),
+              _controlsGroups(t),
+            ],
           ],
-          const SizedBox(height: SmokeTokens.s3),
-          if (!_remembered && !_connected)
-            FilledButton.icon(
-              key: const Key('bridge-set-up'),
-              onPressed: () => context.go(AppRoutes.setup),
-              icon: const Icon(Icons.bluetooth_searching_rounded),
-              label: const Text('Set up a bridge'),
-            )
-          else if (session != null)
-            OutlinedButton.icon(
-              key: const Key('bridge-manage-connection'),
-              onPressed: () => unawaited(showConnectionSheet(context, session)),
-              icon: const Icon(Icons.swap_horiz_rounded),
-              label: const Text('Manage connection'),
-            ),
-        ],
+        ),
       ),
     );
   }
 
-  // ── signal: how strong, and between which two things ──────────────────
+  // ── the bridge's own facts ────────────────────────────────────────────
 
-  /// Only ever rendered while [_connected] — a dBm from a link that is down
-  /// is a number about the past presented as the present.
-  Widget _signalSection(SmokeTokens t) {
-    // A transport swap (BLE → Wi-Fi, or a failover back) makes the last
-    // reading a fact about a different radio. Hide it until the next poll
-    // rather than relabel it.
-    final sig = _signalLink == _snapshot?.link ? _signal : null;
-    final onBle = _snapshot?.link == LinkKind.ble;
-    final hosted =
-        _snapshot?.link == LinkKind.http && _snapshot?.netMode == 'ap';
-    final rows = <Widget>[];
-
-    // 1. The hop the user is standing in. Bluetooth is the only lane that can
-    //    measure it, and it measures it exactly.
-    if (onBle) {
-      rows.add(
-        _SignalRow(
-          key: const Key('bridge-signal-ble'),
-          icon: Icons.bluetooth_rounded,
-          title: 'Phone to bridge',
-          dbm: sig?.linkDbm,
-          kind: SignalKind.bluetooth,
-          // Absent, never faked — and a read that failed must not go on
-          // saying "measuring" as if it were still trying this instant.
-          unknownWhy: _signalFailed
-              ? 'Couldn’t measure it just now.'
-              : 'Measuring…',
-        ),
-      );
-    } else if (hosted) {
-      // The bridge is the access point. It cannot see the phone's radio and
-      // the phone will not report its own, so there is no number to show —
-      // say that, and show the one fact the bridge does have.
-      final n = sig?.apClients;
-      rows.add(
-        _SignalNote(
-          key: const Key('bridge-signal-hosted'),
-          icon: Icons.wifi_tethering_rounded,
-          title: 'Phone to bridge',
-          body: n == null
-              ? 'On the bridge’s own network. Neither end can measure this '
-                    'link’s strength.'
-              : 'On the bridge’s own network — '
-                    '${n == 1 ? "1 device" : "$n devices"} connected. Neither '
-                    'end can measure this link’s strength.',
-        ),
-      );
-    } else {
-      // Joined Wi-Fi: the phone reaches the bridge through the router, and
-      // Android will not hand this app its own RSSI without the location
-      // permission the manifest promises never to take (A6.6).
-      rows.add(
-        const _SignalNote(
-          key: Key('bridge-signal-wifi-phone'),
-          icon: Icons.wifi_rounded,
-          title: 'Phone to bridge',
-          body:
-              'Through your network. Android only reports this phone’s '
-              'Wi-Fi strength to apps that ask for location, which this one '
-              'does not.',
-        ),
-      );
-    }
-
-    // 2. The bridge's own uplink, on whichever lane could learn it. Over
-    //    Bluetooth this still works — net_status carries it — which is how
-    //    you find out the bridge has drifted out of Wi-Fi range while you
-    //    are standing next to it.
-    if (sig?.wifiDbm != null) {
-      rows.add(
-        _SignalRow(
-          key: const Key('bridge-signal-wifi'),
-          icon: Icons.router_rounded,
-          title: (sig!.ssid.isEmpty)
-              ? 'Bridge to your network'
-              : 'Bridge to ${sig.ssid}',
-          dbm: sig.wifiDbm,
-          kind: SignalKind.wifi,
-          unknownWhy: '',
-        ),
-      );
-    }
-
-    return Column(
-      key: const Key('bridge-signal'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('SIGNAL', style: SmokeType.label.copyWith(color: t.textMuted)),
-        const SizedBox(height: SmokeTokens.s2),
-        for (var i = 0; i < rows.length; i++) ...[
-          if (i > 0) const SizedBox(height: SmokeTokens.s3),
-          rows[i],
-        ],
-      ],
-    );
-  }
-
-  Widget _identityCard(SmokeTokens t) => SmokeCard(
+  Widget _bridgeCard(SmokeTokens t) => SmokeCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -656,64 +882,149 @@ class _BridgeTabState extends State<BridgeTab> {
           ),
         ],
         const SizedBox(height: SmokeTokens.s2),
-        StatRow(label: 'Device ID', value: _deviceId, mono: true),
-        StatRow(label: 'Address', value: _address, mono: true),
-        // Five taps on the firmware row opens the diagnostics console —
-        // packet log, novelty log, app log. It is a real support tool and it
-        // must stay reachable in the field without a cable (08 §8.2), but it
-        // is not a peer of "Probes" in a production settings list, which is
-        // where it used to sit.
+        _FactRow(label: 'Battery', value: _battery),
+        if (_batteryWhy.isNotEmpty)
+          _Because(key: const Key('bridge-battery-why'), text: _batteryWhy),
+        _FactRow(label: 'Storage', value: _storage),
+        if (_storageWhy.isNotEmpty)
+          _Because(key: const Key('bridge-storage-why'), text: _storageWhy),
+        // Five taps opens the diagnostics console — packet log, novelty log,
+        // app log. A real support tool that must stay reachable in the field
+        // without a cable (08 §8.2), but not a peer of "Probes" in a
+        // production settings list.
         GestureDetector(
           key: const Key('bridge-diagnostics-gate'),
           behavior: HitTestBehavior.opaque,
-          onTap: _tapFirmware,
-          child: StatRow(label: 'Firmware', value: _firmware, mono: true),
+          onTap: _tapDeviceId,
+          child: _FactRow(label: 'Device ID', value: _deviceId, mono: true),
         ),
-        StatRow(label: 'Last reading', value: _lastReading),
-        StatRow(
+        _FactRow(label: 'Address', value: _address, mono: true),
+        _FactRow(label: 'Last reading', value: _lastReading),
+        // `DashboardSnapshot.paired` defaults to **true** so an offline cache
+        // read does not cry wolf — which is right for the snapshot and wrong
+        // for a row that states it as a fact. `_status` is the only source
+        // that has actually been asked, so a connected-but-not-yet-read
+        // bridge reads `—` rather than the word "Paired". (The Identity
+        // settings row already gets this right by keeping `paired` nullable
+        // all the way down; this one did not.)
+        _FactRow(
           label: 'Smoke X base',
-          value: !_connected
+          value: !_connected || _status == null
               ? noValue
-              : ((_snapshot?.paired ?? true) ? 'Paired' : 'Not paired'),
+              : (_status!.paired ? 'Paired' : 'Not paired'),
+        ),
+        const SizedBox(height: SmokeTokens.s2),
+        Divider(height: 1, color: t.hairline),
+        _TileRow(
+          key: const Key('bridge-firmware'),
+          icon: Icons.system_update_alt_rounded,
+          title: 'Firmware',
+          subtitle: _firmware == noValue
+              ? 'Version not read yet. Updates install over Wi-Fi.'
+              : '$_firmware — updates install over Wi-Fi.',
+          onTap: () =>
+              context.push(AppRoutes.settingsSection(SettingsSection.firmware)),
         ),
       ],
     ),
   );
 
-  /// The safe actions, and the way into every device settings page.
+  /// The way in to every device page, and the safe actions.
   ///
-  /// The permanently-disabled "Identify" row that used to lead this card is
-  /// gone. Present-and-disabled-with-a-reason is the right discipline for a
-  /// control the user is *looking for* — battery calibration, which they came
-  /// to settings to find — and the wrong one for a control they never knew
-  /// existed: there it is just a dead row at the top of the card, teaching
-  /// that the card cannot be trusted. There is no identify verb in this
-  /// firmware, so there is no row.
-  Widget _actionsCard(SmokeTokens t) => SmokeCard(
-    padding: const EdgeInsets.symmetric(vertical: SmokeTokens.s1),
-    child: Column(
-      children: [
-        for (final s in SettingsSection.deviceSections) ...[
-          _TileRow(
-            key: Key('bridge-section-${s.name}'),
-            icon: s.icon,
-            title: s.title,
-            subtitle: s.subtitle,
-            onTap: () => context.push('${AppRoutes.bridge}/${s.slug}'),
-          ),
-          Divider(height: 1, color: t.hairline),
-        ],
+  /// **Three labelled cards, not one card of twelve rows.** §16.5 says a card
+  /// "groups rows that share a subject", and a single list spanning a rule
+  /// editor, ten settings pages and a setup re-run shares only "things you can
+  /// tap" — which is what made this screen read as a wall rather than a
+  /// considered page. The groups answer the three questions someone actually
+  /// arrives with: *what is it watching?*, *how is it set up?*, *where is my
+  /// data?*
+  Widget _controlsGroups(SmokeTokens t) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _group(t, 'THE COOK', [
+        // The rule editor is a different page from the delivery settings in
+        // "Notifications on this phone" — one is what the bridge shouts
+        // about, the other is how loudly this phone repeats it.
+        _TileRow(
+          key: const Key('bridge-alarms'),
+          icon: Icons.notifications_active_outlined,
+          title: 'Alarm rules',
+          subtitle: 'What the bridge watches for, and how hard it shouts.',
+          onTap: () => context.push(AppRoutes.deviceAlarms),
+        ),
+        ..._sectionRows(const [
+          SettingsSection.probes,
+          SettingsSection.alarms,
+          SettingsSection.display,
+        ]),
+      ]),
+      const SizedBox(height: SmokeTokens.s3),
+      _group(t, 'THE BRIDGE', [
+        ..._sectionRows(const [
+          SettingsSection.network,
+          SettingsSection.power,
+          SettingsSection.led,
+          SettingsSection.firmware,
+          SettingsSection.homeAssistant,
+          SettingsSection.identity,
+        ]),
         _TileRow(
           key: const Key('bridge-rerun-wifi'),
-          icon: Icons.wifi_rounded,
+          // Not `restart_alt`: that glyph is "Restart the bridge" two cards
+          // down, which takes the device off the air mid-cook. One icon for
+          // a wizard and for a power action is a coin toss at 3 a.m.
+          icon: Icons.auto_fix_high_rounded,
           title: 'Run setup again',
           subtitle:
               'Change Wi-Fi or re-pair. Keeps your cooks and this phone’s '
               'Bluetooth bond.',
           onTap: () => context.go(AppRoutes.setup),
         ),
-      ],
-    ),
+      ]),
+      const SizedBox(height: SmokeTokens.s3),
+      _group(t, 'YOUR DATA', _sectionRows(const [SettingsSection.data])),
+    ],
+  );
+
+  List<Widget> _sectionRows(List<SettingsSection> sections) => [
+    for (final s in sections)
+      _TileRow(
+        key: Key('bridge-section-${s.name}'),
+        icon: s.icon,
+        title: s.title,
+        subtitle: s.subtitle,
+        onTap: () => context.push(AppRoutes.settingsSection(s)),
+      ),
+  ];
+
+  /// A labelled card, with the label *outside* it.
+  ///
+  /// Three treatments of one element were in play on this screen —
+  /// 'YOUR BRIDGE' inside its card, 'RESET AND POWER' outside its own, and
+  /// this group with no label at all. §16.5 puts the section label above the
+  /// card, so that is the one that wins everywhere.
+  Widget _group(SmokeTokens t, String label, List<Widget> rows) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(
+          left: SmokeTokens.s2,
+          bottom: SmokeTokens.s2,
+        ),
+        child: Text(label, style: SmokeType.label.copyWith(color: t.textMuted)),
+      ),
+      SmokeCard(
+        padding: const EdgeInsets.symmetric(vertical: SmokeTokens.s1),
+        child: Column(
+          children: [
+            for (var i = 0; i < rows.length; i++) ...[
+              if (i > 0) Divider(height: 1, color: t.hairline),
+              rows[i],
+            ],
+          ],
+        ),
+      ),
+    ],
   );
 
   Widget _dangerCard(SmokeTokens t) => Column(
@@ -862,75 +1173,50 @@ class _BridgeTabState extends State<BridgeTab> {
   }
 }
 
-/// One measured hop: the two ends it spans, the bars, the dBm, and the word.
+/// A label and the fact it names: §16.5's row, at every text scale.
 ///
-/// A null [dbm] renders [unknownWhy] rather than bars — "we have not measured
-/// this yet" and "this link is weak" must never look the same.
-class _SignalRow extends StatelessWidget {
-  const _SignalRow({
-    required this.icon,
-    required this.title,
-    required this.dbm,
-    required this.kind,
-    required this.unknownWhy,
-    super.key,
-  });
+/// Visually the shared `StatRow`, but with both halves [Flexible]. `StatRow`'s
+/// two `Text`s are rigid children of a `spaceBetween` `Row`, which overflows by
+/// 45 dp on this page at 200% text — a control that cannot be read is the same
+/// failure as one that cannot be used, and §16.7 asks for 200%. The shared
+/// component wants the same treatment; this page could not wait for it.
+class _FactRow extends StatelessWidget {
+  const _FactRow({required this.label, required this.value, this.mono = false});
 
-  final IconData icon;
-  final String title;
-  final int? dbm;
-  final SignalKind kind;
-  final String unknownWhy;
+  final String label;
+  final String value;
+  final bool mono;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final value = dbm;
-    final level = value == null ? null : signalLevel(value, kind: kind);
-    final advice = level == null ? '' : signalAdvice(level, kind: kind);
-    return Semantics(
-      label: value == null
-          ? '$title, not measured'
-          : '$title, ${signalLabel(level!)}, ${value.abs()} dBm below zero',
-      excludeSemantics: true,
+    return Container(
+      // §16.5's row minimum. This was `vertical: 6` — off the 4 dp scale, and
+      // about 30 dp tall, so six of the seven rows on this card sat at under
+      // two-thirds the mandated height. One of them carries the five-tap
+      // diagnostics gate, which made it a ~30 dp target for a deliberate
+      // gesture.
+      constraints: const BoxConstraints(minHeight: 52),
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(vertical: SmokeTokens.s2),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, size: 20, color: t.textMuted),
+          Flexible(
+            child: Text(
+              label,
+              style: SmokeType.body.copyWith(color: t.textMuted),
+            ),
+          ),
           const SizedBox(width: SmokeTokens.s3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: SmokeType.body.copyWith(color: t.textBody)),
-                if (value == null)
-                  Text(
-                    unknownWhy.isEmpty ? 'Not measured yet.' : unknownWhy,
-                    style: SmokeType.bodySm.copyWith(color: t.textMuted),
-                  )
-                else ...[
-                  Row(
-                    children: [
-                      SignalBars(bars: signalBars(value, kind: kind)),
-                      const SizedBox(width: SmokeTokens.s2),
-                      Text(
-                        signalLabel(level!),
-                        style: SmokeType.title.copyWith(color: t.textHi),
-                      ),
-                      const SizedBox(width: SmokeTokens.s2),
-                      Text(
-                        formatDbm(value),
-                        style: SmokeType.mono.copyWith(color: t.textMuted),
-                      ),
-                    ],
-                  ),
-                  if (advice.isNotEmpty)
-                    Text(
-                      advice,
-                      style: SmokeType.bodySm.copyWith(color: t.textMuted),
-                    ),
-                ],
-              ],
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: (mono ? SmokeType.mono : SmokeType.body).copyWith(
+                color: t.textHi,
+              ),
             ),
           ),
         ],
@@ -939,45 +1225,26 @@ class _SignalRow extends StatelessWidget {
   }
 }
 
-/// A hop nobody can measure, stated plainly. This is the honest alternative
-/// to drawing four grey bars and letting the user read them as "no signal".
-class _SignalNote extends StatelessWidget {
-  const _SignalNote({
-    required this.icon,
-    required this.title,
-    required this.body,
-    super.key,
-  });
+/// The reason a value is absent, directly beneath the row it belongs to
+/// (§16.5). "—" on its own is a shrug; "—" with a sentence is information.
+class _Because extends StatelessWidget {
+  const _Because({required this.text, super.key});
 
-  final IconData icon;
-  final String title;
-  final String body;
+  final String text;
 
   @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: t.textMuted),
-        const SizedBox(width: SmokeTokens.s3),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: SmokeType.body.copyWith(color: t.textBody)),
-              Text(body, style: SmokeType.bodySm.copyWith(color: t.textMuted)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      text,
+      style: SmokeType.bodySm.copyWith(color: context.tokens.textMuted),
+    ),
+  );
 }
 
-/// One device-page row: an icon, a title, a supporting line, and (when tappable)
-/// a chevron. A null [onTap] renders it dimmed — the honest look of a control
-/// that cannot act, kept visible with its reason rather than hidden.
+/// One device-page row: an icon, a title, a supporting line, and (when
+/// tappable) a chevron. A null [onTap] renders it dimmed — the honest look of
+/// a control that cannot act, kept visible with its reason rather than hidden.
 class _TileRow extends StatelessWidget {
   const _TileRow({
     required this.icon,

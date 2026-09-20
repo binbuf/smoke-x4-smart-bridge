@@ -39,6 +39,8 @@ class BridgeApiException implements BridgeRefusal {
 
   final int statusCode;
   final String code;
+
+  @override
   final String message;
 
   bool get isBusy => code == 'busy';
@@ -444,6 +446,36 @@ class HttpTransport implements BridgeTransport {
     return (expect?['psk'] as String?) ?? '';
   }
 
+  /// The read half of the device config (06 §6.2).
+  @override
+  Future<DeviceConfig> deviceConfig() async {
+    final j = await _getJson('/api/v1/config/device');
+    if (j is! Map) {
+      return DeviceConfig.unknown;
+    }
+    final retention = j['retention'];
+    return DeviceConfig(
+      // Absent stays absent: a device that omits a field has not told us it is
+      // false, and rendering it as such is the bug this whole method exists
+      // to remove.
+      displayUnits: switch (j['display_units']) {
+        final String u when u.isNotEmpty => u,
+        _ => null,
+      },
+      displayTimeoutS: (j['display_timeout_s'] as num?)?.toInt(),
+      ledEnabled: j['led_enabled'] is bool ? j['led_enabled'] as bool : null,
+      batterySaver: BatterySaverMode.values
+          .where((m) => m.name == j['battery_saver'])
+          .firstOrNull,
+      maxSessions: retention is Map
+          ? (retention['max_sessions'] as num?)?.toInt()
+          : null,
+      minFreePct: retention is Map
+          ? (retention['min_free_pct'] as num?)?.toInt()
+          : null,
+    );
+  }
+
   /// newapp §G.3 — `GET /api/v1/config/alarms`, the read-back half.
   /// newapp §E.3 — `POST /api/v1/config/wifi/commit`.
   @override
@@ -507,6 +539,15 @@ class HttpTransport implements BridgeTransport {
     }
     if (cfg.batterySaver != null) {
       body['battery_saver'] = cfg.batterySaver!.name;
+    }
+    if (cfg.displayTimeoutS != null) {
+      body['display_timeout_s'] = cfg.displayTimeoutS;
+    }
+    if (cfg.ledEnabled != null) {
+      body['led_enabled'] = cfg.ledEnabled;
+    }
+    if (cfg.maxSessions != null) {
+      body['retention'] = {'max_sessions': cfg.maxSessions};
     }
     if (cfg.probes != null) {
       body['probes'] = [

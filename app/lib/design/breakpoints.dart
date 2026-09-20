@@ -109,6 +109,14 @@ class SmokeWindow {
   /// reading as one thing. Extra width goes to the chart, never here.
   static const double readableMax = 480;
 
+  /// Widest a piece of shell chrome — an alarm slab, a failed-refresh notice —
+  /// may get. Wider than [readableMax] because a notice carries a trailing
+  /// control as well as a sentence, and narrower than the window because a
+  /// seven-inch-wide line of text at 14 pt is not "prominent", it is a strip
+  /// the eye has to traverse. The bezel above it still spans the window: the
+  /// frame is the frame, and what floats inside it is sized to be read.
+  static const double noticeMax = 720;
+
   /// The fraction of the width the list takes in a list-detail split. Narrower
   /// on medium, where the detail needs every dp it can get.
   double get listPaneFraction =>

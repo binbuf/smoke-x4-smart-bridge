@@ -12,6 +12,7 @@
 
 #include "esp_littlefs.h"
 #include "esp_log.h"
+#include "esp_partition.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 
@@ -160,14 +161,105 @@ int cook_store_fs_info(uint32_t *total_b, uint32_t *used_b) {
     return 0;
 }
 
+/* Has the `cooks` partition ever held a filesystem?
+ *
+ * Erased flash reads back as 0xFF. littlefs's superblock lives in the first
+ * block, so an all-0xFF head means "never formatted" — the state every board
+ * ships in, and the state `erase-flash` returns one to. Sampling the head is
+ * enough: a formatted filesystem always writes a superblock there.
+ *
+ * Returns 1 blank, 0 formatted, -1 when the partition cannot be read at all
+ * (treated as "not blank", so a read failure never triggers a format). */
+static int cooks_partition_is_blank(void) {
+    const esp_partition_t *part = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, COOKS_PARTITION);
+    if (part == NULL) {
+        return -1;
+    }
+    uint8_t head[64];
+    if (esp_partition_read(part, 0, head, sizeof head) != ESP_OK) {
+        return -1;
+    }
+    for (size_t i = 0; i < sizeof head; i++) {
+        if (head[i] != 0xFF) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int cook_store_init(void) {
+    /* Format a blank partition BEFORE anything tries to mount it.
+     *
+     * This ordering is the whole fix, and it is not defensive programming —
+     * it is a workaround for a crash that bricks a factory-fresh board.
+     *
+     * `esp_littlefs` mounts with `cfg.block_count = 0`, which asks littlefs to
+     * recover the geometry from the superblock; `format_from_efs` sets a real
+     * block count only for the duration of the format and zeroes it again
+     * afterwards. On a blank partition there is no superblock to recover, the
+     * mount fails (`Corrupted dir pair at {0x0, 0x1}`, LFS_ERR_CORRUPT/-84),
+     * and it leaves the heap damaged on the way out: with comprehensive
+     * poisoning enabled, free memory from 0x3fcedf50 up is overwritten with
+     * 0xffffffff — erased-flash bytes read straight over the heap. The next
+     * allocation then panics inside `tlsf_malloc` (StoreProhibited, EXCVADDR
+     * 0x0000000b) and the board boot-loops forever, writing a core dump each
+     * time round.
+     *
+     * Formatting first means that mount never happens, so the heap is never
+     * damaged. Letting the component format *after* its own failed mount does
+     * NOT work — tried, and it still crashes, because by then the damage is
+     * done. Neither does aligning LITTLEFS_READ_SIZE/WRITE_SIZE to the page
+     * size, and there is no newer component to upgrade to: 1.22.3 is current.
+     *
+     * The blank check is what keeps this safe. A partition that already holds
+     * a filesystem is never formatted, so no cook is ever destroyed by this
+     * path — and if the head cannot be read, the answer is "not blank". */
+    const int blank = cooks_partition_is_blank();
+    if (blank == 1) {
+        ESP_LOGW(TAG, "/cooks is blank — formatting before first mount");
+        const esp_err_t ferr = esp_littlefs_format(COOKS_PARTITION);
+        if (ferr != ESP_OK) {
+            ESP_LOGE(TAG, "littlefs format failed: %s", esp_err_to_name(ferr));
+            return -1;
+        }
+    }
+
+    /* `format_if_mount_failed` is deliberately FALSE, and this is the reason.
+     *
+     * A factory-fresh board — every board, out of the box, and any board after
+     * `erase-flash` — has a blank `cooks` partition. littlefs then fails to
+     * mount (`Corrupted dir pair at {0x0, 0x1}`, err -84) and the component
+     * formats *from inside* `esp_littlefs_init`. On this target that path
+     * corrupts the heap: with comprehensive poisoning on, free memory at
+     * 0x3fcedf50 upward is overwritten with 0xffffffff — erased-flash bytes —
+     * and the next allocation panics inside `tlsf_malloc` (StoreProhibited,
+     * EXCVADDR 0x0000000b). The board then boot-loops forever, saving a core
+     * dump each time.
+     *
+     * That is a bricked device out of the box, so this does not use the nested
+     * path. Mount; if the mount fails, format through the standalone
+     * `esp_littlefs_format` entry point and mount again. Formatting only ever
+     * happens on a partition that would not mount, so no data is at risk —
+     * and a second failure is reported rather than retried, because a board
+     * that cannot make a filesystem must not spin. */
     const esp_vfs_littlefs_conf_t conf = {
         .base_path = COOK_STORE_DIR,
         .partition_label = COOKS_PARTITION,
-        .format_if_mount_failed = true,
+        .format_if_mount_failed = false,
         .dont_mount = false,
     };
     esp_err_t err = esp_vfs_littlefs_register(&conf);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "/cooks did not mount (%s) — formatting once",
+                 esp_err_to_name(err));
+        err = esp_littlefs_format(COOKS_PARTITION);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "littlefs format failed: %s", esp_err_to_name(err));
+            return -1;
+        }
+        err = esp_vfs_littlefs_register(&conf);
+    }
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "littlefs mount failed: %s", esp_err_to_name(err));
         return -1;

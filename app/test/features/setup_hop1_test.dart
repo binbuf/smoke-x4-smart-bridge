@@ -16,11 +16,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/data/transport/ble_transport.dart';
+import 'package:smoke_bridge/design/design.dart';
 import 'package:smoke_bridge/features/setup/copy/setup_copy.dart';
 import 'package:smoke_bridge/features/setup/preflight.dart';
 import 'package:smoke_bridge/features/setup/screens/hop1_screens.dart';
 import 'package:smoke_bridge/features/setup/screens/preflight_screens.dart';
 import 'package:smoke_bridge/features/setup/setup_machine.dart';
+import 'package:smoke_bridge/ui/setup/device_art.dart';
 import 'package:smoke_bridge/ui/ui.dart';
 
 import '../data/fake_peripheral.dart';
@@ -136,11 +138,68 @@ Future<void> _pumpAt(
   WidgetTester tester,
   Widget child, {
   double width = 393,
+  double height = 1600,
+  double textScale = 1,
 }) async {
-  tester.view.physicalSize = Size(width, 1600);
+  tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Every place the rendered tree paints the transport green, at any alpha.
+///
+/// Walks elements rather than a widget list, so it sees what a `switch` inside
+/// a build method actually produced — the same technique `colour_rule_test`
+/// uses, kept local so this file needs nothing from it.
+List<Color> _greens(WidgetTester tester) {
+  final found = <Color>[];
+  bool isPositive(Color c) =>
+      c.r == StatusPalette.positive.r &&
+      c.g == StatusPalette.positive.g &&
+      c.b == StatusPalette.positive.b;
+
+  void add(Color? c) {
+    if (c != null && isPositive(c)) {
+      found.add(c);
+    }
+  }
+
+  void walk(Element e) {
+    switch (e.widget) {
+      case Text(:final style):
+        add(style?.color);
+      case Icon(:final color):
+        add(color);
+      case Container(:final decoration):
+        if (decoration case final BoxDecoration d) {
+          add(d.color);
+          if (d.border case final Border b) {
+            add(b.top.color);
+          }
+        }
+      case ColoredBox(:final color):
+        add(color);
+      case _:
+    }
+    e.visitChildElements(walk);
+  }
+
+  walk(tester.element(find.byType(SetupScaffold)));
+  return found;
 }
 
 _Env _fresh({FakePeripheralConfig? config}) {
@@ -271,6 +330,146 @@ void main() {
       expect(find.text(SetupCopy.scanningCancel), findsOneWidget);
     });
 
+    // ── 17 §17.3 C — the row is the moment of contact ──────────────────────
+    testWidgets('a found row carries signal as bars and a WORD, never dBm', (
+      tester,
+    ) async {
+      final env = _fresh();
+      await _pumpAt(
+        tester,
+        env.screen(
+          SetupScanning(
+            found: [_bridge(rssi: -35, pit: null, paired: false)],
+            scanning: false,
+          ),
+        ),
+      );
+
+      // The bar glyph, and the word beside it — the two together answer
+      // "should I move something", which a number does not.
+      expect(find.byType(SignalBars), findsOneWidget);
+      expect(find.textContaining('Excellent signal'), findsOneWidget);
+      // 16 §16.4 rule 3: RSSI and dBm never leave Diagnostics.
+      expect(find.textContaining('dBm'), findsNothing);
+      expect(find.textContaining('-35'), findsNothing);
+      expect(find.textContaining('−35'), findsNothing);
+      // The pairing state stays, verbatim — it is honest and useful.
+      expect(find.textContaining(SetupCopy.rowNotPaired), findsOneWidget);
+    });
+
+    testWidgets('a weak bridge says so in the same words', (tester) async {
+      final env = _fresh();
+      await _pumpAt(
+        tester,
+        env.screen(
+          SetupScanning(found: [_bridge(rssi: -92)], scanning: false),
+        ),
+      );
+      expect(find.textContaining('Weak signal'), findsOneWidget);
+    });
+
+    testWidgets('hop 1 has a subject while it is still searching', (
+      tester,
+    ) async {
+      // 17 §17.1 #4: the bench screen was a rail, a title, a sentence and
+      // nothing to look at. The bridge is drawn now, and it is a drawing.
+      final env = _fresh();
+      await _pumpAt(tester, env.screen(const SetupScanning()));
+      expect(find.byKey(const Key('setup-scan-art')), findsOneWidget);
+      final art = tester.widget<BridgeIllustration>(
+        find.byKey(const Key('setup-scan-art')),
+      );
+      expect(art.mood, BridgeMood.scanning);
+      expect(find.byType(Image), findsNothing);
+    });
+  });
+
+  // ── 17 §17.3 C — coach the passkey BEFORE the platform's dialog ───────────
+  group('hop 1 — what happens next', () {
+    testWidgets('tapping a row opens the coach and does NOT start bonding', (
+      tester,
+    ) async {
+      final env = _fresh();
+      final before = env.machine.state;
+      await _pumpAt(
+        tester,
+        env.screen(SetupScanning(found: [_bridge()], scanning: false)),
+      );
+      await tester.tap(find.byKey(const Key('setup-bridge-AA:BB:CC:DD:A4:F2')));
+      await tester.pump();
+
+      expect(find.text(SetupCopy.coachTitle), findsOneWidget);
+      expect(find.text(SetupCopy.coachBody('SmokeBridge-A4F2')), findsOneWidget);
+      // Nothing has been handed to the platform yet — which is the entire
+      // point: after this the OS dialog owns the screen.
+      expect(env.machine.state, same(before));
+    });
+
+    testWidgets('the coach corrects the platform hint before it appears', (
+      tester,
+    ) async {
+      final env = _fresh();
+      await _pumpAt(
+        tester,
+        env.screen(SetupScanning(found: [_bridge()], scanning: false)),
+      );
+      await tester.tap(find.byKey(const Key('setup-bridge-AA:BB:CC:DD:A4:F2')));
+      await tester.pump();
+
+      expect(find.text(SetupCopy.coachStep1), findsOneWidget);
+      expect(find.text(SetupCopy.coachStep2), findsOneWidget);
+      // The sentence this screen exists for. The platform's own dialog says
+      // "Usually 0000 or 1234", cannot be reworded, and is the last thing read
+      // before six digits are asked for.
+      expect(find.text(SetupCopy.coachStep3), findsOneWidget);
+      expect(SetupCopy.coachStep3, contains('0000'));
+      expect(SetupCopy.coachStep3, contains('1234'));
+      // …and it is chrome, not a sentence in a paragraph (16 §16.5).
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      // Still one ember action and one named way back (rail R1/R2).
+      expect(find.byType(PrimaryAction), findsOneWidget);
+      expect(find.text(SetupCopy.coachBack), findsOneWidget);
+    });
+
+    testWidgets('the coach primary is what actually starts the bond', (
+      tester,
+    ) async {
+      final env = _fresh();
+      await _pumpAt(
+        tester,
+        env.screen(SetupScanning(found: [_bridge()], scanning: false)),
+      );
+      await tester.tap(find.byKey(const Key('setup-bridge-AA:BB:CC:DD:A4:F2')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('setup-coach-pair')));
+      // The fake peripheral bonds without a timer, so a couple of frames is
+      // enough to drain the machine's microtasks.
+      await tester.pump();
+      await tester.pump();
+      expect(env.machine.state, isA<SetupBonded>());
+    });
+
+    testWidgets('the named secondary goes back to the list, not out of setup', (
+      tester,
+    ) async {
+      final env = _fresh();
+      await _pumpAt(
+        tester,
+        env.screen(SetupScanning(found: [_bridge()], scanning: false)),
+      );
+      await tester.tap(find.byKey(const Key('setup-bridge-AA:BB:CC:DD:A4:F2')));
+      await tester.pump();
+      await tester.tap(find.text(SetupCopy.coachBack));
+      await tester.pump();
+
+      expect(find.text(SetupCopy.scanningTitle), findsOneWidget);
+      expect(
+        find.byKey(const Key('setup-bridge-AA:BB:CC:DD:A4:F2')),
+        findsOneWidget,
+      );
+      expect(env.fired('leave'), 0);
+    });
+
     testWidgets('nothing-found is a checklist of the bridge\'s own tells', (
       tester,
     ) async {
@@ -331,6 +530,17 @@ void main() {
         find.widgetWithText(PrimaryAction, SetupCopy.pairNoPrompt),
         findsOneWidget,
       );
+
+      // 17 §17.3 C: the bridge is drawn, the frame is captioned as *its*
+      // screen, and the platform's wrong hint is still contradicted here —
+      // because the OS dialog is drawn over this, can be dismissed, and on
+      // some phones lands in the notification shade instead.
+      expect(find.byKey(const Key('setup-pair-art')), findsOneWidget);
+      expect(find.text(SetupCopy.pairCallout), findsOneWidget);
+      expect(find.text(SetupCopy.pairIgnoreHint), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      // One wording across the two screens, not two (16 §16.4's single voice).
+      expect(SetupCopy.pairIgnoreHint, SetupCopy.coachStep3);
     });
 
     testWidgets('before the prompt it names what it is connecting to', (
@@ -367,6 +577,13 @@ void main() {
         find.widgetWithText(PrimaryAction, SetupCopy.bondedContinue),
         findsOneWidget,
       );
+      // The payoff shows the device with the tick on its own glass — the same
+      // thing the bridge's OLED is showing at this moment — not a checkmark
+      // floating on black (17 §17.3 C).
+      final art = tester.widget<BridgeIllustration>(
+        find.byKey(const Key('setup-bonded-art')),
+      );
+      expect(art.mood, BridgeMood.linked);
     });
   });
 
@@ -526,6 +743,31 @@ void main() {
       // ...and with no route callback, no exit is drawn.
       expect(find.byKey(const Key('setup-exit')), findsNothing);
     });
+
+    // 16 §16.5 and the hard rule beneath it: a control that cannot work is
+    // absent, or disabled **with its reason**. A dimmed button on its own is
+    // still a dead control — it just looks deliberate.
+    testWidgets('a dead control states what to do instead', (tester) async {
+      final env = _fresh();
+      final cases = <(SetupState, String)>[
+        (SetupPasskeyNotSeen(_bridge()), SetupCopy.noDeepLinkNotifications),
+        (const SetupLocationServicesOff(), SetupCopy.noDeepLinkLocation),
+        (SetupRebondNeeded(_bridge()), SetupCopy.noDeepLinkBluetoothSettings),
+        (SetupBondSlotsFull(_bridge()), SetupCopy.noRemovePhone),
+        (const SetupNoBridges(), SetupCopy.noManualAddress),
+      ];
+      for (final (state, reason) in cases) {
+        await _pumpAt(tester, env.screen(state, bare: true));
+        expect(
+          find.text(reason),
+          findsOneWidget,
+          reason: '${state.runtimeType} dims a control without saying why',
+        );
+        // And the reason disappears the moment the control can work.
+        await _pumpAt(tester, env.screen(state));
+        expect(find.text(reason), findsNothing);
+      }
+    });
   });
 
   // ── no overflow, at every state, at the three phone widths (§14.5) ─────────
@@ -563,12 +805,120 @@ void main() {
     }
   });
 
+  // ── 17 §17.5 — warm, but green never celebrates ───────────────────────────
+  group('the palette hop 1 is allowed, and the one it is not', () {
+    testWidgets('a found bridge is an ember-accented card, not a plain row', (
+      tester,
+    ) async {
+      // There is no session and no reading anywhere on this hop, so §16.5 has
+      // nothing to guard and §17.5 lets the moment of contact look like one.
+      final env = _fresh();
+      await _pumpAt(
+        tester,
+        env.screen(SetupScanning(found: [_bridge()], scanning: false)),
+      );
+      final card = tester.widget<SmokeCard>(
+        find.byKey(const Key('setup-bridge-AA:BB:CC:DD:A4:F2')),
+      );
+      expect(card.accent, StatusPalette.pit);
+    });
+
+    testWidgets('no hop-1 screen spends the transport green', (tester) async {
+      // The one clause §17.5 does not relax: green means transport health, and
+      // a bond landing is not a transport report — it is a step finishing. The
+      // ember does the celebrating.
+      final env = _fresh();
+      final states = <SetupState>[
+        const SetupScanning(),
+        SetupScanning(found: [_bridge()], scanning: false),
+        const SetupNoBridges(),
+        SetupAddThisPhone(_bridge()),
+        SetupPairing(bridge: _bridge(), passkeyShown: true),
+        SetupPasskeyNotSeen(_bridge()),
+        SetupBonded(_bridge()),
+        SetupPasskeyWrong(_bridge()),
+      ];
+      for (final state in states) {
+        await _pumpAt(tester, env.screen(state));
+        expect(
+          _greens(tester),
+          isEmpty,
+          reason: '${state.runtimeType} painted the transport green',
+        );
+      }
+    });
+  });
+
+  // ── the illustrated screens, on a short phone at 200 % text (§16.7) ────────
+  //
+  // The case the drawings could plausibly break, and the reason `SetupScaffold`
+  // gained `SetupBodyCenter`: at 200 % the title and subtitle eat most of the
+  // body slot, and a fixed-height picture centred in what is left overflows —
+  // as a yellow-and-black stripe, on the first screen of the product.
+  group('illustrated screens at 200% text on a short phone', () {
+    for (final w in <double>[360, 600, 840]) {
+      testWidgets('the find list fits at ${w.toInt()} dp', (tester) async {
+        final env = _fresh();
+        await _pumpAt(
+          tester,
+          env.screen(SetupScanning(found: [_bridge()], scanning: true)),
+          width: w,
+          height: 640,
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('the coach fits at ${w.toInt()} dp', (tester) async {
+        final env = _fresh();
+        await _pumpAt(
+          tester,
+          env.screen(SetupScanning(found: [_bridge()], scanning: false)),
+          width: w,
+          height: 640,
+          textScale: 2,
+        );
+        // At 200 % the row can sit below the fold; scrolling to it is the
+        // user's own first move, so the test makes it too.
+        final row = find.byKey(const Key('setup-bridge-AA:BB:CC:DD:A4:F2'));
+        await tester.ensureVisible(row);
+        await tester.pump();
+        await tester.tap(row);
+        await tester.pump();
+        expect(find.text(SetupCopy.coachTitle), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('the passkey screen fits at ${w.toInt()} dp', (tester) async {
+        final env = _fresh();
+        await _pumpAt(
+          tester,
+          env.screen(SetupPairing(bridge: _bridge(), passkeyShown: true)),
+          width: w,
+          height: 640,
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('the payoff fits at ${w.toInt()} dp', (tester) async {
+        final env = _fresh();
+        await _pumpAt(
+          tester,
+          env.screen(SetupBonded(_bridge())),
+          width: w,
+          height: 640,
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
   // ── the stale-bond heal (A24.11) ─────────────────────────────────────────
   group('stale bond against a factory-reset bridge', () {
     test('heals itself: drop the dead bond, pair fresh, land bonded', () async {
-      final env = _fresh(
-        config: const FakePeripheralConfig(staleBond: true),
-      );
+      final env = _fresh(config: const FakePeripheralConfig(staleBond: true));
       await env.machine.select(_bridge());
       // The machine dropped the stale OS bond ONCE and re-paired — the user
       // never saw a failure screen, let alone a raw timeout.

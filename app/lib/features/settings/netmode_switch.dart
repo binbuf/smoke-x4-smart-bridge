@@ -104,9 +104,8 @@ class NetSwitchState {
       'It will go back to the network that was working in '
           '${revertInS}s — nothing to undo, and nobody has to walk over to '
           'it.',
-    NetSwitchPhase.refused => detail.isEmpty
-        ? 'Nothing changed.'
-        : '$detail Nothing changed.',
+    NetSwitchPhase.refused =>
+      detail.isEmpty ? 'Nothing changed.' : '$detail Nothing changed.',
   };
 
   /// Whether this is a resting state the sheet can be dismissed from.
@@ -199,10 +198,7 @@ class NetModeSwitch {
         try {
           await commit();
           return _finish(
-            NetSwitchState(
-              phase: NetSwitchPhase.committed,
-              attempt: attempt,
-            ),
+            NetSwitchState(phase: NetSwitchPhase.committed, attempt: attempt),
           );
         } on Object {
           // Reached it but could not confirm. Keep trying rather than

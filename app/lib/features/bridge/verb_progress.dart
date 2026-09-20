@@ -228,11 +228,13 @@ class _VerbProgressSheetState extends State<VerbProgressSheet> {
   List<Widget> _done(SmokeTokens t) => [
     Row(
       children: [
-        const Icon(
-          Icons.check_circle_rounded,
-          size: 28,
-          color: StatusPalette.positive,
-        ),
+        // **Not `positive`.** Green means transport health and nothing else
+        // (16 §16.5), and this sheet reaches its done state by the link
+        // *going away* — for a power-off the bridge is off and will stay off
+        // until somebody walks over and holds PRG. A green tick there is the
+        // exact inverse of what green promises. `pit` says "the command
+        // landed"; the tick and the title carry the rest.
+        Icon(Icons.check_circle_rounded, size: 28, color: StatusPalette.pit),
         const SizedBox(width: SmokeTokens.s3),
         Expanded(
           child: Text(

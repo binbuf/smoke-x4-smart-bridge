@@ -160,12 +160,32 @@ class MockTransport implements BridgeTransport {
     controlLog.add(cmd);
   }
 
+  /// A write the device **honours**, so [deviceConfig] reflects it afterwards.
+  ///
+  /// A mock whose read-back ignored its own writes would pass a
+  /// write-then-verify test for the wrong reason — it would look like the
+  /// device agreed when nothing had been recorded at all. Set [ignoreWrites]
+  /// to model the device that answers 200 and changes nothing, which is the
+  /// failure the whole pattern exists to catch.
+  bool ignoreWrites = false;
+
   @override
   Future<void> configure(BridgeConfig cfg) async {
     configureLog.add(cfg);
+    if (ignoreWrites) {
+      return;
+    }
     if (cfg.probes != null) {
       probeConfig = List.of(cfg.probes!)..sort((a, b) => a.n.compareTo(b.n));
     }
+    device = DeviceConfig(
+      displayUnits: cfg.displayUnits ?? device.displayUnits,
+      displayTimeoutS: cfg.displayTimeoutS ?? device.displayTimeoutS,
+      ledEnabled: cfg.ledEnabled ?? device.ledEnabled,
+      batterySaver: cfg.batterySaver ?? device.batterySaver,
+      maxSessions: cfg.maxSessions ?? device.maxSessions,
+      minFreePct: device.minFreePct,
+    );
   }
 
   /// Recorded like every other write. A switch to AP answers with a fixed
@@ -220,6 +240,20 @@ class MockTransport implements BridgeTransport {
     'pit_band_sustain_s': 120,
     'base_lost_s': 300,
   };
+
+  /// The device's own settings, so a test can exercise write-then-read-back
+  /// end to end rather than against a store that accepts anything.
+  DeviceConfig device = const DeviceConfig(
+    displayUnits: 'F',
+    displayTimeoutS: 60,
+    ledEnabled: true,
+    batterySaver: BatterySaverMode.auto,
+    maxSessions: 64,
+    minFreePct: 10,
+  );
+
+  @override
+  Future<DeviceConfig> deviceConfig() async => device;
 
   /// §E.3 — records the commit so a test can assert the wizard sent one.
   int commits = 0;

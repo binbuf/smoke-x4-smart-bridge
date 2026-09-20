@@ -15,9 +15,9 @@
 /// the series palette is validated against it. `scaffoldBackgroundColor` is the
 /// deeper `bg` — the space between cards.
 ///
-/// The touch-target work is carried forward from the previous theme
-/// (`app/lib/app/theme.dart`): `Size(64, 52)` minimums, padded tap targets,
-/// tall list rows — it may be a cold or greasy finger.
+/// The touch-target work is carried forward from the previous theme (the
+/// since-deleted `app/theme.dart`): `Size(64, 52)` minimums, padded tap
+/// targets, tall list rows — it may be a cold or greasy finger.
 library;
 
 import 'package:flutter/material.dart';

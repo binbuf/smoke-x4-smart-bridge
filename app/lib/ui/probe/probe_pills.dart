@@ -1,7 +1,18 @@
-/// A19.6 — TargetPill and TrendChip (design 14 §14.7.1).
+/// The two small readouts that ride a probe card's header row (design 16
+/// §16.5).
 ///
-/// The two small readouts that ride a probe card's header row. Both are marks +
-/// words, never colour alone.
+/// Both were breaking the one rule this design system is most insistent about,
+/// in opposite directions, and both are fixed here.
+///
+///  * [TrendChip] drew its words in a **series hue** — ember for rising, the
+///    slot-4 blue for falling. A series hue may be a mark and may never carry a
+///    word. Direction is now carried by the arrow, which is a shape: it
+///    survives a monochrome screenshot, a colour-blind reader and the stale
+///    veil's desaturation, none of which a hue does.
+///  * [TargetPill] drew a 14 % accent fill with a word in it and **no icon**.
+///    Status chrome is fill + border + icon + word, always all four (§16.5), so
+///    *Reached* now carries a check. The shape says done; the word says done;
+///    nothing is green, because green is transport health.
 library;
 
 import 'package:flutter/material.dart';
@@ -9,9 +20,7 @@ import 'package:flutter/material.dart';
 import '../../core/format.dart';
 import '../../design/design.dart';
 
-/// `Target 203°` — or, once the probe is there, `Reached 203°`. The label
-/// changes with the state because a closed gauge ring (a shape) must be backed
-/// by a word for a screen reader (§14.6.6).
+/// `Target 203.0°` — or, once the probe is there, `✓ Reached 203.0°`.
 class TargetPill extends StatelessWidget {
   const TargetPill({
     super.key,
@@ -46,19 +55,31 @@ class TargetPill extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.fromLTRB(reached ? 6 : 10, 4, 10, 4),
       decoration: BoxDecoration(
-        color: reached
-            ? StatusPalette.pit.withValues(alpha: 0.14)
-            : t.cardSubtle,
+        color: reached ? StatusPalette.fill(StatusRole.pit) : t.cardSubtle,
         borderRadius: BorderRadius.circular(SmokeTokens.radiusChip),
-      ),
-      child: Text(
-        text,
-        style: SmokeType.bodySm.copyWith(
-          color: reached ? t.textHi : t.textMuted,
-          fontWeight: FontWeight.w600,
+        border: Border.all(
+          color: reached ? StatusPalette.border(StatusRole.pit) : t.hairline,
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (reached) ...[
+            Icon(Icons.check_rounded, size: 14, color: StatusPalette.pit),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            text,
+            style: SmokeType.bodySm.copyWith(
+              // Chrome carries its hue in the icon and the border; the words
+              // are carried by contrast.
+              color: reached ? t.textHi : t.textMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -80,11 +101,6 @@ class TrendChip extends StatelessWidget {
     }
     final flat = r.abs() < 0.6;
     final rising = r > 0;
-    final color = flat
-        ? t.textMuted
-        : rising
-        ? StatusPalette.pit
-        : ProbePalette.hue(4);
     return Semantics(
       label: flat
           ? 'holding steady'
@@ -94,20 +110,21 @@ class TrendChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (!flat)
+          if (!flat) ...[
             Icon(
               rising ? Icons.trending_up_rounded : Icons.trending_down_rounded,
               size: 16,
-              color: color,
+              color: t.textMuted,
             ),
-          if (!flat) const SizedBox(width: 4),
+            const SizedBox(width: 4),
+          ],
           Flexible(
             child: Text(
               formatRate(r),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: SmokeType.bodySm.copyWith(
-                color: color,
+                color: flat ? t.textMuted : t.textBody,
                 fontWeight: FontWeight.w600,
               ),
             ),

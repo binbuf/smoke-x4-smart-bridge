@@ -11,6 +11,8 @@
 /// which is the property that was missing.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/design/design.dart';
@@ -132,6 +134,34 @@ void main() {
       expect(
         SmokeTokens.daylight.hairline.a,
         greaterThan(SmokeTokens.dark.hairline.a),
+      );
+      // The shell's bezel seam is drawn in `hairlineStrong`, so it has to
+      // survive sunlight too — a chrome stack whose frame disappears outdoors
+      // is a chrome stack that reads as three loose strips again.
+      expect(
+        SmokeTokens.daylight.hairlineStrong.a,
+        greaterThan(SmokeTokens.dark.hairlineStrong.a),
+      );
+    });
+
+    test('daylight lifts the quiet inks the status bar is built from', () {
+      // The battery readout is `textMuted`; the signal bars and every inactive
+      // rule are `chromeDim`. Both are the first things to disappear on a
+      // patio at noon, so both move up, and neither may move down.
+      double lum(Color c) {
+        double lin(double v) => v <= 0.03928
+            ? v / 12.92
+            : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+        return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+      }
+
+      expect(
+        lum(SmokeTokens.daylight.textMuted),
+        greaterThan(lum(SmokeTokens.dark.textMuted)),
+      );
+      expect(
+        lum(SmokeTokens.daylight.chromeDim),
+        greaterThan(lum(SmokeTokens.dark.chromeDim)),
       );
     });
   });

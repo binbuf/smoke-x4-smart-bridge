@@ -20,6 +20,15 @@
 /// The word still travels too — the caller's pill reads "Reached" and the
 /// semantics say so — because a shape alone is as bad as a hue alone for a
 /// screen reader.
+///
+/// **Band mode carries the same obligation, and the caller owes it.** Leaving
+/// the band turns the band arc `warning` and the current-value dot `critical`,
+/// and a status hue is only ever allowed to appear *with an icon and a word*
+/// (§16.5). This widget has no room for either — an 84 dp dial that shrinks to
+/// 56 — so [_semanticValue] speaks "above the band" to a screen reader and the
+/// **caller must render the strip** that says it on the glass. `ProbeHeroCard`
+/// does, from `InsightKind.band`; a new call site for band mode that does not
+/// is a colour-rule break, not a styling choice.
 library;
 
 import 'dart:math' as math;
@@ -99,6 +108,7 @@ class TargetGauge extends StatelessWidget {
                     reached: reached,
                     pullFraction: _pullFraction(),
                     track: t.hairlineStrong,
+                    cut: t.card,
                   ),
                   child: _center(context),
                 ),
@@ -172,7 +182,14 @@ class TargetGauge extends StatelessWidget {
       return 'reached ${(targetF10! / 10).round()} degrees';
     }
     final pct = (_sweepFraction() * 100).round();
-    return '$pct percent of the way to ${(targetF10! / 10).round()} degrees';
+    final pull = pullF10;
+    // The tick is a shape, so the word has to travel too — a screen reader gets
+    // the pull point spoken, not "a mark at 78 %".
+    final early = pull == null
+        ? ''
+        : ', pull early at ${(pull / 10).round()} degrees';
+    return '$pct percent of the way to ${(targetF10! / 10).round()} degrees'
+        '$early';
   }
 }
 
@@ -188,6 +205,7 @@ class _SweepPainter extends CustomPainter {
     required this.reached,
     required this.pullFraction,
     required this.track,
+    required this.cut,
   });
 
   final Color hue;
@@ -195,6 +213,12 @@ class _SweepPainter extends CustomPainter {
   final bool reached;
   final double? pullFraction;
   final Color track;
+
+  /// The surface behind the ring. The pull tick notches the ring by drawing a
+  /// sliver of it, which is what makes the tick readable once the arc has swept
+  /// past — the old tick was the same hue *on* the same hue and disappeared at
+  /// exactly the moment it mattered.
+  final Color cut;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -229,21 +253,43 @@ class _SweepPainter extends CustomPainter {
       );
     }
 
-    // Pull tick: a short radial mark inside the ring at the pull temperature.
+    // ── the pull-early tick (§H.2: "a clearer pull-early tick") ──────
+    //
+    // *Pull early* is the single most actionable number in a guided cook — take
+    // it off here and carryover finishes the job — and it was an 8 dp line at
+    // 60 % alpha, drawn **inside** the ring in the same hue the ring fills
+    // with. Now: a notch cut clean through the ring, and a full-alpha mark
+    // crossing it. It reads whether the arc has passed it or not.
     final pf = pullFraction;
     if (pf != null && !reached) {
       final angle = _start + _sweepArc * pf;
       final c = inset.center;
-      final outer = inset.width / 2 - 3;
-      final inner = outer - 8;
+      final r = inset.width / 2;
       final dir = Offset(math.cos(angle), math.sin(angle));
+
+      // The notch: a 5°-wide sliver of the surface colour, one pixel wider
+      // than the ring so no hue bleeds around its ends.
+      const notch = math.pi / 36; // 5°
+      canvas.drawArc(
+        inset,
+        angle - notch / 2,
+        notch,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stroke + 2
+          ..color = cut,
+      );
+
+      // The mark: crosses the ring and stands 3 dp proud of it on both sides,
+      // so it is legible at the 56 dp the gauge shrinks to on a narrow phone.
       canvas.drawLine(
-        c + dir * inner,
-        c + dir * outer,
+        c + dir * (r - stroke / 2 - 3),
+        c + dir * (r + stroke / 2 + 3),
         Paint()
           ..strokeWidth = 3
           ..strokeCap = StrokeCap.round
-          ..color = hue.withValues(alpha: 0.6),
+          ..color = hue,
       );
     }
   }
@@ -253,7 +299,8 @@ class _SweepPainter extends CustomPainter {
       old.fraction != fraction ||
       old.reached != reached ||
       old.pullFraction != pullFraction ||
-      old.hue != hue;
+      old.hue != hue ||
+      old.cut != cut;
 }
 
 class _BandPainter extends CustomPainter {

@@ -203,10 +203,23 @@ int app_alarm_init(void) {
     /* system_fault (09 §9.2): a coredump found at boot means the bridge
      * restarted unexpectedly, and the user is owed that even if
      * everything looks fine now. */
-    size_t addr = 0;
-    size_t size = 0;
-    s_coredump_present =
-        esp_core_dump_image_get(&addr, &size) == ESP_OK && size > 0;
+    /* `esp_core_dump_image_get` answers "the partition holds something
+     * header-shaped", NOT "this bridge crashed". A partition carrying
+     * uninitialised or half-erased bytes satisfies it, and this board proved
+     * it: the core dump subsystem logged
+     *
+     *     E esp_core_dump_flash: Core dump data check failed:
+     *     Calculated checksum='4c45384e…' Image checksum='000000…'
+     *
+     * and the alarm engine still announced `coredump found (system_fault)`
+     * and raised a CRITICAL alarm on a device that had never faulted. That
+     * is a false 3 a.m. wake-up, which is the single thing this product may
+     * not do (16 §16.2).
+     *
+     * `esp_core_dump_image_check` reads the payload and verifies the
+     * checksum, so it distinguishes "a crash was recorded" from "these bytes
+     * are noise". Absent evidence is not evidence of a fault. */
+    s_coredump_present = esp_core_dump_image_check() == ESP_OK;
 
     if (app_alarm_svc_init(&k_ops) != 0) {
         return -1;

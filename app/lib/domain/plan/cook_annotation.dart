@@ -123,7 +123,13 @@ class CookAnnotation {
     this.notes = '',
     this.presetId,
     this.doneness = '',
-    this.hazard = HazardClass.wholeMuscleRedMeat,
+    // Unstated, never whole-muscle red meat. That class is the one
+    // `SafetyFloor.forClass` returns null for in enthusiast mode, so
+    // defaulting to it means an annotation built without a plan silently
+    // gets *no* floor. `unstated` carries the 160 °F ground-meat floor,
+    // which is §D.4's own precautionary answer for a cut nobody has
+    // vouched for.
+    this.hazard = HazardClass.unstated,
     this.safetyMode = SafetyMode.enthusiast,
     this.pitBandMinF10,
     this.pitBandMaxF10,
@@ -346,6 +352,47 @@ class CookAnnotation {
       notes: notes,
     );
   }
+
+  /// §D.3.2 — take everything the setup sheet decided, keep everything that
+  /// belongs to this stretch of the recording.
+  ///
+  /// A retarget arrives as a whole annotation projected from a fresh plan, and
+  /// **all of it is what the cook is aiming at**: the preset, the doneness, the
+  /// hazard class, the safety mode, the pit band and the per-jack roles.
+  /// Keeping only the roles left the gauges following one thing, the chart's
+  /// shaded band another, and the food-safety gate a third — while the
+  /// confirmation said the targets had been saved.
+  ///
+  /// What [source] must not touch is anything that describes *when this cook
+  /// happened*: its id, its bounds, when it was created, its notes, its star,
+  /// its pull, its session anchor. The plan the sheet returns carries a start
+  /// of "now", which is why this is written out field by field rather than
+  /// through `copyWith` — a field that is kept should be visibly kept.
+  ///
+  /// The name has a rule of its own. The sheet always returns *some* title, and
+  /// for a cook that was never named that title is this cook's own display name
+  /// coming back round ("Cook #7"). Adopting it would turn "never named" into
+  /// "named that on purpose" and silently retire the rename hint, so a title
+  /// that is only the display name is dropped.
+  CookAnnotation retargetedTo(CookAnnotation source) => CookAnnotation(
+    id: id,
+    bridgeId: bridgeId,
+    name: source.name == displayName() ? name : source.name,
+    startUnixMs: startUnixMs,
+    endUnixMs: endUnixMs,
+    createdUnixMs: createdUnixMs,
+    notes: notes,
+    presetId: source.presetId,
+    doneness: source.doneness,
+    hazard: source.hazard,
+    safetyMode: source.safetyMode,
+    pitBandMinF10: source.pitBandMinF10,
+    pitBandMaxF10: source.pitBandMaxF10,
+    favourite: favourite,
+    anchorSessionId: anchorSessionId,
+    pulledAtUnixMs: pulledAtUnixMs,
+    roles: source.roles,
+  );
 
   /// §D.6 — "Repeat this cook". A fresh annotation starting [atUnixMs] that
   /// copies roles, targets, pull offsets and preset, and deliberately copies

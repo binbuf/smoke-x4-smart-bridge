@@ -20,6 +20,7 @@ import 'package:smoke_bridge/data/dto/records.g.dart';
 import 'package:smoke_bridge/data/transport/ble_gatt.dart';
 import 'package:smoke_bridge/data/transport/ble_transport.dart';
 import 'package:smoke_bridge/features/setup/copy/base_sync_copy.dart';
+import 'package:smoke_bridge/features/setup/copy/setup_net_copy.dart';
 import 'package:smoke_bridge/features/setup/preflight.dart';
 import 'package:smoke_bridge/features/setup/setup_machine.dart';
 import 'package:smoke_bridge/features/setup/setup_stage.dart';
@@ -480,30 +481,34 @@ void main() {
       },
     );
 
-    test('outcome 2 — a factory-reset bridge HEALS the stale bond (A24.11)',
-        () async {
-      // The old contract sent the user to Bluetooth settings; the machine
-      // now drops the dead OS bond itself and pairs fresh, so the flow ends
-      // bonded with no detour.
-      final h = _Harness(config: const FakePeripheralConfig(staleBond: true));
-      await h.toBonded();
-      expect(h.fake.removeBondCalls, 1);
-      expect(h.machine.state, isA<SetupBonded>());
-      await h.dispose();
-    });
+    test(
+      'outcome 2 — a factory-reset bridge HEALS the stale bond (A24.11)',
+      () async {
+        // The old contract sent the user to Bluetooth settings; the machine
+        // now drops the dead OS bond itself and pairs fresh, so the flow ends
+        // bonded with no detour.
+        final h = _Harness(config: const FakePeripheralConfig(staleBond: true));
+        await h.toBonded();
+        expect(h.fake.removeBondCalls, 1);
+        expect(h.machine.state, isA<SetupBonded>());
+        await h.dispose();
+      },
+    );
 
-    test('outcome 2b — the manual screen only when the platform refuses',
-        () async {
-      final h = _Harness(
-        config: const FakePeripheralConfig(
-          staleBond: true,
-          refuseRemoveBond: true,
-        ),
-      );
-      await h.toBonded();
-      expect(h.machine.state, isA<SetupRebondNeeded>());
-      await h.dispose();
-    });
+    test(
+      'outcome 2b — the manual screen only when the platform refuses',
+      () async {
+        final h = _Harness(
+          config: const FakePeripheralConfig(
+            staleBond: true,
+            refuseRemoveBond: true,
+          ),
+        );
+        await h.toBonded();
+        expect(h.machine.state, isA<SetupRebondNeeded>());
+        await h.dispose();
+      },
+    );
 
     test('outcome 4 — a device with no bridge service is terminal', () async {
       // The fake throws BleStateException for a non-readable characteristic;
@@ -835,7 +840,13 @@ void main() {
         await h.machine.retryWifi();
         final p = h.machine.state as SetupNetworkPassword;
         expect(p.prefill, 'WRONG');
-        expect(p.error, contains('Incorrect password'));
+        // The banner names the cause, sourced from the one copy file so the
+        // short and full-screen forms of a reason cannot drift (16 §16.4).
+        expect(
+          p.error,
+          SetupNetCopy.wifiRetryBanner(WifiFailure.wrongPassword, 'Backyard'),
+        );
+        expect(p.error, contains('Backyard'));
         await h.dispose();
       },
     );

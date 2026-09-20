@@ -5,7 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/app/error_boundary.dart';
-import 'package:smoke_bridge/app/theme.dart';
+import 'package:smoke_bridge/design/theme.dart';
 
 /// Throws during build, like any real bug would.
 class _Bomb extends StatelessWidget {

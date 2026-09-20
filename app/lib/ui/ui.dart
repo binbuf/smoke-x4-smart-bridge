@@ -3,7 +3,9 @@
 library;
 
 export 'chrome/alarm_bar.dart';
+export 'chrome/chrome_slot.dart';
 export 'chrome/pulse_dot.dart';
+export 'chrome/series_legend.dart';
 export 'chrome/signal_bars.dart';
 export 'chrome/transport_chip.dart';
 export 'controls/action_row.dart';

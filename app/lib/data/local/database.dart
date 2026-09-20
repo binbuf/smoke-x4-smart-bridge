@@ -612,6 +612,25 @@ class SampleDao extends DatabaseAccessor<AppDatabase> with _$SampleDaoMixin {
     return row.read(maxExpr);
   }
 
+  /// Wall clock of the newest cached reading for a bridge, or null when
+  /// nothing is cached **or** the bridge had no clock when it recorded.
+  ///
+  /// This is what dates a cold start: it lets the reader open out of range and
+  /// show last night's numbers carrying last night's age, rather than showing
+  /// them as live (13 §13.6.1). Null is a real answer — §E.7 forbids
+  /// inventing a timestamp for a bridge whose RTC was never set — and it
+  /// renders as "unknown", never as fresh.
+  ///
+  /// Rides the `idx_samples_unix` index, so it stays a cheap boot-path read.
+  Future<int?> newestUnixMs(String bridgeId) async {
+    final newest = samples.unixMs.max();
+    final q = selectOnly(samples)
+      ..addColumns([newest])
+      ..where(samples.bridgeId.equals(bridgeId));
+    final row = await q.getSingleOrNull();
+    return row?.read(newest);
+  }
+
   /// Lowest cached `t` for a session, or null when nothing is cached.
   ///
   /// A non-zero value means the cache starts partway into the cook, which
@@ -890,9 +909,13 @@ class CookDao extends DatabaseAccessor<AppDatabase> with _$CookDaoMixin {
           notes: r.notes,
           presetId: r.presetId,
           doneness: r.doneness,
+          // A name this build does not know — a row written by a later
+          // release — falls back to the *floored* class, not the floor-free
+          // one. Downgrading an unknown protein to "no minimum" is the one
+          // way a storage read can become a food-safety decision.
           hazard:
               HazardClass.values.where((h) => h.name == r.hazard).firstOrNull ??
-              HazardClass.wholeMuscleRedMeat,
+              HazardClass.unstated,
           safetyMode:
               SafetyMode.values.where((m) => m.name == r.safetyMode).firstOrNull ??
               SafetyMode.enthusiast,

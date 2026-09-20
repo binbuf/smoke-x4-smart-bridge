@@ -16,6 +16,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
 import '../../data/transport/bridge_transport.dart';
+import '../../design/design.dart';
+import '../../ui/ui.dart';
 import '../dashboard/dashboard_snapshot.dart';
 import '../settings/settings_screen.dart' show SettingsSection;
 import 'shell_session.dart';
@@ -118,57 +120,42 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
           'bridge is back.',
   };
 
+  /// Which status role the current link is drawn in. Green is transport
+  /// health and this is the one screen in the app entitled to say so.
+  StatusRole get _role => switch (widget.link) {
+    LinkKind.http => widget.netMode == 'ap'
+        ? StatusRole.pit
+        : StatusRole.positive,
+    LinkKind.ble => StatusRole.info,
+    LinkKind.offline => StatusRole.critical,
+  };
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.tokens;
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        // The 4 dp scale, not a 20/4/20/20 nobody can derive.
+        padding: const EdgeInsets.fromLTRB(
+          SmokeTokens.s5,
+          SmokeTokens.s1,
+          SmokeTokens.s5,
+          SmokeTokens.s5,
+        ),
         child: Column(
           key: const Key('connection-sheet'),
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Connection', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(_statusIcon, color: theme.colorScheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.upgrading && widget.link == LinkKind.ble
-                            ? '$_statusLabel · reconnecting to Wi-Fi'
-                            : _statusLabel,
-                        key: const Key('connection-current'),
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      if (widget.address.isNotEmpty)
-                        Text(
-                          widget.address,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
+            // §16.5: a sheet header is `displayS`, left, in the content.
             Text(
-              _story,
-              key: const Key('connection-story'),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              'Connection',
+              style: SmokeType.displayS.copyWith(color: t.textHi),
             ),
-            const Divider(height: 32),
-            Text('Prefer', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: SmokeTokens.s4),
+            _lead(t),
+            const SizedBox(height: SmokeTokens.s5),
+            _sectionLabel(t, 'Prefer'),
             SegmentedButton<PreferredTransport>(
               key: const Key('connection-preferred'),
               segments: const [
@@ -190,12 +177,15 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
               ],
               selected: {_preferred},
               onSelectionChanged: (sel) {
-                final t = sel.first;
-                setState(() => _preferred = t);
-                widget.onPreferredChanged(t);
+                final choice = sel.first;
+                // A tick, not a thud: picking a lane is a selection, and the
+                // vocabulary has one intent for exactly that (§H.2).
+                SmokeHaptics.fire(SmokeHaptic.selection);
+                setState(() => _preferred = choice);
+                widget.onPreferredChanged(choice);
               },
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: SmokeTokens.s2),
             Text(
               switch (_preferred) {
                 PreferredTransport.auto =>
@@ -209,10 +199,9 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
                       'changing Wi-Fi. Full history needs a Wi-Fi connection.',
               },
               key: const Key('connection-preferred-hint'),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: SmokeType.bodySm.copyWith(color: t.textMuted),
             ),
+            const SizedBox(height: SmokeTokens.s5),
             SwitchListTile(
               key: const Key('connection-hold-ble'),
               contentPadding: EdgeInsets.zero,
@@ -223,11 +212,12 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
               ),
               value: _holdBle,
               onChanged: (v) {
+                SmokeHaptics.fire(SmokeHaptic.selection);
                 setState(() => _holdBle = v);
                 widget.onHoldBleChanged(v);
               },
             ),
-            const Divider(height: 24),
+            const Divider(height: SmokeTokens.s6),
             // One label used to hide two unrelated destinations, and the
             // visible one was the less important: "Reach it directly by
             // address" sounded like a manual-IP field and actually opened the
@@ -248,4 +238,75 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
       ),
     );
   }
+
+  /// The lead card: what lane we are on, where it is, and what that buys —
+  /// one subject, so one card (§16.5), and the status hue drawn the only way
+  /// the rule allows, as chrome around an icon and a word.
+  Widget _lead(SmokeTokens t) {
+    final hue = StatusPalette.hue(_role);
+    return SmokeCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: StatusPalette.fill(_role),
+                  borderRadius: BorderRadius.circular(SmokeTokens.radiusChip),
+                  border: Border.all(color: StatusPalette.border(_role)),
+                ),
+                child: Icon(_statusIcon, size: 20, color: hue),
+              ),
+              const SizedBox(width: SmokeTokens.s3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.upgrading && widget.link == LinkKind.ble
+                          ? '$_statusLabel · reconnecting to Wi-Fi'
+                          : _statusLabel,
+                      key: const Key('connection-current'),
+                      style: SmokeType.title.copyWith(color: t.textHi),
+                    ),
+                    if (widget.address.isNotEmpty)
+                      Text(
+                        widget.address,
+                        // An address is something a person reads aloud or
+                        // types into another device, so it is mono — the same
+                        // rule the device id and the passkey follow.
+                        style: SmokeType.bodySm.copyWith(
+                          color: t.textMuted,
+                          fontFamily: SmokeFonts.mono,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SmokeTokens.s3),
+          Text(
+            _story,
+            key: const Key('connection-story'),
+            style: SmokeType.bodySm.copyWith(color: t.textBody),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// §16.5: a section label is `label`, upper case, `textMuted`, s5 above and
+  /// s2 below. The s5 is the caller's; the s2 is here.
+  Widget _sectionLabel(SmokeTokens t, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: SmokeTokens.s2),
+    child: Text(
+      text.toUpperCase(),
+      style: SmokeType.label.copyWith(color: t.textMuted),
+    ),
+  );
 }

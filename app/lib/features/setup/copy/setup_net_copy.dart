@@ -57,11 +57,20 @@ abstract final class SetupNetCopy {
   // A25: Bluetooth is the default connection and already works by this point
   // in setup — Wi-Fi is an upgrade, not a requirement, and the copy says so.
   static const String pickTitle = 'Add Wi-Fi to your bridge?';
-  static const String pickSubtitle =
+
+  /// Why this screen exists on a first run: Wi-Fi is an upgrade, not a
+  /// requirement. A re-entry replaces this half with its own reason (§16.3)
+  /// and keeps [pickBand], which is true either way.
+  static const String pickReason =
       'Bluetooth is already set up — live temperatures work at the smoker '
-      'right now. Wi-Fi adds full cook history, updates, and Home Assistant. '
-      "The bridge uses 2.4 GHz Wi-Fi; a 5 GHz-only network won't appear "
-      'here.';
+      'right now. Wi-Fi adds full cook history, updates, and Home Assistant.';
+
+  /// The one fact about the radio the user needs before they scan the list —
+  /// held apart so it survives every rewording of the reason above it.
+  static const String pickBand =
+      "The bridge uses 2.4 GHz Wi-Fi; a 5 GHz-only network won't appear here.";
+
+  static const String pickSubtitle = '$pickReason $pickBand';
 
   /// The Bluetooth-only forward action (A25): a first-class way to finish
   /// setup, never a buried "skip". Wi-Fi stays one tap away in Settings.
@@ -187,6 +196,21 @@ abstract final class SetupNetCopy {
             'It connected, then dropped. Move the bridge closer to your '
             'router.',
       ),
+    };
+  }
+
+  /// The same six causes, one line each, for the banner above a prefilled
+  /// password field. Here rather than on the machine so the short form and the
+  /// full-screen form of a cause can never drift apart — and phrased as what
+  /// happened, never as what the user got wrong (16 §16.4).
+  static String wifiRetryBanner(WifiFailure reason, String ssid) {
+    final where = ssid.isEmpty ? 'that network' : ssid;
+    return switch (reason) {
+      WifiFailure.wrongPassword => "That password didn't work for $where",
+      WifiFailure.notFound => "The bridge couldn't find $where",
+      WifiFailure.assocRefused => 'Your router turned the bridge away',
+      WifiFailure.noIp => 'The bridge joined but never got an address',
+      WifiFailure.weakSignal => 'The signal is too weak where the bridge is',
     };
   }
 

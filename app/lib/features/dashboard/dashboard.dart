@@ -13,7 +13,12 @@
 /// that was the only living part of `session_controls.dart` now lives in
 /// `features/cook/mark_sheet.dart`, wired to a control a user can actually
 /// reach.
+///
+/// `probe_tile.dart` went the same way, and took `lib/app/palette.dart` with
+/// it: that file was a byte-for-byte duplicate of `design/series_palette.dart`
+/// kept alive by this one unreachable widget, and two palettes is precisely
+/// the drift that makes an app stop feeling designed. Its unique assertions
+/// were migrated to `test/design/series_channels_test.dart` first.
 library;
 
 export 'dashboard_snapshot.dart';
-export 'probe_tile.dart';

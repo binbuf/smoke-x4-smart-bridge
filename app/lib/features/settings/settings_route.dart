@@ -1,30 +1,37 @@
-/// The settings composition root (A12), on the **shared** connection
-/// (newapp §F, §I.1 Phase 0).
+/// The settings composition root, on the **shared** connection (newapp §F,
+/// §I.1 Phase 0; 16 §16.6).
 ///
-/// A single route with an inner section stack, so the pages share one
-/// connection and one set of reads. Everything it renders is one of the pure
-/// views in this folder, which is what keeps them testable without a transport.
+/// A single route with an inner section stack, so every page shares one link
+/// and one set of reads. Everything it renders is one of the pure views in this
+/// folder, which is what keeps them testable with no transport at all.
 ///
-/// **The bug this fixes was the worst one in the app.** This route used to
-/// build its *own* `HttpTransport` from the remembered base URL while the rest
-/// of the shell reused the supervisor's open link. Two consequences, both bad:
+/// ## The three lies this file exists to have stopped telling
 ///
-///  * on a **Bluetooth-only setup there was no base URL at all**, so
-///    `_transport` stayed null — and because every write went through a
-///    null-aware `_transport?.configure(...)`, **saving probe settings appeared
-///    to succeed while writing nothing**. A form that reports success and
-///    changes nothing is the single most expensive kind of lie an app can tell;
-///  * even over Wi-Fi it opened a second socket to a device that had one.
+/// **1. A form that reported success and wrote nothing.** This route used to
+/// build its *own* `HttpTransport` from the remembered base URL. On a
+/// Bluetooth-only setup there is no base URL, so `_transport` stayed null, and
+/// every write went through a null-aware `_transport?.configure(...)` — saving
+/// probe settings appeared to succeed while nothing left the phone. The
+/// transport now comes from [ShellScope], the same link the reader and the
+/// Device tab use.
 ///
-/// So the transport now comes from [ShellScope] — the same link the reader and
-/// the Device tab use — and **every write verifies by read-back** before the
-/// UI reports anything, which is house rule 7 ("verify by behaviour, not by
-/// return value") applied where it was being skipped.
+/// **2. A write reported as saved on the strength of a 200.** Every write here
+/// resolves to a [WriteOutcome], decided by reading the bridge back — probe
+/// configuration through `live()`, everything else through `deviceConfig()`.
+/// [WriteOutcome.unverified] survives for the one case that is genuinely
+/// unknowable: a lane that carries the write and cannot carry the read, which
+/// is Bluetooth. The old code said "Saved" for every case including that one.
 ///
-/// The second half of §F's complaint is also fixed: the device pages used to
-/// render **constructor defaults as if they were facts read from the bridge**
-/// (display timeout 60 s, status LED on, 64 cooks kept). Absent is now absent —
-/// see [DeviceSettingsView]'s nullable inputs.
+/// **3. A constructor default rendered as a device fact.** The worst instance
+/// was `NetMode _netMode = NetMode.sta`, rendered as "Joined a network" at the
+/// top of the Network page while the bridge sat there hosting its own access
+/// point — the exact bug 16 §16.6 names. It is gone: [_netMode] is `NetMode?`,
+/// starts null, and is only ever written from something the **device said** —
+/// its `net` push over either lane, or the shell's snapshot, which is itself
+/// derived from that push. Null renders `—`.
+///
+/// The same audit ran over every other field on this screen, and it found four
+/// more of the same class. They are marked at their declarations.
 library;
 
 import 'dart:async';
@@ -43,20 +50,25 @@ import '../../data/transport/http_transport.dart';
 import '../../domain/entities/entities.dart';
 import '../bridge/verb_progress.dart';
 import '../shell/shell_scope.dart';
+import 'netmode_switch.dart';
+import 'netmode_switch_sheet.dart';
+import 'settings_data.dart';
+import 'settings_diagnostics.dart';
+import 'settings_kit.dart';
 import 'settings_mqtt.dart';
 import 'settings_network.dart';
+import 'settings_power.dart';
 import 'settings_probes.dart';
 import 'settings_screen.dart';
 
 class SettingsRoute extends StatefulWidget {
   const SettingsRoute({super.key, this.initialSection, this.embedded = false});
 
-  /// Open straight onto one section — how `/bridge/:section` reaches these
-  /// pages now that settings has been folded into the Bridge branch
-  /// (13 §13.3.2). Null keeps the old section-list behaviour.
+  /// Open straight onto one section — how `/device/settings/:section` reaches
+  /// these pages. Null keeps the section-list behaviour.
   final SettingsSection? initialSection;
 
-  /// True when pushed inside the Bridge branch: back is a branch pop, and
+  /// True when pushed inside the Device branch: back is a branch pop, and
   /// there is no section list to return to.
   final bool embedded;
 
@@ -67,49 +79,115 @@ class SettingsRoute extends StatefulWidget {
 class _SettingsRouteState extends State<SettingsRoute> {
   SettingsSection? _section;
   BridgeTransport? _transport;
-  List<Probe> _probes = const [];
+  StreamSubscription<BridgeEvent>? _events;
+
+  // ── read from the device; null until it answers ──────────────────────
   BridgeStatus? _status;
-  String _units = 'F';
+  LiveState? _live;
+  List<Probe> _probes = const [];
+
+  /// **Default-as-fact #5, and the one that could destroy a configuration.**
+  /// [_probes] is `const []` until `live()` lands, and the probe form seeded
+  /// four blank `Probe(n:)` from it — then "Save to the bridge" wrote those
+  /// blanks over the user's real names, roles and targets and reported
+  /// success, because the read-back matched the blanks it had just written.
+  /// The form is gated on this flag and does not exist until it is true.
+  bool _probesKnown = false;
+
+  LinkSignal? _signal;
+
+  /// `GET /api/v1/config/alarms` — which of the bridge's nine rules are on.
+  ///
+  /// **Default-as-fact #6.** This was a `const` map of six rules, all true,
+  /// handed straight to the view: "6 of 6 on" rendered as a statement about a
+  /// device over any lane, on a phone that had never met a bridge, and naming
+  /// six of the nine §G.1 rules at that. Null until the bridge answers.
+  Map<String, bool>? _deviceRules;
+
+  /// A16 — Home Assistant. [_mqttKnown] is separate from `_mqtt != null`
+  /// because [MqttConfig]'s own constructor carries port 1883 and the prefix
+  /// `smokebridge`; handing the view a default-constructed one would put two
+  /// values on screen that the bridge never reported. **Default-as-fact #2.**
+  MqttConfig? _mqtt;
+  bool _mqttKnown = false;
+
+  /// **Default-as-fact #1, and the one 16 §16.6 names.** Was
+  /// `NetMode _netMode = NetMode.sta`, rendered as "Joined a network" over a
+  /// bridge that was hosting its own. Now: null until a `net` push, a shell
+  /// snapshot, or a hosted-network client count says otherwise.
+  NetMode? _netMode;
+  String _netSsid = '';
+  String _netIp = '';
+  String _apPsk = '';
+  int? _revertInS;
+  String _netRecovery = '';
+
+  /// The manual-address escape hatch, mid-flight and after it failed.
+  bool _manualAddressBusy = false;
+  String _manualAddressError = '';
+
+  /// `GET /api/v1/config/device`, the read half — the bridge's own screen
+  /// timeout, its light, its saver mode and its retention limit.
+  ///
+  /// [DeviceConfig.unknown] until it answers, and **permanently unknown over
+  /// Bluetooth**, which returns it rather than throwing. That is the right
+  /// shape for this screen: every field is nullable, so an unread value lands
+  /// on `—` beside the sentence that says why, and no page has to handle a
+  /// thrown read for a row that was only ever going to say `—`.
+  DeviceConfig _device = DeviceConfig.unknown;
+
+  /// **Default-as-fact #3.** The saver mode was write-only in every direction:
+  /// nothing read it back, so the page separated what was *asked for* from
+  /// what the bridge reports it is *doing*, and [_saverConfirmed] kept the two
+  /// apart. `deviceConfig()` now supplies the missing read, so on Wi-Fi this
+  /// flag is finally true and the row states a fact. It stays false over
+  /// Bluetooth — where it is still the honest answer.
   String? _saver;
+  bool _saverConfirmed = false;
+
+  /// From the device's `power` push, which is a measurement rather than a
+  /// setting. Null until one arrives.
+  bool? _saverEngaged;
+  int? _socPct;
+  bool? _charging;
+
+  /// **Default-as-fact #4.** `paired` was read as `_status?.paired ?? false`
+  /// — "not paired" rendered for a bridge that had simply not answered yet,
+  /// on the page whose whole job is to tell you whether it is paired. Now
+  /// nullable all the way to the row.
+  bool? get _paired => _status?.paired;
+
+  // ── phone-side facts. Genuinely known, so genuinely rendered ──────────
+  String _units = 'F';
   ThemeProfile _themeProfile = ThemeProfile.dark;
   bool _quietHours = true;
   bool _monitoring = true;
   bool _batteryExempt = false;
 
-  // A12.3 — network. The mode is optimistic: it reflects what was last
-  // applied from this screen, because `/status` does not carry it and
-  // opening a WebSocket just to render one line is a bad trade.
-  NetMode _netMode = NetMode.sta;
-  String _netSsid = '';
-  String _apPsk = '';
-  String _netRecovery = '';
-
-  // A12.6 — OTA upload state. Progress comes from the transport's `ota`
-  // events, not from byte counting: the device is authoritative about its
-  // own phase.
+  // ── OTA ──────────────────────────────────────────────────────────────
   int? _otaPct;
   String _otaPhase = '';
   String _otaRefusal = '';
-  StreamSubscription<BridgeEvent>? _otaEvents;
 
-  // A16 — Home Assistant / MQTT. Loaded from the device (HTTP-only); null
-  // until it answers, and left null on a transport that cannot do it.
-  MqttConfig? _mqtt;
-
-  // A29 — the phone's own cache. Read from drift, never from the bridge:
-  // this page is about what THIS PHONE keeps, and it must render with the
-  // bridge unplugged.
+  // ── the phone's own cache. Read from drift, never from the bridge ─────
   CacheStats _cache = CacheStats.empty;
   bool _clearing = false;
+  List<(String, String)> _syncRows = const [];
+  String _rolloverLoss = '';
+
+  /// §F's transport column, resolved once for every page that needs it.
+  SettingsLane get _lane => switch (_transport) {
+    null => SettingsLane.none,
+    BleTransport() => SettingsLane.bluetooth,
+    _ => SettingsLane.wifi,
+  };
 
   @override
   void initState() {
     super.initState();
     _section = widget.initialSection;
     _units = AppEnv.instance?.prefs.displayUnits ?? 'F';
-    _themeProfile = ThemeProfile.fromName(
-      AppEnv.instance?.prefs.themeProfile,
-    );
+    _themeProfile = ThemeProfile.fromName(AppEnv.instance?.prefs.themeProfile);
     _quietHours = AppEnv.instance?.prefs.quietHoursEnabled ?? true;
     _monitoring = AppEnv.instance?.prefs.monitoringEnabled ?? true;
     unawaited(_loadCache());
@@ -119,17 +197,229 @@ class _SettingsRouteState extends State<SettingsRoute> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _adoptSharedTransport();
+    _adoptShellFacts();
   }
 
-  /// The cache's size, read straight from drift. Deliberately outside the
-  /// `baseUrl == null` guard below: a phone that has never been paired
-  /// still has a cache page, and one whose bridge is unreachable must
-  /// still be able to clear it.
-  /// §F's Diagnostics rows the app itself owns: the sync high-water marks and
-  /// the device's reported buffer extent, which are the two numbers that
-  /// explain a chart with a hole in it.
-  Map<String, Object?> _syncRows = const {};
+  /// Takes the shell's live transport. Called from `didChangeDependencies` as
+  /// well as `initState`, because the supervisor can swap Bluetooth for Wi-Fi
+  /// while this screen is open and a page holding the old link would keep
+  /// writing down a socket nobody is listening to.
+  void _adoptSharedTransport() {
+    final shared = ShellScope.maybeOf(context)?.bridge?.transport;
+    if (shared != null && !identical(shared, _transport)) {
+      _transport = shared;
+      unawaited(_events?.cancel());
+      _events = shared.events.listen(_onEvent);
+      unawaited(_load());
+    }
+  }
 
+  /// Facts the shell already holds. The **network mode** is the important one:
+  /// the shell's snapshot derives it from the device's `net` push, or from the
+  /// hosted network's fixed address — both observations, neither a default.
+  void _adoptShellFacts() {
+    final snap = ShellScope.maybeOf(context)?.snapshot;
+    if (snap == null) {
+      return;
+    }
+    final mode = switch (snap.netMode) {
+      'ap' => NetMode.ap,
+      'sta' => NetMode.sta,
+      _ => null,
+    };
+    final address = snap.address;
+    // A null here is "the shell has not resolved one" — it never overwrites a
+    // mode the device itself already stated on this screen.
+    if ((mode != null && mode != _netMode) ||
+        (address.isNotEmpty && address != _netIp)) {
+      setState(() {
+        if (mode != null) {
+          _netMode = mode;
+        }
+        if (address.isNotEmpty) {
+          _netIp = address;
+        }
+      });
+    }
+  }
+
+  /// The device's own push frames. `net` is the authoritative statement of
+  /// which network it is on — over Bluetooth it is the only one there is.
+  void _onEvent(BridgeEvent e) {
+    if (!mounted) {
+      return;
+    }
+    switch (e) {
+      case BridgeNetEvent(:final mode, :final ip):
+        setState(() {
+          _netMode = switch (mode) {
+            'ap' => NetMode.ap,
+            'sta' => NetMode.sta,
+            _ => _netMode,
+          };
+          if (ip != null && ip.isNotEmpty) {
+            _netIp = ip;
+          }
+        });
+      case BridgePowerEvent(:final socPct, :final charging, :final saver):
+        setState(() {
+          _socPct = socPct;
+          _charging = charging;
+          _saverEngaged = saver;
+        });
+      case BridgeOtaEvent(:final phase, :final pct):
+        setState(() {
+          _otaPhase = phase;
+          _otaPct = pct;
+        });
+      case BridgePairingEvent():
+        unawaited(_refreshStatus());
+      default:
+        break;
+    }
+  }
+
+  Future<void> _load() async {
+    unawaited(_loadCache());
+    final t = _transport;
+    if (AppEnv.instance == null || t == null) {
+      // No shared link yet. The pages that need the device say so
+      // individually; nothing here fabricates a second connection.
+      return;
+    }
+    await _refreshStatus();
+    await _refreshDeviceConfig();
+    try {
+      final signal = await t.signal();
+      if (mounted) {
+        setState(() {
+          _signal = signal;
+          if (signal.ssid.isNotEmpty) {
+            _netSsid = signal.ssid;
+          }
+          // A client count only exists on a hosted network. It is a fact the
+          // device reported, so it may settle the mode — an inference from a
+          // measurement, never from a default.
+          if (signal.apClients != null) {
+            _netMode = NetMode.ap;
+          }
+        });
+      }
+    } on Object {
+      // A signal read is a round trip and may fail on its own; the rest of
+      // the page still renders.
+    }
+    if (t.capabilities.mqtt) {
+      try {
+        final mqtt = await t.mqttConfig();
+        if (mounted) {
+          setState(() {
+            _mqtt = mqtt;
+            _mqttKnown = true;
+          });
+        }
+      } on Object {
+        // The Home Assistant page renders `—` rather than defaults.
+      }
+    }
+    await _refreshAlarmRules();
+  }
+
+  /// The bridge's own rule set, for the summary row on the Alarms page.
+  ///
+  /// The rule *editor* has read this since §G.3; the settings page beside it
+  /// was still printing a constant. Bluetooth throws
+  /// [BridgeUnsupportedException] here, which is the right answer — the row
+  /// then says `—` and "the bridge hasn't reported its rules yet", which is
+  /// exactly true on that lane.
+  Future<void> _refreshAlarmRules() async {
+    final t = _transport;
+    if (t == null) {
+      return;
+    }
+    try {
+      final config = await t.alarmConfig();
+      final rules = config['rules'];
+      if (rules is! List || !mounted) {
+        return;
+      }
+      final byId = <String, bool>{};
+      for (final r in rules.whereType<Map<Object?, Object?>>()) {
+        final id = r['rule'];
+        if (id is String) {
+          byId[id] = r['enabled'] == true;
+        }
+      }
+      setState(() => _deviceRules = byId);
+    } on Object {
+      // A lane that cannot read them leaves the row on `—` with the sentence
+      // that says the bridge has not reported them. That is the honest state,
+      // and it is the state this row spent its whole life lying about.
+    }
+  }
+
+  Future<void> _refreshStatus() async {
+    final t = _transport;
+    if (t == null) {
+      return;
+    }
+    try {
+      final status = await t.status();
+      final live = await t.live();
+      if (mounted) {
+        setState(() {
+          _status = status;
+          _live = live;
+          _probes = live.probes;
+          // The device has now described its jacks, so the probe form is
+          // allowed to exist. Everything before this point was `const []`.
+          _probesKnown = true;
+          if (status.socPct != null) {
+            _socPct = status.socPct;
+          }
+          _charging ??= status.charging;
+        });
+      }
+    } on Object {
+      // Settings still renders: the pages that need the device say so
+      // individually rather than the whole screen failing.
+    }
+  }
+
+  /// Reads the bridge's own settings and **adopts the saver mode as a
+  /// confirmed fact** when it reports one.
+  ///
+  /// [_saverConfirmed] is set only here. A user's tap never sets it, which is
+  /// what keeps "you asked for Always saving" and "the bridge is running
+  /// Always saving" from collapsing into the same sentence on a lane that
+  /// cannot tell them apart.
+  Future<void> _refreshDeviceConfig() async {
+    final t = _transport;
+    if (t == null) {
+      return;
+    }
+    try {
+      final device = await t.deviceConfig();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _device = device;
+        final reported = device.batterySaver;
+        if (reported != null) {
+          _saver = reported.name;
+          _saverConfirmed = true;
+        }
+      });
+    } on Object {
+      // A lane that refuses the read leaves every row on `—` with its reason,
+      // which is the state the page is built to render anyway.
+    }
+  }
+
+  /// The cache's size, read straight from drift. Deliberately outside any
+  /// link guard: a phone that has never been paired still has a cache page,
+  /// and one whose bridge is unreachable must still be able to clear it.
   Future<void> _loadCache() async {
     final db = AppEnv.instance?.db;
     if (db == null) {
@@ -137,38 +427,39 @@ class _SettingsRouteState extends State<SettingsRoute> {
     }
     final stats = await db.cacheStats();
     final bridgeId = await db.sessionDao.knownBridgeId();
-    final rows = <String, Object?>{};
+    final rows = <(String, String)>[];
+    final gaps = <String>[];
     if (bridgeId != null) {
       final sessions = await db.sessionDao.allSessions(bridgeId);
       for (final session in sessions.take(3)) {
         final sync = await db.syncStateDao.forSession(bridgeId, session.id);
-        if (sync == null) {
-          continue;
+        if (sync != null) {
+          rows.add((
+            'Cook ${session.id} — copied up to',
+            formatDuration(sync.highWaterT),
+          ));
+          if (sync.deviceMinT != null && sync.deviceMaxT != null) {
+            rows.add((
+              'Cook ${session.id} — the bridge holds',
+              '${formatDuration(sync.deviceMinT!)} to '
+                  '${formatDuration(sync.deviceMaxT!)}',
+            ));
+          }
         }
-        rows['cook ${session.id} synced to'] = '${sync.highWaterT}s';
-        if (sync.deviceMinT != null && sync.deviceMaxT != null) {
-          rows['cook ${session.id} on the bridge'] =
-              '${sync.deviceMinT}s–${sync.deviceMaxT}s';
-        }
-      }
-      final gaps = <String>[];
-      for (final session in sessions.take(3)) {
         final holes = await db.syncStateDao.forBridgeSession(
           bridgeId,
           session.id,
         );
         for (final g in holes.where((g) => g.reason.isPermanent)) {
-          gaps.add('cook ${session.id}: ${formatDuration(g.durationS)}');
+          gaps.add('cook ${session.id}, ${formatDuration(g.durationS)}');
         }
-      }
-      if (gaps.isNotEmpty) {
-        rows['lost to buffer rollover'] = gaps.join(', ');
       }
     }
     if (mounted) {
       setState(() {
         _cache = stats;
         _syncRows = rows;
+        _rolloverLoss = gaps.join('; ');
       });
     }
   }
@@ -189,184 +480,197 @@ class _SettingsRouteState extends State<SettingsRoute> {
     }
   }
 
-  /// Takes the shell's live transport. Called from `didChangeDependencies`
-  /// as well as `initState`, because the supervisor can swap BLE for Wi-Fi
-  /// while this screen is open and a settings page holding the old link would
-  /// keep writing down a socket nobody is listening to.
-  void _adoptSharedTransport() {
-    final shared = ShellScope.maybeOf(context)?.bridge?.transport;
-    if (shared != null && !identical(shared, _transport)) {
-      _transport = shared;
-      unawaited(_load());
-    }
-  }
+  // ── write, read back, then report ────────────────────────────────────
 
-  Future<void> _load() async {
-    unawaited(_loadCache());
-    final env = AppEnv.instance;
+  /// **Write, then read back, then report** (16 §16.4 rule 10, §16.6).
+  ///
+  /// The shape this replaces was `await _transport?.configure(cfg);
+  /// setState(...)` — a null-aware call whose failure mode is silence and
+  /// whose success mode is unverified. This one refuses when there is no link
+  /// and says so; writes; re-reads `live()` and **adopts what the device
+  /// actually reports**; and then reports which of the six things happened.
+  ///
+  /// **Two read-backs, because there are two reads.** Probe configuration
+  /// comes back on `live()`; everything else comes back on `deviceConfig()`.
+  /// A write that touches both has to satisfy both.
+  ///
+  /// [WriteOutcome.unverified] survives, and it is no longer a euphemism for
+  /// "we did not look". It now means one specific, true thing: **the lane
+  /// carried the write and cannot carry the read**. Bluetooth answers
+  /// `DeviceConfig.unknown`, so a units change over Bluetooth still reports
+  /// "the app can't confirm it stuck" — while the same change over Wi-Fi is
+  /// checked field by field and reports "Saved to the bridge", meaning it.
+  Future<WriteOutcome> _writeAndVerify(
+    BridgeConfig cfg, {
+    required String what,
+  }) async {
     final t = _transport;
-    if (env == null || t == null) {
-      // No shared link yet. The pages that need the device say so
-      // individually; nothing here fabricates a second connection.
-      return;
-    }
-    try {
-      final status = await t.status();
-      final live = await t.live();
-      if (mounted) {
-        setState(() {
-          _status = status;
-          _probes = live.probes;
-        });
-      }
-    } on Object {
-      // Settings still renders: the pages that need the device say so
-      // individually rather than the whole screen failing.
-    }
-    if (t.capabilities.mqtt) {
-      try {
-        final mqtt = await t.mqttConfig();
-        if (mounted) {
-          setState(() => _mqtt = mqtt);
-        }
-      } on Object {
-        // The Home Assistant page falls back to defaults if the read fails.
-      }
-    }
-  }
-
-  /// A12.6 — pick a `.bin` through the injected seam, stream it to
-  /// `POST /api/v1/ota`, and render progress from the device's own `ota`
-  /// frames. [force] carries `?force=1`; the `409 session_active` refusal
-  /// surfaces as copy and the force path is a separate, deliberate act —
-  /// never an automatic retry.
-  Future<void> _uploadFirmware({required bool force}) async {
-    final source = AppEnv.instance?.firmwareImage;
-    final transport = _transport;
-    if (source == null || transport == null) {
-      return;
-    }
-    final image = await source();
-    if (image == null) {
-      return; // the user cancelled the picker
-    }
-
-    setState(() {
-      _otaRefusal = '';
-      _otaPhase = 'starting';
-      _otaPct = 0;
-    });
-
-    // The device is authoritative about its phase, so progress is read off
-    // its `ota` frames rather than counted here.
-    _otaEvents ??= transport.events.listen((e) {
-      if (e is BridgeOtaEvent && mounted) {
-        setState(() {
-          _otaPhase = e.phase;
-          _otaPct = e.pct;
-        });
-      }
-    });
-
-    try {
-      await transport.uploadFirmware(
-        image.bytes,
-        lengthBytes: image.lengthBytes,
-        force: force,
-      );
-    } on BridgeApiException catch (err) {
-      if (!mounted) return;
-      setState(() {
-        _otaPct = null;
-        _otaPhase = '';
-        // The bridge's own refusal (its 409 session_active message). The
-        // view turns it into the two-tier copy and the deliberate force
-        // button, which only appears while a cook is active.
-        _otaRefusal = err.message;
-      });
-    } on Object catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _otaPct = null;
-        _otaPhase = '';
-      });
-    }
-  }
-
-  /// **Write, then read back, then report** (house rule 7; newapp §F).
-  ///
-  /// The old shape was `await _transport?.configure(cfg); setState(...)` — a
-  /// null-aware call whose failure mode is silence and whose success mode is
-  /// unverified. This one:
-  ///
-  ///  1. refuses when there is no link, and says so;
-  ///  2. writes;
-  ///  3. **re-reads `live()` and adopts what the device actually reports**, so
-  ///     the form shows the bridge's truth rather than the user's intent;
-  ///  4. reports what happened either way.
-  ///
-  /// Step 3 is the one that matters. A device that clamps a target, rejects a
-  /// name, or ignores a field it does not support will now show that on screen
-  /// instead of leaving the user's typing there looking saved.
-  Future<void> _writeAndVerify(BridgeConfig cfg, String okMessage) async {
-    final t = _transport;
-    final messenger = ScaffoldMessenger.maybeOf(context);
     if (t == null) {
-      messenger?.showSnackBar(
-        const SnackBar(
-          content: Text('Not connected to the bridge — nothing was saved.'),
-        ),
-      );
-      return;
+      return _report(WriteOutcome.noLink, what);
     }
     try {
       await t.configure(cfg);
-      final live = await t.live();
+
+      final expected = cfg.probes;
+      if (expected != null) {
+        final live = await t.live();
+        if (!mounted) {
+          return WriteOutcome.unverified;
+        }
+        setState(() {
+          _live = live;
+          _probes = live.probes;
+          _probesKnown = true;
+        });
+        if (!probeWriteWasHonoured(expected, live.probes)) {
+          return _report(WriteOutcome.changedByDevice, what);
+        }
+      }
+
+      if (touchesDeviceConfig(cfg)) {
+        final device = await t.deviceConfig();
+        if (!mounted) {
+          return WriteOutcome.unverified;
+        }
+        setState(() {
+          _device = device;
+          final reported = device.batterySaver;
+          if (reported != null) {
+            _saver = reported.name;
+            _saverConfirmed = true;
+          }
+        });
+        return _report(switch (deviceWriteVerdict(device, cfg)) {
+          true => WriteOutcome.verified,
+          false => WriteOutcome.changedByDevice,
+          // The device said nothing about the field we wrote. Not a
+          // failure, and emphatically not a success.
+          null => WriteOutcome.unverified,
+        }, what);
+      }
+      return _report(WriteOutcome.verified, what);
+    } on BridgeUnsupportedException catch (e) {
+      return _report(WriteOutcome.refused, e.what);
+    } on Object {
+      return _report(WriteOutcome.failed, what);
+    }
+  }
+
+  WriteOutcome _report(WriteOutcome outcome, String what) {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(writeOutcomeMessage(outcome, what)),
+        duration: Duration(seconds: outcome == WriteOutcome.verified ? 3 : 6),
+      ),
+    );
+    return outcome;
+  }
+
+  // `_power(cmd)` used to live here: send, swallow every exception, report
+  // nothing. That is the right shape for D15's three disruptive verbs — the
+  // bridge answers *before* it acts and then drops the link, so an error is as
+  // likely to be the success path as a failure — and those three now run
+  // inside the A24.9 sheet, which confirms them by watching the bridge go
+  // down. Pair and unpair were sharing it, and they do not drop the link at
+  // all, so they got the silence without the reason for it.
+
+  /// Pair and unpair — **awaited, and checked against `paired` afterwards.**
+  ///
+  /// These went through [_power], whose whole contract is "the bridge answers
+  /// and then drops the link, so an error here is as likely to be the success
+  /// path as a failure". That is true of reboot, power off and factory reset.
+  /// It is not true of these two: the link stays up, and a re-scan that found
+  /// nothing reported absolutely nothing — the button dimmed for a moment and
+  /// the page carried on saying whatever it had said before.
+  ///
+  /// So this compares the bridge's own `paired` either side of the call and
+  /// says which of the four things happened. Nothing is claimed from the fact
+  /// that a request returned.
+  Future<void> _pairing({required bool pair}) async {
+    final t = _transport;
+    if (t == null) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final before = _status?.paired;
+    try {
+      await t.control(
+        pair ? const ControlCommand.pair() : const ControlCommand.unpair(),
+      );
+      await _refreshStatus();
       if (!mounted) {
         return;
       }
-      setState(() => _probes = live.probes);
-      final expected = cfg.probes;
-      if (expected != null && !probeWriteWasHonoured(expected, live.probes)) {
-        messenger?.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'The bridge kept its own values for some of those. What you see '
-              'now is what it actually has.',
-            ),
-            duration: Duration(seconds: 6),
-          ),
-        );
-        return;
-      }
-      messenger?.showSnackBar(SnackBar(content: Text(okMessage)));
-    } on BridgeUnsupportedException catch (e) {
+      final after = _status?.paired;
       messenger?.showSnackBar(
-        SnackBar(content: Text('${e.what} needs a Wi-Fi connection.')),
+        SnackBar(
+          content: Text(switch ((pair, after)) {
+            (_, null) =>
+              'The bridge took that, but it hasn’t said whether it is paired.',
+            (true, true) when before == true =>
+              'Still paired to the same base station.',
+            (true, true) =>
+              'Paired. Readings arrive from the base station now.',
+            (true, false) =>
+              'The bridge didn’t find a base station. Put yours into sync '
+                  'mode and try again.',
+            (false, false) => 'Unpaired. Readings stop until you pair again.',
+            (false, true) =>
+              'The bridge still reports a base station. Nothing changed.',
+          }),
+          duration: const Duration(seconds: 6),
+        ),
       );
     } on Object {
       messenger?.showSnackBar(
         const SnackBar(
-          content: Text('The bridge didn’t take that. Nothing was saved.'),
+          content: Text('The bridge didn’t take that. Nothing changed.'),
         ),
       );
     }
   }
 
-  /// D15's verbs. The bridge answers *before* it acts and then drops the
-  /// link, so a transport error here is as likely to be the success path as
-  /// a failure — there is nothing honest to report and nothing to retry.
-  Future<void> _power(ControlCommand cmd) async {
+  /// Silencing an alarm is a write, so it is sent, read back and reported.
+  ///
+  /// It used to be `_transport?.control(...) ?? Future.value()` inside an
+  /// `unawaited` — a fully enabled "Silence" button that did nothing at all
+  /// with no link, swallowed every failure when there was one, and never
+  /// re-read the status it had just changed.
+  Future<void> _ack(Alarm alarm) async {
+    final t = _transport;
+    if (t == null) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
     try {
-      await _transport?.control(cmd);
+      await t.control(ControlCommand.ackAlarm(alarmId: alarm.id));
+      await _refreshStatus();
+      if (!mounted) {
+        return;
+      }
+      final back = (_status?.alarms ?? const <Alarm>[])
+          .where((a) => a.id == alarm.id)
+          .firstOrNull;
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            back == null || back.acked
+                ? 'Silenced. It stays in the list until it clears.'
+                : 'The bridge hasn’t silenced that one. It is still sounding.',
+          ),
+        ),
+      );
     } on Object {
-      // Deliberately swallowed; see above.
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'The bridge didn’t take that. The alarm is still sounding.',
+          ),
+        ),
+      );
     }
   }
 
-  /// The three verbs that take the bridge down run inside the A24.9 sheet,
-  /// which verifies completion by watching the bridge actually drop — the
-  /// board-found gap was a factory reset that succeeded with no confirmation.
   Future<void> _runDisruptive(DisruptiveVerb verb, ControlCommand cmd) async {
     final t = _transport;
     if (t == null || !mounted) {
@@ -394,9 +698,212 @@ class _SettingsRouteState extends State<SettingsRoute> {
     );
   }
 
+  /// §16.3 situation 9's remedy, verified: set the clock, then re-read `live()`
+  /// and only claim it worked if the bridge now reports a plausible date.
+  Future<void> _setClock() async {
+    final t = _transport;
+    if (t == null) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await t.control(
+        ControlCommand.setTime(unixMs: DateTime.now().millisecondsSinceEpoch),
+      );
+      final live = await t.live();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _live = live);
+      final ok =
+          live.unixMs != null &&
+          live.unixMs! >= DiagnosticsSettingsView.plausibleFrom;
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            ok
+                ? 'The bridge knows the time now. Cooks from here on are dated.'
+                : 'The bridge took the time but still isn’t reporting a date.',
+          ),
+        ),
+      );
+    } on Object {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('The bridge didn’t take the time.')),
+      );
+    }
+  }
+
+  // ── §E.3 — the network switch, with a rollback ───────────────────────
+
+  /// Runs §E.3's wizard rather than the old fire-and-forget `onApply`.
+  ///
+  /// The old path posted the change down the link it was about to kill, set
+  /// `_netMode` to whatever had been asked for, and reported success — so a
+  /// wrong password produced a bridge nobody could reach, under a screen
+  /// saying it had joined. Now the device arms a rollback, the app races the
+  /// expected new endpoint, and the mode is adopted **only on a commit**.
+  Future<void> _switchMode(NetMode mode, String ssid, String psk) async {
+    final t = _transport;
+    if (t == null) {
+      return;
+    }
+    final target = mode == NetMode.ap ? NetworkMode.ap : NetworkMode.sta;
+    var handedBackPsk = '';
+    final machine = NetModeSwitch(
+      apply: (m, s, p) async {
+        final key = await t.applyNetwork(
+          mode: m,
+          ssid: s,
+          psk: p,
+          revertAfterS: kNetModeRevertS,
+        );
+        handedBackPsk = key;
+        return key;
+      },
+      // A lane wins only on a real `GET /status` 200 — never on a socket that
+      // merely opened.
+      probe: () async {
+        await t.status();
+        return true;
+      },
+      commit: t.commitNetworkMode,
+    );
+
+    setState(() {
+      _netRecovery = '';
+      _revertInS = null;
+    });
+
+    final result = await showNetModeSwitchSheet(
+      context,
+      machine: machine,
+      mode: target,
+      ssid: ssid,
+      psk: psk,
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+
+    switch (result.phase) {
+      case NetSwitchPhase.committed:
+        setState(() {
+          _netMode = mode;
+          _netSsid = mode == NetMode.ap ? _netSsid : ssid;
+          _apPsk = handedBackPsk;
+          _revertInS = null;
+          _netRecovery = '';
+        });
+        await _load();
+      case NetSwitchPhase.revertPending:
+        setState(() {
+          // The mode is NOT adopted. Nothing confirmed it, and the device is
+          // about to put back what worked.
+          _revertInS = result.revertInS;
+          _netRecovery =
+              'The bridge took the change but this phone never found it again. '
+              'It goes back to the network that was working in '
+              '${result.revertInS} seconds, on its own. '
+              '${mode == NetMode.sta ? 'Check the network name and password, then try again.' : 'Your phone may need to join the bridge’s own network first.'}';
+        });
+      case NetSwitchPhase.refused:
+        setState(
+          () => _netRecovery = result.detail.isEmpty
+              ? 'The bridge refused that change. Nothing was altered.'
+              : '${result.detail} Nothing was altered.',
+        );
+      case NetSwitchPhase.requesting:
+      case NetSwitchPhase.reconnecting:
+        break;
+    }
+  }
+
+  /// The escape hatch, **verified before it is believed** (05 §5.8, 08 §8.4).
+  ///
+  /// The row's own subtitle promises "Reconnects straight away and remembers
+  /// it". What it did was record the string and `context.go('/live')` — so one
+  /// mistyped digit recorded a dead address, navigated away from the page that
+  /// could fix it, and left the reader on `/live` with no message at all
+  /// (16 §16.4 rule 10). A `GET /status` on the address is one round trip and
+  /// it is the difference between a promise and a claim.
+  Future<void> _useManualAddress(String address) async {
+    setState(() {
+      _manualAddressBusy = true;
+      _manualAddressError = '';
+    });
+    final probe = HttpTransport(address);
+    try {
+      final status = await probe.status();
+      await AppEnv.instance?.prefs.recordConnection(
+        address,
+        bridgeId: status.deviceId.isEmpty ? null : status.deviceId,
+      );
+      if (mounted) {
+        context.go(AppRoutes.live);
+      }
+    } on Object {
+      if (mounted) {
+        setState(
+          () => _manualAddressError =
+              'Nothing answered at that address. Check it against the '
+              'bridge’s own screen, which shows the one it is using.',
+        );
+      }
+    } finally {
+      await probe.close();
+      if (mounted) {
+        setState(() => _manualAddressBusy = false);
+      }
+    }
+  }
+
+  /// A12.6 — pick a `.bin` through the injected seam and stream it to
+  /// `POST /api/v1/ota`. Progress comes from the device's own `ota` frames,
+  /// handled in [_onEvent]: the device is authoritative about its phase.
+  Future<void> _uploadFirmware({required bool force}) async {
+    final source = AppEnv.instance?.firmwareImage;
+    final transport = _transport;
+    if (source == null || transport == null) {
+      return;
+    }
+    final image = await source();
+    if (image == null) {
+      return; // the user cancelled the picker
+    }
+    setState(() {
+      _otaRefusal = '';
+      _otaPhase = 'starting';
+      _otaPct = 0;
+    });
+    try {
+      await transport.uploadFirmware(
+        image.bytes,
+        lengthBytes: image.lengthBytes,
+        force: force,
+      );
+    } on BridgeApiException catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _otaPct = null;
+        _otaPhase = '';
+        // The bridge's own refusal (its 409 session_active message). The view
+        // turns it into the two-tier copy and the deliberate force button,
+        // which only appears while a cook is active.
+        _otaRefusal = err.message;
+      });
+    } on Object catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _otaPct = null;
+        _otaPhase = '';
+      });
+    }
+  }
+
   @override
   void dispose() {
-    unawaited(_otaEvents?.cancel());
+    unawaited(_events?.cancel());
     // The supervisor owns this link's lifetime now. Closing it here would take
     // the live readings down every time somebody backed out of settings.
     super.dispose();
@@ -405,8 +912,8 @@ class _SettingsRouteState extends State<SettingsRoute> {
   @override
   Widget build(BuildContext context) {
     final section = _section;
-    // Deep-linked at a section (`/bridge/:section`): there is no section list
-    // behind it, so back is a branch pop and go_router supplies the button.
+    // Deep-linked at a section: there is no section list behind it, so back is
+    // a branch pop and go_router supplies the button.
     final pinned = widget.initialSection != null;
     return Scaffold(
       appBar: AppBar(
@@ -417,7 +924,7 @@ class _SettingsRouteState extends State<SettingsRoute> {
                 key: const Key('settings-back'),
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => section == null
-                    ? context.go(AppRoutes.bridge)
+                    ? context.go(AppRoutes.device)
                     : setState(() => _section = null),
               ),
       ),
@@ -427,23 +934,35 @@ class _SettingsRouteState extends State<SettingsRoute> {
 
   Widget _body(SettingsSection? section) => switch (section) {
     null => SettingsHomeView(onOpen: (s) => setState(() => _section = s)),
+
+    SettingsSection.identity => IdentitySettingsView(
+      deviceId: _status?.deviceId,
+      model: _status?.model,
+      firmware: _status?.fw,
+      address: _netIp.isEmpty ? null : _netIp,
+      paired: _paired,
+      controlReason: _lane.control,
+      onPair: _transport == null ? null : () => unawaited(_pairing(pair: true)),
+      onUnpair: _transport == null
+          ? null
+          : () => unawaited(_pairing(pair: false)),
+    ),
+
     SettingsSection.probes => ProbeSettingsView(
       probes: _probes,
+      probesKnown: _probesKnown,
       celsius: _units == 'C',
-      // A6's typed condition, surfaced as copy: `BleTransport` has no
-      // `device_control` op for probe names or roles, and v1 leaves that
-      // surface HTTP-only rather than silently dropping the write. Also true
-      // when there is no shared link at all — a disabled row with a reason
-      // beats a form that reports success and writes nothing.
-      unsupportedReason: switch (_transport) {
-        null => 'Not connected to the bridge — reconnect to change probes.',
-        BleTransport() =>
-          'Probe names and targets need a Wi-Fi connection to the bridge.',
-        _ => '',
-      },
-      onSave: (probes) =>
-          _writeAndVerify(BridgeConfig(probes: probes), 'Probes saved'),
+      // §F's transport column: `BleTransport` has no `device_control` op for
+      // probe names or roles, and v1 leaves that surface Wi-Fi-only rather
+      // than silently dropping the write.
+      unsupportedReason: _lane.probes,
+      onOpenAlarmRules: () => context.push(AppRoutes.deviceAlarms),
+      onSave: (probes) => _writeAndVerify(
+        BridgeConfig(probes: probes),
+        what: 'probe names and targets',
+      ),
     ),
+
     SettingsSection.alarms => AlarmSettingsView(
       quietHours: _quietHours,
       onQuietHours: (v) async {
@@ -463,137 +982,71 @@ class _SettingsRouteState extends State<SettingsRoute> {
           setState(() => _batteryExempt = ok ?? false);
         }
       },
-      deviceRules: const {
-        'smoke_x_alarm': true,
-        'target_reached': true,
-        'pit_out_of_band': true,
-        'pit_crash': true,
-        'probe_detached': true,
-        'base_lost': true,
-      },
+      onOpenRules: () => context.push(AppRoutes.deviceAlarms),
+      deviceRules: _deviceRules,
       alarms: _status?.alarms ?? const [],
-      onAck: (a) => unawaited(
-        _transport?.control(ControlCommand.ackAlarm(alarmId: a.id)) ??
-            Future<void>.value(),
-      ),
+      ackReason: _lane.control,
+      onAck: (a) => unawaited(_ack(a)),
     ),
-    SettingsSection.network => NetworkSettingsView(
-      mode: _netMode,
-      ssid: _netSsid,
-      apPsk: _apPsk,
-      recoveryMessage: _netRecovery,
-      // A12.3 — the real switch. The device answers first and defers ~500 ms
-      // so this reply flushes before it tears the interface down (05 §5.4);
-      // switching to AP hands back a generated key the user needs to rejoin,
-      // which is exactly why applyNetwork returns it instead of being a
-      // fire-and-forget config write.
-      onApply: (mode, ssid, psk) async {
-        final t = _transport;
-        if (t == null) {
+
+    SettingsSection.display => DisplaySettingsView(
+      units: _units,
+      deviceUnits: _device.displayUnits,
+      displayTimeoutS: _device.displayTimeoutS,
+      onDisplayTimeout: (s) => _writeAndVerify(
+        BridgeConfig(displayTimeoutS: s),
+        what: 'the screen timeout',
+      ),
+      onUnits: (u) async {
+        // A PHONE setting first: it lands in prefs and every reading in the
+        // app changes on the next frame, bridge or no bridge. The row used to
+        // carry `deviceReason`, which made °F/°C unchangeable whenever the
+        // bridge was unreachable — on a page that states the opposite
+        // principle one card below.
+        setState(() => _units = u);
+        await AppEnv.instance?.prefs.setDisplayUnits(u);
+        // The DEVICE renders temperatures on its own screen; the two must
+        // agree, so the setting also travels — and now it is read back, so
+        // over Wi-Fi this reports "Saved" and means it. With no link there is
+        // nothing to report: the app's own change already happened, and
+        // "nothing was saved" would be false.
+        if (_transport == null) {
           return;
         }
-        try {
-          final apPsk = await t.applyNetwork(
-            mode: mode == NetMode.ap ? NetworkMode.ap : NetworkMode.sta,
-            ssid: ssid,
-            psk: psk,
-          );
-          if (!mounted) return;
-          setState(() {
-            _netMode = mode;
-            _netSsid = mode == NetMode.ap ? '' : ssid;
-            _apPsk = apPsk;
-            _netRecovery = mode == NetMode.ap
-                ? 'The bridge is switching to its own network. Your phone has '
-                      'to leave this one to reach it'
-                      '${apPsk.isEmpty ? '' : ' — the key is shown above'}.'
-                : 'The bridge is joining $ssid. If the app cannot find it '
-                      'again, type its address under "Reach it directly".';
-          });
-        } on BridgeApiException catch (err) {
-          if (!mounted) return;
-          setState(() => _netRecovery = err.message);
-        } on Object {
-          if (!mounted) return;
-          setState(
-            () => _netRecovery =
-                'The bridge did not accept that change. It may already have '
-                'moved — try reaching it directly.',
-          );
-        }
+        await _writeAndVerify(BridgeConfig(displayUnits: u), what: 'the units');
       },
-      onManualAddress: (address) async {
-        await AppEnv.instance?.prefs.recordConnection(address);
-        if (mounted) {
-          context.go(AppRoutes.home);
-        }
-      },
-    ),
-    SettingsSection.homeAssistant => MqttSettingsView(
-      config: _mqtt ?? const MqttConfig(),
-      // BLE cannot reach a LAN broker; the page says so rather than offering a
-      // form that would throw BridgeUnsupportedException on save.
-      unsupportedReason: _transport is BleTransport
-          ? 'Home Assistant needs a Wi-Fi connection to the bridge.'
-          : '',
-      onApply:
-          ({
-            required enabled,
-            required host,
-            required port,
-            required user,
-            password,
-            required prefix,
-            required haDiscovery,
-          }) async {
-            final t = _transport;
-            if (t == null) {
-              return;
-            }
-            try {
-              await t.setMqttConfig(
-                enabled: enabled,
-                host: host,
-                port: port,
-                user: user,
-                password: password,
-                prefix: prefix,
-                haDiscovery: haDiscovery,
-              );
-              final fresh = await t.mqttConfig();
-              if (mounted) {
-                setState(() => _mqtt = fresh);
-              }
-            } on Object {
-              // Best-effort; the page keeps rendering its current state.
-            }
-          },
-    ),
-    SettingsSection.device => DeviceSettingsView(
-      units: _units,
-      // §H.3 — the daylight profile, wired to the token architecture that was
-      // built for it. Applied live, so a user standing in the sun sees the
-      // change rather than being told to relaunch.
+      // §H.3 — the daylight profile, applied live: a user standing in the sun
+      // sees the change rather than being told to relaunch.
       themeProfile: _themeProfile,
       onThemeProfile: (p) async {
         setState(() => _themeProfile = p);
         SmokeBridgeApp.setProfile(context, p);
         await AppEnv.instance?.prefs.setThemeProfile(p.name);
       },
-      onUnits: (u) async {
-        setState(() => _units = u);
-        await AppEnv.instance?.prefs.setDisplayUnits(u);
-        // The DEVICE renders temperatures on its own OLED; the two
-        // screens must agree, so the setting travels.
-        await _writeAndVerify(BridgeConfig(displayUnits: u), 'Units saved');
-      },
-      // Absent, not defaulted: the saver mode is only known once the bridge
-      // has said so, and rendering `auto` before it does is a constructor
-      // default masquerading as a fact (§F, §I.0).
+      deviceReason: _lane.deviceConfig,
+      hardwareReason: _lane.deviceHardware,
+    ),
+
+    SettingsSection.led => LedSettingsView(
+      enabled: _device.ledEnabled,
+      reason: _lane.deviceHardware,
+      onEnabled: (v) => _writeAndVerify(
+        BridgeConfig(ledEnabled: v),
+        what: 'the status light',
+      ),
+    ),
+
+    SettingsSection.power => PowerSettingsView(
+      sessionActive: _status?.sessionActive ?? false,
+      socPct: _socPct,
+      charging: _charging,
       batterySaver: _saver,
+      batterySaverConfirmed: _saverConfirmed,
+      saverEngaged: _saverEngaged,
+      configReason: _lane.deviceConfig,
+      controlReason: _lane.control,
       onBatterySaver: (v) async {
-        setState(() => _saver = v);
-        await _writeAndVerify(
+        final outcome = await _writeAndVerify(
           BridgeConfig(
             batterySaver: switch (v) {
               'off' => BatterySaverMode.off,
@@ -601,72 +1054,25 @@ class _SettingsRouteState extends State<SettingsRoute> {
               _ => BatterySaverMode.auto,
             },
           ),
-          'Battery saver saved',
+          what: 'the battery saver',
         );
+        if (!mounted) {
+          return;
+        }
+        // A verified write has already adopted the device's own answer inside
+        // _writeAndVerify, with [_saverConfirmed] set. This only covers the
+        // lane that took the write and cannot read it back: the choice is
+        // shown as chosen, and the row says it is unconfirmed.
+        if (outcome == WriteOutcome.unverified) {
+          setState(() {
+            _saver = v;
+            _saverConfirmed = false;
+          });
+        }
       },
-      unsupportedReason: _transport == null
-          ? 'Not connected to the bridge — reconnect to change these.'
-          : '',
-    ),
-    SettingsSection.advanced => AdvancedSettingsView(
-      // newapp §F — "Replace today's stub with real read-outs."
-      //
-      // This map was `{firmware, packets_seen: numProbes}` — and the second
-      // was **mislabelled**: `numProbes` is how many probes the base reports,
-      // not a packet count. A diagnostics page that states a wrong fact is
-      // worse than one that states nothing, because it is the page someone
-      // reads when they already suspect something is wrong.
-      //
-      // Every row below is either measured or absent.
-      radio: {
-        if (_status != null) 'firmware': _status!.fw,
-        if (_status != null) 'model': _status!.model,
-        if (_status != null) 'device id': _status!.deviceId,
-        if (_status != null) 'uptime': formatDuration(_status!.uptimeS),
-        if (_status != null) 'probes reported': _status!.numProbes,
-        if (_status?.lastPacketSAgo != null)
-          'last packet': '${_status!.lastPacketSAgo}s ago',
-        if (_status != null) 'base station lost': _status!.baseLost,
-        if (_status != null) 'storage free': '${_status!.storageFreePct}%',
-        // Absent ≠ zero: a bridge that cannot measure a battery says nothing
-        // rather than 0%.
-        if (_status?.socPct != null) 'battery': '${_status!.socPct}%',
-        'transport': switch (_transport) {
-          null => 'not connected',
-          BleTransport() => 'Bluetooth',
-          _ => 'Wi-Fi',
-        },
-        if (_transport != null)
-          'full history': _transport!.capabilities.fullHistory,
-        if (_transport != null) 'can configure': _transport!.capabilities.config,
-        ..._syncRows,
-      },
-      paired: _status?.paired ?? false,
-      // D15 moved these off the button; this screen is now the only way to
-      // re-scan or drop the base.
-      onPair: _transport == null
-          ? null
-          : () => unawaited(_power(const ControlCommand.pair())),
-      onUnpair: _transport == null
-          ? null
-          : () => unawaited(_power(const ControlCommand.unpair())),
-      onFieldReport: () => context.push(AppRoutes.fieldReport),
-    ),
-    SettingsSection.firmware => FirmwareSettingsView(
-      currentVersion: _status?.fw ?? '',
-      otaSupported: _transport?.capabilities.ota ?? false,
-      imageSourceAvailable: AppEnv.instance?.firmwareImage != null,
-      sessionActive: _status?.sessionActive ?? false,
-      progressPct: _otaPct,
-      phase: _otaPhase,
-      refusal: _otaRefusal,
-      onUpload: AppEnv.instance?.firmwareImage == null ? null : _uploadFirmware,
-    ),
-    SettingsSection.power => PowerSettingsView(
-      sessionActive: _status?.sessionActive ?? false,
       // Each verb runs inside the A24.9 completion sheet after the view's own
-      // confirm: send → watch the bridge actually go down → an explicit done
-      // state, instead of the old fire-and-forget.
+      // cost sheet: send → watch the bridge actually go down → an explicit
+      // done state, instead of the old fire-and-forget.
       onRestart: _transport == null
           ? null
           : () => _runDisruptive(
@@ -686,13 +1092,170 @@ class _SettingsRouteState extends State<SettingsRoute> {
               const ControlCommand.factoryReset(),
             ),
     ),
-    SettingsSection.storage => StorageSettingsView(
+
+    SettingsSection.network => NetworkSettingsView(
+      mode: _netMode,
+      ssid: _netSsid,
+      ip: _netIp,
+      apPsk: _apPsk,
+      wifiDbm: _signal?.wifiDbm,
+      apClients: _signal?.apClients,
+      revertInS: _revertInS,
+      recoveryMessage: _netRecovery,
+      unsupportedReason: _lane.network,
+      onSwitchMode: _switchMode,
+      manualAddressError: _manualAddressError,
+      manualAddressBusy: _manualAddressBusy,
+      onManualAddress: _useManualAddress,
+    ),
+
+    SettingsSection.homeAssistant => MqttSettingsView(
+      config: _mqtt ?? const MqttConfig(),
+      configKnown: _mqttKnown,
+      unsupportedReason: _lane.mqtt,
+      onApply:
+          ({
+            required enabled,
+            required host,
+            required port,
+            required user,
+            password,
+            required prefix,
+            required haDiscovery,
+          }) async {
+            final t = _transport;
+            final messenger = ScaffoldMessenger.maybeOf(context);
+            if (t == null) {
+              messenger?.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    writeOutcomeMessage(
+                      WriteOutcome.noLink,
+                      'the Home Assistant settings',
+                    ),
+                  ),
+                ),
+              );
+              return;
+            }
+            try {
+              await t.setMqttConfig(
+                enabled: enabled,
+                host: host,
+                port: port,
+                user: user,
+                password: password,
+                prefix: prefix,
+                haDiscovery: haDiscovery,
+              );
+              // The read-back. `GET /config/mqtt` echoes everything except the
+              // password, which the device never returns — so the comparison
+              // covers everything it is possible to compare.
+              final fresh = await t.mqttConfig();
+              if (!mounted) {
+                return;
+              }
+              setState(() {
+                _mqtt = fresh;
+                _mqttKnown = true;
+              });
+              final honoured = mqttWriteWasHonoured(
+                fresh,
+                enabled: enabled,
+                host: host,
+                port: port,
+                user: user,
+                prefix: prefix,
+                haDiscovery: haDiscovery,
+              );
+              messenger?.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    writeOutcomeMessage(
+                      honoured
+                          ? WriteOutcome.verified
+                          : WriteOutcome.changedByDevice,
+                      'the Home Assistant settings',
+                    ),
+                  ),
+                ),
+              );
+            } on Object {
+              messenger?.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    writeOutcomeMessage(
+                      WriteOutcome.failed,
+                      'the Home Assistant settings',
+                    ),
+                  ),
+                ),
+              );
+            }
+          },
+    ),
+
+    SettingsSection.firmware => FirmwareSettingsView(
+      currentVersion: _status?.fw ?? '',
+      model: _status?.model,
+      otaSupported: _transport?.capabilities.ota ?? false,
+      unsupportedReason: _lane.firmware,
+      imageSourceAvailable: AppEnv.instance?.firmwareImage != null,
+      sessionActive: _status?.sessionActive ?? false,
+      progressPct: _otaPct,
+      phase: _otaPhase,
+      refusal: _otaRefusal,
+      onUpload: AppEnv.instance?.firmwareImage == null ? null : _uploadFirmware,
+    ),
+
+    SettingsSection.data => DataSettingsView(
       sessions: _cache.sessions,
       samples: _cache.samples,
       approxBytes: _cache.approxBytes,
+      storageFreePct: _status?.storageFreePct,
+      maxSessionsOnBridge: _device.maxSessions,
+      minFreePct: _device.minFreePct,
+      hardwareReason: _lane.deviceHardware,
+      onMaxSessions: (n) => _writeAndVerify(
+        BridgeConfig(maxSessions: n),
+        what: 'how many cooks the bridge keeps',
+      ),
+      shareAvailable: AppEnv.instance?.shareSheet != null,
       busy: _clearing,
       onClear: _clearCache,
+      onOpenCooks: () => context.go(AppRoutes.cooks),
     ),
+
+    // newapp §F — "replace today's stub with real read-outs". Every row here
+    // is measured or absent; the stub it replaces stated a probe count under
+    // the label "packets seen".
+    SettingsSection.advanced => DiagnosticsSettingsView(
+      lane: _lane,
+      address: _netIp.isEmpty ? null : _netIp,
+      linkDbm: _signal?.linkDbm,
+      wifiDbm: _signal?.wifiDbm,
+      apClients: _signal?.apClients,
+      ssid: _netSsid,
+      lastProblem: ShellScope.maybeOf(context)?.refreshFailure?.title ?? '',
+      canFullHistory: _transport?.capabilities.fullHistory,
+      canConfigure: _transport?.capabilities.config,
+      firmware: _status?.fw,
+      model: _status?.model,
+      deviceId: _status?.deviceId,
+      uptimeS: _status?.uptimeS,
+      storageFreePct: _status?.storageFreePct,
+      socPct: _status?.socPct,
+      paired: _paired,
+      probesReported: _status?.numProbes,
+      lastPacketSAgo: _status?.lastPacketSAgo,
+      baseLost: _status?.baseLost,
+      syncRows: _syncRows,
+      rolloverLoss: _rolloverLoss,
+      clockUnixMs: _live?.unixMs,
+      onSetClock: _transport == null ? null : () => unawaited(_setClock()),
+      onFieldReport: () => context.push(AppRoutes.fieldReport),
+    ),
+
     SettingsSection.about => AboutView(
       appVersion: AppEnv.instance?.appVersion ?? '',
       firmwareVersion: _status?.fw ?? '',
@@ -701,9 +1264,8 @@ class _SettingsRouteState extends State<SettingsRoute> {
   };
 }
 
-/// Kept so the analyzer proves the OTA path is HTTP-only: a transport
-/// that can take an image is an [HttpTransport], and nothing else claims
-/// otherwise.
+/// Kept so the analyzer proves the OTA path is HTTP-only: a transport that can
+/// take an image is an [HttpTransport], and nothing else claims otherwise.
 bool otaCapable(BridgeTransport t) => t is HttpTransport && t.capabilities.ota;
 
 /// §G.3's read-back comparison, hoisted out of the widget so the rule can be
@@ -725,3 +1287,74 @@ bool probeWriteWasHonoured(List<Probe> sent, List<Probe> echoed) {
   }
   return true;
 }
+
+/// Whether [cfg] asks for anything `GET /config/device` reports back.
+///
+/// Exists so a probe-only write does not pay for a read it has no use for, and
+/// so a write that touches nothing readable cannot silently claim to have been
+/// verified against a read that never happened.
+bool touchesDeviceConfig(BridgeConfig cfg) =>
+    cfg.displayUnits != null ||
+    cfg.batterySaver != null ||
+    cfg.displayTimeoutS != null ||
+    cfg.ledEnabled != null ||
+    cfg.maxSessions != null;
+
+/// **Did the device take what we sent — and if not, is that a refusal or a
+/// silence?** Three answers, because there are three situations.
+///
+///  * `true` — every field we wrote came back matching.
+///  * `false` — the device reported a field and it is **not** what we asked
+///    for. It clamped, or it kept its own. The screen shows what it has.
+///  * `null` — the device did not report a field we wrote, so nothing can be
+///    concluded. This is the case [DeviceConfig.honoured] cannot express: it
+///    returns a bool, so a missing field reads as a mismatch and a Bluetooth
+///    link — which reports nothing at all — would accuse the bridge of
+///    refusing every write. Absent is not disagreement.
+///
+/// Compares **only the fields that were sent**, the same rule
+/// [DeviceConfig.honoured] and [probeWriteWasHonoured] follow, so a device
+/// reporting five settings we said nothing about is never a mismatch.
+bool? deviceWriteVerdict(DeviceConfig echoed, BridgeConfig sent) {
+  var unread = false;
+  bool agrees<T>(T? want, T? got) {
+    if (want == null) {
+      return true; // not written, not our business
+    }
+    if (got == null) {
+      unread = true;
+      return true;
+    }
+    return want == got;
+  }
+
+  if (!agrees(sent.displayUnits, echoed.displayUnits) ||
+      !agrees(sent.batterySaver, echoed.batterySaver) ||
+      !agrees(sent.displayTimeoutS, echoed.displayTimeoutS) ||
+      !agrees(sent.ledEnabled, echoed.ledEnabled) ||
+      !agrees(sent.maxSessions, echoed.maxSessions)) {
+    return false;
+  }
+  return unread ? null : true;
+}
+
+/// The same comparison for the Home Assistant form.
+///
+/// The password is deliberately **not** compared: the device never returns it,
+/// so there is nothing to compare against, and treating its absence as a
+/// mismatch would report every successful save as a failure.
+bool mqttWriteWasHonoured(
+  MqttConfig echoed, {
+  required bool enabled,
+  required String host,
+  required int port,
+  required String user,
+  required String prefix,
+  required bool haDiscovery,
+}) =>
+    echoed.enabled == enabled &&
+    echoed.host == host &&
+    echoed.port == port &&
+    echoed.user == user &&
+    echoed.prefix == prefix &&
+    echoed.haDiscovery == haDiscovery;

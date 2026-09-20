@@ -181,6 +181,19 @@ abstract final class SmokeType {
     fontFeatures: _tnum,
   );
 
+  /// A temperature is laid out at its declared size and no other (§14.5.1) —
+  /// so it is rendered with the user's text scaler **switched off**, and the
+  /// scaler is answered by [SmokeTextScale] reflowing the layout around it
+  /// instead. Wrap only the number; everything else on the card still scales.
+  ///
+  /// This is what makes "never scale a temperature" and "honour text scale"
+  /// both true at once: the glyph height is constant between frames and
+  /// between two cards side by side, and a person at 200% text still gets
+  /// bigger *labels*, a bigger banner and a layout that has made room for
+  /// them.
+  static Widget unscaled({required Widget child}) =>
+      MediaQuery.withNoTextScaling(child: child);
+
   /// The Material mapping, so widgets that have not migrated yet inherit
   /// something correct rather than a Material default (§14.5).
   static TextTheme textTheme(Color body_, Color display_) => TextTheme(

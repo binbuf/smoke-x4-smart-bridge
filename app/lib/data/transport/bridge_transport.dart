@@ -195,6 +195,118 @@ sealed class ControlCommand with _$ControlCommand {
   const factory ControlCommand.powerOff() = PowerOffCommand;
 }
 
+/// What the device says its own settings are (`GET /api/v1/config/device`).
+///
+/// **The read half that was missing.** `BridgeConfig` could only ever be
+/// written, so the settings tree had no way to learn the display timeout, the
+/// status LED, the retention limit or the battery-saver mode — and rendered
+/// constructor defaults in their place, which is the single class of bug §F
+/// and §I.0 are most insistent about. With no read there was also no read-back,
+/// so a units write could only ever report "sent", never "saved".
+///
+/// Every field is **nullable, and null means the device did not say** — not
+/// zero, not false, not a default. A transport that cannot ask returns
+/// [DeviceConfig.unknown], which renders as "—" the whole way down.
+@immutable
+class DeviceConfig {
+  const DeviceConfig({
+    this.displayUnits,
+    this.displayTimeoutS,
+    this.ledEnabled,
+    this.batterySaver,
+    this.maxSessions,
+    this.minFreePct,
+  });
+
+  /// Nothing known. Distinct from a device that answered with defaults.
+  static const DeviceConfig unknown = DeviceConfig();
+
+  /// `'F'` or `'C'`.
+  final String? displayUnits;
+  final int? displayTimeoutS;
+  final bool? ledEnabled;
+  final BatterySaverMode? batterySaver;
+  final int? maxSessions;
+  final int? minFreePct;
+
+  bool get isEmpty =>
+      displayUnits == null &&
+      displayTimeoutS == null &&
+      ledEnabled == null &&
+      batterySaver == null &&
+      maxSessions == null &&
+      minFreePct == null;
+
+  /// Whether the device is running what we asked for — **three answers, not
+  /// two**.
+  ///
+  /// * `true` — it reported the value we sent. Saved.
+  /// * `false` — it reported something *else*. The device refused or clamped,
+  ///   and the user needs to see what it actually has.
+  /// * `null` — it **said nothing about this field**. Not agreement, not
+  ///   refusal: no answer.
+  ///
+  /// The two-valued version of this was a trap, and the settings tree hit it
+  /// immediately. Bluetooth answers [DeviceConfig.unknown] to everything, so a
+  /// `bool` collapsed "this lane cannot read" into "the bridge rejected your
+  /// change" — the app accusing the device of refusing edits it was never
+  /// asked about. Absent is not disagreement, here as everywhere else.
+  ///
+  /// Compares **only the fields that were sent**, so a device reporting the
+  /// other five is not a mismatch — the same rule `probeWriteWasHonoured`
+  /// follows.
+  bool? honoured(BridgeConfig sent) {
+    var sawAnswer = false;
+    if (sent.displayUnits != null) {
+      if (displayUnits == null) {
+        return null;
+      }
+      sawAnswer = true;
+      if (displayUnits != sent.displayUnits) {
+        return false;
+      }
+    }
+    if (sent.batterySaver != null) {
+      if (batterySaver == null) {
+        return null;
+      }
+      sawAnswer = true;
+      if (batterySaver != sent.batterySaver) {
+        return false;
+      }
+    }
+    if (sent.displayTimeoutS != null) {
+      if (displayTimeoutS == null) {
+        return null;
+      }
+      sawAnswer = true;
+      if (displayTimeoutS != sent.displayTimeoutS) {
+        return false;
+      }
+    }
+    if (sent.ledEnabled != null) {
+      if (ledEnabled == null) {
+        return null;
+      }
+      sawAnswer = true;
+      if (ledEnabled != sent.ledEnabled) {
+        return false;
+      }
+    }
+    if (sent.maxSessions != null) {
+      if (maxSessions == null) {
+        return null;
+      }
+      sawAnswer = true;
+      if (maxSessions != sent.maxSessions) {
+        return false;
+      }
+    }
+    // Nothing comparable was sent: there is no verdict to give.
+    return sawAnswer ? true : null;
+  }
+}
+
 /// The configurable surface (a subset in M0; grows with the settings work).
 @freezed
 abstract class BridgeConfig with _$BridgeConfig {
@@ -202,6 +314,16 @@ abstract class BridgeConfig with _$BridgeConfig {
     String? displayUnits,
     List<Probe>? probes,
     BatterySaverMode? batterySaver,
+
+    /// The bridge's own OLED timeout, seconds. The firmware has taken this
+    /// since F13; nothing could send it.
+    int? displayTimeoutS,
+
+    /// The status LED. Likewise.
+    bool? ledEnabled,
+
+    /// How many cooks the bridge keeps before the oldest are dropped.
+    int? maxSessions,
   }) = _BridgeConfig;
 }
 
@@ -263,6 +385,14 @@ abstract interface class BridgeTransport {
   Future<void> control(ControlCommand cmd);
 
   Future<void> configure(BridgeConfig cfg);
+
+  /// Read the device's own settings back (`GET /api/v1/config/device`).
+  ///
+  /// This is what turns a settings row from a guess into a fact, and what lets
+  /// a write say "Saved" instead of "Sent". A transport that cannot ask returns
+  /// [DeviceConfig.unknown] rather than throwing: an unreadable setting is a
+  /// row that says "—", not a screen that fails.
+  Future<DeviceConfig> deviceConfig();
 
   /// A12.3 — switch between hosting an AP and joining a network (05 §5.4).
   ///

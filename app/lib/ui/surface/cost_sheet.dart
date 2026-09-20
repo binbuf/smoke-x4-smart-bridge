@@ -99,7 +99,15 @@ class CostSheet extends StatelessWidget {
                 icon: Icons.check_circle_outline_rounded,
                 lead: 'Keeps',
                 text: keeps!,
-                tint: StatusPalette.positive,
+                // **Not `positive`.** Green means transport health and nothing
+                // else (16 §16.5). This sheet fronts ten destructive actions —
+                // end a cook, adopt a bridge, merge, delete, clear data,
+                // restart, power off, factory reset — and not one of them is a
+                // link coming back. A green "Keeps" on all ten is how green
+                // stops meaning anything on the one chip where it must.
+                // `pit` is the app's own accent, and the meaning is carried by
+                // the tick and the word, which both stay.
+                tint: StatusPalette.pit,
               ),
             ],
             if (loses != null) ...[

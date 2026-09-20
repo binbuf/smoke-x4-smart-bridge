@@ -184,6 +184,69 @@ void main() {
       expect(merged.startUnixMs, _epoch);
       expect(merged.endUnixMs, _epoch + 10 * _hour);
     });
+
+    test('merging into the earlier neighbour returns that survivor’s id',
+        () async {
+      final cook = await repo.startFromPlan(
+        brisketPlan()..startedUnixMs = _epoch,
+      );
+      final bounded = await repo.end(cook, atUnixMs: _epoch + 10 * _hour);
+      final (first, second) = await repo.split(bounded, _epoch + 4 * _hour);
+
+      // The *later* half asks to merge — the case that used to strand a route
+      // holding the id it had loaded.
+      final merged = await repo.merge(second, first);
+
+      expect(merged.id, first.id);
+      expect(await repo.cook(second.id), isNull);
+      expect(await repo.cook(merged.id), isNotNull);
+    });
+  });
+
+  group('the origin of a cook’s clock is the session, not its first sample', () {
+    test('a cook that starts mid-session still measures from the session',
+        () async {
+      final cook = await repo.startFromPlan(
+        brisketPlan()..startedUnixMs = _epoch + 6 * _hour,
+      );
+      expect(await repo.originFor(cook), _epoch);
+    });
+
+    test('backdating past every reading does not drag the clock with it',
+        () async {
+      // A cook whose start sits in a hole: the recording's first reading is a
+      // full hour after it. Inferring `start − first.t × 1000` would put `t = 0`
+      // an hour early, and every clock time on the screen with it.
+      final cook = await repo.startFromPlan(
+        brisketPlan()..startedUnixMs = _epoch + 6 * _hour,
+      );
+      await db.customStatement(
+        'DELETE FROM samples WHERE unix_ms >= ? AND unix_ms < ?',
+        [_epoch + 6 * _hour, _epoch + 7 * _hour],
+      );
+      final moved = await repo.backdate(cook, _epoch + 6 * _hour);
+
+      final samples = await repo.samplesFor(moved);
+      expect(samples.first.t, 7 * 3600, reason: 'the hole is real');
+      expect(await repo.originFor(moved), _epoch);
+    });
+
+    test('a clockless bridge reports no origin rather than inventing one',
+        () async {
+      await db.sessionDao.upsertSessions('bridge-a', const [
+        CookSession(id: 2, samplePeriodS: 30, sampleCount: 10),
+      ]);
+      final id = await db.cookDao.save(
+        const CookAnnotation(
+          id: 0,
+          bridgeId: 'bridge-a',
+          startUnixMs: 0,
+          createdUnixMs: 0,
+          anchorSessionId: 2,
+        ),
+      );
+      expect(await repo.originFor((await repo.cook(id))!), isNull);
+    });
   });
 
   group('deleting a cook does not stop the recording', () {
@@ -213,6 +276,17 @@ void main() {
   });
 
   group('§D.3.2 — targets can arrive later, and the gate still runs', () {
+    /// What `/cooks/:id` hands the repository on the way out of the setup
+    /// sheet: a whole annotation projected from a fresh plan, stamped with this
+    /// cook's id — and carrying a start of "now" it has no business keeping.
+    CookAnnotation sheetReturns(CookPlan plan, CookAnnotation cook) =>
+        CookAnnotation.fromPlan(
+          plan..startedUnixMs = fakeNow,
+          bridgeId: 'bridge-a',
+          nowUnixMs: fakeNow,
+          id: cook.id,
+        );
+
     test('a targetless cook accepts a safe target', () async {
       final plan = CookPlan(
         presetId: 'custom',
@@ -227,30 +301,139 @@ void main() {
       final cook = await repo.startFromPlan(plan);
       expect(cook.hasNoTarget, isTrue);
 
-      final targeted = await repo.retarget(cook, [
-        const CookProbeRole(jack: 1, role: ProbeRole.pit),
-        const CookProbeRole(
-          jack: 2,
-          role: ProbeRole.food,
-          targetF10: 1650,
-          hazard: HazardClass.poultry,
+      final targeted = await repo.retarget(
+        cook,
+        sheetReturns(
+          CookPlan(
+            presetId: 'custom',
+            title: 'Cook',
+            hazard: HazardClass.poultry,
+            doneness: '',
+            probes: [
+              PlanProbe(jack: 1, isPit: true, name: 'Pit'),
+              PlanProbe(
+                jack: 2,
+                isPit: false,
+                name: 'Chicken',
+                targetF10: 1650,
+                hazard: HazardClass.poultry,
+              ),
+            ],
+          ),
+          cook,
         ),
-      ]);
+      );
       expect(targeted.hasNoTarget, isFalse);
       expect((await repo.cook(cook.id))!.roleFor(2)?.targetF10, 1650);
+    });
+
+    test('a retarget saves everything it claims to, not only the roles',
+        () async {
+      final cook = await repo.startFromPlan(
+        brisketPlan()..startedUnixMs = _epoch,
+      );
+      final bounded = await repo.end(cook, atUnixMs: _epoch + 8 * _hour);
+      final noted = await repo.setNotes(bounded, 'apple wood');
+
+      await repo.retarget(
+        noted,
+        sheetReturns(
+          CookPlan(
+            presetId: 'poultry_whole',
+            title: 'Whole chicken — Cooked through',
+            hazard: HazardClass.poultry,
+            doneness: 'Cooked through',
+            safetyMode: SafetyMode.usdaCompliant,
+            // The two numbers the chart's shaded band and "Time in band" are
+            // the only readers of.
+            pitBandMinF10: 3250,
+            pitBandMaxF10: 3750,
+            probes: [
+              PlanProbe(jack: 1, isPit: true, name: 'Pit'),
+              PlanProbe(
+                jack: 2,
+                isPit: false,
+                name: 'Chicken',
+                targetF10: 1650,
+                hazard: HazardClass.poultry,
+              ),
+            ],
+          ),
+          noted,
+        ),
+      );
+
+      final saved = (await repo.cook(cook.id))!;
+      expect(saved.presetId, 'poultry_whole');
+      expect(saved.doneness, 'Cooked through');
+      expect(saved.hazard, HazardClass.poultry);
+      expect(saved.safetyMode, SafetyMode.usdaCompliant);
+      expect(saved.pitBandMinF10, 3250);
+      expect(saved.pitBandMaxF10, 3750);
+      expect(saved.name, 'Whole chicken — Cooked through');
+      expect(saved.roleFor(2)?.targetF10, 1650);
+
+      // …and nothing that describes *when this cook happened* moved with it.
+      expect(saved.startUnixMs, _epoch, reason: 'the sheet’s "now" is not a start');
+      expect(saved.endUnixMs, _epoch + 8 * _hour);
+      expect(saved.createdUnixMs, cook.createdUnixMs);
+      expect(saved.notes, 'apple wood');
+    });
+
+    test('a never-named cook is not named after its own placeholder', () async {
+      final cook = await repo.startFromPlan(
+        CookPlan(
+          presetId: 'custom',
+          title: '',
+          hazard: HazardClass.wholeMuscleRedMeat,
+          doneness: '',
+          probes: [PlanProbe(jack: 1, isPit: true, name: 'Pit')],
+        ),
+      );
+      expect(cook.name, isEmpty);
+
+      // The sheet has no free-text name: with no preset chosen it hands back
+      // the title it was given, which is this cook's own "Cook #7".
+      final saved = await repo.retarget(
+        cook,
+        sheetReturns(
+          CookPlan(
+            presetId: 'custom',
+            title: cook.displayName(),
+            hazard: HazardClass.wholeMuscleRedMeat,
+            doneness: '',
+            probes: [
+              PlanProbe(jack: 1, isPit: true, name: 'Pit'),
+              PlanProbe(jack: 2, isPit: false, name: 'Beef', targetF10: 1350),
+            ],
+          ),
+          cook,
+        ),
+      );
+      expect(
+        saved.name,
+        isEmpty,
+        reason: '"never named" must survive a retarget, or rename loses its hint',
+      );
+      expect(saved.roleFor(2)?.targetF10, 1350);
     });
 
     test('an unsafe retarget is refused and nothing is written', () async {
       final cook = await repo.startFromPlan(brisketPlan());
       await expectLater(
-        repo.retarget(cook, [
-          const CookProbeRole(
-            jack: 2,
-            role: ProbeRole.food,
-            targetF10: 1400,
-            hazard: HazardClass.poultry,
+        repo.retarget(
+          cook,
+          cook.copyWith(
+            roles: [
+              const CookProbeRole(
+                jack: 2,
+                role: ProbeRole.food,
+                targetF10: 1400,
+                hazard: HazardClass.poultry,
+              ),
+            ],
           ),
-        ]),
+        ),
         throwsArgumentError,
       );
       expect((await repo.cook(cook.id))!.roleFor(2)?.targetF10, 2030);

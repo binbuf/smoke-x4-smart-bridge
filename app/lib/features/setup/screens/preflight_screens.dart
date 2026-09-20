@@ -108,7 +108,7 @@ class _PrimerScreen extends StatelessWidget {
       label: SetupCopy.primerPrimary,
       onPressed: () => machine.continueFromPrimer(),
     ),
-    secondary: _TextAction(SetupCopy.primerNotNow, externals.onLeaveSetup),
+    secondary: SetupTextAction(SetupCopy.primerNotNow, externals.onLeaveSetup),
   );
 }
 
@@ -125,8 +125,8 @@ class _BluetoothOffScreen extends StatelessWidget {
     // Prefer the OS deep-link; fall back to a re-check the user can always run.
     final open = externals.openBluetoothSettings;
     final secondary = open != null
-        ? _TextAction(SetupCopy.btOffOpenSettings, open)
-        : _TextAction(
+        ? SetupTextAction(SetupCopy.btOffOpenSettings, open)
+        : SetupTextAction(
             SetupCopy.btOffTurnedOn,
             () => machine.recheckPreflight(),
           );
@@ -208,7 +208,7 @@ class _PermissionDeniedScreen extends StatelessWidget {
           icon: Icons.open_in_new_rounded,
           onPressed: externals.openAppSettings,
         ),
-        secondary: _TextAction(
+        secondary: SetupTextAction(
           SetupCopy.deniedAllowed,
           () => machine.recheckPreflight(),
         ),
@@ -225,7 +225,10 @@ class _PermissionDeniedScreen extends StatelessWidget {
         label: SetupCopy.deniedAllow,
         onPressed: () => machine.continueFromPrimer(),
       ),
-      secondary: _TextAction(SetupCopy.deniedNotNow, externals.onLeaveSetup),
+      secondary: SetupTextAction(
+        SetupCopy.deniedNotNow,
+        externals.onLeaveSetup,
+      ),
     );
   }
 }
@@ -245,12 +248,19 @@ class _LocationOffScreen extends StatelessWidget {
     subtitle: SetupCopy.locationBody,
     onExit: externals.onLeaveSetup,
     body: const _Glyph(Icons.location_on_rounded),
-    primary: PrimaryAction(
-      label: SetupCopy.locationOpenSettings,
-      icon: Icons.open_in_new_rounded,
-      onPressed: externals.openLocationSettings,
+    primary: Builder(
+      builder: (context) => disabledReason(
+        context,
+        PrimaryAction(
+          label: SetupCopy.locationOpenSettings,
+          icon: Icons.open_in_new_rounded,
+          onPressed: externals.openLocationSettings,
+        ),
+        enabled: externals.openLocationSettings != null,
+        reason: SetupCopy.noDeepLinkLocation,
+      ),
     ),
-    secondary: _TextAction(
+    secondary: SetupTextAction(
       SetupCopy.locationTurnedOn,
       () => machine.recheckPreflight(),
     ),
@@ -299,11 +309,15 @@ class _Reassurance extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.check_rounded,
-                    size: 18,
-                    color: StatusPalette.positive,
-                  ),
+                  // A bullet, not a status. These three lines are promises
+                  // about what the app does *not* do; nothing here has passed,
+                  // connected or recovered. Green means transport health and
+                  // nothing else (16 §16.5), and this screen is the first one
+                  // a new user reads — whatever green means here is what it
+                  // will seem to mean on the transport chip afterwards. So the
+                  // tick is ink: the words carry the content, the glyph just
+                  // marks the row.
+                  Icon(Icons.check_rounded, size: 18, color: t.textHi),
                   const SizedBox(width: SmokeTokens.s2),
                   Expanded(
                     child: Text(
@@ -324,22 +338,65 @@ class _Reassurance extends StatelessWidget {
 /// The named secondary — a plain text action under the primary. A `null`
 /// callback renders it disabled rather than hiding it, so the layout is stable
 /// and the control reads as "not available here" (§13.2.0's deep-links).
-class _TextAction extends StatelessWidget {
-  const _TextAction(this.label, this.onPressed);
+///
+/// A disabled control **must carry its reason** (16 §16.5). Pass [reason] and
+/// it renders directly beneath, dimmed; a control with no reason and no
+/// callback would be the dead control the rules forbid.
+class SetupTextAction extends StatelessWidget {
+  const SetupTextAction(this.label, this.onPressed, {this.reason, super.key});
 
   final String label;
   final VoidCallback? onPressed;
+  final String? reason;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return TextButton(
+    final button = TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
         foregroundColor: t.textBody,
         disabledForegroundColor: t.textMuted,
       ),
-      child: Text(label),
+      child: Text(label, textAlign: TextAlign.center),
+    );
+    return disabledReason(
+      context,
+      button,
+      enabled: onPressed != null,
+      reason: reason,
     );
   }
+}
+
+/// Renders [control], and — when it cannot work — the reason directly beneath
+/// it (16 §16.5's disabled row, and the hard rule that a control which cannot
+/// work is absent or disabled with its reason).
+///
+/// Shared by the preflight and hop-1 screens because the same four platform
+/// deep-links are missing on both, and a reason shown on one screen and
+/// swallowed on the next is worse than neither.
+Widget disabledReason(
+  BuildContext context,
+  Widget control, {
+  required bool enabled,
+  String? reason,
+}) {
+  if (enabled || reason == null || reason.isEmpty) {
+    return control;
+  }
+  final t = context.tokens;
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      control,
+      const SizedBox(height: SmokeTokens.s2),
+      Text(
+        reason,
+        textAlign: TextAlign.center,
+        style: SmokeType.bodySm.copyWith(color: t.textMuted),
+      ),
+    ],
+  );
 }

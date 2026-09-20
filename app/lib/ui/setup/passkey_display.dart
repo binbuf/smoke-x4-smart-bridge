@@ -46,14 +46,25 @@ class PasskeyDisplay extends StatelessWidget {
         border: Border.all(color: StatusPalette.pit.withValues(alpha: 0.35)),
         boxShadow: [?t.glow(StatusPalette.pit)],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          group(),
-          const SizedBox(width: SmokeTokens.s5),
-          group(),
-        ],
+      // **The cells shrink before they overflow.** `monoKey` is 34 pt with
+      // 12 dp of tracking; at 200 % text on a 360 dp phone the six cells and
+      // their gap are 59 dp wider than the screen, and a `Row` answers that by
+      // painting the yellow-and-black stripe — on the screen 13 §13.2.1 calls
+      // *"the highest-value screen in the app"*, at the exact moment the user
+      // is being asked to read six digits off a device. `scaleDown` honours the
+      // reader's size until the frame is full and then stops, which is the same
+      // bargain §14.5.1 strikes for the hero temperature.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            group(),
+            const SizedBox(width: SmokeTokens.s5),
+            group(),
+          ],
+        ),
       ),
     );
   }

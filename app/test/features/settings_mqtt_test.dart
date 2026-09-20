@@ -4,16 +4,28 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/data/transport/bridge_transport.dart';
+import 'package:smoke_bridge/design/design.dart';
 import 'package:smoke_bridge/features/settings/settings_mqtt.dart';
 
-Widget _wrap(Widget child) =>
-    MaterialApp(home: Scaffold(body: child));
+Widget _wrap(Widget child) => MaterialApp(
+  theme: SmokeTheme.dark,
+  home: Scaffold(body: child),
+);
+
+/// The broker form is a long page; on the default 800x600 surface the save
+/// button at the bottom is never built, let alone tappable.
+void _tall(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1400, 6000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
 
 void main() {
   group('MqttSettingsView', () {
     testWidgets('save reports the edited config, blank password kept', (
       tester,
     ) async {
+      _tall(tester);
       Map<String, Object?>? applied;
       await tester.pumpWidget(
         _wrap(
@@ -41,7 +53,12 @@ void main() {
       );
 
       await tester.enterText(find.byKey(const Key('mqtt-host')), 'broker.lan');
-      await tester.tap(find.byKey(const Key('mqtt-enabled')));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('mqtt-enabled')),
+          matching: find.byType(Switch),
+        ),
+      );
       await tester.pump();
       await tester.tap(find.byKey(const Key('mqtt-save')));
       await tester.pump();
@@ -56,6 +73,7 @@ void main() {
     testWidgets('enabling without a host is refused with a reason', (
       tester,
     ) async {
+      _tall(tester);
       var called = false;
       await tester.pumpWidget(
         _wrap(
@@ -76,7 +94,12 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.byKey(const Key('mqtt-enabled')));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('mqtt-enabled')),
+          matching: find.byType(Switch),
+        ),
+      );
       await tester.pump();
       await tester.tap(find.byKey(const Key('mqtt-save')));
       await tester.pump();
@@ -87,6 +110,7 @@ void main() {
     testWidgets('a Bluetooth link explains instead of offering the form', (
       tester,
     ) async {
+      _tall(tester);
       await tester.pumpWidget(
         _wrap(
           MqttSettingsView(

@@ -1,45 +1,109 @@
-/// A12.1 / A12.4 — the settings shell, the device page, advanced, and
-/// about (design 08 §8.6, 06 §6.2, 02 §2.7).
+/// The settings tree: its sections, and the four pages that describe *what the
+/// bridge is* rather than what it does (newapp §F, 16 §16.5–§16.6).
 ///
-/// One rule runs through this whole epic and is worth stating where it is
-/// easiest to break: **a control that cannot work is worse than no
-/// control.** Battery calibration needs F12 (M5); the bearer token has no
-/// transport that can set it (P3.2 moved it to v1.1, and the obligation
-/// landed here verbatim: "M4's settings UI hides the toggle"); alarm
-/// delivery needs A13's foreground service. Each of those is either
-/// absent or present-and-disabled **with its reason on screen** — never a
-/// switch that silently does nothing.
+/// **The rule that governs every page in this folder**, restated where it is
+/// easiest to break: a control that cannot work is worse than no control, and
+/// a value nobody read is worse than a blank. So a row is one of exactly three
+/// things — live, absent (`—`), or **present, dimmed, and carrying the sentence
+/// that says why**. There is no fourth state, and in particular there is no
+/// "looks live, writes nothing", which is the state §F was opened to delete.
+///
+/// The sections below are §F's frozen v1 tree. Two of them are here rather than
+/// on the Bridge tab for reasons worth stating:
+///
+///  * **Data and export** is not about the bridge at all. It governs what THIS
+///    PHONE keeps, which survives the bridge being unplugged, reset or
+///    replaced — filing it under the device would misdescribe what clearing it
+///    does.
+///  * **Diagnostics** is a console reached by a deliberate gesture, not a peer
+///    of "Probes". It is the page someone opens when they already suspect
+///    something is wrong, and every row on it is measured or absent.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../app/app.dart' show ThemeProfile;
-import '../../core/format.dart';
 import '../../design/design.dart';
 import '../../domain/entities/entities.dart';
+import '../../ui/ui.dart';
+import 'settings_kit.dart';
 
-/// The sections, in the §8.6 order.
+/// §F's tree, **in the order a cook needs it**.
+///
+/// The order used to be the order somebody happened to type the sections in,
+/// which put Identity first: four read-only rows and a permanently disabled
+/// rename, at the top of the one screen a person opens mid-cook. Nobody has
+/// ever opened settings to re-read the id printed on the case.
+///
+/// So the list now runs: what is plugged in, what will wake you, whether it
+/// can be reached at all, then what it shows, what it costs in battery, what
+/// it keeps, and only at the end the things that are true of the box rather
+/// than of the cook.
 enum SettingsSection {
-  probes('Probes', 'Names, roles and targets', Icons.thermostat),
+  probes(
+    'Probes',
+    'What each of the four jacks is called, and what it is for',
+    Icons.thermostat,
+  ),
+
+  /// Named for what the page is actually about. It carries **delivery** —
+  /// quiet hours, background monitoring, the battery exemption — while the
+  /// rules themselves live in the editor at `/device/alarms`. Two entry points
+  /// called "Alarm rules" and "Alarms and notifications", three rows apart and
+  /// going to different screens, was a guess the user had to make.
   alarms(
-    'Alarms',
-    'What wakes you, and what only tells you',
+    'Notifications on this phone',
+    'Whether an alarm actually reaches you, and when it stays quiet',
     Icons.notifications_outlined,
   ),
-  network('Network', 'Which Wi-Fi it uses, and how to reach it', Icons.wifi),
-  device('Device', 'Units, screen and storage', Icons.developer_board),
-  advanced('Diagnostics', 'Radio, packet log, app log', Icons.tune),
-  firmware('Firmware', 'Version and updates', Icons.system_update_alt),
+  network(
+    'Network',
+    'Whether it hosts its own or joins yours, and how to reach it',
+    Icons.wifi,
+  ),
+  display(
+    'Display and units',
+    '°F or °C, how this app looks, and the bridge’s own screen',
+    Icons.contrast,
+  ),
+  power(
+    'Power and sleep',
+    'Battery saver, restarting, and switching it off',
+    Icons.power_settings_new,
+  ),
+  data(
+    'Data and export',
+    'What this phone keeps, getting it out, and clearing it',
+    Icons.save_outlined,
+  ),
+  firmware(
+    'Firmware',
+    'Which version it runs, and how to update it',
+    Icons.system_update_alt,
+  ),
+  led(
+    'Status light',
+    'Off, or lit while it’s hearing the base station',
+    Icons.light_mode,
+  ),
   homeAssistant(
     'Home Assistant',
-    'Publish readings to MQTT over Wi-Fi',
+    'Publish your cook to MQTT over Wi-Fi',
     Icons.home_outlined,
   ),
-  power('Power', 'Restart, sleep, and factory reset', Icons.power_settings_new),
-  storage(
-    'Stored cooks',
-    'What this phone keeps, and how to clear it',
-    Icons.save_outlined,
+  identity(
+    'Name and identity',
+    'Which bridge this is, and what it is paired to',
+    Icons.badge_outlined,
+  ),
+
+  /// Named `advanced` because `/device/settings/advanced` is a live deep link
+  /// and the Bridge tab pushes it by name. It is titled Diagnostics
+  /// everywhere a person can see.
+  advanced(
+    'Diagnostics',
+    'Link, buffer, sync and clock — the numbers behind a problem',
+    Icons.tune,
   ),
   about('About', 'Versions and licences', Icons.info_outline);
 
@@ -48,710 +112,455 @@ enum SettingsSection {
   final String subtitle;
   final IconData icon;
 
-  /// The URL slug under `/bridge/`.
+  /// The URL slug under `/device/settings/`.
   String get slug => name.toLowerCase();
 
-  /// The sections that belong to the **device**, and therefore to the Bridge
-  /// tab (13 §13.3.2).
+  /// The sections the Bridge tab lists directly.
   ///
-  /// Two are deliberately absent. [alarms] moved to the Alerts branch, where
-  /// delivery and rules belong together. [power] is not listed because the
-  /// Bridge tab already carries those verbs in its own danger zone, each
-  /// behind a cost sheet — two routes to a factory reset is one too many.
   /// [advanced] is absent because it is a diagnostics console reached by a
-  /// deliberate gesture, not a peer of "Probes" (see `BridgeTab`).
-  ///
-  /// [storage] is absent for a different reason than the others: it is not
-  /// about the device at all. It governs what THIS PHONE keeps, which
-  /// survives the bridge being unplugged, factory-reset, or replaced — so
-  /// filing it under the bridge would misdescribe what clearing it does.
+  /// deliberate gesture. [about] is absent because nobody goes looking for a
+  /// licence notice from a device screen; it stays reachable from the section
+  /// list and by URL.
   static const List<SettingsSection> deviceSections = [
     probes,
+    alarms,
     network,
-    device,
-    homeAssistant,
+    display,
+    power,
+    data,
     firmware,
-    about,
+    led,
+    homeAssistant,
+    identity,
   ];
 }
 
+/// The section list. One card, one row per section — a subject index, not a
+/// settings page in its own right.
 class SettingsHomeView extends StatelessWidget {
   const SettingsHomeView({required this.onOpen, super.key});
 
   final ValueChanged<SettingsSection> onOpen;
 
   @override
-  Widget build(BuildContext context) => ListView(
+  Widget build(BuildContext context) => SettingsPage(
     key: const Key('settings-home'),
+    lead:
+        'Everything the bridge can be told, from the phone. It has one button, '
+        'so this is where the rest of it lives.',
     children: [
-      for (final s in SettingsSection.values)
-        ListTile(
-          key: Key('settings-section-${s.name}'),
-          leading: Icon(s.icon),
-          title: Text(s.title),
-          subtitle: Text(s.subtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => onOpen(s),
-        ),
+      SettingsGroup(
+        children: [
+          for (final s in SettingsSection.values)
+            SettingsRow(
+              key: Key('settings-section-${s.name}'),
+              label: s.title,
+              subtitle: s.subtitle,
+              trailing: const SizedBox.shrink(),
+              onTap: () => onOpen(s),
+            ),
+        ],
+      ),
     ],
   );
 }
 
-/// A12.4 — device settings.
-class DeviceSettingsView extends StatelessWidget {
-  const DeviceSettingsView({
-    required this.units,
-    required this.onUnits,
-    this.displayTimeoutS,
-    this.ledEnabled,
-    this.maxSessions,
-    this.onDeviceConfig,
-    this.batteryCalibrationAvailable = false,
-    this.batterySaver,
-    this.onBatterySaver,
-    this.themeProfile = ThemeProfile.dark,
-    this.onThemeProfile,
-    this.unsupportedReason = '',
+/// §F Identity — which bridge this is, and what it is bound to.
+///
+/// Everything on the first card is **read from `/status`**; nothing here has a
+/// constructor default, because there is no honest default for "which device
+/// am I talking to". The rename row is present and disabled: it is a control
+/// people go looking for, and the reason it is not there is worth one sentence.
+class IdentitySettingsView extends StatelessWidget {
+  const IdentitySettingsView({
+    this.deviceId,
+    this.model,
+    this.firmware,
+    this.address,
+    this.paired,
+    this.onPair,
+    this.onUnpair,
+    this.controlReason = '',
     super.key,
   });
 
-  /// `F` or `C`. D14 makes °F the default, and the setting travels to the
-  /// device: the *device* renders temperatures on its own OLED, and the
-  /// two screens must agree.
+  /// All four are null until `/status` answers.
+  final String? deviceId;
+  final String? model;
+  final String? firmware;
+
+  /// The address this phone is reaching it on, when it is on Wi-Fi.
+  final String? address;
+
+  /// Whether the bridge is bound to a Smoke X base. Null = not yet known,
+  /// which is **not** the same as "not paired" and must not read as it.
+  final bool? paired;
+
+  final VoidCallback? onPair;
+  final VoidCallback? onUnpair;
+  final String controlReason;
+
+  @override
+  Widget build(BuildContext context) => SettingsPage(
+    key: const Key('settings-identity'),
+    lead:
+        'A bridge is identified by the id printed on its case. This phone uses '
+        'it to tell one bridge from another, so a reset bridge is never '
+        'mistaken for the one your cooks came from.',
+    children: [
+      const SettingsSectionLabel('This bridge'),
+      SettingsGroup(
+        children: [
+          SettingsRow(
+            key: const Key('identity-device-id'),
+            label: 'Bridge id',
+            subtitle: 'Printed on the case, and never changes',
+            value: (deviceId ?? '').isEmpty ? null : deviceId,
+          ),
+          SettingsRow(
+            key: const Key('identity-model'),
+            label: 'Model',
+            value: (model ?? '').isEmpty ? null : model,
+          ),
+          SettingsRow(
+            key: const Key('identity-firmware'),
+            label: 'Firmware',
+            value: (firmware ?? '').isEmpty ? null : firmware,
+          ),
+          SettingsRow(
+            key: const Key('identity-address'),
+            label: 'Reached at',
+            subtitle: 'The address this phone is using right now',
+            value: (address ?? '').isEmpty ? null : address,
+          ),
+          const SettingsRow(
+            key: Key('identity-rename'),
+            label: 'Rename this bridge',
+            subtitle: 'Change the name it advertises on your network',
+            reason:
+                'This version of the app can’t rename a bridge. It answers to '
+                'the id on its case, which is what setup uses to find it.',
+          ),
+          // §F lists an mDNS name beside the device name. It is derived from
+          // the id rather than stored, so it is stated rather than offered —
+          // and the value is worth having on screen: it is what somebody types
+          // into a browser when the app itself cannot find the bridge.
+          SettingsRow(
+            key: const Key('identity-mdns'),
+            label: 'Name on your network',
+            subtitle: 'What it answers to when your network resolves names',
+            value: (deviceId ?? '').isEmpty
+                ? null
+                : '${deviceId!.toLowerCase()}.local',
+            reason:
+                'The bridge builds this from the id on its case and offers no '
+                'way to change it.',
+          ),
+        ],
+      ),
+      const SettingsSectionLabel('Base station'),
+      SettingsGroup(
+        children: [
+          SettingsRow(
+            key: const Key('identity-paired'),
+            label: 'Paired to a Smoke X',
+            subtitle: switch (paired) {
+              null => 'The bridge hasn’t reported this yet',
+              true => 'Readings arrive from the base station over its radio',
+              false => 'Put the base station in sync mode, then re-scan',
+            },
+            value: switch (paired) {
+              null => null,
+              true => 'Yes',
+              false => 'No',
+            },
+          ),
+          SettingsActionRow(
+            key: const Key('identity-pair'),
+            label: 'Look for the base station',
+            subtitle:
+                'Re-runs the pairing scan. Nothing is lost if it finds the '
+                'same one.',
+            buttonLabel: 'Re-scan',
+            reason: controlReason,
+            onPressed: onPair,
+          ),
+          SettingsActionRow(
+            key: const Key('identity-unpair'),
+            label: 'Forget the base station',
+            subtitle:
+                'Readings stop until you pair again. Cooks already recorded '
+                'are untouched.',
+            buttonLabel: 'Unpair',
+            danger: true,
+            reason: controlReason,
+            onPressed: onUnpair,
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+/// §F Display & units — one page, three subjects, and they are genuinely
+/// different subjects: what the numbers mean, how *this app* looks, and what
+/// the *bridge's own screen* does.
+///
+/// Keeping them apart matters because only the first travels to the device and
+/// only the second works with the bridge unplugged. A user who changes the
+/// theme and then wonders why the bridge's screen is still dark has been
+/// misled by grouping, not by copy.
+class DisplaySettingsView extends StatelessWidget {
+  const DisplaySettingsView({
+    required this.units,
+    required this.onUnits,
+    this.deviceUnits,
+    this.themeProfile = ThemeProfile.dark,
+    this.onThemeProfile,
+    this.displayTimeoutS,
+    this.onDisplayTimeout,
+    this.deviceReason = '',
+    this.hardwareReason = '',
+    super.key,
+  });
+
+  /// `F` or `C`. A **phone** setting that also travels to the bridge, because
+  /// the bridge renders temperatures on its own screen and two screens
+  /// disagreeing about the same probe is worse than either being wrong.
   final String units;
   final ValueChanged<String> onUnits;
 
-  /// **Null until the bridge has said so** (newapp §F, §I.0).
+  /// What the **bridge** says its own screen is using, read from
+  /// `GET /config/device`. Null until it answers.
   ///
-  /// These three used to be `= 60`, `= true` and `= 64` — constructor defaults
-  /// rendered as if they had been read from the device, on rows whose write
-  /// callback was null. A settings screen that states a value it has never
-  /// been told is the same lie as a stale temperature under a live chip, and
-  /// this app's fourth house rule ("absent ≠ zero") already forbade it
-  /// everywhere except here.
-  final int? displayTimeoutS;
-  final bool? ledEnabled;
-  final int? maxSessions;
-  final ValueChanged<Map<String, Object?>>? onDeviceConfig;
+  /// Worth its own field rather than being assumed equal to [units]: the two
+  /// can genuinely disagree — a bridge provisioned by another phone, or a
+  /// write that never landed — and the one place that difference is
+  /// discoverable is this row.
+  final String? deviceUnits;
 
-  /// Non-empty disables the writable rows and states why, rather than leaving
-  /// controls that look live and write nothing.
-  final String unsupportedReason;
-
-  /// False until F12 (M5). V1.3 settled the divider (×4.9, GPIO37 HIGH
-  /// enables) but nothing reads it yet.
-  final bool batteryCalibrationAvailable;
-
-  /// `off` · `on` · `auto` — 01 §1.6's saver profile. Tri-state on purpose:
-  /// `auto` engages below 20 % and releases at 30 %, which a switch cannot
-  /// say. A String for the same reason [units] is one — the wire spelling is
-  /// the contract and the route does the mapping.
-  final String? batterySaver;
-  final ValueChanged<String>? onBatterySaver;
-
-  /// newapp §H.3. Unlike every other row on this page this one is a **phone**
-  /// setting, not a device one — it works with the bridge unplugged, and it is
-  /// grouped under Display beside units for that reason rather than being
-  /// exiled to an About page nobody opens.
   final ThemeProfile themeProfile;
   final ValueChanged<ThemeProfile>? onThemeProfile;
 
+  /// Seconds the bridge's own screen stays lit; 0 = never sleeps. Null until
+  /// the bridge reports it.
+  final int? displayTimeoutS;
+  final ValueChanged<int>? onDisplayTimeout;
+
+  /// Why the **mirror to the bridge's own screen** cannot be sent on this
+  /// lane, or `''`.
+  ///
+  /// It is deliberately *not* on the units row any more. °F/°C is a phone
+  /// setting: the route writes it to prefs and every reading in the app
+  /// changes on the next frame, bridge or no bridge. Disabling the row when
+  /// the bridge was unreachable made the app's own units unchangeable at
+  /// precisely the moment somebody was sitting there with nothing else to do
+  /// — and the card one section below states the opposite principle out loud.
+  /// The caveat belongs in the sentence, not on the control.
+  final String deviceReason;
+
+  /// Why the bridge's **own hardware** (its screen) cannot be set on this lane.
+  /// Bluetooth carries units and the battery saver and nothing else, so this is
+  /// non-empty there even though the units row above stays live.
+  final String hardwareReason;
+
+  /// The firmware clamps to `{0} ∪ [15, 600]`, so every shortcut here is a
+  /// value the bridge will actually keep. A chip that silently became
+  /// something else on arrival would be the same lie in a new place.
+  static const List<ChipOption<int>> _timeouts = [
+    ChipOption(0, 'Never'),
+    ChipOption(30, '30s'),
+    ChipOption(60, '1m'),
+    ChipOption(300, '5m'),
+    ChipOption(600, '10m'),
+  ];
+
+  String get _unitsNote {
+    if (deviceReason.isNotEmpty) {
+      return 'Changes every reading in the app straight away. The bridge’s own '
+          'screen will catch up when it’s back.';
+    }
+    if (deviceUnits == null) {
+      return 'Changes every reading in the app, and travels to the bridge so '
+          'its own screen agrees';
+    }
+    final same = deviceUnits == (units == 'C' ? 'C' : 'F');
+    return same
+        ? 'The bridge’s own screen is showing ${_unitName(deviceUnits!)} too'
+        : 'This phone shows ${_unitName(units)}; the bridge’s own screen is '
+              'still on ${_unitName(deviceUnits!)}. Choosing again sends it.';
+  }
+
+  static String _unitName(String u) => u == 'C' ? 'Celsius' : 'Fahrenheit';
+
+  /// Seconds, said the way a person would. `formatDuration` is built for cook
+  /// lengths and rounds anything under a minute to `<1m`, which turns the
+  /// firmware's 15-second floor into a value nobody can read back.
+  static String _timeoutLabel(int s) {
+    if (s <= 0) {
+      return 'Never sleeps';
+    }
+    if (s < 60) {
+      return '${s}s';
+    }
+    final m = s ~/ 60;
+    final rem = s % 60;
+    return rem == 0 ? '${m}m' : '${m}m ${rem}s';
+  }
+
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      key: const Key('settings-device'),
-      children: [
-        if (unsupportedReason.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Text(
-              unsupportedReason,
-              key: const Key('settings-device-unsupported'),
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        const _SectionLabel('Display'),
-        ListTile(
-          title: const Text('Temperature units'),
-          subtitle: Text(units == 'C' ? 'Celsius' : 'Fahrenheit'),
-          trailing: SegmentedButton<String>(
+  Widget build(BuildContext context) => SettingsPage(
+    key: const Key('settings-display'),
+    children: [
+      const SettingsSectionLabel('Temperature'),
+      SettingsGroup(
+        children: [
+          SettingsChoiceRow<String>(
             key: const Key('settings-units'),
-            segments: const [
-              ButtonSegment(value: 'F', label: Text('°F')),
-              ButtonSegment(value: 'C', label: Text('°C')),
-            ],
-            selected: {units == 'C' ? 'C' : 'F'},
-            onSelectionChanged: (s) => onUnits(s.first),
+            label: 'Units',
+            subtitle: _unitsNote,
+            options: const [ChipOption('F', '°F'), ChipOption('C', '°C')],
+            value: units == 'C' ? 'C' : 'F',
+            onChanged: onUnits,
           ),
+        ],
+      ),
+      const SettingsSectionLabel('This app'),
+      SettingsGroup(
+        footer: const Text(
+          'This one is only about your phone. It applies straight away, with '
+          'the bridge unplugged or out of range.',
         ),
-        ListTile(
-          title: const Text('App theme'),
-          subtitle: Text(themeProfile.blurb),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: SegmentedButton<ThemeProfile>(
+        children: [
+          SettingsChoiceRow<ThemeProfile>(
             key: const Key('settings-theme-profile'),
-            segments: [
-              for (final p in ThemeProfile.values)
-                ButtonSegment(value: p, label: Text(p.label)),
+            label: 'Look',
+            subtitle: themeProfile.blurb,
+            options: [
+              for (final p in ThemeProfile.values) ChipOption(p, p.label),
             ],
-            selected: {themeProfile},
-            onSelectionChanged: onThemeProfile == null
+            value: themeProfile,
+            onChanged: onThemeProfile,
+          ),
+        ],
+      ),
+      const SettingsSectionLabel('The bridge’s own screen'),
+      SettingsGroup(
+        children: [
+          SettingsChoiceRow<int>(
+            key: const Key('settings-display-timeout'),
+            label: 'Screen timeout',
+            subtitle: displayTimeoutS == 0
+                ? 'It never sleeps. Costs battery, and burns the panel in over '
+                      'a long cook.'
+                : 'How long it stays lit after the last button press',
+            options: _timeouts,
+            value: displayTimeoutS,
+            reportsValue: true,
+            valueLabel: displayTimeoutS == null
                 ? null
-                : (s) => onThemeProfile!(s.first),
+                : _timeoutLabel(displayTimeoutS!),
+            reason: hardwareReason,
+            onChanged: onDisplayTimeout,
           ),
-        ),
-        ListTile(
-          title: const Text('Display timeout'),
-          subtitle: Text(
-            displayTimeoutS == null
-                ? '—'
-                : formatDuration(displayTimeoutS!),
+          const SettingsRow(
+            key: Key('settings-oled'),
+            label: 'Brightness, contrast, rotation and what it shows',
+            subtitle: 'Set on the bridge itself — its button cycles the pages',
+            reason:
+                'The bridge doesn’t offer these over the network, so the app '
+                'has no way to ask for them. Rotation is fixed in its '
+                'firmware.',
           ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: onDeviceConfig == null || displayTimeoutS == null
-              ? null
-              : () => onDeviceConfig!({
-                  'display_timeout_s': displayTimeoutS == 60 ? 300 : 60,
-                }),
-        ),
-        SwitchListTile(
-          key: const Key('settings-led'),
-          title: const Text('Status LED'),
-          subtitle: ledEnabled == null
-              ? const Text('The bridge hasn’t reported this yet')
-              : null,
-          value: ledEnabled ?? false,
-          onChanged: onDeviceConfig == null || ledEnabled == null
-              ? null
-              : (v) => onDeviceConfig!({'led_enabled': v}),
-        ),
-        const _SectionLabel('Storage'),
-        ListTile(
-          // The old phrasing ("Keep at most" / "64 cooks on the bridge") never
-          // said what happens when it fills up.
-          title: const Text('Cooks kept on the bridge'),
-          subtitle: Text(
-            maxSessions == null
-                ? '—'
-                : '$maxSessions — the oldest are deleted first',
-          ),
-        ),
-        const _SectionLabel('Battery'),
-        ListTile(
-          title: const Text('Battery saver'),
-          subtitle: Text(switch (batterySaver) {
-            'off' => 'Never slow down — full performance on mains power',
-            'on' => 'Always saving: slower chip, dimmer screen, less radio',
-            'auto' => 'Turns on below 20%, and off again at 30%',
-            _ => 'The bridge hasn’t reported this yet',
-          }),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: SegmentedButton<String>(
-            key: const Key('settings-battery-saver'),
-            segments: const [
-              ButtonSegment(value: 'off', label: Text('Off')),
-              ButtonSegment(value: 'on', label: Text('On')),
-              ButtonSegment(value: 'auto', label: Text('Auto')),
-            ],
-            emptySelectionAllowed: true,
-            selected: {
-              // Nothing selected until the device has said which it is —
-              // pre-selecting "Auto" would be a guess wearing a fact's clothes.
-              if (batterySaver != null) batterySaver!,
+        ],
+      ),
+    ],
+  );
+}
+
+/// §F LED — the light, now that there is something behind it.
+///
+/// This page exists rather than being folded away because the light is a thing
+/// people come looking for: it is the only output the bridge has that is
+/// visible from across a yard.
+///
+/// It is also the page that best shows what the read half bought. Until the
+/// transport could read `GET /config/device`, both rows were `—` with a reason.
+/// The switch is now live and reports the bridge's own answer; the two rows
+/// underneath still say `—`, because §F asks for three-way behaviour and a
+/// brightness and the firmware stores neither — and a row that says so is
+/// worth more than a row that quietly isn't there.
+class LedSettingsView extends StatelessWidget {
+  const LedSettingsView({
+    this.enabled,
+    this.onEnabled,
+    this.brightness,
+    this.reason = '',
+    super.key,
+  });
+
+  /// What the bridge reports, from `GET /config/device`. Null until it answers
+  /// — and on a lane that cannot read it, null for good, which is why the
+  /// switch is inert rather than sitting at a confident "off".
+  final bool? enabled;
+  final ValueChanged<bool>? onEnabled;
+
+  /// Null always, today: the firmware stores no brightness.
+  final int? brightness;
+
+  /// Why the light cannot be set on this lane, or `''`.
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) => SettingsPage(
+    key: const Key('settings-led'),
+    lead: 'It is the only signal you can see from across the yard.',
+    children: [
+      // Not "Status light": that was the section label, the row label and half
+      // the section's own subtitle on the index — the same two words three
+      // times before anything had been said.
+      const SettingsSectionLabel('The light on the bridge'),
+      SettingsGroup(
+        children: [
+          SettingsSwitchRow(
+            key: const Key('led-enabled'),
+            label: 'Status light',
+            subtitle: switch (enabled) {
+              true => 'Lit while the bridge is awake and hearing the base',
+              false => 'Dark. The bridge keeps recording either way.',
+              null => '',
             },
-            onSelectionChanged:
-                onBatterySaver == null || unsupportedReason.isNotEmpty
-                ? null
-                : (s) => onBatterySaver!(s.first),
+            value: enabled,
+            reason: reason,
+            unknownNote: 'The bridge hasn’t reported this yet.',
+            onChanged: onEnabled,
           ),
-        ),
-        ListTile(
-          key: const Key('settings-battery-calibration'),
-          enabled: batteryCalibrationAvailable,
-          title: const Text('Battery calibration'),
-          subtitle: Text(
-            batteryCalibrationAvailable
-                ? 'Enter a meter reading to refine the divider ratio'
-                // Present and disabled, with the reason: the alternative
-                // is a control that pretends the bridge can measure a
-                // battery it cannot yet read.
-                : 'Not available yet — this bridge does not report a '
-                      'battery voltage',
-            style: theme.textTheme.bodyMedium,
+          const SettingsRow(
+            key: Key('led-behaviour'),
+            label: 'Only light up for alarms',
+            subtitle: 'Dark during a normal cook, lit when something is wrong',
+            reason:
+                'The bridge stores the light as on or off, with no alarms-only '
+                'setting in between.',
           ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A12.4 — advanced: radio, the raw packet ring, the novelty log, and the
-/// in-app log ring. **Field diagnosis without a cable** (08 §8.2) is the
-/// whole reason this page exists.
-class AdvancedSettingsView extends StatelessWidget {
-  const AdvancedSettingsView({
-    this.radio = const {},
-    this.packets = const [],
-    this.noveltyLog = '',
-    this.logLines = const [],
-    this.onExportLogs,
-    this.paired = false,
-    this.onPair,
-    this.onUnpair,
-    this.onFieldReport,
-    super.key,
-  });
-
-  final Map<String, Object?> radio;
-  final List<String> packets;
-  final String noveltyLog;
-  final List<String> logLines;
-  final VoidCallback? onExportLogs;
-
-  /// Whether the bridge is currently bound to a Smoke X base.
-  final bool paired;
-
-  /// Re-enter sync/scan (`pairing/sync` · op 1) and drop the binding
-  /// (`pairing/unpair` · op 2). D15 moved these off the device button, so
-  /// this screen is now the only way a user reaches them.
-  final VoidCallback? onPair;
-  final VoidCallback? onUnpair;
-
-  /// Opens the one-shot on-device harness. Null hides the row entirely —
-  /// never a dead button.
-  final VoidCallback? onFieldReport;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      key: const Key('settings-advanced'),
-      children: [
-        if (onFieldReport != null) ...[
-          const _SectionLabel('Field report'),
-          ListTile(
-            key: const Key('settings-field-report'),
-            leading: const Icon(Icons.fact_check_outlined),
-            title: const Text('Run the field checks'),
-            subtitle: const Text(
-              'Tests what only a real phone and a real bridge can answer, '
-              'then hands you one log to send back.',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: onFieldReport,
-          ),
-        ],
-        const _SectionLabel('LoRa'),
-        for (final e in radio.entries)
-          ListTile(
-            dense: true,
-            title: Text(e.key.replaceAll('_', ' ')),
-            trailing: Text('${e.value}'),
-          ),
-        const _SectionLabel('Base station'),
-        ListTile(
-          key: const Key('settings-pairing-state'),
-          title: const Text('Pairing'),
-          subtitle: Text(
-            paired
-                ? 'Bound to a Smoke X base'
-                : 'Not paired — put the base in sync mode, then re-scan',
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Row(
-            children: [
-              OutlinedButton.icon(
-                key: const Key('settings-pair'),
-                onPressed: onPair,
-                icon: const Icon(Icons.wifi_tethering),
-                label: const Text('Re-scan'),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                key: const Key('settings-unpair'),
-                onPressed: onUnpair,
-                icon: const Icon(Icons.link_off),
-                label: const Text('Unpair'),
-              ),
-            ],
-          ),
-        ),
-        const _SectionLabel('Raw packets'),
-        if (packets.isEmpty)
-          const ListTile(
-            key: Key('settings-packets-empty'),
-            subtitle: Text('No packets captured yet.'),
-          )
-        else
-          for (final p in packets.take(32))
-            ListTile(
-              dense: true,
-              title: Text(p, style: theme.textTheme.bodySmall),
-            ),
-        const _SectionLabel('Unrecognised packets'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            noveltyLog.isEmpty ? 'Nothing new observed.' : noveltyLog,
-            key: const Key('settings-novelty'),
-            style: theme.textTheme.bodySmall,
-          ),
-        ),
-        const _SectionLabel('App log'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            logLines.isEmpty
-                ? 'Nothing logged this session.'
-                : logLines.join('\n'),
-            key: const Key('settings-logs'),
-            style: theme.textTheme.bodySmall,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: OutlinedButton.icon(
-            key: const Key('settings-export-logs'),
-            onPressed: onExportLogs,
-            icon: const Icon(Icons.ios_share),
-            label: const Text('Export logs'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The power page (D15).
-///
-/// The bridge's button can only cycle views and switch itself off, so every
-/// other disruptive verb has to live here. All three are confirmed, each
-/// with the consequence spelled out rather than a generic "Are you sure?":
-///
-///  * **Power off is the sharp one.** Nothing remote can undo it — waking the
-///    bridge needs someone to walk over and hold PRG (07 §7.4). A user who
-///    taps this from the sofa has stranded their cook, so the dialog says so
-///    in those words.
-///  * **Factory reset forgets this phone's BLE bond**, so the app has to pair
-///    again afterwards; that is a surprise worth pre-empting.
-class PowerSettingsView extends StatelessWidget {
-  const PowerSettingsView({
-    this.onRestart,
-    this.onPowerOff,
-    this.onFactoryReset,
-    this.sessionActive = false,
-    super.key,
-  });
-
-  final Future<void> Function()? onRestart;
-  final Future<void> Function()? onPowerOff;
-  final Future<void> Function()? onFactoryReset;
-
-  /// Drives the extra "this ends the cook" line, so the warning is specific
-  /// when it matters instead of permanently shouting.
-  final bool sessionActive;
-
-  static Future<bool> _confirm(
-    BuildContext context, {
-    required String title,
-    required String body,
-    required String confirmLabel,
-    bool destructive = false,
-  }) async {
-    final theme = Theme.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-            key: const Key('power-cancel'),
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            key: const Key('power-confirm'),
-            style: destructive
-                ? FilledButton.styleFrom(
-                    backgroundColor: theme.colorScheme.error,
-                    foregroundColor: theme.colorScheme.onError,
-                  )
-                : null,
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(confirmLabel),
+          SettingsRow(
+            key: const Key('led-brightness'),
+            label: 'Brightness',
+            subtitle: 'How bright it is at night',
+            value: brightness == null ? null : '$brightness%',
+            reason:
+                'The bridge doesn’t store a brightness — its light is on or '
+                'off.',
           ),
         ],
       ),
-    );
-    return ok ?? false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cookWarning = sessionActive
-        ? ' A cook is running and will be interrupted.'
-        : '';
-    return ListView(
-      key: const Key('settings-power'),
-      children: [
-        const _SectionLabel('Power'),
-        ListTile(
-          key: const Key('power-restart'),
-          leading: const Icon(Icons.restart_alt),
-          title: const Text('Restart the bridge'),
-          subtitle: const Text('Comes back on its own in a few seconds'),
-          enabled: onRestart != null,
-          onTap: onRestart == null
-              ? null
-              : () async {
-                  final ok = await _confirm(
-                    context,
-                    title: 'Restart the bridge?',
-                    body:
-                        'It will be unreachable for a few seconds while it '
-                        'reboots, then reconnect by itself.$cookWarning',
-                    confirmLabel: 'Restart',
-                  );
-                  if (ok) {
-                    await onRestart!();
-                  }
-                },
-        ),
-        ListTile(
-          key: const Key('power-off'),
-          leading: const Icon(Icons.bedtime_outlined),
-          title: const Text('Power off'),
-          subtitle: const Text('Deep sleep — waking it needs the PRG button'),
-          enabled: onPowerOff != null,
-          onTap: onPowerOff == null
-              ? null
-              : () async {
-                  final ok = await _confirm(
-                    context,
-                    title: 'Power off the bridge?',
-                    body:
-                        'It stops responding on Wi-Fi and Bluetooth, and '
-                        'nothing in this app can wake it again. To turn it '
-                        'back on you must physically hold the PRG button on '
-                        'the bridge for about 5 seconds.$cookWarning',
-                    confirmLabel: 'Power off',
-                    destructive: true,
-                  );
-                  if (ok) {
-                    await onPowerOff!();
-                  }
-                },
-        ),
-        const _SectionLabel('Danger zone'),
-        ListTile(
-          key: const Key('power-factory-reset'),
-          leading: Icon(Icons.delete_forever, color: theme.colorScheme.error),
-          title: Text(
-            'Factory reset',
-            style: TextStyle(color: theme.colorScheme.error),
-          ),
-          subtitle: const Text(
-            'Erases pairing, network settings, cook history and Bluetooth '
-            'bonds',
-          ),
-          enabled: onFactoryReset != null,
-          onTap: onFactoryReset == null
-              ? null
-              : () async {
-                  final ok = await _confirm(
-                    context,
-                    title: 'Erase everything?',
-                    body:
-                        'This wipes the bridge back to how it shipped: its '
-                        'pairing with the base, its network settings, every '
-                        'stored cook, and its Bluetooth bonds. This phone '
-                        'will forget the bridge too, and you’ll have to pair '
-                        'with it again. It cannot be undone.$cookWarning',
-                    confirmLabel: 'Erase everything',
-                    destructive: true,
-                  );
-                  if (ok) {
-                    await onFactoryReset!();
-                  }
-                },
-        ),
-      ],
-    );
-  }
+    ],
+  );
 }
 
-/// A29 — the phone's own copy of every cook it has seen, and the only way
-/// to get rid of it.
-///
-/// **The cache is unbounded on purpose.** It keeps cooks the bridge has
-/// long since deleted under its 64-session retention (04 §4.7), which is
-/// the entire reason it exists — a cook you did last spring outlives the
-/// device's own memory of it. A policy like that is only honest if the
-/// person it stores data for can end it, and that is this page.
-///
-/// Nothing here touches the bridge. Clearing the cache is a local erase;
-/// the next sync refills whatever the device still holds, which is what
-/// separates "clear a cache" from "delete my cooking history".
-class StorageSettingsView extends StatelessWidget {
-  const StorageSettingsView({
-    required this.sessions,
-    required this.samples,
-    required this.approxBytes,
-    this.onClear,
-    this.busy = false,
-    super.key,
-  });
-
-  final int sessions;
-  final int samples;
-
-  /// Rounded to whole megabytes on screen — a byte count implies a
-  /// precision SQLite's page allocation does not actually give us.
-  final int approxBytes;
-
-  /// Null while there is nothing to clear, which is why the tile reads as
-  /// disabled rather than offering an erase that would do nothing.
-  final Future<void> Function()? onClear;
-  final bool busy;
-
-  static String _size(int bytes) {
-    if (bytes < 1024) {
-      return '$bytes B';
-    }
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).round()} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-
-  /// Hours of cooking, at the nominal 30 s cadence. The number people
-  /// actually recognise: "62 hours" means something, "7,440 samples" does
-  /// not.
-  static String _hours(int samples) {
-    final h = samples * 30 / 3600;
-    if (h < 1) {
-      return '${(h * 60).round()} min';
-    }
-    return '${h.toStringAsFixed(h < 10 ? 1 : 0)} h';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final empty = sessions == 0 && samples == 0;
-    return ListView(
-      key: const Key('settings-storage'),
-      children: [
-        const _SectionLabel('On this phone'),
-        ListTile(
-          key: const Key('storage-sessions'),
-          title: const Text('Cooks kept'),
-          subtitle: const Text(
-            'Including any the bridge has since deleted to make room',
-          ),
-          trailing: Text('$sessions'),
-        ),
-        ListTile(
-          key: const Key('storage-samples'),
-          title: const Text('Recorded time'),
-          subtitle: Text('$samples readings'),
-          trailing: Text(_hours(samples)),
-        ),
-        ListTile(
-          key: const Key('storage-size'),
-          title: const Text('Approximate size'),
-          trailing: Text(_size(approxBytes)),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Text(
-            'Cooks are copied off the bridge as soon as this phone can reach '
-            'it — over Bluetooth or Wi-Fi — and then kept here until you '
-            'clear them. Nothing expires on its own.',
-            key: const Key('storage-explainer'),
-            style: theme.textTheme.bodyMedium,
-          ),
-        ),
-        const _SectionLabel('Danger zone'),
-        ListTile(
-          key: const Key('storage-clear'),
-          leading: Icon(
-            Icons.delete_sweep_outlined,
-            color: empty ? theme.disabledColor : theme.colorScheme.error,
-          ),
-          title: Text(
-            'Clear stored cooks',
-            style: TextStyle(
-              color: empty ? theme.disabledColor : theme.colorScheme.error,
-            ),
-          ),
-          subtitle: Text(
-            empty
-                ? 'Nothing is stored on this phone yet'
-                : 'Removes every cook from this phone. The bridge keeps its '
-                      'own copy of whatever it still holds.',
-          ),
-          enabled: !empty && !busy && onClear != null,
-          onTap: (empty || busy || onClear == null)
-              ? null
-              : () async {
-                  final ok = await _confirmClear(context);
-                  if (ok) {
-                    await onClear!();
-                  }
-                },
-        ),
-      ],
-    );
-  }
-
-  Future<bool> _confirmClear(BuildContext context) async {
-    final theme = Theme.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Clear stored cooks?'),
-        content: Text(
-          'This removes $sessions ${sessions == 1 ? 'cook' : 'cooks'} and '
-          '${_hours(samples)} of readings from this phone. It cannot be '
-          'undone.\n\nThe bridge is not touched. Anything it still holds '
-          'will be copied back the next time this phone connects — but '
-          'cooks the bridge has already deleted will be gone for good.',
-        ),
-        actions: [
-          TextButton(
-            key: const Key('storage-clear-cancel'),
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            key: const Key('storage-clear-confirm'),
-            style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.error,
-              foregroundColor: theme.colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Clear'),
-          ),
-        ],
-      ),
-    );
-    return ok ?? false;
-  }
-}
-
-/// A12.4 — about. The MIT attribution for the reference parser is **D9's
-/// legal obligation**, not a nicety, which is why it is a committed string
-/// and not a link somebody can forget to add.
+/// §F About. The MIT attribution for the reference parser is **D9's legal
+/// obligation**, not a nicety, which is why it is a committed string and not a
+/// link somebody can forget to add.
 class AboutView extends StatelessWidget {
   const AboutView({
     required this.appVersion,
@@ -766,64 +575,53 @@ class AboutView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
+    final t = context.tokens;
+    return SettingsPage(
       key: const Key('settings-about'),
       children: [
-        ListTile(title: const Text('App version'), trailing: Text(appVersion)),
-        ListTile(
-          title: const Text('Bridge firmware'),
-          trailing: Text(firmwareVersion.isEmpty ? noValue : firmwareVersion),
+        const SettingsSectionLabel('Versions'),
+        SettingsGroup(
+          children: [
+            SettingsRow(
+              label: 'App',
+              value: appVersion.isEmpty ? null : appVersion,
+            ),
+            SettingsRow(
+              label: 'Bridge firmware',
+              value: firmwareVersion.isEmpty ? null : firmwareVersion,
+            ),
+            SettingsRow(
+              label: 'Bridge id',
+              value: deviceId.isEmpty ? null : deviceId,
+            ),
+          ],
         ),
-        ListTile(
-          title: const Text('Bridge id'),
-          trailing: Text(deviceId.isEmpty ? noValue : deviceId),
-        ),
-        const _SectionLabel('Licences'),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          child: Text(
-            'The Smoke X packet parser is derived from the ThermoWorks '
-            'Smoke gateway reference implementation, used under the MIT '
-            'licence with attribution retained (D9).',
-            key: const Key('settings-attribution'),
-            style: theme.textTheme.bodyMedium,
-          ),
+        const SettingsSectionLabel('Licences'),
+        SettingsGroup(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SmokeTokens.s4,
+                SmokeTokens.s3,
+                SmokeTokens.s4,
+                SmokeTokens.s3,
+              ),
+              child: Text(
+                'The Smoke X packet parser is derived from the ThermoWorks '
+                'Smoke gateway reference implementation, used under the MIT '
+                'licence with attribution retained (D9).',
+                key: const Key('settings-attribution'),
+                style: SmokeType.bodySm.copyWith(color: t.textBody),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-/// A section header, in the design system's own label style (newapp §F).
-///
-/// It used to reach for `textTheme.labelMedium` with a hand-written letter
-/// spacing and `onSurfaceVariant` — three Material defaults doing the job of
-/// one token, on the pages §F calls the app's largest visual inconsistency.
-/// `SmokeType.label` already *is* the tracked, upper-case section label the
-/// rest of the app uses; this now uses it, so these headers and the ones on
-/// `/live` and `/device` are the same object rather than two things that
-/// happen to look similar.
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      SmokeTokens.s4,
-      SmokeTokens.s5,
-      SmokeTokens.s4,
-      SmokeTokens.s2,
-    ),
-    child: Text(
-      label.toUpperCase(),
-      style: SmokeType.label.copyWith(color: context.tokens.textMuted),
-    ),
-  );
-}
-
-/// Shared by the probe editor and the alarms page.
+/// Shared by the probe editor, the alarm log and the diagnostics page.
 String probeRoleLabel(ProbeRole r) => switch (r) {
   ProbeRole.unused => 'Not used',
   ProbeRole.pit => 'Pit',

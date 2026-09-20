@@ -12,12 +12,30 @@
 ///   fourth circle would tell the user they had failed a step they never
 ///   reached.
 /// * **a failure is a bad hop, not a fourth hop.** [errorTint] recolours the
-///   **active** circle to `StatusPalette.critical`; at hop 0, where there is no
-///   circle to recolour, it recolours the eyebrow instead (§14.7.4). That is the
+///   **active** circle to `StatusPalette.critical` — the ring and its glow, not
+///   the digit inside, which is ink in every state (§14.6.5). At hop 0, where
+///   there is no circle to recolour, it recolours the eyebrow instead
+///   (§14.7.4): that is the *one* place a status hue is allowed to carry a word
+///   here, because at preflight there is no ring to put it on. That is the
 ///   whole reason the error states stay countable as three.
 ///
 /// A **skipped** hop (a bridge already bonded to a base skips hop 2) renders as
 /// done with a *dash*, never a tick it did not earn.
+///
+/// ## The connector carries the progress (17 §17.5)
+///
+/// The rail used to draw one flat `chromeDim` line behind three circles, so the
+/// only thing that said *how far in you are* was which circle happened to be
+/// lit. §17.5 lifts the austerity where there is no live state to lie about —
+/// setup has no session and no readings — so the connector is now **filled with
+/// ember up to the hop you have reached** and neutral beyond it. It is a
+/// progress bar, and it reads as one from across the room.
+///
+/// It is not the *only* thing saying so: the hops behind carry a tick, the
+/// current one carries its numeral in a lit ring, and the ones ahead are dim
+/// with a plain numeral. Remove the colour and the rail still reads (§17.5's
+/// colour-blind clause). And the digit stays ink in every state — that is
+/// §14.6.5 and a sibling test pins it.
 library;
 
 import 'package:flutter/material.dart';
@@ -73,18 +91,53 @@ class SetupRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
 
+    // How much of the connector is behind the user, 0..1. Hop 0 (preflight) is
+    // *before* step one, so nothing is filled; the last hop fills it all.
+    final progress = hop <= 0 || of <= 1
+        ? 0.0
+        : ((hop - 1) / (of - 1)).clamp(0.0, 1.0);
+
     final circles = SizedBox(
       height: _size,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // The 2 dp connector, from the centre of the first circle to the
-          // centre of the last. `chromeDim` is the sanctioned gap-connector ink.
+          // The connector, from the centre of the first circle to the centre of
+          // the last. `chromeDim` is the sanctioned gap-connector ink; the
+          // travelled part of it is ember, which is what makes the rail a
+          // progress bar rather than three dots (§17.5).
           Positioned(
             left: _size / 2,
             right: _size / 2,
             top: (_size - _stroke) / 2,
-            child: Container(height: _stroke, color: t.chromeDim),
+            child: SizedBox(
+              height: _stroke,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(color: t.chromeDim),
+                  FractionallySizedBox(
+                    key: const Key('setup-rail-progress'),
+                    alignment: Alignment.centerLeft,
+                    widthFactor: progress,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: errorTint
+                            ? StatusPalette.critical
+                            : StatusPalette.pit,
+                        boxShadow: [
+                          ?t.glowTight(
+                            errorTint
+                                ? StatusPalette.critical
+                                : StatusPalette.pit,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -160,16 +213,29 @@ class _RailCircle extends StatelessWidget {
           size: 16,
           color: StatusPalette.onPit,
         );
+      // The two lit states put the hue on the **ring and the glow**, and the
+      // digit stays ink. §14.7.4 specifies the circle — *"a 2 dp `pit` ring
+      // with `glow(pit)`"*, *"`errorTint` recolours the active circle"* — and
+      // says nothing about the number, while §14.6.5 and this widget's own
+      // sibling do: *"the title is never tinted — the status hue rides the
+      // icon and the border, never the words"* (`setup_scaffold.dart`). A
+      // tinted digit was the one half of this component following the opposite
+      // rule to the other half; it also stated a failure in hue alone, with no
+      // icon anywhere in the circle to survive a colour-blind reader. The
+      // failure's *word* is on the scaffold above, in the title.
+      // The lit fill is §17.5's licence spent where it is cheapest: an ember
+      // wash inside the ring, so the current step reads as *warm* rather than
+      // as an empty circle. The digit on top of it stays ink.
       case _Circle.active:
-        fill = t.surface;
+        fill = StatusPalette.fill(StatusRole.pit);
         border = StatusPalette.pit;
         shadow = [?t.glow(StatusPalette.pit)];
-        content = Text('$index', style: numStyle(StatusPalette.pit));
+        content = Text('$index', style: numStyle(t.textHi));
       case _Circle.activeError:
-        fill = t.surface;
+        fill = StatusPalette.fill(StatusRole.critical);
         border = StatusPalette.critical;
         shadow = [?t.glow(StatusPalette.critical)];
-        content = Text('$index', style: numStyle(StatusPalette.critical));
+        content = Text('$index', style: numStyle(t.textHi));
       case _Circle.inactive:
         fill = t.cardSubtle;
         border = t.hairlineStrong;

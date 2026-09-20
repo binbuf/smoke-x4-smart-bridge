@@ -1,2 +1,4 @@
+icon 983098
 [chart-empty]
 text "No readings yet"
+text "The cook draws itself here as soon as a probe reports."

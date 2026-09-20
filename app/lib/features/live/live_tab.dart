@@ -27,6 +27,21 @@
 /// supporting-pane layout: readouts in a capped column, chart filling the rest,
 /// because on this product extra width buys a bigger chart and never a
 /// stretched temperature (§13.3, `SmokeWindow.readableMax`).
+///
+/// **There is no spinner here, and that is the contract** (§B.3, 16 §16.6).
+/// This screen used to answer a null snapshot with a full-screen
+/// `CircularProgressIndicator`, and an offline one with an empty state that
+/// replaced the temperatures entirely — the two states in which a reader most
+/// needs to see the last thing the bridge said. It now renders the reader's
+/// real layout on the first frame in every case: four jacks, `—` where there is
+/// no value, and a trust line that says exactly how old what is on screen is.
+/// A spinner would be the app declining to answer its own question.
+///
+/// **It reconciles** (§16.3). `reconcile()` has always been able to name
+/// thirteen situations; nothing was handing it facts, so every mismatch still
+/// collapsed to "Offline · retry 6". [liveSituation] gathers what this screen
+/// can see and the banner renders the verdict — one, above the numbers, never
+/// over them.
 library;
 
 import 'dart:async';
@@ -34,12 +49,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/connection.dart';
 import '../../app/router.dart';
 import '../../data/transport/bridge_transport.dart' show ControlCommand;
 import '../../design/design.dart';
 import '../../domain/analysis/analysis.dart';
 import '../../domain/entities/entities.dart';
+import '../../domain/situation/situation.dart';
 import '../../ui/ui.dart';
 import '../alarms/delivery_banner.dart';
 import '../chart/chart_viewport.dart';
@@ -51,6 +66,7 @@ import '../cooks/cook_actions.dart';
 import '../dashboard/dashboard_snapshot.dart';
 import '../shell/shell_scope.dart';
 import '../shell/shell_session.dart';
+import 'live_situation.dart';
 
 class LiveTab extends StatefulWidget {
   const LiveTab({super.key});
@@ -155,6 +171,38 @@ class _LiveTabState extends State<LiveTab> {
     }
   }
 
+  /// The reader's layout before anything has answered.
+  ///
+  /// Four jacks, no values, offline. Not a placeholder in the shimmer sense —
+  /// it is the **truthful** snapshot for "we have not heard anything yet", and
+  /// rendering it means the screen never changes shape when the real one lands.
+  static const DashboardSnapshot _firstFrame = DashboardSnapshot(
+    probes: [
+      ProbeView(probe: 1, role: ProbeRole.pit, name: 'Probe 1'),
+      ProbeView(probe: 2, role: ProbeRole.food, name: 'Probe 2'),
+      ProbeView(probe: 3, role: ProbeRole.food, name: 'Probe 3'),
+      ProbeView(probe: 4, role: ProbeRole.food, name: 'Probe 4'),
+    ],
+    link: LinkKind.offline,
+  );
+
+  /// The single remedy a situation offers, wired — or null, which renders no
+  /// button at all rather than one that does nothing.
+  ///
+  /// Everything §16.3 marks **auto** is deliberately absent: the app does those
+  /// and reports in the past tense, so there is nothing for a human to press.
+  VoidCallback? _situationAction(
+    BuildContext context,
+    ShellSession session,
+    Situation situation,
+  ) => switch (situation.kind) {
+    SituationKind.neverSetUp => () => context.go(AppRoutes.setup),
+    SituationKind.firmwareTooOld => () => context.go(AppRoutes.device),
+    SituationKind.bridgeNotPairedToBase => () => context.go(AppRoutes.device),
+    SituationKind.staleCook => () => unawaited(_endCook(session)),
+    _ => null,
+  };
+
   @override
   Widget build(BuildContext context) {
     final session = ShellScope.maybeOf(context);
@@ -168,27 +216,37 @@ class _LiveTabState extends State<LiveTab> {
       );
     }
 
-    final snapshot = session.snapshot;
-    _viewport = _viewportFor(snapshot, _viewport);
+    // §B.3 — the first frame is the reader, always. A null snapshot means the
+    // cache has not answered yet, not that there is nothing to draw: four jacks
+    // reading `—` under a trust line that says "No readings yet." is the honest
+    // render, and it is the same layout the values will land into, so nothing
+    // reflows and the number never flickers out of a spinner.
+    final snapshot = session.snapshot ?? _firstFrame;
+    _viewport = _viewportFor(session.snapshot, _viewport);
 
-    if (snapshot == null) {
-      return SafeArea(
-        bottom: false,
-        child: switch (session.launch) {
-          LaunchOffline() => _pullable(
-            session,
-            const EmptyState(
-              icon: Icons.cloud_off_rounded,
-              title: 'Can’t reach your bridge',
-              message:
-                  'Saved cooks are still here. Pull down to try again — the '
-                  'app also reconnects on its own when the bridge is back.',
-            ),
-          ),
-          _ => const Center(child: CircularProgressIndicator()),
-        },
-      );
-    }
+    final nowUnixMs = DateTime.now().millisecondsSinceEpoch;
+
+    // §16.3 requires `/device` to show **the same situation** as this screen,
+    // which two engines could never guarantee — so the shell's resolver is the
+    // source when there is one. It probes the OS (radio, permission, bond),
+    // asks the device over whichever lane is up, and *acts* on what it can.
+    //
+    // [liveSituation] remains the fallback for a reader mounted with no shell
+    // above it (a direct-mount test, the lab). It reads the same snapshot and
+    // the same launch state, so the two agree on everything it can see; it
+    // simply cannot see the phone, which is why it is not the source here.
+    final resolved = session.situationResolver == null
+        ? null
+        : session.situation;
+    final situation =
+        resolved ??
+        liveSituation(
+          launch: session.launch,
+          snapshot: session.snapshot,
+          hasRunningCook: session.plan != null,
+          nowUnixMs: nowUnixMs,
+          lastSeenUnixMs: session.lastSeenUnixMs,
+        );
 
     final window = context.window;
     final probeConfig = [
@@ -204,6 +262,9 @@ class _LiveTabState extends State<LiveTab> {
       freshness: session.freshness,
       celsius: session.celsius,
       paired: snapshot.paired,
+      // §16.3 — one situation, above the numbers, never over them.
+      situation: situation,
+      onSituationAction: _situationAction(context, session, situation),
       // The shell owns the transport chip and the alarm bar for every tab
       // now, so this one must not draw its own — two chips that move when you
       // change tabs was the polish tell (§13.5.7).
@@ -221,7 +282,7 @@ class _LiveTabState extends State<LiveTab> {
       onProbeTap: (jack) => context.push(AppRoutes.probeDetail(jack)),
       // §D.5 — the guided progression. The pull time is a fact the user
       // supplies and the app never guesses at.
-      nowUnixMs: DateTime.now().millisecondsSinceEpoch,
+      nowUnixMs: nowUnixMs,
       pulledAtUnixMs: _pulledAtUnixMs,
       onPulled: session.plan == null
           ? null
@@ -402,20 +463,4 @@ class _LiveTabState extends State<LiveTab> {
       ],
     );
   }
-
-  /// Makes a screen-sized, non-scrolling branch pullable. An empty state is
-  /// exactly where "try the bridge again, now" matters most, and a widget that
-  /// does not scroll cannot be pulled.
-  Widget _pullable(ShellSession session, Widget child) => RefreshIndicator(
-    onRefresh: session.refresh,
-    child: LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: child,
-        ),
-      ),
-    ),
-  );
 }

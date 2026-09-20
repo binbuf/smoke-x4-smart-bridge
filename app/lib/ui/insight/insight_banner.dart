@@ -66,22 +66,50 @@ class InsightBanner extends StatelessWidget {
         children: [
           Icon(_icon, size: 16, color: StatusPalette.hue(role)),
           const SizedBox(width: SmokeTokens.s2),
+          // **Both texts are flex children, and that is the whole fix.**
+          //
+          // The trailing used to be a bare `Text` beside an `Expanded` label:
+          // a non-flex child of a `Row` is laid out against unbounded width,
+          // so it never wrapped and never ellipsised — it overflowed, and the
+          // strip that carries the app's honesty rendered a yellow-and-black
+          // bar instead. That takes a 200 % text scale and a label like *"No
+          // estimate — the temperature is holding steady."*, which is to say
+          // it takes exactly the reader this component exists for.
+          //
+          // The inner row is `spaceBetween` so the value still sits at the
+          // right edge when there is room, and each side is capped at half the
+          // strip and wraps inside its own half when there is not.
           Expanded(
-            child: Text(
-              label,
-              style: SmokeType.bodySm.copyWith(
-                color: t.textHi,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    style: SmokeType.bodySm.copyWith(
+                      color: t.textHi,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: SmokeTokens.s2),
+                  Flexible(
+                    child: Text(
+                      trailing!,
+                      textAlign: TextAlign.end,
+                      // A trailing is a *value* — a duration, a band, a
+                      // count. Two lines is already generous; a third would
+                      // mean the caller put a sentence in the wrong slot.
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SmokeType.bodySm.copyWith(color: t.textBody),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: SmokeTokens.s2),
-            Text(
-              trailing!,
-              style: SmokeType.bodySm.copyWith(color: t.textBody),
-            ),
-          ],
           if (action != null) ...[
             const SizedBox(width: SmokeTokens.s1),
             action!,

@@ -25,6 +25,16 @@
 ///
 /// **`_inFlight`** gates every public async method against the double-tap that
 /// today overwrites the selected device mid-connect (§13.2.1).
+///
+/// **Re-entry (design 16 §16.3).** The three hops above are the *first-time*
+/// flow and are unchanged. What is new is [startFrom]: setup entered with
+/// knowledge — a bond, an address, an identity — resumes at the first hop that
+/// is actually unfinished instead of restarting at hop 0. The decision is
+/// [setupResumePlanFor], which is pure and lives next door; this file only
+/// acts on it. The rails hold across every resume path: the relink's failures
+/// are named states with next steps (R2), nothing escapes [_run] (R3), and the
+/// generation counter guards every await in the relink exactly as it does in
+/// the first-time flow.
 library;
 
 import 'dart:async';
@@ -38,7 +48,9 @@ import '../../data/transport/ble_gatt.dart';
 import '../../data/transport/ble_transport.dart';
 import '../../data/transport/bridge_transport.dart' show ControlCommand;
 import 'copy/base_sync_copy.dart';
+import 'copy/setup_net_copy.dart';
 import 'preflight.dart';
+import 'setup_entry.dart';
 import 'setup_stage.dart';
 
 // ════════════════════════════════════════════════════════════════════════
@@ -123,11 +135,22 @@ sealed class Hop1State extends SetupState {
 
 /// The radar/find list (§13.2.1). [found] is blob-decorated before any
 /// connection exists — the whole point of the §2.3 advertising blob.
-/// Next: [SetupMachine.select] a row · [SetupMachine.cancel].
+/// Next: [SetupMachine.select] a row · [SetupMachine.startScan] when a
+/// finished scan found nothing · [SetupMachine.cancel].
 class SetupScanning extends Hop1State {
-  const SetupScanning({this.found = const [], this.scanning = true});
+  const SetupScanning({
+    this.found = const [],
+    this.scanning = true,
+    this.resume,
+  });
   final List<BridgeDiscovery> found;
   final bool scanning;
+
+  /// Why setup is open, when this is a re-entry rather than a first run
+  /// (§16.3). Null on the first-time flow. The screen uses it to say what the
+  /// phone already knows instead of greeting a returning user as a stranger.
+  final SetupResumeKind? resume;
+
   @override
   SetupStage get stage => SetupStage.findBridge;
 }
@@ -145,8 +168,14 @@ class SetupNoBridges extends Hop1State {
 /// adding a second phone in ~15 s. Reached when the blob says paired + net up.
 /// Next: [SetupMachine.confirmAddThisPhone].
 class SetupAddThisPhone extends Hop1State {
-  const SetupAddThisPhone(this.bridge);
+  const SetupAddThisPhone(this.bridge, {this.resume});
   final BridgeDiscovery bridge;
+
+  /// [SetupResumeKind.adoptBridge] when this is not a second phone but the
+  /// *same* phone after a reset (§16.3 #4) — same flow, different sentence,
+  /// because "add this phone" is wrong for a phone that was already added.
+  final SetupResumeKind? resume;
+
   @override
   SetupStage get stage => SetupStage.findBridge;
 }
@@ -155,12 +184,28 @@ class SetupAddThisPhone extends Hop1State {
 /// not host a six-digit field; it points at the bridge's OLED. [passkeyShown]
 /// flips true once the bond procedure is underway (the OS dialog is up).
 /// Next: [SetupMachine.passkeyNotSeen] (30 s timer) · [SetupMachine.cancel].
+///
+/// **[resume] makes this the re-link screen instead.** A bridge this phone is
+/// already bonded to will never issue a passkey, so promising one and then
+/// never showing it is the exact failure the passkey screen exists to prevent.
+/// When [resume] is set the screen says it is reconnecting, says why setup is
+/// open, and shows no code — and, because the state carries the hop it is
+/// heading for, a link lost mid-relink resumes there rather than at hop 1.
 class SetupPairing extends Hop1State {
-  const SetupPairing({required this.bridge, this.passkeyShown = false});
+  const SetupPairing({
+    required this.bridge,
+    this.passkeyShown = false,
+    this.resume,
+  });
   final BridgeDiscovery bridge;
   final bool passkeyShown;
+  final SetupResumeKind? resume;
+
+  /// True when there is no passkey coming — an existing bond is being reused.
+  bool get isRelink => resume != null;
+
   @override
-  SetupStage get stage => SetupStage.pair;
+  SetupStage get stage => resume?.stage ?? SetupStage.pair;
 }
 
 /// 30 s with no OS prompt (§13.2.1): "some phones put it in the notification
@@ -190,12 +235,46 @@ class SetupPasskeyWrong extends Hop1State {
   SetupStage get stage => SetupStage.pair;
 }
 
-/// Bond outcome 2 of 4 (§13.2.1): the bridge was factory-reset since we
-/// bonded. The fix is distinct from "retry" — forget the pairing, then resume.
-/// Next: open Bluetooth settings · [SetupMachine.retryPasskey].
+/// Bond outcome 2 of 4 (§13.2.1) **and** situation #7 (§16.3): *this is not
+/// the bridge this phone was set up with.*
+///
+/// The reconciliation layer names one cause where the machine used to have
+/// two shapes of the same event, so they are one state with two next steps:
+///
+///  * **the bond is dead** — the bridge was reflashed since we paired, and the
+///    platform refused to drop our stale key (A24.11 heals it when it can).
+///    The fix is Bluetooth settings, then retry.
+///  * **the identity differs** — we reached it and it answers to a different
+///    id ([reachedBridgeId] vs [rememberedBridgeId]). Retrying can never fix
+///    that, so the only next step is to set it up as new — and this is the one
+///    situation the app must never resolve on its own, because adopting a
+///    reset bridge silently attaches this phone's cooks to a device that did
+///    not record them.
+///
+/// Next: open Bluetooth settings · [SetupMachine.retryPasskey] ·
+/// [SetupMachine.restart] (identity).
 class SetupRebondNeeded extends Hop1State {
-  const SetupRebondNeeded(this.bridge);
+  const SetupRebondNeeded(
+    this.bridge, {
+    this.reachedBridgeId,
+    this.rememberedBridgeId,
+  });
   final BridgeDiscovery bridge;
+
+  /// The identity that answered, when it is known and differs.
+  final String? reachedBridgeId;
+
+  /// The identity this phone was set up with, when known.
+  final String? rememberedBridgeId;
+
+  /// True when the two identities are both known and disagree — the case a
+  /// retry cannot fix.
+  bool get identityChanged {
+    final a = reachedBridgeId;
+    final b = rememberedBridgeId;
+    return a != null && b != null && a.isNotEmpty && b.isNotEmpty && a != b;
+  }
+
   @override
   SetupStage get stage => SetupStage.pair;
 }
@@ -234,7 +313,13 @@ sealed class Hop2State extends SetupState {
 /// The illustrated SYNC-hold instruction (§13.2.2). Copy in [BaseSyncCopy].
 /// Next: [SetupMachine.startBaseListen] · [SetupMachine.skipBase].
 class SetupBaseIntro extends Hop2State {
-  const SetupBaseIntro();
+  const SetupBaseIntro({this.resume});
+
+  /// [SetupResumeKind.pairBase] when setup opened *straight here* because the
+  /// bridge is otherwise finished and has simply never met a Smoke X (§16.3
+  /// #8). The screen then leads with why, so landing on hop 2 does not read as
+  /// the flow having started over.
+  final SetupResumeKind? resume;
 }
 
 /// A listen window is open (§13.2.2). [elapsed] is counted LOCALLY from the
@@ -301,10 +386,22 @@ class SetupNetworkPick extends Hop3State {
     this.networks = const [],
     this.scanning = true,
     this.failureCount = 0,
+    this.resume,
+    this.hasNetwork = false,
   });
   final List<WifiScanResult> networks;
   final bool scanning;
   final int failureCount;
+
+  /// [SetupResumeKind.addNetwork] when setup opened *straight here* — the bond
+  /// and the base are done and Wi-Fi is all that is left (§16.3). Null on the
+  /// first run, where arriving at hop 3 needs no explanation.
+  final SetupResumeKind? resume;
+
+  /// Whether the bridge already has a network. Changes the sentence from
+  /// "Wi-Fi is the part that is not set up" to "pick a different network".
+  final bool hasNetwork;
+
   bool get isEmpty => !scanning && networks.isEmpty;
   @override
   SetupStage get stage => SetupStage.network;
@@ -727,6 +824,17 @@ class SetupMachine {
 
   int _listenStartMs = 0;
 
+  /// The re-entry this run is serving (§16.3), or [SetupResumePlan.fresh].
+  /// It is *scratch*, not a mode: every screen it reaches has the same next
+  /// steps as the first-time flow, and it only ever changes what is said and
+  /// which hop is opened on.
+  SetupResumePlan _plan = SetupResumePlan.fresh;
+
+  /// The plan's kind, or null on a first run — the value the states carry so
+  /// their copy can say why setup is open.
+  SetupResumeKind? get _why =>
+      _plan.kind == SetupResumeKind.fresh ? null : _plan.kind;
+
   SetupSummary _summary = const SetupSummary();
 
   int _now() => nowMs?.call() ?? DateTime.now().millisecondsSinceEpoch;
@@ -795,7 +903,7 @@ class SetupMachine {
       }
       if (s == SetupAdapterState.on && _state is SetupBluetoothOff) {
         final resumeAt = (_state as SetupBluetoothOff).resumeAt;
-        unawaited(_resume(resumeAt));
+        unawaited(_resumeOrPlan(resumeAt));
       }
     });
   }
@@ -816,36 +924,214 @@ class SetupMachine {
 
   // ══ entry / preflight (hop 0, §13.2.0) ═════════════════════════════════
 
-  /// The single entry point. Subscribes the lifetime adapter watcher, then
-  /// runs preflight; a clear gate advances straight into hop 1.
-  Future<void> start() => _run(() async {
+  /// The first-time entry point: nothing known, nothing skipped.
+  Future<void> start() => _run(() => _begin(SetupResumePlan.fresh));
+
+  /// **Re-entry** (§16.3). Opens setup at the first hop that is actually
+  /// unfinished, instead of walking a returning user back through a bond they
+  /// already have.
+  ///
+  /// Preflight still runs first, and deliberately: a re-link cannot happen
+  /// through a radio that is switched off, and telling someone their bridge is
+  /// unreachable when the real answer is "Bluetooth is off" sends them to the
+  /// yard for nothing. The gate's `resumeAt` carries the plan's target, so
+  /// turning Bluetooth back on returns to the resumed hop, not to hop 1.
+  Future<void> startFrom(SetupResumePlan plan) => _run(() => _begin(plan));
+
+  Future<void> _begin(SetupResumePlan plan) async {
+    _plan = plan;
     _watchAdapter();
-    final gate = await _preflight.evaluate();
+    final gate = await _preflight.evaluate(resumeAt: plan.stage);
     if (gate != null) {
       _to(gate);
       return;
     }
-    await _startScan();
-  });
+    await _enterPlan();
+  }
+
+  /// Acts on [_plan] once the preflight gate is clear.
+  Future<void> _enterPlan() async {
+    switch (_plan.kind) {
+      case SetupResumeKind.fresh:
+        await _startScan();
+      case SetupResumeKind.bridgeWasReset:
+        // Identity is never automatic (§16.3). This IS a fresh setup — but it
+        // is stated first, because being returned to step one with no reason
+        // given is what makes an app read as broken.
+        _to(
+          SetupRebondNeeded(
+            _discoveryFor(_plan),
+            reachedBridgeId: _plan.reachedBridgeId,
+            rememberedBridgeId: _plan.bridgeId,
+          ),
+        );
+      case SetupResumeKind.adoptBridge:
+      case SetupResumeKind.pairBase:
+      case SetupResumeKind.addNetwork:
+        await _relink();
+    }
+  }
+
+  /// A [BridgeDiscovery] built from what the phone remembers, so the resume
+  /// paths can dial and render without a scan. `paired: true` is not a guess —
+  /// a plan only reaches here when the phone recorded a completed bond.
+  BridgeDiscovery _discoveryFor(SetupResumePlan plan) {
+    final id = plan.bleDeviceId ?? '';
+    final name = plan.bridgeName.trim();
+    return BridgeDiscovery(
+      deviceId: id,
+      name: name.isEmpty ? (plan.bridgeId ?? id) : name,
+      paired: true,
+    );
+  }
+
+  /// Re-establish the Bluetooth link to a bridge this phone already knows,
+  /// then open the hop that is unfinished (§16.3).
+  ///
+  /// **It never bonds.** "Do not re-pair" is the whole point: the OS bond
+  /// survives an app reinstall and a bridge reboot, and asking for a code the
+  /// bridge will not issue is the failure mode this replaces. If the bond
+  /// turns out to be dead the authenticated write below says so, and that is a
+  /// named state with a next step — not a retry loop.
+  ///
+  /// Every failure edge lands somewhere with a next step (R2), and every await
+  /// is generation-guarded so a superseded relink cannot drag the user
+  /// backwards (R3's sibling invariant).
+  Future<void> _relink() async {
+    final plan = _plan;
+    final bridge = _discoveryFor(plan);
+    if (bridge.deviceId.isEmpty) {
+      // Nothing to dial. Hop 1 is the only honest door, and the find list
+      // says why it is open (`SetupScanning.resume`).
+      await _startScan();
+      return;
+    }
+    _bridge = bridge;
+    final gen = _flowGen;
+    _to(SetupPairing(bridge: bridge, resume: plan.kind));
+    try {
+      if (client.connectionState != BleConnectionState.connected) {
+        await client.connect(bridge.deviceId);
+      }
+      _watchLink();
+      await client.requestMtu(247);
+      await transport.start();
+      final info = await transport.deviceInfo();
+      _bridgeId = info.id;
+      // The first AUTHENTICATED op on this link, and the one that proves the
+      // bond is alive rather than merely remembered. It also sets the clock,
+      // which is §16.3 #9 — an automatic remedy, done rather than offered.
+      // Only the dead-bond signal escapes: a clock the bridge would not take
+      // is not worth stopping a resume for.
+      try {
+        await transport.control(ControlCommand.setTime(unixMs: _now()));
+      } on BleRebondRequiredException {
+        rethrow;
+      } on Object {
+        // best-effort
+      }
+    } on BleRebondRequiredException {
+      _to(SetupRebondNeeded(bridge, rememberedBridgeId: plan.bridgeId));
+      return;
+    } on BleNotBondedException {
+      // The phone remembered a bond the OS no longer has — a reinstall on a
+      // phone whose Bluetooth settings were cleared, or a bridge that dropped
+      // us. Same situation, same screen: it does not recognise this phone.
+      _to(SetupRebondNeeded(bridge, rememberedBridgeId: plan.bridgeId));
+      return;
+    } on BleStateException {
+      _to(SetupNotABridge(bridge));
+      return;
+    } on BleException {
+      _to(SetupLinkLost(resumeAt: plan.stage));
+      return;
+    } on TimeoutException {
+      _to(SetupLinkLost(resumeAt: plan.stage));
+      return;
+    }
+    if (gen != _flowGen) {
+      return;
+    }
+
+    // Identity, before anything is written or claimed (§16.3 #7).
+    final remembered = plan.bridgeId;
+    final reached = _bridgeId;
+    if (remembered != null &&
+        remembered.isNotEmpty &&
+        reached != null &&
+        reached.isNotEmpty &&
+        reached != remembered) {
+      _to(
+        SetupRebondNeeded(
+          bridge,
+          reachedBridgeId: reached,
+          rememberedBridgeId: remembered,
+        ),
+      );
+      return;
+    }
+
+    _summary = _summary.copyWith(
+      bridgeId: reached,
+      bleDeviceId: bridge.deviceId,
+      blePaired: true,
+      bridgeName: bridge.name,
+    );
+
+    if (plan.kind == SetupResumeKind.adoptBridge) {
+      await _adoptAndVerify(bridge);
+      return;
+    }
+
+    // The plan was built from what the phone remembered; the bridge is now in
+    // hand and can be asked. RF before Wi-Fi is load-bearing (§13.2), so a
+    // bridge that has never met a Smoke X goes to hop 2 even when the caller
+    // asked for hop 3 — hop 2 is skippable and hop 3 is one tap past it. A
+    // caller that ASKED for hop 2 is never overruled: re-listening for a base
+    // is a thing someone does deliberately, paired or not.
+    if (plan.kind == SetupResumeKind.pairBase || await _needsBase(gen)) {
+      _plan = plan.copyWith(kind: SetupResumeKind.pairBase);
+      _to(SetupBaseIntro(resume: SetupResumeKind.pairBase));
+      return;
+    }
+    if (gen != _flowGen) {
+      return;
+    }
+    await _enterNetwork();
+  }
+
+  /// Whether the bridge still has no Smoke X. Unreadable answers `false`: hop
+  /// 2 is not forced on a user because one read failed, and hop 3's picker
+  /// carries a way back to it.
+  Future<bool> _needsBase(int gen) async {
+    try {
+      final st = await transport.status();
+      return gen == _flowGen && !st.paired;
+    } on Object {
+      return false;
+    }
+  }
 
   /// The primer's "Continue" (§13.2.0 check 2): prompt, then evaluate 3 and 4.
+  /// A cleared gate re-enters the *plan*, not hop 1 — a permission prompt in
+  /// the middle of a resume must not cost the resume.
   Future<void> continueFromPrimer() => _run(() async {
-    final gate = await _preflight.continueFromPrimer();
+    final gate = await _preflight.continueFromPrimer(resumeAt: _plan.stage);
     if (gate != null) {
       _to(gate);
       return;
     }
-    await _startScan();
+    await _enterPlan();
   });
 
   /// "I turned it on" / returning from settings — re-run the whole gate.
   Future<void> recheckPreflight() => _run(() async {
-    final gate = await _preflight.evaluate();
+    final gate = await _preflight.evaluate(resumeAt: _plan.stage);
     if (gate != null) {
       _to(gate);
       return;
     }
-    await _startScan();
+    await _enterPlan();
   });
 
   /// [SetupBluetoothOff] primary: ask the OS to enable Bluetooth, then
@@ -860,8 +1146,14 @@ class SetupMachine {
       _to(gate);
       return;
     }
-    await _resume(resumeAt);
+    await _resumeOrPlan(resumeAt);
   });
+
+  /// Where an interrupted flow goes back to. A re-entry re-enters its *plan*
+  /// — the radio went away with the adapter, so the link has to be rebuilt
+  /// before its hop means anything — while a first run resumes at its stage.
+  Future<void> _resumeOrPlan(SetupStage stage) =>
+      _plan.kind == SetupResumeKind.fresh ? _resume(stage) : _enterPlan();
 
   /// Routes to the entry of a coarse stage (adapter-back / reconnect resume).
   Future<void> _resume(SetupStage stage) async {
@@ -871,7 +1163,7 @@ class SetupMachine {
       case SetupStage.pair:
         await _startScan();
       case SetupStage.baseListen:
-        _to(const SetupBaseIntro());
+        _to(SetupBaseIntro(resume: _why));
       case SetupStage.network:
       case SetupStage.applying:
         await _enterNetwork();
@@ -903,7 +1195,7 @@ class SetupMachine {
   Future<void> _startScan({
     Duration timeout = const Duration(seconds: 8),
   }) async {
-    _to(const SetupScanning());
+    _to(SetupScanning(resume: _why));
     final gen = ++_flowGen;
     final found = <BridgeDiscovery>[];
 
@@ -922,7 +1214,9 @@ class SetupMachine {
           found.add(d);
           // Sort by RSSI descending (§13.2.1) — strongest first.
           found.sort((a, b) => b.rssi.compareTo(a.rssi));
-          _to(SetupScanning(found: List.of(found), scanning: true));
+          _to(
+            SetupScanning(found: List.of(found), scanning: true, resume: _why),
+          );
         }
       }
     } on Object {
@@ -935,7 +1229,7 @@ class SetupMachine {
     if (found.isEmpty) {
       _to(const SetupNoBridges());
     } else {
-      _to(SetupScanning(found: List.of(found), scanning: false));
+      _to(SetupScanning(found: List.of(found), scanning: false, resume: _why));
     }
   }
 
@@ -976,8 +1270,20 @@ class SetupMachine {
           await client.connect(bridge.deviceId);
         }
         _watchLink();
-        _to(SetupPairing(bridge: bridge, passkeyShown: true));
-        if (client.bondState != BleBondState.bonded) {
+        // An OS bond that survived — an app reinstall, a phone restore, a
+        // bridge reboot — means no passkey is coming. Saying "look at your
+        // bridge for a code" then never showing one is the exact failure the
+        // passkey screen exists to prevent, so this says what is really
+        // happening instead (§16.3 #4).
+        final bonded = client.bondState == BleBondState.bonded;
+        _to(
+          SetupPairing(
+            bridge: bridge,
+            passkeyShown: !bonded,
+            resume: bonded ? SetupResumeKind.adoptBridge : _why,
+          ),
+        );
+        if (!bonded) {
           await client.bond();
         }
         await client.requestMtu(247);
@@ -1018,7 +1324,7 @@ class SetupMachine {
             // fall through to the manual screen
           }
         }
-        _to(SetupRebondNeeded(bridge));
+        _to(SetupRebondNeeded(bridge, rememberedBridgeId: _plan.bridgeId));
         return;
       } on BleConnectionLostException {
         _to(SetupLinkLost(resumeAt: SetupStage.pair));
@@ -1027,7 +1333,12 @@ class SetupMachine {
         _to(SetupNotABridge(bridge));
         return;
       } on BleException {
-        _to(SetupPasskeyWrong(bridge));
+        // NOT "that code didn't match" (§16.4: never blame the user). Only a
+        // rejected bond is a wrong code; everything else that fails on this
+        // link is the link, and saying otherwise tells someone they mistyped
+        // a code they were never shown — the exact failure hop 1 exists to
+        // end. Link-lost is honest and carries reconnect-or-restart.
+        _to(SetupLinkLost(resumeAt: SetupStage.pair));
         return;
       }
     }
@@ -1071,9 +1382,8 @@ class SetupMachine {
     await _connectAndBond(bridge);
   });
 
-  /// The already-provisioned second-phone flow (§13.2.1): hop 1 only, then read
-  /// `net_status` and verify over HTTP — because stopping at the bond leaves
-  /// `lastBaseUrl` null and reintroduces failure #1 on this phone's next launch.
+  /// The already-provisioned second-phone flow (§13.2.1): hop 1 only, then
+  /// [_adoptAndVerify].
   Future<void> confirmAddThisPhone() => _run(() async {
     final bridge = _bridge;
     if (bridge == null) {
@@ -1084,11 +1394,33 @@ class SetupMachine {
     if (gen != _flowGen || _state is! SetupBonded) {
       return; // a bond outcome already owns the screen
     }
+    await _adoptAndVerify(bridge);
+  });
+
+  /// **Adopt** a bridge that is already set up (§13.2.1's second-phone fork,
+  /// and §16.3 #4's phone-was-reset case — the same three reads either way).
+  ///
+  /// Stopping at the bond would leave `lastBaseUrl` null and reintroduce
+  /// failure #1 on this phone's next launch, so the bridge's own `net_status`
+  /// is read and the address is proven over HTTP before setup claims anything.
+  ///
+  /// A bridge with no network is not a failure here. It is the Bluetooth-only
+  /// way to run (A25), and verifying an address that does not exist would
+  /// strand an otherwise finished adoption on "this phone can't see it".
+  Future<void> _adoptAndVerify(BridgeDiscovery bridge) async {
+    final gen = _flowGen;
     NetStatus? net;
     try {
       net = await transport.readNetStatus();
     } on Object {
       net = null;
+    }
+    if (gen != _flowGen) {
+      return;
+    }
+    if (net == null || net.stateEnum != NetState.up) {
+      _to(SetupNameAndUnits(suggestedName: bridge.name));
+      return;
     }
     final ip = _ipOf(net);
     final url = await _verify(ip);
@@ -1100,12 +1432,12 @@ class SetupMachine {
       return;
     }
     _summary = _summary.copyWith(
-      wifiSsid: net?.ssid,
+      wifiSsid: net.ssid,
       ip: ip,
-      hosted: net?.modeEnum == NetMode.ap,
+      hosted: net.modeEnum == NetMode.ap,
     );
     _to(SetupNameAndUnits(suggestedName: bridge.name));
-  });
+  }
 
   /// A24.2 — wipe the bonded bridge over Bluetooth. The recovery for a bridge
   /// stuck in a stale or unreachable state when the only tool is the phone (no
@@ -1290,29 +1622,39 @@ class SetupMachine {
   /// "Try again" after a base-listen failure (§13.2.2): re-arm the instruction
   /// AND the listen, from the top.
   Future<void> retryBaseListen() => _run(() async {
-    _to(const SetupBaseIntro());
+    _to(SetupBaseIntro(resume: _why));
   });
 
   /// [SetupBaseConfirmed] "Continue" → hop 3.
   Future<void> continueFromConfirmed() => _run(_enterNetwork);
 
-  /// [SetupBaseSkipped] "Continue" → hop 3 (Wi-Fi is still needed).
+  /// [SetupBaseSkipped] "Continue" → hop 3 (Wi-Fi is still needed). Identical
+  /// to [continueFromConfirmed] on purpose: hop 2 ending well and hop 2 being
+  /// skipped both leave exactly one thing to do next.
   Future<void> continueToNetwork() => _run(_enterNetwork);
 
   // ══ hop 3 — bridge ↔ Wi-Fi (§13.2.3) ═══════════════════════════════════
+
+  /// The picker state, built in one place so the four entrances into hop 3
+  /// (fresh scan, pre-warm, re-scan, cancel) cannot disagree about how much
+  /// context the screen gets.
+  SetupNetworkPick _pick({
+    List<WifiScanResult> networks = const [],
+    required bool scanning,
+  }) => SetupNetworkPick(
+    networks: networks,
+    scanning: scanning,
+    failureCount: _wifiFailCount,
+    resume: _why,
+    hasNetwork: _plan.hasNetwork,
+  );
 
   /// Enters the picker, using the pre-warmed buffer when it is fresh (§13.2.3)
   /// so the screen is instant, else a fresh scan.
   Future<void> _enterNetwork() async {
     final fresh = _now() - _prewarmAtMs < kScanFreshness.inMilliseconds;
     if (fresh && _prewarm.isNotEmpty) {
-      _to(
-        SetupNetworkPick(
-          networks: List.of(_prewarm),
-          scanning: false,
-          failureCount: _wifiFailCount,
-        ),
-      );
+      _to(_pick(networks: List.of(_prewarm), scanning: false));
       return;
     }
     await _scanNetworks();
@@ -1321,9 +1663,9 @@ class SetupMachine {
   /// Public re-scan for [SetupNetworkEmpty] / picker entry.
   Future<void> startNetworkScan() => _run(_scanNetworks);
 
-  Future<void> _scanNetworks({String? error}) async {
+  Future<void> _scanNetworks() async {
     final gen = _flowGen;
-    _to(SetupNetworkPick(scanning: true, failureCount: _wifiFailCount));
+    _to(_pick(scanning: true));
     final aps = <WifiScanResult>[];
     final scanDone = Completer<void>();
     final sub = transport.scanResults.listen((r) {
@@ -1335,13 +1677,7 @@ class SetupMachine {
       }
       _mergeNetwork(aps, r);
       if (gen == _flowGen) {
-        _to(
-          SetupNetworkPick(
-            networks: List.of(aps),
-            scanning: true,
-            failureCount: _wifiFailCount,
-          ),
-        );
+        _to(_pick(networks: List.of(aps), scanning: true));
       }
     });
     try {
@@ -1359,13 +1695,7 @@ class SetupMachine {
     if (aps.isEmpty) {
       _to(const SetupNetworkEmpty());
     } else {
-      _to(
-        SetupNetworkPick(
-          networks: aps,
-          scanning: false,
-          failureCount: _wifiFailCount,
-        ),
-      );
+      _to(_pick(networks: aps, scanning: false));
     }
   }
 
@@ -1538,18 +1868,15 @@ class SetupMachine {
     );
   });
 
+  /// The banner above the prefilled password field. The six sentences live in
+  /// [SetupNetCopy] with the six full-screen ones, because a machine that owns
+  /// copy is a machine two sentences can drift apart in (14 §14.11).
   String _wifiErrorLine() {
     final st = _state;
     final reason = st is SetupWifiFailed
         ? st.reason
         : WifiFailure.wrongPassword;
-    return switch (reason) {
-      WifiFailure.wrongPassword => 'Incorrect password for $_ssid',
-      WifiFailure.notFound => "The bridge couldn't find $_ssid",
-      WifiFailure.assocRefused => 'Your router turned the bridge away',
-      WifiFailure.noIp => 'The bridge joined but never got an address',
-      WifiFailure.weakSignal => 'The signal is too weak where the bridge is',
-    };
+    return SetupNetCopy.wifiRetryBanner(reason, _ssid);
   }
 
   /// "My phone IS on this network — try again" (§13.2.3): re-verify without a
@@ -1827,6 +2154,10 @@ class SetupMachine {
     _ackRetries = 0;
     _prewarm = const [];
     _summary = const SetupSummary();
+    // A restart is a genuinely fresh setup, so it also drops the re-entry
+    // plan: nothing is skipped and no screen claims otherwise. This is the
+    // path "Set it up as new" takes out of a reset bridge (§16.3 #7).
+    _plan = SetupResumePlan.fresh;
     _flowGen++;
     _applying = false;
     _inFlight = false;
@@ -1866,18 +2197,20 @@ class SetupMachine {
         break;
       case SetupStage.findBridge:
       case SetupStage.pair:
-        _to(const SetupScanning(scanning: false));
+        _to(SetupScanning(scanning: false, resume: _why));
       case SetupStage.baseListen:
-        _to(const SetupBaseIntro());
+        _to(SetupBaseIntro(resume: _why));
       case SetupStage.network:
       case SetupStage.applying:
-        _to(
-          SetupNetworkPick(
-            networks: List.of(_prewarm),
-            scanning: false,
-            failureCount: _wifiFailCount,
-          ),
-        );
+        // An empty prewarm would rest on a picker with nothing in it and no
+        // way to look again — a state without a next step (R2). The
+        // scan-found-nothing state has both, so cancelling into an empty list
+        // lands there instead.
+        if (_prewarm.isEmpty) {
+          _to(const SetupNetworkEmpty());
+        } else {
+          _to(_pick(networks: List.of(_prewarm), scanning: false));
+        }
       case SetupStage.done:
         break;
     }

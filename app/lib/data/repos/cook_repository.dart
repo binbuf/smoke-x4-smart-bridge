@@ -64,6 +64,20 @@ class CookRepository {
   Future<CookSummary> summaryFor(CookAnnotation cook) =>
       db.cookDao.summaryFor(cook);
 
+  /// Wall clock at `t = 0` for the samples [cook] covers — the origin the
+  /// chart's axis, the mark times, the gap times and the CSV all measure from.
+  ///
+  /// Read from the **session**, never inferred from the first sample inside the
+  /// cook. `startUnixMs − first.t × 1000` is only right when a reading happens
+  /// to land exactly on the cook's start; backdate a cook to before any reading
+  /// — §D.3.1's own headline case — and every clock time on the screen and
+  /// every timestamp in the export slides by the width of that hole.
+  ///
+  /// Null when the bridge had no clock. Callers render elapsed time then,
+  /// rather than an epoch date dressed up as a wall clock (§E.7).
+  Future<int?> originFor(CookAnnotation cook) async =>
+      (await _sessionAround(cook))?.startedUnixMs;
+
   /// The list, with each row's header numbers. One query per cook rather than
   /// one per sample — see [CookDao.summaryFor].
   Future<List<CookListEntry>> listEntries() async {
@@ -108,16 +122,24 @@ class CookRepository {
   Future<CookAnnotation> setFavourite(CookAnnotation cook, bool value) =>
       _persist(cook.copyWith(favourite: value));
 
-  /// §D.3.2 — set (or change) the targets on a cook that may already be
-  /// running. Goes through [CookAnnotation.toPlan] first so the food-safety
-  /// gate refuses an unsafe retarget exactly as it would refuse a new plan.
+  /// §D.3.2 — set (or change) what a cook is aiming at, on a cook that may
+  /// already be running.
+  ///
+  /// [next] is the whole annotation the setup sheet projects, not just its
+  /// roles: the preset, the doneness, the hazard class, the safety mode and the
+  /// pit band all come back with it, and all of them are targets. See
+  /// [CookAnnotation.retargetedTo] for what is taken and what is kept.
+  ///
+  /// Goes through [CookAnnotation.toPlan] first so the food-safety gate refuses
+  /// an unsafe retarget exactly as it would refuse a new plan — and refuses it
+  /// before anything is written.
   Future<CookAnnotation> retarget(
     CookAnnotation cook,
-    List<CookProbeRole> roles,
+    CookAnnotation next,
   ) async {
-    final next = cook.copyWith(roles: roles);
-    next.toPlan(); // throws ArgumentError on an unsafe target
-    return _persist(next);
+    final merged = cook.retargetedTo(next);
+    merged.toPlan(); // throws ArgumentError on an unsafe target
+    return _persist(merged);
   }
 
   /// §D.5 — the user says they took it off the heat. The one input the phase
@@ -146,6 +168,13 @@ class CookRepository {
   }
 
   /// §C.4 — merge two cooks into the earlier one and delete the later row.
+  ///
+  /// **The returned cook is the survivor, and its id is not always the id you
+  /// passed first.** Merging with the *earlier* neighbour keeps that cook's row
+  /// and deletes this one, so a caller holding an id — a route loading by
+  /// `/cooks/:id` — has to follow the id on the way back out. One that keeps
+  /// re-reading its old id finds nothing and reports the cook missing at the
+  /// exact moment the merge succeeded.
   Future<CookAnnotation> merge(CookAnnotation a, CookAnnotation b) async {
     final merged = a.mergedWith(b);
     final loser = merged.id == a.id ? b : a;

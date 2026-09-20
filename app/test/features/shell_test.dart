@@ -22,7 +22,14 @@ import 'package:smoke_bridge/ui/ui.dart';
 
 import '../support/load_fonts.dart';
 
-DashboardSnapshot _seed({List<Alarm> alarms = const []}) => DashboardSnapshot(
+/// A fixed "now" so a freshness assertion is a statement about the ladder
+/// rather than a race against how long the suite took to get here.
+const int _fixedNow = 1770000000000;
+
+DashboardSnapshot _seed({
+  List<Alarm> alarms = const [],
+  int? readingAgeS,
+}) => DashboardSnapshot(
   probes: const [
     ProbeView(probe: 1, role: ProbeRole.pit, name: 'Pit', tempF10: 2250),
     ProbeView(probe: 2, role: ProbeRole.food, name: 'Brisket', tempF10: 1500),
@@ -31,11 +38,19 @@ DashboardSnapshot _seed({List<Alarm> alarms = const []}) => DashboardSnapshot(
   ],
   link: LinkKind.http,
   alarms: alarms,
+  // The ladder ages what reached *this phone*, so the seed states when the
+  // reading landed rather than what the device said about its base station.
+  readingAtUnixMs: readingAgeS == null ? null : _fixedNow - readingAgeS * 1000,
 );
 
-ShellSession _session({List<Alarm> alarms = const []}) => ShellSession.seeded(
-  snapshot: _seed(alarms: alarms),
-  launch: const LaunchConnecting(),
+ShellSession _session({
+  List<Alarm> alarms = const [],
+  int? readingAgeS,
+  LaunchState launch = const LaunchConnecting(),
+}) => ShellSession.seeded(
+  snapshot: _seed(alarms: alarms, readingAgeS: readingAgeS),
+  launch: launch,
+  now: () => _fixedNow,
 );
 
 Widget _host(ShellSession session) => MaterialApp(
@@ -147,17 +162,204 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('with no snapshot the reader waits rather than throwing', (
+  // ── the chrome stack (newapp §H.2) ──────────────────────────────────
+  //
+  // Three full-bleed strips stacked in arrival order was the shell's loudest
+  // "competent Material app" tell. What is pinned below is the curation that
+  // replaced it: one bezel, floating notices, an explicit rank, and the second
+  // situation subordinated rather than shouted at the same weight.
+
+  group('the chrome stack', () {
+    testWidgets('the status bar is the only full-bleed element', (
+      tester,
+    ) async {
+      await _sized(tester, const Size(400, 800));
+      final session = _session(
+        alarms: const [
+          Alarm(
+            id: 9,
+            rule: 'pit_crash',
+            probe: 0,
+            severity: AlarmSeverity.critical,
+          ),
+        ],
+      );
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(_host(session));
+      await tester.pump(const Duration(seconds: 1));
+
+      final bar = tester.getRect(find.byType(SystemStatusBar));
+      final alarm = tester.getRect(find.byKey(const Key('alarm-bar')));
+      expect(bar.left, 0);
+      expect(bar.right, 400, reason: 'the bezel spans the window');
+      expect(
+        alarm.left,
+        greaterThan(0),
+        reason:
+            'a notice floats in the gutter; a third edge-to-edge band is the '
+            'thing this pass exists to remove',
+      );
+      expect(alarm.top, greaterThanOrEqualTo(bar.bottom));
+    });
+
+    testWidgets('an alarm outranks a failed refresh, and subordinates it', (
+      tester,
+    ) async {
+      await _sized(tester, const Size(400, 800));
+      final session = _session(
+        launch: const LaunchOffline(),
+        alarms: const [
+          Alarm(
+            id: 9,
+            rule: 'pit_crash',
+            probe: 0,
+            severity: AlarmSeverity.critical,
+          ),
+        ],
+      );
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(_host(session));
+      await tester.pump();
+      // A seeded session has no supervisor to retry through, which is exactly
+      // the shape of "the bridge is not there".
+      await session.refresh();
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 120));
+      }
+
+      expect(find.byKey(const Key('refresh-banner')), findsOneWidget);
+      final alarm = tester.getRect(find.byKey(const Key('alarm-bar')));
+      final refresh = tester.getRect(find.byKey(const Key('refresh-banner')));
+      expect(
+        alarm.top,
+        lessThan(refresh.top),
+        reason:
+            'the alarm is about the cook; a failed pull is about the app’s own '
+            'plumbing, and the cook wins',
+      );
+      // Subordinated, not silenced: the cause survives, the paragraph does not.
+      expect(find.byKey(const Key('refresh-banner-title')), findsOneWidget);
+      expect(find.byKey(const Key('refresh-banner-detail')), findsNothing);
+      expect(
+        find.byKey(const Key('refresh-banner-dismiss')),
+        findsNothing,
+        reason: 'two ✕ on screen is a coin toss about which one you closed',
+      );
+    });
+
+    testWidgets('alone, the refresh banner keeps its detail and its ✕', (
+      tester,
+    ) async {
+      await _sized(tester, const Size(400, 800));
+      final session = _session(launch: const LaunchOffline());
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(_host(session));
+      await tester.pump();
+      await session.refresh();
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 120));
+      }
+
+      expect(find.byKey(const Key('refresh-banner-detail')), findsOneWidget);
+      expect(find.byKey(const Key('refresh-banner-dismiss')), findsOneWidget);
+    });
+
+    testWidgets('a healthy shell shows no chrome about health at all', (
+      tester,
+    ) async {
+      await _sized(tester, const Size(400, 800));
+      final session = _session();
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(_host(session));
+      await tester.pump(const Duration(seconds: 1));
+
+      // Both are mounted, so they can animate — and both are silent.
+      expect(find.byType(AlarmBar), findsOneWidget);
+      expect(tester.getSize(find.byType(AlarmBar)).height, 0);
+      expect(find.byKey(const Key('alarm-bar')), findsNothing);
+      expect(find.byKey(const Key('refresh-banner')), findsNothing);
+    });
+
+    testWidgets('stale readings get the word, not only a stopped dot', (
+      tester,
+    ) async {
+      await _sized(tester, const Size(400, 800));
+      // 5 minutes since the last packet: past aging, short of frozen.
+      final session = _session(readingAgeS: 300);
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(_host(session));
+      await tester.pump(const Duration(seconds: 1));
+
+      // The dot ceasing to breathe IS the staleness signal — and it is
+      // invisible in a still frame, in a screenshot, and to a screen reader.
+      expect(find.text('Stale'), findsOneWidget);
+      expect(
+        find.text('No signal'),
+        findsNothing,
+        reason: 'stale is not frozen; the ladder has four rungs for a reason',
+      );
+    });
+
+    testWidgets('a healthy stream says nothing about freshness', (
+      tester,
+    ) async {
+      await _sized(tester, const Size(400, 800));
+      final session = _session(readingAgeS: 10);
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(_host(session));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('Stale'), findsNothing);
+      expect(find.text('No signal'), findsNothing);
+    });
+
+    testWidgets('the transport chip announces itself as an actionable button', (
+      tester,
+    ) async {
+      await _sized(tester, const Size(400, 800));
+      final handle = tester.ensureSemantics();
+      final session = _session(readingAgeS: 10);
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(_host(session));
+      await tester.pump(const Duration(seconds: 1));
+
+      final node = tester.getSemantics(find.byType(TransportChip));
+      expect(node.label, contains('Wi-Fi'));
+      expect(
+        node.label,
+        contains('receiving readings'),
+        reason:
+            'a link can be up while the stream is dead — "connected" would be '
+            'the exact lie this app exists to catch',
+      );
+      expect(node.flagsCollection.isButton, isTrue);
+      handle.dispose();
+    });
+  });
+
+  testWidgets('with no snapshot the reader answers anyway, never a spinner', (
     tester,
   ) async {
+    await _sized(tester, const Size(400, 800));
     final session = ShellSession.seeded(launch: const LaunchConnecting());
     addTearDown(session.dispose);
 
     await tester.pumpWidget(_host(session));
     await tester.pump();
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    // §16.6 and §16.2: the reader renders its real layout on the first frame,
+    // in every case. A full-screen spinner is the app declining to answer its
+    // own question — and the shell must not reintroduce one above it either.
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Live'), findsOneWidget);
+    expect(find.byType(SystemStatusBar), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

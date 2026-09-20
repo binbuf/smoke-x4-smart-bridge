@@ -1,8 +1,13 @@
-/// A11.2 / A11.3 — the sessions list and detail.
+/// A11.2 / A11.3 — the cook detail view, and the legacy session list.
 ///
-/// The epic flag's claim gets an actual test: **row summaries come from an
-/// aggregate query, not from loading the samples.** A spy repository
-/// counts `samples()` calls, and a 54-day cache must not provoke one.
+/// Two claims are pinned here. The old one: **row summaries come from an
+/// aggregate query, not from loading the samples** — a spy repository counts
+/// `samples()` calls, and a 54-day cache must not provoke one.
+///
+/// The new one: the detail view is now a *component* the cook screens compose
+/// rather than a screen of its own, so it has to give up its identity block on
+/// request and accept cards above and below without a caller having to stack
+/// two scroll views (16 §16.5).
 library;
 
 import 'package:drift/native.dart';
@@ -23,10 +28,18 @@ Widget _wrap(Widget child, {Brightness brightness = Brightness.dark}) =>
 
 void main() {
   group('the list', () {
-    testWidgets('an empty cache renders an honest empty state', (tester) async {
+    testWidgets('an empty cache reinforces the annotate-over-recording model', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const SessionsListView(rows: [])));
       expect(find.byKey(const Key('sessions-empty')), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+      // Not "nothing has been recorded" — the bridge records regardless, and
+      // saying otherwise is the misconception the reframe exists to kill.
+      expect(
+        find.textContaining('Your bridge is still recording'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a row states date, duration, peak and probe count', (
@@ -266,6 +279,109 @@ void main() {
       await tester.pump();
       expect(find.textContaining('before the bridge knew'), findsOneWidget);
       expect(find.textContaining('1970'), findsNothing);
+    });
+
+    testWidgets('the statistics arrive in three groups, not one long table', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 3600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final cook = syntheticCook(hours: 6);
+      await tester.pumpWidget(
+        _wrap(
+          SessionDetailView(
+            session: sessionFor(cook),
+            samples: cook,
+            probes: pitAndFood,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.dragUntilVisible(
+        find.text('EACH PROBE'),
+        find.byKey(const Key('session-detail')),
+        const Offset(0, -400),
+      );
+
+      // Nineteen rows in one column is a table nobody reads to the bottom of.
+      expect(find.text('THE RECORDING'), findsOneWidget);
+      expect(find.text('THE PIT'), findsOneWidget);
+      expect(find.text('EACH PROBE'), findsOneWidget);
+      // The §9.4 set survives the regrouping intact.
+      expect(find.text('Pit steadiness'), findsOneWidget);
+      expect(find.text('Time in band'), findsOneWidget);
+      expect(find.text('Lid events'), findsOneWidget);
+      expect(find.textContaining('Pit · probe 1'), findsOneWidget);
+      expect(find.textContaining('start '), findsWidgets);
+    });
+
+    testWidgets('a caller that owns the name gets no second copy of it', (
+      tester,
+    ) async {
+      final cook = syntheticCook(hours: 1);
+      await tester.pumpWidget(
+        _wrap(
+          SessionDetailView(
+            session: sessionFor(cook),
+            samples: cook,
+            showIdentity: false,
+            onRename: (_) {},
+            onExport: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // §16.5: a pushed route's AppBar carries the title, so the content must
+      // not repeat it — and the icons that hung off it go with it.
+      expect(find.text('Brisket'), findsNothing);
+      expect(find.byKey(const Key('session-rename')), findsNothing);
+      expect(find.byKey(const Key('session-export')), findsNothing);
+    });
+
+    testWidgets('header and footer cards ride in the same scroll view', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 3600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final cook = syntheticCook(hours: 1);
+      await tester.pumpWidget(
+        _wrap(
+          SessionDetailView(
+            session: sessionFor(cook),
+            samples: cook,
+            header: const [Text('ABOVE THE CHART')],
+            footer: const [Text('BELOW THE MARKS')],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Both live inside the one list, so a caller never stacks two
+      // scroll views to get cards above and below the chart.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('session-detail')),
+          matching: find.text('ABOVE THE CHART'),
+        ),
+        findsOneWidget,
+      );
+      await tester.dragUntilVisible(
+        find.text('BELOW THE MARKS'),
+        find.byKey(const Key('session-detail')),
+        const Offset(0, -400),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('session-detail')),
+          matching: find.text('BELOW THE MARKS'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

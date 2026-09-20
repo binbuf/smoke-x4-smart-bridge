@@ -86,6 +86,49 @@ abstract final class SetupCopy {
   static const String rowPairedIdle = 'paired, resting';
   static const String rowNotPaired = 'not paired with a Smoke X yet';
 
+  /// The signal word on a found-device row. **A word, never a number**: 16
+  /// §16.4 rule 3 keeps "RSSI" and dBm inside Diagnostics, so the row carries
+  /// the bar glyph and one of `core/signal.dart`'s four words and nothing
+  /// else. The word answers the only question a user has here — *should I move
+  /// something* — which a dBm figure does not.
+  static String rowSignal(String word) => '$word signal';
+
+  /// The whole row as one sentence, for a screen reader. The visual row is
+  /// three separate marks (a drawing, a bar glyph, two lines of text) and read
+  /// out in that order it is a list of fragments.
+  static String rowSemantics(String name, String signal, String detail) =>
+      '$name. $signal. $detail.';
+
+  // ── hop 1 — what happens next, said BEFORE the phone's own dialog ──────
+  //
+  // §17.3 C, and the single highest-value correction in setup. The moment
+  // bonding starts, the platform puts up its own pairing dialog, and the hint
+  // under its keypad reads **"Usually 0000 or 1234"**. For this bridge that is
+  // simply false — the six digits are generated on the device and shown only
+  // on its OLED (§13.2.1) — and there is no API to change what that dialog
+  // says. It is therefore the last thing a user reads before being asked for a
+  // code, and it tells them the wrong one.
+  //
+  // The correction cannot be made after the dialog appears, because the dialog
+  // covers us. It is made here, on the last screen the app owns.
+  static const String coachTitle = 'What happens next';
+  static String coachBody(String name) => "You're about to pair with $name.";
+  static const String coachStep1 =
+      'Your bridge shows a 6-digit code on its own screen.';
+  static const String coachStep2 = 'Your phone asks you to type that code in.';
+
+  /// The caution, and the reason this screen exists. Rendered as chrome — an
+  /// amber fill, an amber border, a caution glyph — with the words at `textHi`
+  /// (16 §16.5), so it is not a sentence a tired reader skims past.
+  static const String coachStep3 =
+      'Your phone may suggest 0000 or 1234. Those are wrong here — your bridge '
+      'picks six digits and shows them on its own screen.';
+  static const String coachPrimary = 'Pair with this bridge';
+
+  /// Deliberately the same words as [fullChooseOther]: it is the same outcome,
+  /// and two spellings of one action is how a voice drifts.
+  static const String coachBack = fullChooseOther;
+
   // ── hop 1 — 10 s, nothing found (§13.2.1) ─────────────────────────────
   // A checklist of the bridge's own tells, ordered by how likely each is —
   // never a bare "check that it is on".
@@ -121,6 +164,21 @@ abstract final class SetupCopy {
   static const String pairCancel = 'Cancel';
   static String connectingTo(String name) => 'Connecting to $name…';
 
+  /// Ties the drawing of the bridge to the enlarged code frame under it, so
+  /// the frame reads as *that little screen, bigger* rather than as a field
+  /// waiting to be filled in.
+  static const String pairCallout = 'The code appears here, on the bridge.';
+
+  /// The correction again, on the screen the platform's dialog is drawn over.
+  ///
+  /// **The same string, not a second wording.** The dialog can be dismissed
+  /// and re-raised, and on some phones it lands in the notification shade
+  /// (§13.2.1) — either way the user comes back to this screen still holding
+  /// the wrong number, and the sentence that contradicts it has to be here
+  /// when they look up. One `const` so the two screens cannot drift, which is
+  /// the whole reason this file exists.
+  static const String pairIgnoreHint = coachStep3;
+
   // ── hop 1 — 30 s, no OS prompt (§13.2.1) ──────────────────────────────
   static const String notSeenTitle = 'Still waiting for the prompt';
   static const String notSeenBody =
@@ -137,10 +195,12 @@ abstract final class SetupCopy {
   static const String bondedContinue = 'Continue';
 
   // ── hop 1 — bond outcome 1 of 4: wrong passkey (§13.2.1) ──────────────
+  // Names the cause without naming a culprit (16 §16.4): the code is only
+  // valid for one attempt, so a mismatch is as often a stale code as a typo.
   static const String wrongTitle = "That code didn't match";
   static const String wrongBody =
-      "The 6-digit code you typed didn't match the one on the bridge screen. "
-      "Let's get a fresh code and try once more.";
+      'The code on the bridge screen is only good for one try. The bridge can '
+      'show a fresh one — it takes a few seconds.';
   static const String wrongRetry = 'Try again';
   static const String wrongStartOver = 'Start over';
 
@@ -167,4 +227,24 @@ abstract final class SetupCopy {
       "That device isn't a Smoke Bridge, or its software is too old to set up "
       'here. Pick a different one.';
   static const String notBridgeChoose = 'Choose a different device';
+
+  // ── why a control is dimmed (16 §16.4/§16.5, rail R2) ─────────────────
+  // A control that cannot work is absent, or disabled **with its reason
+  // directly beneath**. These are the four shortcuts that need a platform
+  // deep-link this build does not carry; every one of them sits beside a
+  // control that does work, and each says what to do instead.
+  static const String noDeepLinkNotifications =
+      'Open your phone’s notification shade to look for the pairing request.';
+  static const String noDeepLinkLocation =
+      'Turn location on in your phone’s settings, then come back and tap '
+      '“I turned it on”.';
+  static const String noDeepLinkBluetoothSettings =
+      'Forget “Smoke Bridge” in your phone’s Bluetooth settings, then come '
+      'back and try again.';
+  static const String noRemovePhone =
+      'Removing a phone from the bridge is not built yet. Set up a different '
+      'bridge, or unpair one of the other phones from its own app.';
+  static const String noManualAddress =
+      'Typing an address by hand is not built yet. Make sure the bridge is '
+      'lit and nearby, then look again.';
 }

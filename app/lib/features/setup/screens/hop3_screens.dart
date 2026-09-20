@@ -20,6 +20,8 @@ import '../../../data/dto/records.g.dart' show WifiScanResult;
 import '../../../design/design.dart';
 import '../../../ui/ui.dart';
 import '../copy/setup_net_copy.dart';
+import '../copy/setup_resume_copy.dart';
+import '../setup_entry.dart';
 import '../setup_machine.dart';
 
 /// `SetupNetworkPick` — the picker (§13.2.3). Rows are RSSI-sorted by the
@@ -39,11 +41,22 @@ class NetworkPickScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final hostedIsPrimary = state.failureCount >= 2;
+    // Setup opened straight at hop 3 because hops 1 and 2 are already done
+    // (§16.3). The picker then leads with why it is on screen — and says
+    // whether this is adding a network or changing one, because getting that
+    // wrong is how a returning user concludes the app forgot everything.
+    final why = state.resume == SetupResumeKind.addNetwork
+        ? (state.hasNetwork
+              ? SetupResumeCopy.changeNetworkWhy
+              : SetupResumeCopy.addNetworkWhy)
+        : null;
 
     return SetupScaffold(
       hop: state.hop,
       title: SetupNetCopy.pickTitle,
-      subtitle: SetupNetCopy.pickSubtitle,
+      subtitle: why == null
+          ? SetupNetCopy.pickSubtitle
+          : '$why ${SetupNetCopy.pickBand}',
       onExit: () => machine.cancel(),
       body: ListView(
         children: [

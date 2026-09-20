@@ -25,7 +25,7 @@ import 'dart:io';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:smoke_bridge/app/theme.dart';
+import 'package:smoke_bridge/design/theme.dart';
 
 /// Where the committed snapshots live.
 const String goldenDir = 'test/golden/goldens';
@@ -56,9 +56,17 @@ Future<void> pumpForGolden(
         textScaler: TextScaler.linear(textScale),
       ),
       child: MaterialApp(
+        // The theme the app actually ships (`design/`), not the pre-redesign
+        // Material one in `app/`. Pointed at the latter, every golden in this
+        // suite rendered a theme no screen has used since the redesign — and
+        // because `app/theme.dart` carries no `SmokeTokens` extension,
+        // `context.tokens` fell back to `SmokeTokens.dark`, so even the
+        // `-light` goldens were measuring dark tokens. A safety net aimed at
+        // the wrong target is how a redesign passes its tests and still looks
+        // unchanged.
         theme: brightness == Brightness.dark
             ? SmokeTheme.dark
-            : SmokeTheme.light,
+            : SmokeTheme.daylight,
         home: Scaffold(body: child),
       ),
     ),

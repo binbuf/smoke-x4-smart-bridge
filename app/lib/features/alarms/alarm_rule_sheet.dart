@@ -46,11 +46,7 @@ Future<AlarmRuleSpec?> showEditRuleSheet(
   backgroundColor: Colors.transparent,
   builder: (_) => Theme(
     data: SmokeTheme.dark,
-    child: _RuleSheet(
-      bridgeId: rule.bridgeId,
-      celsius: celsius,
-      initial: rule,
-    ),
+    child: _RuleSheet(bridgeId: rule.bridgeId, celsius: celsius, initial: rule),
   ),
 );
 
@@ -85,9 +81,10 @@ class _RuleSheetState extends State<_RuleSheet> {
       return '';
     }
     return switch (widget.initial!.type.thresholdUnit) {
-      AlarmThresholdUnit.temperatureF10 => widget.celsius
-          ? ((v / 10 - 32) * 5 / 9).round().toString()
-          : (v / 10).round().toString(),
+      AlarmThresholdUnit.temperatureF10 =>
+        widget.celsius
+            ? ((v / 10 - 32) * 5 / 9).round().toString()
+            : (v / 10).round().toString(),
       AlarmThresholdUnit.degreesBelowTarget => (v / 10).round().toString(),
       AlarmThresholdUnit.seconds => (v ~/ 60).toString(),
       AlarmThresholdUnit.percent => v.toString(),
@@ -223,9 +220,7 @@ class _RuleSheetState extends State<_RuleSheet> {
                         'Leave blank to fire straight away. A short hold stops '
                         'one odd reading from waking you.',
                     helperMaxLines: 3,
-                    helperStyle: SmokeType.labelSm.copyWith(
-                      color: t.textMuted,
-                    ),
+                    helperStyle: SmokeType.labelSm.copyWith(color: t.textMuted),
                   ),
                   onChanged: (v) => _window = v,
                 ),
@@ -273,10 +268,7 @@ class _RuleSheetState extends State<_RuleSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              type.label,
-              style: SmokeType.title.copyWith(color: t.textHi),
-            ),
+            Text(type.label, style: SmokeType.title.copyWith(color: t.textHi)),
             const SizedBox(height: 2),
             Text(
               type.blurb,
@@ -294,14 +286,16 @@ class _RuleSheetState extends State<_RuleSheet> {
     final threshold = unit == null || raw == null
         ? null
         : switch (unit) {
-            AlarmThresholdUnit.temperatureF10 => widget.celsius
-                ? ((raw * 9 / 5 + 32) * 10).round()
-                : (raw * 10).round(),
-            AlarmThresholdUnit.degreesBelowTarget => widget.celsius
-                // A *difference* in °C is 9/5 of a difference in °F — not the
-                // absolute conversion, which would offset a pre-alarm by 32°.
-                ? (raw * 9 / 5 * 10).round()
-                : (raw * 10).round(),
+            AlarmThresholdUnit.temperatureF10 =>
+              widget.celsius
+                  ? ((raw * 9 / 5 + 32) * 10).round()
+                  : (raw * 10).round(),
+            AlarmThresholdUnit.degreesBelowTarget =>
+              widget.celsius
+                  // A *difference* in °C is 9/5 of a difference in °F — not the
+                  // absolute conversion, which would offset a pre-alarm by 32°.
+                  ? (raw * 9 / 5 * 10).round()
+                  : (raw * 10).round(),
             AlarmThresholdUnit.seconds => (raw * 60).round(),
             AlarmThresholdUnit.percent => raw.round(),
           };

@@ -23,14 +23,12 @@ library;
 import 'dart:async';
 
 import '../../app/app_env.dart';
-import '../../data/local/database.dart';
 import '../../data/transport/ble_transport.dart';
 import '../../data/transport/bridge_transport.dart';
 import '../../domain/alarms/alarm_rule.dart';
 import '../../domain/alarms/notification_policy.dart';
 import '../../domain/analysis/analysis.dart';
 import '../../domain/entities/entities.dart';
-import '../../platform/platform.dart';
 import 'field_report.dart';
 
 /// Everything a probe is allowed to reach. Injected so the whole battery runs

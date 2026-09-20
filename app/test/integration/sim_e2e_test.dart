@@ -36,7 +36,6 @@ import 'package:smoke_bridge/data/repos/repositories.dart';
 import 'package:smoke_bridge/data/repos/sync_engine.dart';
 import 'package:smoke_bridge/data/transport/http_transport.dart';
 import 'package:smoke_bridge/domain/analysis/analysis.dart';
-import 'package:smoke_bridge/features/chart/chart_viewport.dart';
 import 'package:smoke_bridge/features/cook/cook_view.dart';
 import 'package:smoke_bridge/features/dashboard/dashboard.dart';
 import 'package:smoke_bridge/features/sessions/export.dart';

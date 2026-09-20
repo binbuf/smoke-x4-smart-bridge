@@ -68,7 +68,10 @@ final Map<String, Widget Function()> _shapes = {
 
 void main() {
   for (final brightness in Brightness.values) {
-    final theme = brightness == Brightness.dark ? 'dark' : 'light';
+    // `daylight`, not `light`: the app has no Material light brightness.
+    // The second profile is the direct-sun contrast one (14 §14.3.3) —
+    // lifted ink, glows off, same surfaces.
+    final theme = brightness == Brightness.dark ? 'dark' : 'daylight';
     group('dashboard · $theme', () {
       for (final entry in _shapes.entries) {
         testWidgets(entry.key, (tester) async {

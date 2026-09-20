@@ -65,7 +65,11 @@ final Map<String, Widget Function()> _shapes = {
 
 void main() {
   for (final brightness in Brightness.values) {
-    final theme = brightness == Brightness.dark ? 'dark' : 'light';
+    // The two profiles that actually ship. `daylight` is a *contrast*
+    // profile — lifted ink, glows off — over the same dark surfaces
+    // (14 §14.3.3), not a Material light theme; the app has no light
+    // brightness anywhere.
+    final theme = brightness == Brightness.dark ? 'dark' : 'daylight';
     group('chart · $theme', () {
       for (final entry in _shapes.entries) {
         testWidgets(entry.key, (tester) async {
@@ -108,15 +112,33 @@ void main() {
     expect(dark, contains('#ff9085e9')); // probe 2, dark
   });
 
-  testWidgets('the light palette is in the goldens too', (tester) async {
+  testWidgets('the daylight profile draws the same validated hues', (
+    tester,
+  ) async {
+    // This used to assert the **light** series hues (`#ffeb6834`,
+    // `#ff4a3aa7`) rendered in-app. They never do, and by design:
+    // `series_palette.dart` states that the light values "are retained as
+    // the export / print palette — CSV plots and share images render on
+    // paper-white, not on the app's obsidian — and are not used in-app."
+    //
+    // The old assertion passed only because the golden harness mounted
+    // `app/theme.dart`, a genuine Material light theme that nothing shipped.
+    // Pointed at the real one, the daylight profile keeps `Brightness.dark`
+    // and the same surfaces, so it keeps the hues those surfaces were
+    // validated against — which is the contract worth pinning.
     await pumpForGolden(
       tester,
       _chart(syntheticCook(hours: 6)),
       brightness: Brightness.light,
       surface: const Size(420, 420),
     );
-    final light = describeTree(tester).toLowerCase();
-    expect(light, contains('#ffeb6834')); // probe 1, light
-    expect(light, contains('#ff4a3aa7')); // probe 2, light
+    final daylight = describeTree(tester).toLowerCase();
+    expect(daylight, contains('#ffd95926')); // probe 1, validated
+    expect(daylight, contains('#ff9085e9')); // probe 2, validated
+    expect(
+      daylight,
+      isNot(contains('#ffeb6834')),
+      reason: 'the light values are the export palette, never on screen',
+    );
   });
 }

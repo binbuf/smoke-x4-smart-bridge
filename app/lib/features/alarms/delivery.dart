@@ -88,8 +88,9 @@ class DeliveryStatus {
 
   /// The banner's sentence. Names the consequence, never the API.
   String get headline => switch (worst) {
-    DeliveryBlocker.permission => 'Notifications are off — this phone can’t '
-        'wake you',
+    DeliveryBlocker.permission =>
+      'Notifications are off — this phone can’t '
+          'wake you',
     DeliveryBlocker.monitoringOff =>
       'Background monitoring is off — this phone can’t wake you',
     DeliveryBlocker.batteryOptimised =>
@@ -161,8 +162,12 @@ typedef TestAlarmResult = ({bool sent, String message});
 Future<TestAlarmResult> postTestAlarm() async {
   final sink = AppEnv.instance?.notifications;
   if (sink == null) {
-    return (sent: false, message: 'This build has no notification support to '
-        'test.');
+    return (
+      sent: false,
+      message:
+          'This build has no notification support to '
+          'test.',
+    );
   }
   try {
     await sink.ensureChannels();

@@ -90,23 +90,41 @@ String formatDuration(int seconds) {
   return m == 0 ? '${h}h' : '${h}h ${m}m';
 }
 
-/// The §9.4 ETA, in the app's own words — including its refusals, which
-/// are answers rather than errors. Never `6h 23m`: the physics does not
-/// support that precision, and the false confidence is what makes people
-/// trust it and then get burned.
-String formatEta(EtaResult? eta) => switch (eta) {
-  null => '',
-  EtaRange(:final low, :final high) when low == high =>
-    'ETA ${formatDuration(low.inSeconds)}',
-  EtaRange(:final low, :final high) =>
-    'ETA ${formatDuration(low.inSeconds)} – ${formatDuration(high.inSeconds)}',
-  EtaUnavailable(:final reason) => switch (reason) {
-    EtaUnavailableReason.stalled => 'stalled — ETA unavailable',
-    EtaUnavailableReason.targetAtOrAbovePit => 'not at this pit temperature',
-    EtaUnavailableReason.insufficientHistory => 'ETA needs more history',
-    EtaUnavailableReason.slopeTooFlat => 'ETA unavailable — holding steady',
-    EtaUnavailableReason.notApproaching => 'ETA unavailable — cooling',
-  },
+/// The §9.4 ETA's **answer**: `2h`, `2h – 2h 30m`. Never `6h 23m` — the
+/// physics does not support that precision, and the false confidence is
+/// what makes people trust it and then get burned.
+///
+/// It does not say "ETA", because every call site sits under a label that
+/// already did. The single function this replaced returned
+/// `'ETA 2h – 2h 30m'`, which a "Ready in" strip rendered as *"Ready in ·
+/// ETA 2h – 2h 30m"* — the same word twice, one of them redundant.
+String formatEtaSpan(EtaRange eta) => eta.low == eta.high
+    ? formatDuration(eta.low.inSeconds)
+    : '${formatDuration(eta.low.inSeconds)} – '
+          '${formatDuration(eta.high.inSeconds)}';
+
+/// The §9.4 ETA's **refusal**, as one sentence that states its own reason
+/// (newapp §D.5, 16 §16.4 rules 3 and 5).
+///
+/// A refusal is an answer, not an error — but it is emphatically **not a
+/// value**, and keeping the two in one function is how the app came to
+/// render *"Ready in · ETA unavailable — holding steady"*: a label promising
+/// a duration, answered by a sentence explaining there is not one. The types
+/// are separated so a call site has to choose, and choosing is the fix.
+///
+/// Each says what the app knows and why it will not guess. §D.5's own
+/// example — *"Not enough steady data to estimate — pit swinging"* — is the
+/// register.
+String formatEtaRefusal(EtaUnavailable eta) => switch (eta.reason) {
+  EtaUnavailableReason.stalled => 'No estimate while it is in a stall.',
+  EtaUnavailableReason.targetAtOrAbovePit =>
+    'No estimate — the pit is not hotter than the target.',
+  EtaUnavailableReason.insufficientHistory =>
+    'No estimate yet — not enough history.',
+  EtaUnavailableReason.slopeTooFlat =>
+    'No estimate — the temperature is holding steady.',
+  EtaUnavailableReason.notApproaching =>
+    'No estimate — the temperature is falling.',
 };
 
 /// ISO-8601 in UTC with milliseconds and a `Z` —

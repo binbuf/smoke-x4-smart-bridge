@@ -738,6 +738,15 @@ class BleTransport implements BridgeTransport {
   Future<void> commitNetworkMode() =>
       throw const BridgeUnsupportedException('Confirming a network switch');
 
+  /// BLE has no op that reports the device's settings back.
+  ///
+  /// Returns [DeviceConfig.unknown] rather than throwing, deliberately: the
+  /// settings pages must still render over Bluetooth, with every unreadable
+  /// row showing "—" and its reason. Throwing here would take the whole
+  /// screen down over a row that was only ever going to say "—".
+  @override
+  Future<DeviceConfig> deviceConfig() async => DeviceConfig.unknown;
+
   @override
   Future<Map<String, Object?>> alarmConfig() =>
       throw const BridgeUnsupportedException('Changing the bridge’s alarms');
@@ -770,6 +779,26 @@ class BleTransport implements BridgeTransport {
       // No `device_control` op sets probe names or roles — that surface is
       // HTTP-only in v1, and saying so beats silently dropping the write.
       throw const BridgeUnsupportedException('probe configuration');
+    }
+    // Same rule, three fields that were getting the opposite treatment.
+    //
+    // `display_timeout_s`, `led_enabled` and `retention.max_sessions` have no
+    // `device_control` op either, and this method used to **drop them
+    // silently**: no throw, no result frame, and a caller that awaited it
+    // successfully. A write that returns normally and changes nothing is the
+    // exact defect §F opened this epic to delete, and it is worse here than in
+    // the settings tree because it is one layer further from anybody looking.
+    //
+    // §F's table marks these ✅ on every lane. §F is wrong about Bluetooth
+    // today, and the honest place to say so is here — the settings rows dim
+    // themselves off `SettingsLane`, but nothing should be able to reach this
+    // method and be misled.
+    if (cfg.displayTimeoutS != null ||
+        cfg.ledEnabled != null ||
+        cfg.maxSessions != null) {
+      throw const BridgeUnsupportedException(
+        'The screen timeout, status light and how many cooks the bridge keeps',
+      );
     }
     final units = cfg.displayUnits;
     if (units != null) {

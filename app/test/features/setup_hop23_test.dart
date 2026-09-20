@@ -22,11 +22,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/data/dto/records.g.dart';
 import 'package:smoke_bridge/data/transport/ble_transport.dart';
+import 'package:smoke_bridge/design/design.dart';
 import 'package:smoke_bridge/features/setup/copy/base_sync_copy.dart';
 import 'package:smoke_bridge/features/setup/copy/setup_net_copy.dart';
 import 'package:smoke_bridge/features/setup/preflight.dart';
 import 'package:smoke_bridge/features/setup/screens/finish_screens.dart';
 import 'package:smoke_bridge/features/setup/setup_machine.dart';
+import 'package:smoke_bridge/ui/setup/device_art.dart';
 import 'package:smoke_bridge/ui/ui.dart';
 
 import '../data/fake_peripheral.dart';
@@ -50,6 +52,33 @@ Future<void> _pumpAt(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(_wrap(child));
+}
+
+/// The same host on a short phone at 200 % text — the case that breaks an
+/// illustrated screen, because the title and subtitle eat the body slot
+/// (§16.7). Kept separate so the existing cases keep their tall viewport.
+Future<void> _pumpSmall(
+  WidgetTester tester,
+  Widget child,
+  double width,
+) async {
+  tester.view.physicalSize = Size(width, 640);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// A real machine on fake seams; disposed at teardown. `delay` never completes,
@@ -185,6 +214,44 @@ void main() {
         );
         expect(find.byKey(const Key('base-failed-primary')), findsOneWidget);
       }
+    });
+
+    // ── 17 §17.3 C — presence carries past hop 1 ───────────────────────────
+    testWidgets('the intro draws the base it is asking you to walk to', (
+      tester,
+    ) async {
+      // This is the only screen that sends the user to a *second device* to
+      // hold a control they have probably never looked for. A paragraph over
+      // black is a poor way to ask that.
+      final m = _machine();
+      await _pumpAt(tester, setupNetScreenFor(const SetupBaseIntro(), m));
+      expect(find.byKey(const Key('base-intro-art')), findsOneWidget);
+      expect(find.byType(BaseStationIllustration), findsOneWidget);
+      // The drawn button and the printed word, together.
+      expect(find.text('SYNC'), findsOneWidget);
+    });
+
+    testWidgets('listening and heard show the bridge doing the listening', (
+      tester,
+    ) async {
+      final m = _machine();
+      await _pumpAt(
+        tester,
+        setupNetScreenFor(const SetupBaseListening(elapsed: Duration.zero), m),
+      );
+      final listening = tester.widget<BridgeIllustration>(
+        find.byKey(const Key('base-listen-art')),
+      );
+      // Rings travel *inward* here: something is arriving, not being sent.
+      expect(listening.mood, BridgeMood.listening);
+      // …and the count-up it sits above is untouched.
+      expect(find.text('0:00'), findsOneWidget);
+
+      await _pumpAt(
+        tester,
+        setupNetScreenFor(const SetupBaseHeard(deviceId: '3F91'), m),
+      );
+      expect(find.byKey(const Key('base-heard-art')), findsOneWidget);
     });
 
     testWidgets('the intro skip is wired to the machine', (tester) async {
@@ -533,6 +600,17 @@ void main() {
       // Base was skipped → "— not set up" and a dash on the rail.
       expect(find.text(SetupFinishCopy.doneNotSetUp), findsOneWidget);
       expect(find.byIcon(Icons.remove_rounded), findsOneWidget);
+
+      // 17 §17.3 C: the frame the user leaves setup on has the same subject
+      // the rest of the flow does — the bridge, with the link tick badged on
+      // it. The tick stays an `Icon` so the colour-rule audit, which walks the
+      // element tree, can still see the one sanctioned green.
+      expect(find.byKey(const Key('setup-done-art')), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+      final tick = tester.widget<Icon>(
+        find.byIcon(Icons.check_circle_rounded),
+      );
+      expect(tick.color, StatusPalette.positive);
     });
 
     testWidgets('done "See my probes" is wired to the finish handler', (
@@ -630,6 +708,27 @@ void main() {
         testWidgets('${entry.key} fits at ${w.toInt()} dp', (tester) async {
           final m = _machine();
           await _pumpAt(tester, setupNetScreenFor(entry.value, m), w);
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+  });
+
+  // ══ the illustrated screens at 200% on a short phone (§16.7) ══════════
+  group('illustrated hop-2 and finish screens at 200% text', () {
+    final samples = <String, SetupState>{
+      'intro': const SetupBaseIntro(),
+      'listening': const SetupBaseListening(elapsed: Duration.zero),
+      'heard': const SetupBaseHeard(deviceId: '3F91'),
+      'done': const SetupDone(
+        SetupSummary(bridgeName: 'Backyard smoker', blePaired: true),
+      ),
+    };
+    for (final entry in samples.entries) {
+      for (final w in <double>[360, 600, 840]) {
+        testWidgets('${entry.key} fits at ${w.toInt()} dp', (tester) async {
+          final m = _machine();
+          await _pumpSmall(tester, setupNetScreenFor(entry.value, m), w);
           expect(tester.takeException(), isNull);
         });
       }

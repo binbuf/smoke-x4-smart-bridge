@@ -97,6 +97,9 @@ class _FakeTransport implements BridgeTransport {
   Future<void> commitNetworkMode() async {}
 
   @override
+  Future<DeviceConfig> deviceConfig() async => DeviceConfig.unknown;
+
+  @override
   Future<Map<String, Object?>> alarmConfig() async => const {};
 
   @override

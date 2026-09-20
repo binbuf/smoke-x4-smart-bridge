@@ -1,4 +1,0 @@
-text "Wi-Fi"
-icon 983372
-text "No probes plugged in"
-text "Plug a probe into the base station and it will appear here."

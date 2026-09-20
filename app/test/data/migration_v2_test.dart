@@ -29,7 +29,7 @@ Database _seedV1() {
       started_unix_ms INTEGER NULL,
       ended_unix_ms INTEGER NULL,
       sample_period_s INTEGER NOT NULL DEFAULT 30,
-      sample_count INTEGER NOT NULL DEFAULT 0,
+      samplecount INTEGER NOT NULL DEFAULT 0,
       num_probes INTEGER NOT NULL DEFAULT 4,
       closed INTEGER NOT NULL DEFAULT 0,
       pinned INTEGER NOT NULL DEFAULT 0,
@@ -65,14 +65,14 @@ Database _seedV1() {
   // A clocked, closed cook.
   raw.execute(
     'INSERT INTO sessions (bridge_id, session_id, name, started_unix_ms, '
-    'ended_unix_ms, sample_period_s, sample_count, closed) '
+    'ended_unix_ms, sample_period_s, samplecount, closed) '
     "VALUES ('bridge-a', 27, 'Brisket', $_epoch, "
     '${_epoch + 8 * 3600 * 1000}, 30, 960, 1)',
   );
   // A clockless, open one — the bridge whose RTC was never set.
   raw.execute(
     'INSERT INTO sessions (bridge_id, session_id, name, sample_period_s, '
-    "sample_count, closed) VALUES ('bridge-a', 28, '', 30, 10, 0)",
+    "samplecount, closed) VALUES ('bridge-a', 28, '', 30, 10, 0)",
   );
   for (var t = 0; t <= 8 * 3600; t += 30) {
     raw.execute(
@@ -104,7 +104,7 @@ void main() {
 
   tearDown(() => db.close());
 
-  Future<int> _count(String sql) async =>
+  Future<int> count(String sql) async =>
       (await db.customSelect(sql).getSingle()).read<int>('n');
 
   test('the schema lands on v2 with the new tables present', () async {
@@ -120,7 +120,7 @@ void main() {
       'sync_states',
     ]) {
       expect(
-        await _count(
+        await count(
           "SELECT COUNT(*) AS n FROM sqlite_master WHERE name = '$table'",
         ),
         1,
@@ -130,14 +130,14 @@ void main() {
   });
 
   test('not one sample is lost', () async {
-    expect(await _count('SELECT COUNT(*) AS n FROM samples'), 961 + 10);
-    expect(await _count('SELECT COUNT(*) AS n FROM marks'), 1);
+    expect(await count('SELECT COUNT(*) AS n FROM samples'), 961 + 10);
+    expect(await count('SELECT COUNT(*) AS n FROM marks'), 1);
   });
 
   test('a clocked session gets its wall clock projected onto every sample',
       () async {
     expect(
-      await _count(
+      await count(
         'SELECT COUNT(*) AS n FROM samples '
         'WHERE session_id = 27 AND unix_ms IS NULL',
       ),
@@ -160,7 +160,7 @@ void main() {
   test('a clockless session is left NULL rather than given an invented time',
       () async {
     expect(
-      await _count(
+      await count(
         'SELECT COUNT(*) AS n FROM samples '
         'WHERE session_id = 28 AND unix_ms IS NOT NULL',
       ),
@@ -216,7 +216,7 @@ void main() {
     final rows = await db.markDao.forSession('bridge-a', 27);
     expect(rows, hasLength(1));
     expect(
-      await _count('SELECT COUNT(*) AS n FROM marks WHERE auto_anchor = 0'),
+      await count('SELECT COUNT(*) AS n FROM marks WHERE auto_anchor = 0'),
       1,
     );
   });

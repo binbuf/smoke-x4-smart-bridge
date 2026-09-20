@@ -1,5 +1,5 @@
-/// Branch 2 — `/cooks`: the session list, as **annotations over a continuous
-/// recording** (newapp §B.2, §C.3, §D.1).
+/// Branch 2 — `/cooks`: "Show me my cooks, past and running" (16 §16.6,
+/// newapp §B.2, §C.3, §D.1).
 ///
 /// **Cache-only. No transport is touched.** Scrolling an 18-hour cook on the
 /// sofa with the bridge unplugged is literally the acceptance test, and that
@@ -8,17 +8,18 @@
 /// What is new is what a row *is*. It used to be a device session — a thing the
 /// bridge started and stopped, which the user could neither create nor edit.
 /// Now it is a `Cooks` row: named, time-bounded, retargetable, splittable,
-/// backdatable. The "+" in the app bar therefore does something that used to be
-/// impossible — **create a cook now, over readings that already exist**.
+/// backdatable. The "+" therefore does something that used to be impossible —
+/// **create a cook now, over readings that already exist** — and the sheet it
+/// opens is where that model gets taught.
 ///
 /// FireBoard's sessions auto-close after 30 minutes of inactivity and roll over
-/// after 24 hours. §C.3 is explicit that this app should not: because the bridge
-/// records continuously, a cook runs exactly as long as the user says, and only
-/// an explicit edit bounds it.
+/// after 24 hours. §C.3 is explicit that this app should not: because the
+/// bridge records continuously, a cook runs exactly as long as the user says,
+/// and only an explicit edit bounds it.
 ///
 /// **Adaptive.** From 600 dp the list and the detail are one screen and tapping
-/// is a *selection*, not a navigation — the canonical list-detail layout, and on
-/// this flow also the fix for losing your place on a tablet.
+/// is a *selection*, not a navigation — the canonical list-detail layout, and
+/// on this flow also the fix for losing your place on a tablet.
 library;
 
 import 'dart:async';
@@ -28,15 +29,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/app_env.dart';
 import '../../app/router.dart';
-import '../../core/format.dart';
-import '../../data/local/database.dart' show CookSummary;
 import '../../data/repos/cook_repository.dart';
 import '../../design/design.dart';
 import '../../domain/plan/plan.dart';
 import '../../ui/ui.dart';
 import '../cook/cook_setup_sheet.dart';
 import '../shell/shell_scope.dart';
+import 'cook_create_sheet.dart';
 import 'cook_detail_view.dart';
+import 'cook_list_model.dart';
+import 'cook_list_view.dart';
 
 class CooksTab extends StatefulWidget {
   const CooksTab({super.key});
@@ -45,9 +47,14 @@ class CooksTab extends StatefulWidget {
   State<CooksTab> createState() => _CooksTabState();
 }
 
+/// What the screen can be showing. Every one of these renders — the ladder in
+/// §16.7 is a checklist, not a suggestion.
+enum _Phase { loading, noBridge, ready, failed }
+
 class _CooksTabState extends State<CooksTab> {
   CookRepository? _repo;
-  List<CookListEntry>? _entries;
+  List<CookListRow> _rows = const [];
+  _Phase _phase = _Phase.loading;
   StreamSubscription<List<CookAnnotation>>? _watch;
 
   /// The cook shown in the detail pane on a wide window. Held here rather than
@@ -72,7 +79,7 @@ class _CooksTabState extends State<CooksTab> {
     final bridgeId = await env?.db.sessionDao.knownBridgeId();
     if (env == null || bridgeId == null) {
       if (mounted) {
-        setState(() => _entries = const []);
+        setState(() => _phase = _Phase.noBridge);
       }
       return;
     }
@@ -89,9 +96,31 @@ class _CooksTabState extends State<CooksTab> {
     if (repo == null) {
       return;
     }
-    final entries = await repo.listEntries();
-    if (mounted) {
-      setState(() => _entries = entries);
+    try {
+      final entries = await repo.listEntries();
+      final rows = <CookListRow>[
+        for (final e in entries)
+          CookListRow(
+            entry: e,
+            // Bucketed in SQL — a two-month list must not page the cache
+            // through Dart to draw itself.
+            spark: await loadCookSparkline(
+              repo.db,
+              e.cook,
+              summary: e.summary,
+            ),
+          ),
+      ];
+      if (mounted) {
+        setState(() {
+          _rows = rows;
+          _phase = _Phase.ready;
+        });
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _phase = _Phase.failed);
+      }
     }
   }
 
@@ -102,65 +131,132 @@ class _CooksTabState extends State<CooksTab> {
     }
     // Compact: push **inside this branch**, so the nav bar stays and system
     // back returns to the list with its scroll intact (§13.3.4).
-    context.push(AppRoutes.cookDetail(cook.id));
+    unawaited(context.push(AppRoutes.cookDetail(cook.id)));
   }
 
-  /// §C.3's "+" — create a cook over the recording that is already happening.
+  /// §16.6's "+" — create a cook over the recording that is already happening.
   Future<void> _create() async {
-    final session = ShellScope.maybeOf(context);
     final repo = _repo;
     if (repo == null) {
       return;
     }
+    final choice = await showCreateCookSheet(context);
+    if (choice == null || !mounted) {
+      return;
+    }
+    final created = switch (choice) {
+      CookCreateChoice.now => await _startNow(repo),
+      CookCreateChoice.withTargets => await _startWithTargets(repo),
+    };
+    await _rebuild();
+    if (created != null && mounted) {
+      // Straight into the cook, where the start card offers to move the start
+      // back to where the recording says it belongs (§D.3.1).
+      _open(created);
+    }
+  }
+
+  /// A cook with no targets, starting now, over readings that already exist.
+  ///
+  /// Deliberately **not** routed through `ShellSession.startCook`: that installs
+  /// the guided overlay on `/live`, and there is nothing to guide until a target
+  /// exists. The annotation is the whole of what was asked for.
+  Future<CookAnnotation?> _startNow(CookRepository repo) async {
+    final plan = CookPlan(
+      presetId: 'custom',
+      title: '',
+      // Nobody has said what this is yet — that is the entire point of
+      // "start one now, decide later" — so it takes the class that carries a
+      // floor rather than the one that carries none. A retarget re-asks.
+      hazard: HazardClass.unstated,
+      doneness: '',
+      probes: const [],
+    );
+    try {
+      return await repo.startFromPlan(plan);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Couldn’t start a cook on this phone.')),
+        );
+      }
+      return null;
+    }
+  }
+
+  Future<CookAnnotation?> _startWithTargets(CookRepository repo) async {
+    final session = ShellScope.maybeOf(context);
     final plan = await showCookSetupSheet(
       context,
       celsius: session?.celsius ?? false,
     );
     if (plan == null || !mounted) {
-      return;
+      return null;
     }
     if (session != null) {
       await session.startCook(plan);
-    } else {
-      await repo.startFromPlan(plan);
+      final id = plan.cookId;
+      return id == null ? null : repo.cook(id);
     }
-    await _rebuild();
+    return repo.startFromPlan(plan);
   }
 
   @override
   Widget build(BuildContext context) {
     final window = context.window;
     final celsius = ShellScope.maybeOf(context)?.celsius ?? false;
-    final entries = _entries;
+    final now = DateTime.now().millisecondsSinceEpoch;
 
-    final list = entries == null
-        ? const Center(child: CircularProgressIndicator())
-        : entries.isEmpty
-        ? EmptyState(
-            key: const Key('cooks-empty'),
-            icon: Icons.outdoor_grill_outlined,
-            title: 'No cooks yet',
-            // Reinforces the annotate-over-continuous model rather than
-            // implying nothing has been recorded.
-            message:
-                'Your bridge is still recording. Start a cook any time — you '
-                'can even name a stretch that has already happened.',
-            action: FilledButton.tonal(
-              onPressed: () => unawaited(_create()),
-              child: const Text('Start a cook'),
-            ),
-          )
-        : _CooksListView(
-            entries: entries,
-            celsius: celsius,
-            selectedId: window.usesSplitPane ? _selectedId : null,
-            onOpen: _open,
-          );
+    final list = switch (_phase) {
+      _Phase.loading => const _Loading(),
+      _Phase.noBridge => const EmptyState(
+        key: Key('cooks-no-bridge'),
+        icon: Icons.hub_outlined,
+        title: 'No bridge yet',
+        // Not "No cooks yet": promising that the bridge is recording when the
+        // app has never met one would be a claim the app cannot support.
+        message:
+            'Cooks land here once a bridge has recorded something. Set one up '
+            'on the Device tab.',
+      ),
+      _Phase.failed => ProblemState(
+        key: const Key('cooks-failed'),
+        title: 'Couldn’t read your cooks',
+        message:
+            'Something is wrong with this phone’s copy of your history. '
+            'Nothing has been lost on the bridge.',
+        action: FilledButton.tonal(
+          onPressed: () => unawaited(_rebuild()),
+          child: const Text('Try again'),
+        ),
+      ),
+      _Phase.ready when _rows.isEmpty => EmptyState(
+        key: const Key('cooks-empty'),
+        icon: Icons.outdoor_grill_outlined,
+        title: 'No cooks yet',
+        // Reinforces the annotate-over-continuous model rather than implying
+        // nothing has been recorded.
+        message:
+            'Your bridge is still recording. Start one any time — you can '
+            'even name a stretch that already happened.',
+        action: FilledButton.tonal(
+          onPressed: () => unawaited(_create()),
+          child: const Text('Start a cook'),
+        ),
+      ),
+      _Phase.ready => CooksListView(
+        sections: groupCooks(_rows, nowUnixMs: now),
+        celsius: celsius,
+        nowUnixMs: now,
+        selectedId: window.usesSplitPane ? _selectedId : null,
+        onOpen: _open,
+      ),
+    };
 
     // Keep a selection valid: a cook deleted from the detail pane must not
     // leave that pane rendering a ghost.
-    final selected = entries
-        ?.where((e) => e.cook.id == _selectedId)
+    final selected = _rows
+        .where((r) => r.cook.id == _selectedId)
         .firstOrNull
         ?.cook;
 
@@ -173,13 +269,13 @@ class _CooksTabState extends State<CooksTab> {
               SizedBox(width: window.hingeIsVertical ? window.hingeGap : 0),
               VerticalDivider(width: 1, color: context.tokens.hairline),
               Expanded(
-                child: selected == null
+                child: selected == null || _repo == null
                     ? const EmptyState(
                         icon: Icons.touch_app_outlined,
                         title: 'Pick a cook',
                         message:
                             'Choose one on the left and it opens here — chart, '
-                            'statistics and marks.',
+                            'statistics, marks and every edit.',
                       )
                     : CookDetailView(
                         key: ValueKey(selected.id),
@@ -187,6 +283,12 @@ class _CooksTabState extends State<CooksTab> {
                         cook: selected,
                         celsius: celsius,
                         onChanged: _rebuild,
+                        // Merging keeps the *earlier* cook and deletes the
+                        // later row, so the selection can be the id that just
+                        // went away — and the pane fell back to "Pick a cook",
+                        // losing your place mid-edit. Follow the survivor.
+                        onIdChanged: (id) => setState(() => _selectedId = id),
+                        onDeleted: () => setState(() => _selectedId = null),
                       ),
               ),
             ],
@@ -224,7 +326,9 @@ class _CooksTabState extends State<CooksTab> {
             key: const Key('cooks-create'),
             tooltip: 'Start a cook',
             icon: const Icon(Icons.add_rounded),
-            onPressed: () => unawaited(_create()),
+            onPressed: _phase == _Phase.noBridge
+                ? null
+                : () => unawaited(_create()),
           ),
         ],
       ),
@@ -232,135 +336,29 @@ class _CooksTabState extends State<CooksTab> {
   }
 }
 
-/// The list itself — stateless over plain values, so it renders in a golden
-/// with no repository behind it.
-class _CooksListView extends StatelessWidget {
-  const _CooksListView({
-    required this.entries,
-    required this.celsius,
-    required this.onOpen,
-    this.selectedId,
-  });
-
-  final List<CookListEntry> entries;
-  final bool celsius;
-  final int? selectedId;
-  final void Function(CookAnnotation) onOpen;
-
-  @override
-  Widget build(BuildContext context) => ListView.builder(
-    key: const Key('cooks-list'),
-    padding: const EdgeInsets.all(SmokeTokens.s4),
-    itemCount: entries.length,
-    itemBuilder: (context, i) => _CookRow(
-      entry: entries[i],
-      celsius: celsius,
-      selected: entries[i].cook.id == selectedId,
-      onTap: () => onOpen(entries[i].cook),
-    ),
-  );
-}
-
-class _CookRow extends StatelessWidget {
-  const _CookRow({
-    required this.entry,
-    required this.celsius,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final CookListEntry entry;
-  final bool celsius;
-  final bool selected;
-  final VoidCallback onTap;
+/// A spinner with no words is worse than an error with words (§16.2).
+class _Loading extends StatelessWidget {
+  const _Loading();
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final cook = entry.cook;
-    final s = entry.summary;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: SmokeTokens.s2),
-      child: SmokeCard(
-        raised: selected,
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    cook.displayName(),
-                    style: SmokeType.title.copyWith(color: t.textHi),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (cook.favourite)
-                  Padding(
-                    padding: const EdgeInsets.only(right: SmokeTokens.s2),
-                    child: Icon(
-                      Icons.star_rounded,
-                      size: 16,
-                      color: t.textMuted,
-                    ),
-                  ),
-                if (entry.status != CookStatus.finished)
-                  _StatusPill(status: entry.status),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _metaLine(cook, s),
-              style: SmokeType.bodySm.copyWith(color: t.textMuted),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// date · duration · peak · probes. Every part that cannot be computed
-  /// honestly is simply absent rather than rendered as a zero.
-  String _metaLine(CookAnnotation cook, CookSummary s) {
-    final parts = <String>[
-      formatSessionDate(cook.startUnixMs),
-      if (s.minT != null && s.maxT != null)
-        formatDuration(s.maxT! - s.minT!),
-      if (s.peakF10 != null)
-        'peak ${formatTemp(s.peakF10, celsius: celsius)}',
-      if (s.count > 0) '${s.count} readings',
-      if (s.count == 0) 'no readings yet',
-    ];
-    return parts.join(' · ');
-  }
-}
-
-/// "Recording" on the open annotation, "Scheduled" on one that has not begun.
-///
-/// Deliberately **not** "Cooking": an open cook only means the app is calling
-/// this stretch of the recording by that name.
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status});
-
-  final CookStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final role = status == CookStatus.running
-        ? StatusRole.positive
-        : StatusRole.info;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: StatusPalette.fill(role),
-        borderRadius: BorderRadius.circular(SmokeTokens.radiusPill),
-        border: Border.all(color: StatusPalette.border(role)),
-      ),
-      child: Text(
-        status.label,
-        style: SmokeType.labelSm.copyWith(color: t.textHi),
+    return Center(
+      key: const Key('cooks-loading'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(height: SmokeTokens.s3),
+          Text(
+            'Reading this phone’s copy of your cooks.',
+            style: SmokeType.bodySm.copyWith(color: t.textMuted),
+          ),
+        ],
       ),
     );
   }
