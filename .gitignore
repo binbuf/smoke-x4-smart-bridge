@@ -50,6 +50,11 @@ firmware/build-test/
 *.keystore
 .gradle/
 
+# Generated bench/reference captures. These are working output from a bench
+# session, not source; the reference screenshots that ARE inputs live under
+# docs/reference/apps/ and are committed.
+/artifacts/
+
 # Logs and crash dumps — but NOT the committed capture fixtures, which are
 # test inputs rather than noise (protocol/fixtures/board/*.log).
 *.log

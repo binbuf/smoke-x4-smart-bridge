@@ -177,12 +177,6 @@ class _AppShellState extends State<AppShell> {
     final window = context.window;
     final snapshot = _session.snapshot;
 
-    // The chip shows a retry count only while a background Wi-Fi (re)connect
-    // is actually running — a healthy link reads clean.
-    final live = _session.liveLink;
-    final retry = live != null && live.upgrading && live.attempt > 0
-        ? live.attempt
-        : null;
     final topAlarm = snapshot == null ? null : _topAlarm(snapshot);
 
     final statusBar = SystemStatusBar(
@@ -192,38 +186,58 @@ class _AppShellState extends State<AppShell> {
       socPct: snapshot?.socPct,
       charging: snapshot?.charging ?? false,
       batteryKnown: snapshot?.batteryKnown ?? false,
-      attempt: retry,
       onTap: () => unawaited(showConnectionSheet(context, _session)),
     );
 
+    // ── the chrome stack ────────────────────────────────────────────────
+    //
+    // Four things can ride above the content, and before the §H.2 pass they
+    // piled up as three full-bleed strips in arrival order — refresh, status,
+    // alarm — which is neither a rhythm nor a ranking. Now:
+    //
+    //  1. the **status bar is the bezel**: full-bleed, on `surface`, with the
+    //     one hairline seam in the stack, and it carries the safe-area inset
+    //     for everything below it (a banner mounted above it used to render
+    //     under the notch);
+    //  2. **notices float**, inset on the 4 dp gutter over `bg`, as slabs with
+    //     the 14 %/35 % chrome treatment. A slab under a bezel reads as a
+    //     decision; a third full-width band reads as an accident;
+    //  3. **rank is explicit and the alarm wins.** The alarm is about the
+    //     cook; a failed refresh is about the app's own plumbing. When both
+    //     are up the refresh banner **compacts to one line** — §16.3's "one
+    //     situation at a time" honoured without discarding the second fact;
+    //  4. every reveal goes through the shared `ChromeSlot`, so the two
+    //     notices cannot drift apart and reduced motion turns both off in one
+    //     place.
+    final chrome = <Widget>[
+      statusBar,
+      AlarmBar(
+        alarm: topAlarm,
+        celsius: _session.celsius,
+        inset: true,
+        onAck: topAlarm == null
+            ? null
+            : () => unawaited(_session.ackAlarm(topAlarm.id)),
+      ),
+      RefreshBanner(
+        failure: _session.refreshFailure,
+        busy: _session.refreshing,
+        compact: topAlarm != null,
+        onRetry: () => unawaited(_session.refresh()),
+        onDismiss: _session.dismissRefreshFailure,
+      ),
+    ];
+
     final body = Column(
-      children: [
-        // Above everything: a failed pull-to-refresh must be able to say so on
-        // every branch, including Cook.
-        RefreshBanner(
-          failure: _session.refreshFailure,
-          busy: _session.refreshing,
-          onRetry: () => unawaited(_session.refresh()),
-          onDismiss: _session.dismissRefreshFailure,
-        ),
-        // The status bar rides the top of the *content* on every width.
-        //
-        // It briefly lived in the rail footer, on the theory that a full-width
-        // strip carrying two chips wastes a tablet's width. On the device that
-        // backfired: the transport chip is ~150 dp of text, and an
-        // `IntrinsicWidth` rail sized itself to fit it — a 160 dp navigation
-        // rail, twice its natural width, stealing exactly the space the
-        // supporting pane was meant to gain. Beside the rail it costs nothing.
-        statusBar,
-        AlarmBar(
-          alarm: topAlarm,
-          celsius: _session.celsius,
-          onAck: topAlarm == null
-              ? null
-              : () => unawaited(_session.ackAlarm(topAlarm.id)),
-        ),
-        Expanded(child: _branchBody()),
-      ],
+      // The status bar rides the top of the *content* on every width.
+      //
+      // It briefly lived in the rail footer, on the theory that a full-width
+      // strip carrying two chips wastes a tablet's width. On the device that
+      // backfired: the transport chip is ~150 dp of text, and an
+      // `IntrinsicWidth` rail sized itself to fit it — a 160 dp navigation
+      // rail, twice its natural width, stealing exactly the space the
+      // supporting pane was meant to gain. Beside the rail it costs nothing.
+      children: [...chrome, Expanded(child: _branchBody())],
     );
 
     return ShellScope(
