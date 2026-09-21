@@ -1,23 +1,53 @@
-/// N0.7 — the root widget. The real shell arrives in N4; for now this is a
-/// themed, single-route app that proves the package set and theming compile.
+/// N0.7 / N3.5 — the root widget.
+///
+/// N3 applies the three theme axes here: `themeMode` (system/light/dark),
+/// `displayProfile` (standard/daylight) and `density`
+/// (compact/comfortable), plus `reducedMotion`. The shell (N4) passes the
+/// values from `AppSettings`; until then the defaults match
+/// `AppSettings.defaults`.
+///
+/// The liveness pulse is **not** owned here: a repeating controller at the root
+/// would make `pumpAndSettle` unusable for every golden. `SmokePulseScope` is
+/// the seam; N4 mounts one controller beside the shell chrome.
 library;
 
 import 'package:flutter/material.dart';
 
-import '../design/theme.dart';
+import '../design/design.dart';
 import 'router.dart';
 
 class SmokeApp extends StatelessWidget {
-  const SmokeApp({super.key});
+  const SmokeApp({
+    super.key,
+    this.themeMode = ThemeMode.system,
+    this.profile = SmokeProfile.standard,
+    this.density = SmokeDensity.compact,
+    this.reducedMotion = false,
+  });
+
+  final ThemeMode themeMode;
+  final SmokeProfile profile;
+  final SmokeDensity density;
+  final bool reducedMotion;
 
   @override
   Widget build(BuildContext context) {
+    final light = SmokeThemeData.light(
+      profile: profile,
+      density: density,
+      reducedMotion: reducedMotion,
+    );
+    final dark = SmokeThemeData.dark(
+      profile: profile,
+      density: density,
+      reducedMotion: reducedMotion,
+    );
     return MaterialApp.router(
       title: 'Smoke Bridge',
       debugShowCheckedModeBanner: false,
-      theme: SmokeTheme.dark,
-      darkTheme: SmokeTheme.dark,
-      themeMode: ThemeMode.dark,
+      theme: light,
+      darkTheme: dark,
+      themeMode: themeMode,
       routerConfig: appRouter,
     );
   }

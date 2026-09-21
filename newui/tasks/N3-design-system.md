@@ -76,3 +76,66 @@ introduces a raw colour or a `Duration` literal.
 
 The three colour channels (series/status/identity), I14, I5, and "temperature is
 never scaled to fit".
+
+---
+
+## Hand-off
+
+**Landed.** N3.1–N3.30, all 30 sub-tasks. `app/lib/design/` now holds the token
+set (`SmokeTokens` ThemeExtension + dark/light/daylight + density), `SmokeMotion`
+(quick/standard/value/gauge/pulse, reduced-motion rule), `SmokeText` +
+`SmokeTextScale`, the `SmokeGlyph`/`SmokeIcon` set, `FoodAvatar`, and every
+component primitive through `CostSheet`. The barrel is
+`package:smoke_bridge/design/design.dart`; `DesignGallery` is mounted at
+`/design`.
+
+**Verification (real commands, run in `app/`).**
+- `flutter analyze` → `No issues found!`
+- `dart format --output=none --set-exit-if-changed lib test` → clean
+- `flutter test` → `All tests passed!` (**201**; was 152)
+- `dart test test/domain test/data` → **131** pass (N2 gate intact)
+- `flutter test test/design` → **44** pass (tokens, icons, primitives, layering)
+- `flutter test test/golden/design_gallery_golden_test.dart` → **6** gallery
+  goldens (dark/light/daylight × compact/comfortable)
+
+**Deviations from the plan, and why.**
+1. **Icons are mapped to Material glyphs, not the prototype's SVG paths.**
+   Flutter's SDK has no SVG path renderer and N0 pinned the package set (no
+   `flutter_svg`). The load-bearing contract is the icon *name* (`SmokeGlyph`,
+   67 of them); `SmokeIcons.data` maps each name to its closest Material glyph
+   and `SmokeIcons.byName` keeps prototype-name parity. The artwork is now a
+   one-file swap.
+2. **`FoodGlyph` has 21 identities, not 13.** The generated catalog uses 18
+   food glyphs plus `ambient`/`pit`/`unstated`; the research notes' "13" is
+   stale (same class of error as T03's counts).
+3. **PulseDot is stateless and the ticker is deferred to N4.** A repeating
+   controller at the app root makes `pumpAndSettle` unusable for every golden,
+   and `lib/design/` must stay stateless. `SmokePulseScope` is the seam: the
+   shell owns one controller and every dot reads it. Without a scope the dot is
+   static; a test proves the wiring. Reduced motion keeps the pulse (the still
+   dot is the staleness signal).
+4. **`SmokeApp` defaults to `ThemeMode.system`** (was hard-coded dark) and takes
+   `profile`/`density`/`reducedMotion`, satisfying N3.5 at the root; N4 supplies
+   the `AppSettings` values.
+5. **Golden harness extended** with `pumpForGolden(..., settle: false)` because
+   the gallery intentionally renders a spinner and a loading state. Existing
+   callers are unchanged.
+6. **The three colour channels are enforced by tests, not convention:**
+   `primitives_test.dart` pins "status banner = icon + word", "gauge reached is
+   never green", "identity stops never reuse a status hue", I3/I5/I6/I14,
+   no-double-dimming, and the haptic map. `design_layering_test.dart` pins "no
+   raw colour or `Duration` literal outside `lib/design/`".
+
+**What the next task (N4 shell) must know.**
+- Mount one repeating `AnimationController` (`SmokeMotion.pulse`) in a
+  `SmokePulseScope` beside the shell chrome; otherwise PulseDot is static.
+- Pass `AppSettings.themeMode/displayProfile/density/reducedMotion` through
+  `SmokeApp` (or build `SmokeThemeData` directly).
+- Read tokens with `SmokeTokens.of(context)` and motion with
+  `SmokeMotion.of(context)`; do not write `Color(...)` or `Duration(...)` in
+  `lib/features/`.
+- `showCostSheet` resolves `true` on confirm; `PrimaryAction` is the only ember
+  button and a screen may have one (the gallery is the deliberate exception).
+- `/design` is a live route; N16 may gate it behind a debug flag.
+- Not done here (other tasks): N7 wires `SeriesLegend.onIsolate` to the chart;
+  N5/N6 wire `TargetGauge`/`Sparkline`/`PhaseTrack` to real projections.

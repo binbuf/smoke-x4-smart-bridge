@@ -30,11 +30,17 @@ bool get updatingGoldens => Platform.environment['UPDATE_GOLDENS'] == '1';
 
 /// Pumps [child] at a fixed surface (default 390×844, the phone frame the
 /// prototype targets) and text scale.
+///
+/// Set [settle] to false when the tree contains an intentional **indeterminate**
+/// animation (a spinner, the liveness pulse): `pumpAndSettle` never returns for
+/// those. The description only records text/icon/button structure, so a fixed
+/// number of frames is still deterministic.
 Future<void> pumpForGolden(
   WidgetTester tester,
   Widget child, {
   Size surface = const Size(390, 844),
   double textScale = 1,
+  bool settle = true,
 }) async {
   tester.view
     ..physicalSize = surface
@@ -50,7 +56,12 @@ Future<void> pumpForGolden(
       child: child,
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+  }
 }
 
 /// Compares the rendered tree against the committed snapshot.

@@ -286,7 +286,7 @@ class _PanelButton extends StatelessWidget {
       foregroundColor: selected ? SmokeTheme.background : SmokeTheme.textBody,
       backgroundColor: selected ? SmokeTheme.ember : null,
       side: BorderSide(
-        color: selected ? SmokeTheme.ember : const Color(0xFF253044),
+        color: selected ? SmokeTheme.ember : SmokeTheme.cardRaised,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       minimumSize: const Size(0, 32),

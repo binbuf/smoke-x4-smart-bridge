@@ -1,0 +1,282 @@
+text "Design system"
+text "Every primitive, dark / light / daylight, compact / comfortable."
+text "TYPOGRAPHY"
+text "heroTemp 96  ·  96°F"
+text "tempXl 52  ·  52°F"
+text "tempLg 30  ·  30°F"
+text "tempMd 26  ·  26°F"
+text "gaugeValue 22  ·  22°F"
+text "title 20  ·  20°F"
+text "cardTitle 15  ·  15°F"
+text "monoKey 34  ·  34°F"
+text "monoValue 15  ·  15°F"
+text "monoSmall 11  ·  11°F"
+text "body 14  ·  14°F"
+text "bodyStrong 14  ·  14°F"
+text "sub 13  ·  13°F"
+text "label 12  ·  12°F"
+text "labelSm 11  ·  11°F"
+text "kicker 11  ·  11°F"
+text "Reflow: 96 → 56 hero, gauge 84 → 64 then dropped"
+text "ICONS"
+icon 57572
+icon 59111
+icon 59115
+icon 58690
+icon 58966
+icon 58258
+icon 58710
+icon 58040
+icon 57548
+icon 58132
+icon 58331
+icon 58449
+icon 57695
+icon 57926
+icon 57694
+icon 57415
+icon 57686
+icon 57706
+icon 58571
+icon 58492
+icon 57882
+icon 58644
+icon 58240
+icon 58241
+icon 59084
+icon 57912
+icon 58173
+icon 58123
+icon 57582
+icon 57588
+icon 58189
+icon 57857
+icon 57787
+icon 58289
+icon 57554
+icon 58392
+icon 57504
+icon 57495
+icon 57499
+icon 57490
+icon 58646
+icon 58674
+icon 61748
+icon 984725
+icon 58688
+icon 57634
+icon 62652
+icon 61343
+icon 61362
+icon 59011
+icon 58370
+icon 58783
+icon 62625
+icon 62124
+icon 61748
+icon 59029
+icon 61495
+icon 984363
+icon 58727
+icon 58791
+icon 58459
+icon 57707
+icon 59133
+icon 59134
+icon 58613
+icon 62107
+icon 58873
+text "FOOD AVATARS"
+text "🥩"
+text "🥩"
+text "🥩"
+text "🍖"
+text "🍖"
+text "🍗"
+text "🦃"
+text "🐟"
+text "🦐"
+text "🦌"
+text "🍔"
+text "🥚"
+text "🥦"
+text "🥔"
+text "🧀"
+text "🍞"
+text "🍑"
+text "🍲"
+text "🥔"
+text "🔥"
+text "🍽️"
+text "🥩"
+text "🐟"
+text "🥦"
+text "CARDS"
+text "Default card"
+text "Subtle card"
+text "Raised card"
+text "Inset card"
+text "Accent card with a series spine"
+text "Footer · tap target"
+text "BUTTONS"
+text "Start cook"
+text "Join Wi-Fi first"
+text "An image is Wi-Fi only"
+text "Installing…"
+text "Mark"
+text "Pull"
+text "No target set"
+text "End"
+text "Ghost"
+text "Danger"
+text "Small"
+text "CHIPS"
+text "°F"
+text "°C"
+text "15 m"
+text "1 h"
+text "6 h"
+text "All"
+text "ROWS & TOGGLES"
+icon 58966
+text "Units"
+text "Temperatures in Fahrenheit"
+icon 59111
+text "Join your home network"
+text "Reach the bridge anywhere"
+icon 57695
+icon 59029
+text "Update firmware"
+text "Bridge is not on Wi-Fi"
+icon 57787
+text "Factory reset"
+text "Erase everything"
+icon 57572
+text "Bluetooth"
+text "Connected · −52 dBm"
+icon 58690
+text "Home Wi-Fi"
+text "Not connected"
+icon 59111
+text "Bridge hotspot"
+text "Available"
+text "ATOMS"
+text "1"
+text "2"
+text "3"
+text "4"
+text "—"
+icon 58392
+text "203°F"
+icon 57686
+text "203°F"
+icon 57504
+text "+1.8°/h"
+icon 57495
+text "−0.4°/h"
+icon 58646
+text "~0"
+text "HOME WI-FI"
+text "Device"
+text "Insight"
+text "CHROME"
+text "live / warn / crit / idle"
+text "Bluetooth"
+icon 57572
+icon 58690
+text "Home Wi-Fi"
+icon 57572
+icon 58690
+text "Connecting…"
+icon 57572
+icon 58690
+text "Offline"
+icon 57572
+icon 58690
+text "Primary action, one per screen"
+text "INDICATORS"
+text "141°"
+text "to target"
+text "230°"
+text "pit"
+text "DONE"
+text "target"
+text "Approach"
+text "Pull now"
+text "Resting"
+text "Ready"
+text "BANNERS"
+icon 58173
+text "Note"
+text "Full history needs Wi-Fi."
+icon 59084
+text "Warning"
+text "This bridge is not on Wi-Fi right now."
+icon 57912
+text "Critical"
+text "Target reached — pull the brisket."
+icon 58173
+text "Note"
+text "Jack 4 is the grate by default."
+icon 57912
+text "Target reached"
+text "Device"
+text "Food probe crossed 203°F"
+icon 57686
+text "MONO WELL"
+text "481 902"
+text "SmokeBridge-A1B2"
+text "STATES"
+icon 58966
+text "No probes attached"
+text "Plug a probe into the Smoke X4 and it will appear here."
+text "View graph"
+icon 59084
+text "Bridge unreachable"
+text "It may have restarted. We will keep trying."
+text "Reconnect"
+text "Finding the bridge"
+text "Checking Bluetooth and Wi-Fi."
+text "Cancel"
+text "158°F"
+text "12 min ago"
+text "STATS"
+text "MEAN"
+text "168°"
+text "PEAK"
+text "203°"
+text "IN BAND"
+text "2h 14m"
+text "Planned"
+text "Actual"
+text "Cook time"
+text "10h 00m"
+text "9h 24m"
+text "Peak"
+text "203°F"
+text "205°F"
+text "Rest"
+text "60m"
+text "52m"
+text "planned vs actual"
+text "LEGEND"
+icon 58258
+text "Pit"
+text "230°"
+icon 58674
+text "Brisket"
+text "158°"
+text "Pork"
+text "142°"
+text "COST SHEET"
+text "Forget this bridge?"
+text "The app removes the pairing. The bridge keeps recording."
+icon 57686
+text "KEEPS"
+text "Recorded sessions on the bridge"
+icon 59084
+text "LOSES"
+text "This phone's pairing and Wi-Fi settings"
+icon 59084
+text "Forget bridge"
+text "Keep it"

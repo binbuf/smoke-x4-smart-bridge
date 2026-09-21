@@ -105,3 +105,43 @@ Status: **done** (N2.1–N2.32 all landed; the dev panel widget and boot deep-li
 - **Follow-up (N4/N6):** `ProbeState` duplicates part of `ProbeReading`; consider collapsing to one projection when the shell wires the providers.
 - Generated files are committed; run `make app.gen` after any freezed-model change.
 - The dev panel does not mount itself: N4.10 places `DevPanel` beside the phone frame and supplies `onScreen`/`onOverlay`; N4.3 routes `screen`/`overlay` (incl. `initialDevDeepLinkProvider`). The panel's overlay buttons omit `probe`/`alarmDetail`/`confirm`/`verb` (they need props).
+
+## T04 — N3 Design system: tokens, typography, icons and component primitives
+
+Status: **done**. `flutter test` green (**201**, was 152); `flutter analyze` clean; format check clean; `dart test test/domain test/data` still green (131).
+
+**Real paths (all under `app/lib/design/`; import the barrel `design/design.dart`)**
+- `tokens.dart` — `SmokeTokens` (ThemeExtension), `SmokeSpacing`, `SmokeRadii`, `SmokeDensity`, `SmokeProfile`. `SmokeTokens.tint(base, alpha)` is the Flutter spelling of `rgba(var(--x-rgb), a)`; `series(jack)`, `statusFill/statusBorder`.
+- `theme.dart` — `SmokeThemeData.build/dark/light({brightness, profile, density, reducedMotion})`; keeps the `SmokeTheme` font/dark-alias façade N0/N2 code uses.
+- `motion.dart` — `SmokeMotion` (quick 120 / standard 220 / value 600 / gauge 800 / pulse 2 s; `effective()` zeroes all but pulse under reduced motion).
+- `text.dart` — `SmokeText` (16 named styles, tabular `tnum` on numerics) + `SmokeTextScale` (hero 96→56, gauge 84→64→dropped at >1.3×).
+- `icons.dart` — `SmokeGlyph` (67 names) + `SmokeIcon`; `SmokeIcons.byName` keeps prototype-name parity.
+- `food_avatar.dart` — `FoodGlyph` (21 identities), `FoodAvatarRegister.{disciplined,vivid}`, `FoodAvatarSize`, `FoodAvatar.stopsFor`.
+- Primitives: `card.dart`, `buttons.dart` (PrimaryAction/SmokeButton/ActionRow), `chips.dart`, `toggle.dart`, `rows.dart` (SettingsRow/LinkRow/SignalBars/SectionLabel), `atoms.dart` (JackBadge/TargetPill/TrendChip/ModeBadge/TierTag), `pulse.dart` (PulseDot + SmokePulseScope), `status.dart` (TransportChip/InsightBanner/CapabilityNotice/AlarmBar), `indicators.dart` (Sparkline/TargetGauge/PhaseTrack), `mono_well.dart`, `states.dart` (EmptyState/ProblemState/LoadingState/StaleVeil), `stats.dart` (StatGrid/StatMini/RecapRow), `legend.dart` (SeriesLegend/LegendSwatch), `haptics.dart`, `cost_sheet.dart`.
+- `gallery.dart` — `DesignGallery`; route `/design` added in `app/lib/app/router.dart`.
+- Tests `app/test/design/{tokens,icons,primitives,design_layering}_test.dart`; goldens `app/test/golden/design_gallery_golden_test.dart` + 6 files `app/test/golden/goldens/design_gallery_{dark,light,daylight}_{compact,comfortable}.golden.txt`.
+
+**Commands that work (repo root)**
+- `make app.test` — analyze + format check + full `flutter test` (the N3 gate; 201 pass).
+- `make app.golden` — regenerates the gallery goldens too.
+- `cd app && flutter test test/design` — 44 fast primitive/token tests.
+- `cd app && flutter test test/golden/design_gallery_golden_test.dart` — the 6 gallery goldens.
+
+**Contract deviations / decisions later tasks must know**
+- **Icons are a Material mapping, not ported SVG paths.** Flutter has no SVG renderer in the SDK and N0 pinned the package set (no `flutter_svg`). The stable contract is the icon *name* (`SmokeGlyph`); `SmokeIcons.data` maps each to the closest Material glyph. Swapping artwork later is a one-file change.
+- **`FoodGlyph` has 21 identities, not 13.** The catalog actually uses 18 (`beef bread brisket cheese egg fish fruit game ground pork potato poultry ribs shellfish side steak veg wholeBird`) plus `ambient`/`pit`/`unstated`. The research notes' "13" is stale, same as T03's counts.
+- **PulseDot is stateless; the ticker is not owned by the app root.** `SmokePulseScope` carries an `Animation<double>?`; with no scope the dot renders static. N4 must mount one repeating controller at the shell root (a root-owned controller makes `pumpAndSettle` unusable for every golden, which is why SmokeApp does not). `SmokeMotion.pulse` is the duration; reduced motion must not stop it (the still dot *is* the staleness signal).
+- **`SmokeApp` defaults changed**: `themeMode: ThemeMode.system` (was hard dark), plus `profile`/`density`/`reducedMotion` params. N4 passes `AppSettings` values; `AppThemeMode`/`DisplayProfile`/`Density` (data/) map to `ThemeMode`/`SmokeProfile`/`SmokeDensity` (design/).
+- **Golden harness gained `pumpForGolden(..., settle: false)`** for trees with intentional indeterminate animations (spinner, pulse). Existing callers are unaffected. The gallery goldens use it.
+- Gallery goldens are structurally identical across the three themes/densities (the harness describes text/icons, not pixels); theme values are pinned by `tokens_test.dart`, not the goldens.
+- `TargetGauge.isReached(value, target)` is the "target reached closes the ring, never green" gate; the gauge colour is always the passed series mark.
+
+**Gotchas**
+- `lib/design/` must stay stateless and inward-free (`design_purity_test`); no `Duration(...)` or raw colour may appear in `lib/features/` or `lib/app/` (`design_layering_test` scans them). Use `SmokeMotion`/`SmokeTokens`.
+- The gallery must render every primitive with no overflow at 390×844 and at 1.0 text scale; button labels are `Flexible`+ellipsis, and the gallery golden test loads the bundled fonts.
+- `showCostSheet(context, ...)` returns `Future<bool?>` (true = confirm) and uses the standard `showModalBottomSheet`.
+
+**Follow-ups (N4/N16)**
+- Mount a single pulse controller (SmokePulseScope) beside the shell chrome.
+- Optionally keep `/design` behind a debug flag in release (N16).
+- N7 wires `SeriesLegend.onIsolate`; N5/N6 wire `TargetGauge`/`Sparkline`/`PhaseTrack` to real projections.
