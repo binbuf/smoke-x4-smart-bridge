@@ -1,2 +1,48 @@
-[home-title]
-text "Smoke X4"
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-transport-chip]
+  text "Home Wi-Fi"
+  icon 57572
+  icon 58690
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [destination-live]
+    text "Live"
+    text "A placeholder destination."
+    [destination-state]
+    text "Connection: connected · unacked alarms: 2"
+    [destination-connect]
+      icon 58240
+      text "Connect"
+    [destination-alerts]
+      icon 58449
+      text "Alerts"
+    [destination-fullscreen]
+      icon 58459
+      text "Fullscreen"
+    [destination-toast]
+      icon 58173
+      text "Toast"
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

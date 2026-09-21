@@ -12,6 +12,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../design/design.dart';
 import 'router.dart';
@@ -23,12 +24,17 @@ class SmokeApp extends StatelessWidget {
     this.profile = SmokeProfile.standard,
     this.density = SmokeDensity.compact,
     this.reducedMotion = false,
+    this.router,
   });
 
   final ThemeMode themeMode;
   final SmokeProfile profile;
   final SmokeDensity density;
   final bool reducedMotion;
+
+  /// Overrides the shared [appRouter]. Tests pass a fresh router so navigation
+  /// does not leak between tests.
+  final GoRouter? router;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +54,7 @@ class SmokeApp extends StatelessWidget {
       theme: light,
       darkTheme: dark,
       themeMode: themeMode,
-      routerConfig: appRouter,
+      routerConfig: router ?? appRouter,
     );
   }
 }

@@ -35,3 +35,43 @@ drives scenario + screen + event from cold boot.
 
 Screens receive data **only** through providers from N2; the shell owns no
 business state.
+
+---
+
+## Hand-off
+
+**Status: done.** All N4.1–N4.11 landed. Gate: `make app.test` green (**229**
+tests, was 201); `flutter analyze` + format check clean; `dart test test/domain
+test/data` still 131.
+
+**What landed**
+- `app/lib/features/shell/` — `AppShell` chrome (status bar, app bar variants,
+  scroll host, bottom nav, overlay host, toast host) + `ShellScope`.
+- `go_router` table: 5 destinations plus `/settings/history` and
+  `/settings/history/:id`; named overlays as `?overlay=<name>&<props>` (all 19
+  `DevOverlay` values resolve to a sheet or modal).
+- `showSheet` / `showModalCard` framework; fullscreen graph host; toast;
+  scroll reset + per-overlay scroll preservation; dev panel mounted
+  (wide layout or debug FAB) and release-excluded.
+- Tests: `app/test/features/shell_test.dart` (23), `shell_router_test.dart`
+  (9); `app_shell` golden regenerated.
+
+**Deviations**
+- "`PhaseTrack`-prefixed phone frame" read as "`Shell…`-prefix the shell
+  widgets"; no `PhaseTrack` is part of the frame.
+- Status-bar clock is static (provider-pinned) to keep `pumpAndSettle` usable;
+  toast lifetime is 2.0 s (`SmokeMotion.pulse`) rather than the prototype's
+  2.2 s (no `Duration` literal allowed in `lib/features`).
+- Named overlays render **in-tree** inside the phone frame; `showSheet` /
+  `showModalCard` are root-Navigator wrappers for later ad-hoc flows.
+- Fullscreen graph state is local (callback), not URL-driven yet.
+- Overlay contents are placeholders naming the owning task; `HomePage` deleted.
+
+**Next tasks must know**
+- Any test pumping `AppShell`/`SmokeApp` must override
+  `shellPulseEnabledProvider` to false (and may pin `shellClockProvider`), or
+  use `pumpForGolden(..., settle: false)`.
+- `ShellScreen` (nav vocabulary, includes `cookDetail`) is separate from
+  `DevScreen`; use `ShellScope.of(context)` for overlay/toast/fullscreen and
+  the N2 providers for data.
+- Full details, real paths and commands are in `newui/PROGRESS.md` §T05.

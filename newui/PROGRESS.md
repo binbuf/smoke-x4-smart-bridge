@@ -145,3 +145,47 @@ Status: **done**. `flutter test` green (**201**, was 152); `flutter analyze` cle
 - Mount a single pulse controller (SmokePulseScope) beside the shell chrome.
 - Optionally keep `/design` behind a debug flag in release (N16).
 - N7 wires `SeriesLegend.onIsolate`; N5/N6 wire `TargetGauge`/`Sparkline`/`PhaseTrack` to real projections.
+
+## T05 — N4 Shell: phone chrome, bottom nav, overlay framework and fullscreen graph host
+
+Status: **done**. `make app.test` green (**229** tests; was 201); `flutter analyze` and format check clean; `dart test test/domain test/data` still green (131).
+
+**Real paths (all under `app/lib/features/shell/`)**
+- `shell.dart` — `AppShell` (the persistent chrome), `ShellScope`, `shellPulseEnabledProvider`, `shellClockProvider`, and the location helpers `baseLocation` / `overlayRequestFromLocation` / `locationWithOverlay`.
+- `shell_screen.dart` — `ShellScreen` (`live/temps/timeline/graph/settings/history/cookDetail`), `screenFromPath`, `pathForDevScreen`.
+- `phone_frame.dart` — `ShellPhoneFrame` (status bar + app area + overlay/toast hosts), `ShellStatusBar`, `ShellScrollHost` (resets on token change).
+- `bottom_nav.dart` — `ShellBottomNav`, `kShellNavItems`; `app_bar.dart` — `ShellAppBar`, `ShellIconButton`; `alerts_bell.dart` — `AlertsBell`; `transport_status.dart` — `TransportStatus.from(ConnectionState)`.
+- `overlay.dart` — `OverlayRequest`, `resolveOverlay`, `ShellSheet`, `ShellModalCard`, `ShellOverlayHost`, imperative `showSheet` / `showModalCard`.
+- `graph_host.dart` — `ShellFullscreenGraphHost`, `ShellFullscreenGraphPlaceholder`; `toast.dart` — `ShellToastController`, `ShellToastHost`; `destinations.dart` — the 7 placeholder destinations.
+- Router `app/lib/app/router.dart`: `createAppRouter()` + the shared `appRouter`; `SmokeApp` gained an optional `router` param for test isolation.
+- Tests `app/test/features/shell_test.dart` (23), `app/test/features/shell_router_test.dart` (9); `app/test/golden/app_shell_golden_test.dart` regenerated.
+
+**Commands that work (repo root)**
+- `make app.test` — analyze + format check + full `flutter test` (229 pass).
+- `cd app && flutter test test/features/shell_test.dart test/features/shell_router_test.dart`.
+- `cd app && dart test test/domain test/data` — unchanged data/domain gate (131).
+- `make app.golden` — regenerates the shell golden too.
+
+**Contract facts later tasks need**
+- **Overlays are URL query params.** Any destination accepts `?overlay=<DevOverlay.name>&<props>`; `AppShell` reads `GoRouterState.uri` (via the `location` prop) so a deep link and a tap produce the same surface. Dismiss strips the query. Helpers: `locationWithOverlay`, `overlayRequestFromLocation`, `baseLocation`.
+- **`AppShell` is controlled** (`location` + `onLocation`); tests use a harness, the router passes `context.go`. The shell holds no business state — it watches `snapshotProvider` only for the unacked count/transport chip.
+- **`ShellScreen` ≠ `DevScreen`.** `DevScreen` has no `cookDetail`; `ShellScreen` has both `history` and `cookDetail` (both highlight Settings in the nav). Routes: `/live /temps /timeline /graph /settings /settings/history /settings/history/:id`.
+- **The pulse controller IS mounted at the shell root** (N3's follow-up), driven by `shellPulseEnabledProvider`. It makes `pumpAndSettle` hang, so **any test that pumps `AppShell`/`SmokeApp` must override `shellPulseEnabledProvider` to false** (or use `pumpForGolden(..., settle: false)`). `shellClockProvider` pins the status-bar clock for goldens.
+- **Overlay framework is two mechanisms, one chrome.** Named overlays render in-tree via `ShellOverlayHost`; `showSheet`/`showModalCard` are imperative wrappers on the root Navigator for ad-hoc flows. All 19 `DevOverlay` values resolve (`resolveOverlay`); `adopt`, `editStart`, `confirm` are modals, the rest sheets. Contents are placeholders naming the owning task (N5/N6/N8/N9/N10/N11/N13/N14).
+- **`AppShell` dev branch** (debug only): wide (`≥700×500`) mounts `DevPanel` beside a 390-wide phone frame; narrow shows a floating `shell-dev-panel-button` that opens the panel in a bottom sheet. Release returns the chrome only. Existing `DevPanel` button labels omit `probe`/`alarmDetail`/`confirm`/`verb` (they need props); deep links can still open them (`?overlay=probe&jack=3`).
+- **N4.11**: `ShellScrollHost(resetToken: screen)` resets the destination scroll; `AppShell` keeps one `ScrollController` per overlay name and restores its offset on reopen (saved in `_closeOverlay`, jumped post-frame in `_openOverlay`).
+- **Fullscreen graph is local shell state** (`_fullGraph`), mounted above the overlay stack, dismissed by scrim tap or `shell-graph-exit`. It is **not** URL-driven yet — N7 owns the real chart.
+- `HomePage` (`lib/features/home/`) is deleted; `/live` is the initial route.
+
+**Deviations / gotchas**
+- The task's "`PhaseTrack`-prefixed phone frame" is read as "prefix the shell widgets (`Shell…`)"; `PhaseTrack` is a probe primitive (N3.21) and is not part of the frame. No `PhaseTrack` is used in the shell.
+- The status-bar clock is static (one `shellClockProvider` read, no ticker) — a repeating clock would break `pumpAndSettle`. The prototype ticks every second; cosmetic only.
+- Toast lifetimes use `SmokeMotion.pulse` (2.0 s) not the prototype's 2.2 s, because no `Duration` literal may appear outside `lib/design/`.
+- `showSheet`/`showModalCard` use the root Navigator, so in the wide debug preview they cover the dev panel too; named overlays stay inside the phone frame.
+- The `AppShell` wide branch constrains the frame to 390 wide / `min(844, height)`; the frame is the app, not a drawn bezel (no fake rounded bezel on a real device).
+
+**Follow-ups for later tasks**
+- N5–N13 replace the `destinations.dart` placeholders and the placeholder overlay bodies; keep using `ShellScope.of(context)` for overlay/toast/fullscreen and the N2 providers for data.
+- N7: wire the fullscreen graph host body and consider making fullscreen state URL-driven (`?fullscreen=1`).
+- N11: `AlertsBell` count already comes from `snapshot.alarms` unacked; ack wiring is N11's.
+- N16: consider gating `/design` behind a debug flag.
