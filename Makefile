@@ -29,6 +29,18 @@
 IDF_PY ?= idf.py
 PORT ?=
 
+# Tool wrappers. On Windows the Flutter SDK's extensionless shell scripts do
+# not execute under the make shell (they resolve to a `D:/…` path bash cannot
+# spawn); the `.bat` wrappers do, via cmd. `//c` is the msys spelling of
+# `cmd /c`. On POSIX hosts the bare binaries are used.
+ifeq ($(OS),Windows_NT)
+DART ?= cmd //c dart.bat
+FLUTTER ?= cmd //c flutter.bat
+else
+DART ?= dart
+FLUTTER ?= flutter
+endif
+
 # ESP-IDF v5.4 supports Python 3.9+ (no upper bound). Prefer Homebrew python@3.x
 # shims, then versioned python3.x binaries already on PATH.
 IDF_PYTHON_DIR := $(shell \
@@ -87,7 +99,8 @@ PORT_ARG := $(if $(PORT),-p $(PORT),)
 
 .PHONY: help check-python check-idf setup build flash flash-monitor monitor \
 	menuconfig test-host oled-preview sim clean clean-test \
-	doctor deploy-bridge deploy-app dist
+	doctor deploy-bridge deploy-app dist \
+	app.gen app.run app.test app.golden
 
 # help: Show available targets and usage
 help:
@@ -276,6 +289,30 @@ oled-preview:
 # sim: Run the fake bridge (tools/sim) serving an 18-hour cook on port 8080
 sim:
 	dart run sim --port 8080 --cook fixtures/brisket-18h.smk
+
+# --- Flutter app (newui rebuild at app/) ---
+#
+# The new app is standalone (not part of the root Dart pub workspace), so every
+# target cds into app/ first. `app.gen` must be rerun and its output committed
+# whenever an annotated model or provider changes; CI fails on stale codegen.
+
+# app.gen: Regenerate Dart code (freezed / json_serializable / riverpod)
+app.gen:
+	cd app && $(DART) run build_runner build
+
+# app.run: Run the new Flutter app on a connected device or emulator
+app.run:
+	cd app && $(FLUTTER) run
+
+# app.test: The local gate for the new app — analyze, format check, tests+goldens
+app.test:
+	cd app && $(FLUTTER) analyze
+	cd app && $(DART) format --output=none --set-exit-if-changed lib test
+	cd app && $(FLUTTER) test
+
+# app.golden: Regenerate the committed golden snapshots (review the diff!)
+app.golden:
+	cd app && $(FLUTTER) test --update-goldens test/golden
 
 # --- Clean ---
 
