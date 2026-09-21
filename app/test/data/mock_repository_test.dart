@@ -201,6 +201,49 @@ void main() {
       expect(probe.tempF10, 681); // idle jack 1 already reads 68.1°F
     });
 
+    test(
+      'setTarget is metadata only — no sample is rewritten (N6.13, I10)',
+      () async {
+        final repo = _repo();
+        addTearDown(repo.dispose);
+        final before = await repo.snapshot().first;
+        final beforeProbe = before.probes.firstWhere(
+          (p) => p.jack == ProbeJack.one,
+        );
+
+        await repo.setTarget(ProbeJack.one, 1950);
+        final after = await repo.snapshot().first;
+        final afterProbe = after.probes.firstWhere(
+          (p) => p.jack == ProbeJack.one,
+        );
+
+        expect(afterProbe.targetF10, 1950);
+        // Whole-muscle brisket: 195 °F target − 8 °F carryover, no floor.
+        expect(afterProbe.pullF10, 1870);
+        // The recorded reading, its history and every mark are untouched.
+        expect(afterProbe.tempF10, beforeProbe.tempF10);
+        expect(afterProbe.spark, beforeProbe.spark);
+        expect(afterProbe.peakF10, beforeProbe.peakF10);
+        expect(afterProbe.lowF10, beforeProbe.lowF10);
+        expect(afterProbe.avgF10, beforeProbe.avgF10);
+        expect(after.marks, before.marks);
+      },
+    );
+
+    test(
+      'probeRole("unused") clears the reading, never zeroes it (I3)',
+      () async {
+        final repo = _repo();
+        addTearDown(repo.dispose);
+        await repo.probeRole(ProbeJack.one, ProbeRole.unused);
+        final s = await repo.snapshot().first;
+        final probe = s.probes.firstWhere((p) => p.jack == ProbeJack.one);
+        expect(probe.role, ProbeRole.unused);
+        expect(probe.attached, isFalse);
+        expect(probe.tempF10, isNull);
+      },
+    );
+
     test('applyMode("sta") enters the connecting phase', () async {
       final repo = _repo('bt_only');
       addTearDown(repo.dispose);

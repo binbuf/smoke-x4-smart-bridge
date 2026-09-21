@@ -20,7 +20,9 @@ import 'package:flutter/material.dart';
 
 import '../../data/dev_panel.dart';
 import '../../design/design.dart';
+import '../../domain/domain.dart';
 import '../live/live_overlays.dart';
+import '../temps/probe_sheet.dart';
 import 'app_bar.dart';
 
 /// A named overlay request plus its string props.
@@ -173,7 +175,12 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     DevOverlay.probe => SheetOverlay(
       title: 'Probe ${request.props['jack'] ?? ''}'.trim(),
       sub: 'Jack details',
-      body: body('Roles, targets and the probe sheet land in N6.'),
+      bodyBuilder: (dismiss) => ProbeSheetBody(
+        jack:
+            ProbeJack.fromN(int.tryParse(request.props['jack'] ?? '') ?? 1) ??
+            ProbeJack.one,
+        onDone: dismiss,
+      ),
     ),
     DevOverlay.adopt => ModalOverlay(
       title: 'Adopt session',

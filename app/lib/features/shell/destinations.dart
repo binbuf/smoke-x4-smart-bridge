@@ -15,6 +15,7 @@ import '../../data/dev_panel.dart';
 import '../../data/providers.dart';
 import '../../design/design.dart';
 import '../live/live_page.dart';
+import '../temps/temps_page.dart';
 import 'phone_frame.dart';
 import 'shell.dart';
 import 'shell_screen.dart';
@@ -138,8 +139,7 @@ class TempsDestination extends StatelessWidget {
   const TempsDestination({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const DestinationPlaceholder(screen: ShellScreen.temps);
+  Widget build(BuildContext context) => const TempsPage();
 }
 
 /// Timeline destination (N8).

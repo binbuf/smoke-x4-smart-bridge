@@ -83,7 +83,12 @@ void main() {
       find.byKey(const ValueKey<String>('destination-graph')),
       findsOneWidget,
     );
-    expect(find.text('Probe 3'), findsOneWidget);
+    // The sheet title and the probe sheet's own header both name the jack.
+    expect(find.text('Probe 3'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey<String>('probe-sheet-body')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey<String>('shell-overlay-sheet')),
       findsOneWidget,
@@ -96,10 +101,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('shell-nav-temps')));
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const ValueKey<String>('destination-temps')),
-      findsOneWidget,
-    );
+    // N6 replaced the Temps placeholder with the real per-probe screen.
+    expect(find.byKey(const ValueKey<String>('temps-page')), findsOneWidget);
     expect(find.text('Temperatures'), findsWidgets);
     final title = tester.widget<Text>(
       find.byKey(const ValueKey<String>('shell-appbar-title')),
@@ -176,8 +179,9 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    // Fullscreen is raised from the destination shells (Live owns no toggle).
-    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-temps')));
+    // Fullscreen is raised from the placeholder destination shells (Live owns
+    // no toggle; Temps became a real screen in N6).
+    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-graph')));
     await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey<String>('destination-fullscreen')),
@@ -199,15 +203,15 @@ void main() {
   testWidgets('a destination can raise a toast', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-temps')));
+    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-graph')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey<String>('destination-toast')));
     await tester.pump();
-    expect(find.text('Hello from Temperatures'), findsOneWidget);
+    expect(find.text('Hello from Graph'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
-    expect(find.text('Hello from Temperatures'), findsNothing);
+    expect(find.text('Hello from Graph'), findsNothing);
   });
 
   testWidgets('the dev panel drives screen and overlay', (tester) async {

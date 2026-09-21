@@ -228,3 +228,38 @@ Status: **done**. `flutter test` green (**256**; was 229); `flutter analyze` cle
 - N11: `DevOverlay.alarmDetail` body (Live opens it with `id`/`tier`); ack + ack-all already work against the repo.
 - N15: implement the three new repo methods and resolve `MarkKind.spritz`/`turn` against the wire.
 - N16: consider adding Live goldens for `idle`/`existing`/`offline` (only `running` is pinned today, via `app_shell`).
+
+## T07 — N6 Temps: per-probe cards, probe sheet, roles/targets, detached handling
+
+Status: **done**. `make app.test` green (**302** tests; was 256); `dart test test/domain test/data` green (**136**; was 134). Temps is a real destination.
+
+**Real paths**
+- `app/lib/features/temps/` — `temps_page.dart` (`TempsPage`), `temp_card.dart` (`TempCard`), `probe_sheet.dart` (`ProbeSheetBody`), `temps_format.dart` (pure), barrel `temps.dart`.
+- `app/lib/features/shell/destinations.dart` — `TempsDestination` → `const TempsPage()`.
+- `app/lib/features/shell/overlay.dart` — `DevOverlay.probe` → `ProbeSheetBody` via `bodyBuilder` (jack from the `jack` prop, default 1).
+- Tests `app/test/features/temps_test.dart` (19), `app/test/features/temps_format_test.dart` (24), `app/test/golden/temps_golden_test.dart` + `app/test/golden/goldens/temps.golden.txt`; 2 new repo tests in `app/test/data/mock_repository_test.dart`.
+
+**Commands that work**
+- `make app.test` — analyze + format + full `flutter test` (302 pass).
+- `cd app && flutter test test/features/temps_test.dart test/features/temps_format_test.dart` — N6 gate (43 pass).
+- `cd app && dart test test/domain test/data` — data/domain gate (136 pass).
+- `make app.golden` regenerates `temps.golden.txt` too.
+
+**Contract facts later tasks need**
+- Pure helpers in `temps_format.dart`: `attachedProbes`/`detachedProbes` (attached **and** role != unused vs not), `probeFor`, `cookEntryFor`, `updatedWord`, `probeFreshnessWord`, `kProbePhases`, `probePhaseIndex`, `trendFor`, `fmtTempUnit`, `tempMetaCells`, `pullForDoneness`, `selectedDoneness`.
+- Keys: `temps-page`, `temps-attached-count`/`temps-unit-toggle`, `temps-card-<jack>`, `temps-temp-<jack>` (Text.rich), `temps-fresh-<jack>`, `temps-progress-<jack>`, `temps-meta-<label-slug>-<jack>`, `temps-detached-<jack>`/`temps-detached-role-<jack>`, `temps-empty`; sheet `probe-sheet-*` (`body/header/name/sub/temp/spark/phase/stats/roles/doneness/pull-notice/set-target`), `probe-share`.
+- Editors call `repo.probeRole` / `repo.setTarget`; "Set a target" opens `DevOverlay.setup` with `context=edit` + `jack=N`.
+
+**Deviations / gotchas**
+- **`probeRole(unused)` clears `attached`/`temp` (N2)**, so a re-roled jack reads `Unplugged` on Live and moves to Temps' "Not attached" (I3 wins over the role word).
+- I4 gate is `Freshness.showsDerived` (live **or** aging), not the prototype's `=== 'live'`.
+- `probeFreshnessWord`: `frozen → "Stale"`, `stale → "—"` (prototype-exact). Trend labels are always `° F/hr`; temperatures and the pit band do convert with the unit toggle.
+- `Test alarm` / `Share this probe` only toast (no repo method): N11/N12 own the real ones. I12's refusal lives in N9; N6 offers the preset ladder and a floor-clamped `pullTempFor` notice.
+- `PhaseTrack` is prototype-exact: target crossing → `Ready`, so `Resting` is never current; with `pull == target`, `Pull now` is unreachable.
+- `shell_router_test.dart` updated: fullscreen/toast now use the Graph placeholder; the Temps nav test asserts `temps-page`; the probe deep link expects two "Probe 3" texts.
+
+**Follow-ups**
+- N7: real chart (the sheet spark is the N3 `Sparkline`).
+- N9: honour `context=edit` + `jack` from "Set a target".
+- N11: `DevOverlay.alarmDetail` + real test alarm. N12: share/export.
+- N16: add Temps goldens for `idle`/`offline` (only `running` pinned).
