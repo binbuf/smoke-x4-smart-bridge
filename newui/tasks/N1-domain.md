@@ -52,3 +52,55 @@ stale removes ETA, poultry carryover zero, unsafe target throws, ETA refusals).
 ## Must-not-regress
 
 I3, I4, I11, I12 and the carryover rule — each pinned by a test that names it.
+
+---
+
+## Hand-off
+
+**Status: done.** All 19 sub-tasks are implemented as pure Dart under `app/lib/domain/`
+(barrel `app/lib/domain/domain.dart`), with a new test suite in `app/test/domain/`.
+
+**What landed**
+- N1.1 `units/temp_value.dart` — `TempValue`/`TempUnit`, tenths-°F storage, `toDisplay`
+  conversion only, `72.4° F` / `22.4° C`, both wire sentinels fold to absent.
+- N1.2 `entities/probe.dart` — `ProbeJack` (1–4), `ProbeRole`, jack-4-is-pit default, `Probe`.
+- N1.3 `entities/freshness.dart` — live/aging/stale/frozen (+ `unknown`), `showsDerived`,
+  `canShowDerived`, `isDim`.
+- N1.4 `entities/probe_reading.dart` — freezed `ProbeReading`; every living value nullable.
+- N1.5 `plan/hazard.dart` — `HazardClass`, `SafetyMode`, `SafetyFloor.forClass`.
+- N1.6 `plan/presets.dart` — `Doneness`/`DonenessLadder`/`CookPreset`, medium-rare red-meat default.
+- N1.7 `carryoverFor`/`pullTempFor`/`restSecondsFor` — thickness-based, floor-clamped, poultry zero.
+- N1.8 `plan/cook_style.dart`, N1.9 `plan/cook_timeline.dart` — records with JSON round-trip.
+- N1.10–N1.13 `analysis/rate_of_change.dart`, `eta.dart`, `stall.dart`, `cook_stats.dart`.
+- N1.14 `analysis/lttb.dart`, `chart_series.dart` — split runs before decimation, envelope.
+- N1.15 `plan/cook_phase.dart`, N1.16 `plan/cook_plan.dart`, N1.17 `plan/cook_annotation.dart`.
+- N1.18 `entities/gap.dart`, N1.19 `situation/situation.dart`.
+
+**Verification (real commands, real results)**
+- `cd app && dart test test/domain` → `00:01 +87: All tests passed!`
+- `make app.test` (repo root) → analyze clean, format clean, `00:01 +100: All tests passed!`
+- CI's purity grep holds: `app/lib/domain/` imports nothing from `package:flutter`/`dart:ui`.
+
+Named failure tests present: absent ≠ zero, stale removes derived values, poultry carryover zero,
+unsafe target throws (and `fromJson` drops a now-unsafe plan), and the five named ETA refusals.
+
+**Deviations from the plan, and why**
+1. **Test runner.** The exit gate names `dart test test/domain`, but `dart test` cannot compile
+   files importing `flutter_test`. I added `test: ^1.31.0` as a direct dev dependency and made
+   every `app/test/domain/*` file use `package:test`; `flutter test` still runs them (100 total).
+   The N0.6 placeholder `temperature_reading` model/test was deleted as the task directed.
+2. **Naming.** `ProbeJack` is an enum rather than a bare `int`, and
+   `carryoverFor({hazard, thickness})` takes named params rather than a "cut" object. Behaviour
+   matches `app.old/lib/domain`.
+3. **`CookPlan.fromJson` hazard fallback** is `unstated` (160 °F floor), not the legacy
+   `wholeMuscleRedMeat`; this closes the fallback inconsistency noted in the research notes.
+4. **`Freshness.unknown`** was added beyond the four-rung ladder for "no reading at all".
+
+**What the next task (T03 / N2 data and mocks) must know**
+- N1 ships models and engines only — **no catalog, timeline or style tables**. N2 owns
+  `Presets.all`, the per-cut `CookTimeline` table, the per-cut `CookStyle` table and the scenarios,
+  and should build them as `CookPreset` / `CookTimeline` / `CookStyle` instances keyed by preset id.
+- After editing any `@freezed` model, run `make app.gen` and commit the generated file; CI runs
+  `dart run build_runner build` then `git diff --exit-code -- lib`.
+- Any new test under `test/domain/` that the `dart test` gate should run must import
+  `package:test`, not `flutter_test`.

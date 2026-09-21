@@ -5,7 +5,7 @@ library;
 
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 final RegExp _flutterImport = RegExp(
   r'''import\s+['"](package:flutter(?:/[^'"]*)?|dart:ui)['"]''',

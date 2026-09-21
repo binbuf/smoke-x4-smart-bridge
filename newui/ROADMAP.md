@@ -13,7 +13,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 ## Wave 1 — Foundations
 
 - [x] T01 — N0 Foundations: Flutter app skeleton, package set, lint/CI and golden harness → [tasks/N0-foundations.md](tasks/N0-foundations.md)
-- [ ] T02 — N1 Domain: entities, units, freshness, food safety and analysis engines → [tasks/N1-domain.md](tasks/N1-domain.md)
+- [x] T02 — N1 Domain: entities, units, freshness, food safety and analysis engines → [tasks/N1-domain.md](tasks/N1-domain.md)
 - [ ] T03 — N2 Data and mocks: catalog/style/timeline tables, scenarios, mock repository → [tasks/N2-data-and-mocks.md](tasks/N2-data-and-mocks.md)
 - [ ] T04 — N3 Design system: tokens, typography, icons and component primitives → [tasks/N3-design-system.md](tasks/N3-design-system.md)
 

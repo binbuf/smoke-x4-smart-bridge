@@ -35,3 +35,38 @@ Status: done. `make app.test` green (15 tests); `flutter analyze` clean; `flutte
 - Never import from `app.old/lib`.
 - Placeholder route is `lib/features/home/home_page.dart` wired by `lib/app/router.dart` (go_router); N4 replaces it.
 - `lib/design/theme.dart` is a minimal dark theme only. N3's token naming question (Q1: `N0` Tailwind-style vs legacy `SmokeTokens`) is still open.
+
+## T02 — N1 Domain: entities, units, freshness, food safety and analysis engines
+
+Status: done. `dart test test/domain` green (87 tests). `make app.test` green (100 tests total, analyze + format check + `flutter test`).
+
+**Real paths (all under `app/lib/domain/`, pure Dart, barrel `domain.dart`)**
+- `units/temp_value.dart` — `TempValue`, `TempUnit`, `c10ToF10`/`f10ToC10`, sentinels.
+- `entities/` — `probe.dart` (`ProbeJack` 1–4, `ProbeRole`, `Probe` config), `freshness.dart`, `sample.dart` (`Sample.tempsF10`, nullable `unixMs`), `mark.dart`, `gap.dart` (`GapReason`, `RecordedGap`, `findGaps`, `detectRollover`, `detectConnectivityGaps`), `probe_reading.dart` (the only `@freezed` model; generated `.freezed.dart` committed).
+- `plan/` — `hazard.dart` (`HazardClass`/`SafetyMode`/`SafetyFloor`), `presets.dart` (`CutThickness`, `Doneness`, `DonenessLadder`, `CookPreset`, `carryoverFor`, `pullTempFor`, `restSecondsFor`), `cook_style.dart`, `cook_timeline.dart` (`MinuteRange`/`StallWindow`/`WrapStep`/`TurnStep`/`CookPhaseSpec`/`CookTimeline`), `cook_phase.dart`, `cook_plan.dart`, `cook_annotation.dart`.
+- `analysis/` — `series.dart` (`TempPoint`/`ValuePoint`/`OlsFit`/`olsFit`/`windowedValid`), `rate_of_change.dart`, `eta.dart`, `stall.dart`, `cook_stats.dart`, `lttb.dart`, `chart_series.dart`.
+- `situation/situation.dart` (`SituationFacts`/`reconcile`/`Situation`).
+
+**Test tooling (deviation from T01, deliberate)**
+- Added `test: ^1.31.0` as a direct dev dependency. All `app/test/domain/*` tests import `package:test/test.dart` (not `flutter_test`) so the task's named gate `dart test test/domain` actually compiles and runs. `flutter test` still runs them (100 tests). **Any future test that `dart test` must run cannot import `flutter_test`.**
+- Deleted the N0.6 placeholder `lib/domain/models/temperature_reading.dart` (+ `.freezed.dart`, `.g.dart`, its test) as the task directed; `ProbeReading` is now the codegen smoke. Run `make app.gen` after touching a `@freezed` model.
+
+**Commands that work (repo root)**
+- `cd app && dart test test/domain` — the N1 exit gate (87 pass).
+- `make app.test` — analyze + format check + full `flutter test`.
+- `make app.gen` — regenerate freezed (`ProbeReading` only in domain).
+
+**Contract deviations / decisions (N2+ must know)**
+- `ProbeJack` is an enum, not an `int`; `Sample.tempsF10` keeps jack order (index 0 = jack 1) and `probeValue(sample, ProbeJack)` is the accessor. `ProbeRole.defaultFor(jack)` = `pit` for jack 4, `unused` otherwise.
+- `carryoverFor({hazard, thickness})` and `pullTempFor({targetF10, carryoverF10, hazard, isIntact, mode})` take named params rather than a preset/cut object.
+- `Freshness` has a fifth member `unknown` (no reading) beyond the four-rung ladder. `showsDerived` plus the alias `canShowDerived` are the I4 gate.
+- `CookTimeline` JSON keys are snake_case (`total_min`, `spritz_every_min`, `rest_min`, `phases`, …) and its sub-records have `toJson`/`fromJson`; N2's timeline table can serialise straight into it.
+- `CookPlan.fromJson` defaults an unknown hazard to `unstated` (160 °F floor), not the legacy `wholeMuscleRedMeat`, fixing the documented fallback inconsistency. Consequence: a stored plan that omits hazard and targets under 160 °F is dropped on load.
+- `CookStyle`/`CookTimeline` are models only — **no catalog tables**. N2 owns `Presets.all`, `CookTimeline` per cut, `CookStyle` per cut and the scenarios.
+- ETA/rate/stall operate on `int` session-seconds and `TempPoint = ({int t, double? f})`. Cook stats take `List<Sample>` + `Probe` configs + `Mark`s.
+- `CookPlan.copyWith` re-runs the safety gate; `CookAnnotation.toPlan()` likewise.
+
+**Gotchas**
+- Generated files are committed and CI freshness-checks `git diff --exit-code -- lib`; always run `make app.gen` before committing model changes.
+- `app/lib/domain/` must stay free of `package:flutter` and `dart:ui` (`domain_purity_test.dart` + CI grep). `package:meta` is allowed.
+- `app.js` §4 approximates carryover/pull; N1 uses the real `SafetyFloor`-clamped values per NOTES §3.4, so prototype numbers may differ by a degree at the floor.
