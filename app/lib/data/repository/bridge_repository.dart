@@ -143,6 +143,29 @@ abstract interface class BridgeRepository {
   /// Acknowledge one alarm.
   Future<void> ackAlarm(String alarmId);
 
+  /// N11.8 — snooze an alarm's *notifications* for [minutes]. The alarm stays
+  /// raised and unacknowledged: the device owns alarm state, so this is an
+  /// app-side delivery suppression only (never a resolve, I2).
+  Future<void> snoozeAlarm(String alarmId, {int minutes = 10});
+
+  /// N11.3 — raise a test alarm so the user can prove delivery works. App-tier
+  /// and critical so it bypasses quiet hours; it is a real alarm row and can be
+  /// acknowledged like any other.
+  Future<void> sendTestAlarm();
+
+  /// N11.4/N11.16 — enable or disable an alarm rule.
+  ///
+  /// A device rule is a *request* mirrored to the bridge (the device remains
+  /// authoritative, I2); an app rule is app-side. Both are data in the mock.
+  Future<void> setAlarmRuleEnabled(String ruleId, bool enabled);
+
+  /// N11.16 — create or update an **app-tier** rule. Device rules are toggled,
+  /// never invented.
+  Future<void> saveAppAlarmRule(AlarmRule rule);
+
+  /// N11.16 — delete an app-tier rule.
+  Future<void> deleteAppAlarmRule(String ruleId);
+
   /// Re-role a jack.
   Future<void> probeRole(ProbeJack jack, ProbeRole role);
 

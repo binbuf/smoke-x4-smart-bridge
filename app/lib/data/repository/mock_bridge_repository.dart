@@ -8,6 +8,7 @@ library;
 import 'dart:async';
 
 import '../../domain/domain.dart';
+import '../alarms/notification_policy.dart';
 import '../content/catalog.dart';
 import '../content/fixtures_data.dart';
 import '../content/scenarios.dart';
@@ -49,6 +50,7 @@ class MockBridgeRepository implements BridgeRepository {
   late BridgeSnapshot _snapshot;
   late List<HistoryEntry> _history;
   DeviceInfo _deviceFixture = kDevice;
+  late List<AlarmRule> _alarmRules = List<AlarmRule>.of(kAlarmRules);
 
   final StreamController<BridgeSnapshot> _snapshotController =
       StreamController<BridgeSnapshot>.broadcast();
@@ -82,7 +84,7 @@ class MockBridgeRepository implements BridgeRepository {
   List<ConnectionMode> get connectionModes => kConnectionModes;
 
   @override
-  List<AlarmRule> get alarmRules => kAlarmRules;
+  List<AlarmRule> get alarmRules => List<AlarmRule>.unmodifiable(_alarmRules);
 
   @override
   List<MockEventSpec> get mockEvents => kMockEvents;
@@ -139,17 +141,16 @@ class MockBridgeRepository implements BridgeRepository {
   @override
   Future<void> disconnect() async {
     final c = _snapshot.connection;
-    _set(
-      _snapshot.copyWith(
-        connection: c.copyWith(
-          phase: ConnectionPhase.offline,
-          error: null,
-          primary: null,
-          bt: c.bt.copyWith(connected: false, bars: 0, warm: false),
-          wifi: c.wifi.copyWith(connected: false, bars: 0),
-        ),
+    final next = _snapshot.copyWith(
+      connection: c.copyWith(
+        phase: ConnectionPhase.offline,
+        error: null,
+        primary: null,
+        bt: c.bt.copyWith(connected: false, bars: 0, warm: false),
+        wifi: c.wifi.copyWith(connected: false, bars: 0),
       ),
     );
+    _set(_withUnreachableInsight(next));
   }
 
   @override
@@ -522,6 +523,81 @@ class MockBridgeRepository implements BridgeRepository {
   }
 
   @override
+  Future<void> snoozeAlarm(String alarmId, {int minutes = 10}) async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final until = snoozeUntilMs(nowMs: nowMs, minutes: minutes);
+    _set(
+      _snapshot.copyWith(
+        alarms: [
+          for (final a in _snapshot.alarms)
+            if (a.id == alarmId) a.copyWith(snoozedUntilMs: until) else a,
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> sendTestAlarm() async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    _set(
+      _snapshot.copyWith(
+        alarms: [
+          ..._snapshot.alarms,
+          Alarm(
+            id: 'test_alarm_$nowMs',
+            // The app raised this, so it is an Insight — not a device decision.
+            tier: AlarmTier.app,
+            severity: AlarmSeverity.critical,
+            rule: 'Test alarm',
+            detail: 'A test from this phone. Delivery is working.',
+            atMs: nowMs,
+            ruleId: 'test_alarm',
+            trigger: 'Sent from Alerts',
+            suggestion: 'Nothing to do — this one is just a rehearsal.',
+            sessionScoped: false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> setAlarmRuleEnabled(String ruleId, bool enabled) async {
+    _alarmRules = [
+      for (final rule in _alarmRules)
+        if (rule.id == ruleId) rule.copyWith(enabled: enabled) else rule,
+    ];
+    // Nudge the snapshot stream so watchers re-read `alarmRules` alongside the
+    // snapshot even though no alarm row changed.
+    _set(_snapshot.copyWith());
+  }
+
+  @override
+  Future<void> saveAppAlarmRule(AlarmRule rule) async {
+    if (rule.tier != AlarmTier.app) {
+      // Device rules are toggled, never invented (N11.16, I2).
+      return;
+    }
+    final exists = _alarmRules.any((r) => r.id == rule.id);
+    _alarmRules = exists
+        ? [
+            for (final r in _alarmRules)
+              if (r.id == rule.id) rule else r,
+          ]
+        : [..._alarmRules, rule];
+    _set(_snapshot.copyWith());
+  }
+
+  @override
+  Future<void> deleteAppAlarmRule(String ruleId) async {
+    _alarmRules = [
+      for (final r in _alarmRules)
+        if (!(r.id == ruleId && r.tier == AlarmTier.app)) r,
+    ];
+    _set(_snapshot.copyWith());
+  }
+
+  @override
   Future<void> probeRole(ProbeJack jack, ProbeRole role) async {
     var probe = _probeAt(_snapshot.probes, jack).copyWith(role: role);
     if (role == ProbeRole.unused) {
@@ -752,15 +828,17 @@ class MockBridgeRepository implements BridgeRepository {
             ? (c.wifi.connected ? LinkPrimary.wifi : null)
             : c.primary;
         _set(
-          _snapshot.copyWith(
-            connection: c.copyWith(
-              phase: primary == null ? ConnectionPhase.offline : c.phase,
-              primary: primary,
-              bt: c.bt.copyWith(
-                connected: false,
-                bars: 0,
-                lastSyncS: 60,
-                warm: false,
+          _withUnreachableInsight(
+            _snapshot.copyWith(
+              connection: c.copyWith(
+                phase: primary == null ? ConnectionPhase.offline : c.phase,
+                primary: primary,
+                bt: c.bt.copyWith(
+                  connected: false,
+                  bars: 0,
+                  lastSyncS: 60,
+                  warm: false,
+                ),
               ),
             ),
           ),
@@ -946,6 +1024,39 @@ class MockBridgeRepository implements BridgeRepository {
   }
 
   // ── internals ─────────────────────────────────────────────────────────
+
+  /// N11.15 — when the link drops mid-cook, the app raises its own advisory
+  /// `bridge_unreachable` insight. It never touches a device alarm (I2); it is
+  /// raised at most once while the link stays down.
+  BridgeSnapshot _withUnreachableInsight(BridgeSnapshot s) {
+    final activeCook = s.cook.active;
+    final down = s.connection.phase == ConnectionPhase.offline;
+    if (!activeCook || !down) {
+      return s;
+    }
+    if (s.alarms.any((a) => a.ruleId == 'bridge_unreachable' && !a.acked)) {
+      return s;
+    }
+    return s.copyWith(
+      alarms: [
+        ...s.alarms,
+        Alarm(
+          id: 'bridge_unreachable_${DateTime.now().millisecondsSinceEpoch}',
+          tier: AlarmTier.app,
+          severity: AlarmSeverity.warning,
+          rule: 'Bridge unreachable',
+          detail:
+              'No data from the bridge. It is still recording — the gap '
+              'fills in when it reconnects.',
+          atMs: DateTime.now().millisecondsSinceEpoch,
+          sessionScoped: false,
+          ruleId: 'bridge_unreachable',
+          trigger: 'Link dropped during a cook',
+          suggestion: 'Move closer, or re-sync when you can.',
+        ),
+      ],
+    );
+  }
 
   ProbeState _probeAt(List<ProbeState> probes, ProbeJack jack) {
     for (final p in probes) {

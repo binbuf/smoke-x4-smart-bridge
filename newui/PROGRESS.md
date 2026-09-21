@@ -419,4 +419,72 @@ Status: **done**. `make app.test` green (**451**; N10 adds 42 — 17 pure + 21 w
 - N15: implement the four new repository methods on the real transport; keep the password out of storage.
 - N16: consider connect-sheet/reference goldens per scenario (none exist).
 
+## T12 — N11 Alarms and monitoring: strip/sheet/detail, two tiers, rules, delivery, quiet hours
+
+Status: **done**. `flutter test` green (**502**; N11 adds 51 — 35 pure + 12 widget
++ 4 repo); `flutter analyze` and format check clean; `dart test test/domain
+test/data` green (**169**, was 143). No golden changed.
+
+**Real paths**
+- `app/lib/data/alarms/notification_policy.dart` — pure `planNotifications()`,
+  `NotificationChannel` (4), `AppFinding` (6), `QuietHours`, `PendingNotification`,
+  `NotificationPlan`, `channelFor`, `alarmTitle`, `findingTitle/Body`,
+  `escalationRung`, `kEscalateToRepeat` (5 min), `kEscalateToFullScreen` (10 min),
+  `orderedActiveAlarms`, `isActiveAlarm`, `severityRank`, `snoozeUntilMs`,
+  `kMaxSnoozeMinutes`.
+- `app/lib/features/alarms/` — `alarms_sheet.dart` (`AlarmsSheetBody`,
+  `alarmsNowProvider`), `alarm_detail_sheet.dart` (`AlarmDetailSheetBody`),
+  `alarms_format.dart` (`deliveryVerdict`, `deviceRules`/`appRules`,
+  `deriveFindings`, `severityWord`/`tierWord`, `agoWord`/`firedLine`,
+  `whyFiredRows`, `ruleIsEditable`), barrel `alarms.dart`.
+- `shell/overlay.dart` resolves `alarms` + `alarmDetail` to the real bodies
+  (`alarmDetail` reads `props['id']`).
+- Tests `app/test/data/notification_policy_test.dart` (pure, `package:test`),
+  `app/test/features/alarms_format_test.dart` (pure), `app/test/features/alarms_test.dart`
+  (12 widgets), 4 repo tests in `app/test/data/mock_repository_test.dart`.
+
+**Commands that work**
+- `make app.test` — the N11 gate (analyze + format + `flutter test`, 502 pass).
+- `cd app && flutter test test/features/alarms_test.dart` — 12.
+- `cd app && dart test test/data/notification_policy_test.dart test/features/alarms_format_test.dart` — 35.
+- `cd app && dart test test/domain test/data` — data/domain gate (169).
+
+**Contract facts later tasks need**
+- **`BridgeRepository` gained five methods** (mock implemented; N15 must implement
+  on the real transport / persist app rules): `snoozeAlarm(id, {minutes=10})`,
+  `sendTestAlarm()`, `setAlarmRuleEnabled(id, enabled)`,
+  `saveAppAlarmRule(AlarmRule)` (app-tier only; a device rule is refused),
+  `deleteAppAlarmRule(id)`. `alarmRules` is now a mutable mock list (still 9+3).
+- **`Alarm` gained `snoozedUntilMs`** (`snoozedAt(nowMs)`, JSON `snoozed_until_ms`).
+  A snooze is app-side delivery only: the alarm stays raised and unacked.
+- **N11.10 interpretation**: `preferManualAlarm` silences a *non-critical* device
+  alarm's notification while an app insight/alarm is active; critical never
+  defers and the list is unchanged (I2). Pinned by tests.
+- **N11.15**: `MockBridgeRepository.disconnect()` (and `ble-dropped` → offline)
+  appends a `bridge_unreachable` app insight once per down-link while a cook is
+  active.
+- The policy lives in `lib/data/alarms/` (not `lib/domain/`) because it reasons
+  over the data-layer `Alarm`; it is Flutter-free and in the `dart test` gate.
+- Q4 resolved: pause is display-only; `planNotifications` reads only alarms + the
+  wall clock.
+
+**Deviations / gotchas**
+- `AlarmTier` exists in both `data/model/alarm.dart` and `design/atoms.dart`;
+  feature/test files must alias or `hide` one.
+- `alarmsNowProvider` pins the sheet's relative times — override it in any test
+  that settles the sheet.
+- The alarms sheet renders inside the shell `ShellSheet` scroll view; widget tests
+  wrap it in a `SingleChildScrollView` and `ensureVisible` the lower toggles.
+- The `alarms` overlay sub copy is `From the bridge and insights from the app,
+  kept separate` (the prototype's).
+
+**Follow-ups**
+- N13: the Settings tree's alarms section (N13.4) should reuse this preference +
+  rule surface; the same `preferManualAlarm`/`quietHours`/`monitoring` settings.
+- N15: implement the five repo methods on the real transport; persist app rules;
+  build the Android foreground service + the ongoing notification (N11.14's real
+  half). The four channels are already a closed enum.
+- N16: consider an alarms-sheet golden; no golden renders an overlay today.
+
+
 

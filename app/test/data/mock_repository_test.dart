@@ -137,6 +137,118 @@ void main() {
       expect(s.alarms.single.acked, isTrue);
     });
 
+    test('N11.8 snoozeAlarm silences without acknowledging', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      await repo.snoozeAlarm('pit_crash');
+      final a = repo.current.alarms.firstWhere((x) => x.id == 'pit_crash');
+      expect(a.acked, isFalse);
+      expect(a.snoozedUntilMs, isNotNull);
+
+      // The next alarm is untouched.
+      final other = repo.current.alarms.firstWhere((x) => x.id == 'eta_soon');
+      expect(other.snoozedUntilMs, isNull);
+    });
+
+    test('N11.3 sendTestAlarm adds a critical app alarm', () async {
+      final repo = _repo('idle');
+      addTearDown(repo.dispose);
+      final before = repo.current.alarms.length;
+      await repo.sendTestAlarm();
+      final alarms = repo.current.alarms;
+      expect(alarms, hasLength(before + 1));
+      final test = alarms.last;
+      expect(test.ruleId, 'test_alarm');
+      expect(test.tier, AlarmTier.app);
+      expect(test.severity, AlarmSeverity.critical);
+    });
+
+    test('N11.4/N11.16 rule toggles and the app-rule editor', () async {
+      final repo = _repo('idle');
+      addTearDown(repo.dispose);
+      expect(repo.alarmRules, hasLength(12));
+
+      await repo.setAlarmRuleEnabled('target_reached', false);
+      expect(
+        repo.alarmRules.firstWhere((r) => r.id == 'target_reached').enabled,
+        isFalse,
+      );
+
+      // A device rule cannot be invented (I2): save refuses a non-app tier.
+      await repo.saveAppAlarmRule(
+        const AlarmRule(
+          id: 'sneaky',
+          tier: AlarmTier.device,
+          name: 'Sneaky device rule',
+          desc: 'nope',
+          severity: AlarmSeverity.critical,
+          scope: AlarmScope.device,
+        ),
+      );
+      expect(repo.alarmRules.any((r) => r.id == 'sneaky'), isFalse);
+
+      await repo.saveAppAlarmRule(
+        const AlarmRule(
+          id: 'sauce_split',
+          tier: AlarmTier.app,
+          name: 'Sauce split',
+          desc: 'Insight added on this phone.',
+          severity: AlarmSeverity.info,
+          scope: AlarmScope.perProbe,
+        ),
+      );
+      expect(
+        repo.alarmRules.where((r) => r.tier == AlarmTier.app),
+        hasLength(4),
+      );
+
+      await repo.saveAppAlarmRule(
+        const AlarmRule(
+          id: 'sauce_split',
+          tier: AlarmTier.app,
+          name: 'Sauce split (edited)',
+          desc: 'Insight added on this phone.',
+          severity: AlarmSeverity.warning,
+          scope: AlarmScope.perProbe,
+        ),
+      );
+      expect(
+        repo.alarmRules.firstWhere((r) => r.id == 'sauce_split').name,
+        'Sauce split (edited)',
+      );
+
+      await repo.deleteAppAlarmRule('sauce_split');
+      expect(
+        repo.alarmRules.where((r) => r.tier == AlarmTier.app),
+        hasLength(3),
+      );
+      // The nine device rules survive an app-rule edit.
+      expect(
+        repo.alarmRules.where((r) => r.tier == AlarmTier.device),
+        hasLength(9),
+      );
+    });
+
+    test('N11.15 disconnect mid-cook raises bridge_unreachable once', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      await repo.disconnect();
+      final first = repo.current.alarms
+          .where((a) => a.ruleId == 'bridge_unreachable')
+          .toList();
+      expect(first, hasLength(1));
+      expect(first.single.tier, AlarmTier.app);
+
+      // A second drop does not stack another insight.
+      await repo.disconnect();
+      expect(
+        repo.current.alarms
+            .where((a) => a.ruleId == 'bridge_unreachable')
+            .length,
+        1,
+      );
+    });
+
     test('adoptSession clears the pending session and starts a cook', () async {
       final repo = _repo('existing');
       addTearDown(repo.dispose);

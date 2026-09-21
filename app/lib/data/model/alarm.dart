@@ -25,6 +25,7 @@ class Alarm {
     required this.ruleId,
     this.trigger = '',
     this.suggestion = '',
+    this.snoozedUntilMs,
   });
 
   final String id;
@@ -43,7 +44,16 @@ class Alarm {
   final String trigger;
   final String suggestion;
 
-  Alarm copyWith({bool? acked}) => Alarm(
+  /// N11.8 — app-side notification snooze. A snoozed alarm stays raised and
+  /// unacknowledged (it is not resolved); the phone simply stops re-notifying
+  /// until this instant. The device knows nothing about it (I2).
+  final int? snoozedUntilMs;
+
+  /// Whether the app is currently suppressing the notification for this alarm.
+  bool snoozedAt(int nowMs) =>
+      snoozedUntilMs != null && snoozedUntilMs! > nowMs;
+
+  Alarm copyWith({bool? acked, int? snoozedUntilMs}) => Alarm(
     id: id,
     tier: tier,
     severity: severity,
@@ -56,6 +66,7 @@ class Alarm {
     ruleId: ruleId,
     trigger: trigger,
     suggestion: suggestion,
+    snoozedUntilMs: snoozedUntilMs ?? this.snoozedUntilMs,
   );
 
   Map<String, Object?> toJson() => {
@@ -71,6 +82,7 @@ class Alarm {
     'rule_id': ruleId,
     'trigger': trigger,
     'suggestion': suggestion,
+    if (snoozedUntilMs != null) 'snoozed_until_ms': snoozedUntilMs,
   };
 
   static Alarm fromJson(Map<String, Object?> j) => Alarm(
@@ -92,5 +104,6 @@ class Alarm {
     ruleId: j['rule_id'] as String? ?? '',
     trigger: j['trigger'] as String? ?? '',
     suggestion: j['suggestion'] as String? ?? '',
+    snoozedUntilMs: (j['snoozed_until_ms'] as num?)?.toInt(),
   );
 }

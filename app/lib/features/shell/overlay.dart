@@ -21,6 +21,8 @@ import 'package:flutter/material.dart';
 import '../../data/dev_panel.dart';
 import '../../design/design.dart';
 import '../../domain/domain.dart';
+import '../alarms/alarm_detail_sheet.dart';
+import '../alarms/alarms_sheet.dart';
 import '../connection/connect_sheet.dart';
 import '../connection/mode_cards.dart';
 import '../connection/provision_sheets.dart';
@@ -170,15 +172,16 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     ),
     DevOverlay.alarms => SheetOverlay(
       title: 'Alerts',
-      sub: 'Device and insight, kept separate',
-      body: body('The alarm sheet, rules and preferences land in N11.'),
+      sub: 'From the bridge and insights from the app, kept separate',
+      bodyBuilder: (dismiss) => AlarmsSheetBody(onDone: dismiss),
     ),
     DevOverlay.alarmDetail => SheetOverlay(
       title: 'Alert',
       sub: request.props['tier'] == 'app'
           ? 'Insight from the app'
           : 'From the bridge',
-      body: body('Alarm detail and acknowledgement land in N11.'),
+      bodyBuilder: (dismiss) =>
+          AlarmDetailSheetBody(alarmId: request.props['id'], onDone: dismiss),
     ),
     DevOverlay.mark => SheetOverlay(
       title: 'Add a mark',

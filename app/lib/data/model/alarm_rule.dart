@@ -30,4 +30,22 @@ class AlarmRule {
 
   /// The debounce/hold window in seconds, or null when not applicable.
   final int? windowS;
+
+  AlarmRule copyWith({
+    String? name,
+    String? desc,
+    AlarmSeverity? severity,
+    bool? enabled,
+    AlarmScope? scope,
+    int? windowS,
+  }) => AlarmRule(
+    id: id,
+    tier: tier,
+    name: name ?? this.name,
+    desc: desc ?? this.desc,
+    severity: severity ?? this.severity,
+    enabled: enabled ?? this.enabled,
+    scope: scope ?? this.scope,
+    windowS: windowS ?? this.windowS,
+  );
 }
