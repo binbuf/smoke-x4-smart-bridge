@@ -341,3 +341,39 @@ Status: **done**. `make app.test` green (**370**; N8 adds 31 — 18 pure + 11 wi
 - N15: implement `setItemInterventions` and `CookItem` serialisation.
 - N16: consider Timeline goldens for `idle`/`existing`/`offline` (only `running` pinned).
 
+## T10 — N9 Catalog and setup: new/existing/watch, search, styles, custom food, add-item guard
+
+Status: **done**. `flutter test` green (**409**; N9 adds 39 — 20 pure + 17 widget + 2 repo); `flutter analyze` and format check clean; `dart test test/domain test/data` green (**139**, was 137). The catalog-as-setup flow is real in the `setup` overlay, and custom foods in `customFood`.
+
+**Real paths (all under `app/lib/features/setup/`; barrel `setup.dart`)**
+- `setup_format.dart` — pure: `SetupMode` (newCook/existing/watch), `SetupFood`, `setupFoods`, `searchSetupFoods`, `setupFoodById`, `setupStylesFor`, `setupStyleById`, `SetupSummary` + `setupSummary`, `expectedCookLabel`, `busyJacks`/`jackIsBusy`/`jackLabel`/`firstFreeJack`, `timelineForItem`, `longItemDelayMin`, `customTargetRefusal`, `customFoodFromForm`, `kCustomFoodGlyphs`, `kCustomFoodHazards`.
+- `setup_sheet.dart` — `SetupSheetBody` (the `?overlay=setup` body); `custom_food_sheet.dart` — `CustomFoodSheetBody` (the `?overlay=customFood` body).
+- `features/shell/overlay.dart` now resolves both names to the real bodies (setup reads `context=edit`, `jack`, `food` props).
+
+**Commands that work (repo root)**
+- `make app.test` — the N9 gate (analyze + format + `flutter test`, 409 pass).
+- `cd app && flutter test test/features/setup_test.dart test/features/setup_format_test.dart` — 37 fast N9 tests.
+- `cd app && dart test test/domain test/data` — data/domain gate (139).
+- No golden changed (the setup sheet has no golden; it is an overlay).
+
+**Contract facts later tasks need**
+- **`BridgeRepository.startCook`/`addItem` gained optional `pullF10`, `timeline`, `wrap`, `spritz`; `startCook` also `startedAtMs` and `adoptPendingSession`.** `adoptPendingSession: true` (with a pending session) backdates the cook to `pendingSession.startedAtMs`, assigns the item, clears the session and sets `notice: 'Cook adopted · pulled N samples'` (N9.15, I10). The old calls are source-compatible.
+- **`CustomFood` gained `glyph` (`String`, default `'unstated'`), `thickness` (`CutThickness`, default medium) and `blurb` (`String`, default `'Custom food'`).** All additive. Custom foods live in `AppSettings.customCatalog` (prefs), not the catalog table; the picker reads them via `settingsProvider`.
+- **A custom food's timeline travels on `CookItem.timeline`** (N9.18); the picker passes `timeline:` to `startCook` only for custom foods or a style with its own timeline — built-ins pass null so the catalog timeline table drives (an intentional choice, see deviations).
+- The overlay body's title is static (`Cook setup`); the **mode-specific sub copy is inside the body** (`setup-mode-sub`), not the shell header, because `resolveOverlay` has no mode. Deviation from `setupScrim`'s per-mode title/sub.
+- Keys: `setup-sheet`, `setup-modes`, `setup-mode-sub`, `setup-watch-notice`, `setup-existing-notice`/`-session`/`-when`/`-offsets`/`-offset-<mins>`, `setup-catalog-search`/`-clear`/`-count`/`-empty`, `setup-categories`, `setup-custom-food`, `setup-food-<id>`/`-meta-<id>`, `setup-styles`/`-note`/`style-<id>`, `setup-doneness`, `setup-summary`/`-target`/`-pull`/`-rest`/`-cook`/`-style`, `setup-jacks`/`jack-<n>`/`-jack-notice`, `setup-wrap-row`/`setup-spritz-row`, `setup-start`, `setup-safety-refusal`; custom form `custom-food-sheet`/`-name`/`-category`/`-glyph-<g>`/`-hazard`/`-thickness`/`-pit-lo`/`-pit-hi`/`-target`/`-rest`/`-total-lo`/`-total-hi`/`-wrap`/`-spritz`/`-save`/`-cancel`/`-error`.
+- The long-item confirm uses the imperative `showModalCard(context, ...)` from `shell/overlay.dart` (not the `confirm` named overlay, which stays a placeholder) and its default confirm key is `shell-overlay-confirm`.
+
+**Deviations / gotchas**
+- **Built-in preset targets keep the prototype's reviewer-pinned rungs; the I12 gate runs on custom targets only.** `content_validation_test.dart` intentionally pins a few below-floor catalog rungs (raw tuna, rosé duck, …), so re-gating them here would contradict the catalog owner. `customTargetRefusal` refuses a user-authored below-floor target; `CookPlan`'s constructor remains the gate for a real plan. Documented in `setup_format.dart`.
+- For `existing` mode with a pending session, the session is always cleared once a cook starts, even when the user picks "I will set a time" (the explicit start overrides the anchor). This keeps the "pull the collected samples" promise without leaving an unadopted session behind.
+- **`_addItem` now carries `CookItem.timeline` and the wrap/spritz overrides across a re-add** (the T09 follow-up). The T09 note "`_addItem` does not carry `timeline`" is resolved.
+- The `Add to cook` label appears in `context=edit` **or** whenever a cook is already active is not distinguished — the label is edit-context only; behaviour (append) is identical either way because `startCook` appends to an active cook.
+- `_CatalogPicker` shows only the categories present in the picker list (all 10 with the shipped catalog). A search shows no category chip selected (`value: ''`), matching "search overrides the category".
+- The setup body renders inside the shell's `ShellSheet` `SingleChildScrollView`; in widget tests it is wrapped in a `SingleChildScrollView` and interacted with via `ensureVisible`.
+
+**Follow-ups**
+- N11/N12/N13/N14 still own their overlay bodies (`alarms`, `alarmDetail`, `firmware`, …); `confirm` is still a placeholder (N9 uses `showModalCard` directly).
+- N15 must implement the extended `startCook`/`addItem` signatures and serialise `CustomFood.glyph`/`thickness`/`blurb`, `CookItem.timeline`, `wrapEnabled`, `spritzEnabled`.
+- N16: consider a setup-sheet golden for each mode (`new`/`existing`/`watch`) and a custom-food golden.
+

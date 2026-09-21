@@ -24,6 +24,11 @@ enum Density { compact, comfortable }
 enum OtaChannel { stable, beta }
 
 /// A user-defined food: identity, target and its own expected timeline.
+///
+/// N9.17 adds the identity fields the custom-food form collects ([glyph],
+/// [thickness], [blurb]) so a custom cut renders in the picker exactly like a
+/// catalog entry. They default to a safe placeholder so existing stored values
+/// keep loading.
 class CustomFood {
   const CustomFood({
     required this.id,
@@ -34,6 +39,9 @@ class CustomFood {
     this.pitBandMinF10,
     this.pitBandMaxF10,
     this.timeline,
+    this.glyph = 'unstated',
+    this.thickness = CutThickness.medium,
+    this.blurb = 'Custom food',
   });
 
   final String id;
@@ -46,6 +54,15 @@ class CustomFood {
 
   /// The custom expected timeline; null means the cut has none.
   final CookTimeline? timeline;
+
+  /// Placeholder-avatar glyph name (`beef`, `veg` …).
+  final String glyph;
+
+  /// Drives carryover, exactly as it does for a catalog cut.
+  final CutThickness thickness;
+
+  /// One line under the name in the picker.
+  final String blurb;
 }
 
 /// The whole settings tree, as one value.

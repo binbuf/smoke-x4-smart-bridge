@@ -241,12 +241,24 @@ class MockBridgeRepository implements BridgeRepository {
     String? styleId,
     String? title,
     int? targetF10,
+    int? pullF10,
+    CookTimeline? timeline,
+    bool? wrap,
+    bool? spritz,
+    int? startedAtMs,
+    bool adoptPendingSession = false,
   }) => _addItem(
     presetId: presetId,
     jack: jack,
     styleId: styleId,
     title: title,
     targetF10: targetF10,
+    pullF10: pullF10,
+    timeline: timeline,
+    wrap: wrap,
+    spritz: spritz,
+    startedAtMs: startedAtMs,
+    adoptPendingSession: adoptPendingSession,
   );
 
   @override
@@ -255,11 +267,19 @@ class MockBridgeRepository implements BridgeRepository {
     required ProbeJack jack,
     String? styleId,
     int? targetF10,
+    int? pullF10,
+    CookTimeline? timeline,
+    bool? wrap,
+    bool? spritz,
   }) => _addItem(
     presetId: presetId,
     jack: jack,
     styleId: styleId,
     targetF10: targetF10,
+    pullF10: pullF10,
+    timeline: timeline,
+    wrap: wrap,
+    spritz: spritz,
   );
 
   Future<void> _addItem({
@@ -268,6 +288,12 @@ class MockBridgeRepository implements BridgeRepository {
     String? styleId,
     String? title,
     int? targetF10,
+    int? pullF10,
+    CookTimeline? timeline,
+    bool? wrap,
+    bool? spritz,
+    int? startedAtMs,
+    bool adoptPendingSession = false,
   }) async {
     final entry = catalog.byId(presetId);
     final style = styleId == null
@@ -277,7 +303,9 @@ class MockBridgeRepository implements BridgeRepository {
         targetF10 ?? style?.targetF10 ?? entry?.defaultDoneness.targetF10;
 
     int? pull;
-    if (target != null) {
+    if (pullF10 != null) {
+      pull = pullF10;
+    } else if (target != null) {
       pull = entry == null
           ? target
           : pullTempFor(
@@ -287,12 +315,20 @@ class MockBridgeRepository implements BridgeRepository {
             );
     }
 
+    // N9.15: adopting backdates the cook to the bridge session and clears it.
+    final pending = _snapshot.pendingSession;
+    final adopting = adoptPendingSession && pending != null;
+    final anchorMs =
+        startedAtMs ??
+        (adopting ? pending.startedAtMs : null) ??
+        DateTime.now().millisecondsSinceEpoch;
+
     var cook = _snapshot.cook;
     if (!cook.active) {
       cook = CookState(
         active: true,
         name: title ?? '${entry?.name ?? 'Cook'} cook',
-        startedAtMs: DateTime.now().millisecondsSinceEpoch,
+        startedAtMs: anchorMs,
         pitBandMinF10: entry?.pitBandMinF10 ?? 2250,
         pitBandMaxF10: entry?.pitBandMaxF10 ?? 2750,
         grateTargetF10: 2500,
@@ -312,8 +348,11 @@ class MockBridgeRepository implements BridgeRepository {
       CookItem(
         presetId: presetId,
         jack: jack,
-        addedAtMs: DateTime.now().millisecondsSinceEpoch,
+        addedAtMs: anchorMs,
         styleId: styleId,
+        timeline: timeline,
+        wrapEnabled: wrap,
+        spritzEnabled: spritz,
       ),
     ];
     cook = cook.copyWith(styleId: styleId ?? cook.styleId, items: items);
@@ -332,6 +371,10 @@ class MockBridgeRepository implements BridgeRepository {
       _snapshot.copyWith(
         cook: cook,
         probes: _replaceProbe(_snapshot.probes, jack, probe),
+        pendingSession: adopting ? null : _snapshot.pendingSession,
+        notice: adopting
+            ? 'Cook adopted · pulled ${pending.samples} samples'
+            : _snapshot.notice,
       ),
     );
   }

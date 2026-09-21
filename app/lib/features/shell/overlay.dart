@@ -22,6 +22,8 @@ import '../../data/dev_panel.dart';
 import '../../design/design.dart';
 import '../../domain/domain.dart';
 import '../live/live_overlays.dart';
+import '../setup/custom_food_sheet.dart';
+import '../setup/setup_sheet.dart';
 import '../temps/probe_sheet.dart';
 import 'app_bar.dart';
 
@@ -127,8 +129,15 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     ),
     DevOverlay.setup => SheetOverlay(
       title: 'Cook setup',
-      sub: 'Catalog, styles and start mode',
-      body: body('The catalog picker and the three start modes land in N9.'),
+      sub: 'Set up before, during, or after you light the fire',
+      bodyBuilder: (dismiss) => SetupSheetBody(
+        onDone: dismiss,
+        addContext: request.props['context'] == 'edit',
+        initialJack: ProbeJack.fromN(
+          int.tryParse(request.props['jack'] ?? '') ?? 0,
+        ),
+        initialFoodId: request.props['food'],
+      ),
     ),
     DevOverlay.connect => SheetOverlay(
       title: 'Connection',
@@ -201,8 +210,8 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     ),
     DevOverlay.customFood => SheetOverlay(
       title: 'Custom food',
-      sub: 'Add your own cut',
-      body: body('Custom foods with their own timeline land in N9.'),
+      sub: 'Add your own cut to the catalog',
+      bodyBuilder: (dismiss) => CustomFoodSheetBody(onDone: dismiss),
     ),
     DevOverlay.firmware => SheetOverlay(
       title: 'Firmware',

@@ -280,6 +280,51 @@ void main() {
       expect(s.connection.wifi.ssid, 'HomeNet-5G');
     });
 
+    test(
+      'startCook stores a custom timeline and its reminders (N9.11/N9.18)',
+      () async {
+        final repo = _repo('idle');
+        addTearDown(repo.dispose);
+        const timeline = CookTimeline(
+          totalMin: MinuteRange(90, 150),
+          restMin: 10,
+        );
+        await repo.startCook(
+          presetId: 'custom_seam',
+          jack: ProbeJack.two,
+          targetF10: 1450,
+          pullF10: 1430,
+          timeline: timeline,
+          wrap: true,
+          spritz: false,
+        );
+        final item = (await repo.snapshot().first).cook.items.single;
+        expect(item.presetId, 'custom_seam');
+        expect(item.timeline, timeline);
+        expect(item.wrapEnabled, isTrue);
+        expect(item.spritzEnabled, isFalse);
+      },
+    );
+
+    test(
+      'startCook adopts a pending session, backdated (N9.15, I10)',
+      () async {
+        final repo = _repo('existing');
+        addTearDown(repo.dispose);
+        final pending = (await repo.snapshot().first).pendingSession!;
+        await repo.startCook(
+          presetId: 'beef_brisket',
+          jack: ProbeJack.two,
+          adoptPendingSession: true,
+        );
+        final s = await repo.snapshot().first;
+        expect(s.pendingSession, isNull);
+        expect(s.cook.startedAtMs, pending.startedAtMs);
+        expect(s.cook.items.single.presetId, 'beef_brisket');
+        expect(s.notice, contains('${pending.samples}'));
+      },
+    );
+
     test('factory reset clears the cook and the links', () async {
       final repo = _repo();
       addTearDown(repo.dispose);

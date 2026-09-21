@@ -78,13 +78,27 @@ abstract interface class BridgeRepository {
   /// Drop the bridge's unadopted session (the "Start fresh" action).
   Future<void> discardSession();
 
-  /// Begin a guided cook on [jack].
+  /// Begin a guided cook on [jack], or append to a running one (N9.13/N9.19).
+  ///
+  /// [timeline] is the per-item expected timeline a custom food carries
+  /// (N9.18); [wrap]/[spritz] are the setup reminders (N9.11); [pullF10] is the
+  /// floor-clamped pull the setup sheet already computed (I12). When
+  /// [adoptPendingSession] is true and a session is waiting, the cook is
+  /// backdated to the bridge session's start and that session is cleared
+  /// (N9.15, I10). [startedAtMs] sets an explicit start for the "set a time"
+  /// branch of `existing` mode.
   Future<void> startCook({
     required String presetId,
     required ProbeJack jack,
     String? styleId,
     String? title,
     int? targetF10,
+    int? pullF10,
+    CookTimeline? timeline,
+    bool? wrap,
+    bool? spritz,
+    int? startedAtMs,
+    bool adoptPendingSession = false,
   });
 
   /// Add an item to the running cook on [jack].
@@ -93,6 +107,10 @@ abstract interface class BridgeRepository {
     required ProbeJack jack,
     String? styleId,
     int? targetF10,
+    int? pullF10,
+    CookTimeline? timeline,
+    bool? wrap,
+    bool? spritz,
   });
 
   /// The user says the food on [jack] is out.

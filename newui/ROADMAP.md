@@ -24,7 +24,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 - [x] T07 — N6 Temps: per-probe cards, probe sheet, roles/targets, detached handling → [tasks/N6-temps.md](tasks/N6-temps.md)
 - [x] T08 — N7 Graph: chart, ranges, zoom/pan, fullscreen, legend isolate, targets/bands, stats → [tasks/N7-graph.md](tasks/N7-graph.md)
 - [x] T09 — N8 Timeline: Gantt, upcoming interventions, event rail, timeline DB projection → [tasks/N8-timeline.md](tasks/N8-timeline.md)
-- [ ] T10 — N9 Catalog and setup: new/existing/watch, search, styles, custom food, add-item guard → [tasks/N9-catalog-and-setup.md](tasks/N9-catalog-and-setup.md)
+- [x] T10 — N9 Catalog and setup: new/existing/watch, search, styles, custom food, add-item guard → [tasks/N9-catalog-and-setup.md](tasks/N9-catalog-and-setup.md)
 - [ ] T11 — N10 Connection and provisioning: transport chip, connect sheet, AP/STA flows, rollback UX → [tasks/N10-connection-and-provisioning.md](tasks/N10-connection-and-provisioning.md)
 - [ ] T12 — N11 Alarms and monitoring: strip/sheet/detail, two tiers, rules, delivery, quiet hours → [tasks/N11-alarms-and-monitoring.md](tasks/N11-alarms-and-monitoring.md)
 - [ ] T13 — N12 History: history groups, cook detail, favourite/repeat/export/delete → [tasks/N12-history.md](tasks/N12-history.md)
@@ -43,11 +43,11 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 - [ ] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md)
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-09-21T17:37:09Z · 9/17 done
+**Pipeline status** — updated 2026-09-21T19:14:23Z · 10/17 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10
 - Blocked: none
 - Failed: none
-- Remaining: T10, T11, T12, T13, T14, T15, T16, T17
-- Last finished: T09 — done · N8 Timeline landed — Gantt/milestones/now lines, upcoming interventions, event rail, per-cook wrap/spritz toggles, pure projection + golden; make app.test 370 green, domain/data 137 green.
+- Remaining: T11, T12, T13, T14, T15, T16, T17
+- Last finished: T10 — done · N9 catalog/setup flow landed — new/existing/watch modes, search, styles, summary, jacks, long-item guard, custom food + safety gate; flutter test 409 green, domain/data 139 green, analyze/format clean.
 <!-- /symphony:status -->

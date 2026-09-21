@@ -53,3 +53,57 @@ deliberately long add; search finds a cut by name, category and blurb.
 
 I5, I8, I10 (adopt only annotates; it never rewrites samples), I12 (safety gate on
 preset and custom targets), and red-meat medium-rare default.
+
+---
+
+## Hand-off
+
+**Status: done.** All three start modes run end to end against the mock; the exit
+gate's checks are automated. `make app.test` green (**409** tests, N9 adds 39);
+`dart test test/domain test/data` green (**139**); `flutter analyze` and the
+format check are clean; no golden changed.
+
+### What landed
+- `app/lib/features/setup/` — `setup_format.dart` (pure projections),
+  `setup_sheet.dart` (`SetupSheetBody`), `custom_food_sheet.dart`
+  (`CustomFoodSheetBody`), barrel `setup.dart`.
+- `features/shell/overlay.dart` resolves `DevOverlay.setup` and
+  `DevOverlay.customFood` to the real bodies. Setup reads `context=edit` (label
+  "Add to cook"), `jack` (initial jack) and `food` (preselect after custom save).
+- `BridgeRepository.startCook`/`addItem` gained optional `pullF10`, `timeline`,
+  `wrap`, `spritz`; `startCook` also `startedAtMs` and `adoptPendingSession`
+  (N9.15). Mock implemented; old call sites unchanged.
+- `CustomFood` gained `glyph`, `thickness`, `blurb` (additive defaults).
+- Tests: `app/test/features/setup_format_test.dart` (20 pure),
+  `app/test/features/setup_test.dart` (17 widget, incl. the overlay wiring), and
+  2 new `app/test/data/mock_repository_test.dart` cases.
+
+### Exit gate evidence
+- `cd app && flutter test test/features/setup_test.dart test/features/setup_format_test.dart` → 37 pass.
+- Search by name/category/blurb, category override, live count and clear: pure tests.
+- `existing` mode pulls + displays the session sample count (253) and backdates
+  the cook: widget test + repo test.
+- Long-item warning for a deliberately long add, then "Add anyway": widget test.
+- Red-meat medium-rare default (135 °F on ribeye): pure + widget tests.
+- Custom food stored with its own timeline; below-floor target refused (I12).
+
+### Deviations from the plan (and why)
+1. **Mode-specific sub copy lives in the body** (`setup-mode-sub`), not the
+   sheet header: `resolveOverlay` is mode-agnostic. The sheet title is `Cook setup`
+   for every mode (the prototype's `setupScrim` picks `New cook` for new/existing).
+2. **I12 runs on custom targets only.** The catalog's below-floor rungs are
+   reviewer-pinned by `content_validation_test.dart`; re-gating them in setup
+   would fight the content owner. `CookPlan`'s constructor is still the gate for
+   a real plan.
+3. **`adoptCook` is `startCook(adoptPendingSession: true)`** rather than a new
+   repository method. The Live adopt banner/modal (N9.16) already exists from N5.
+4. **Long-item confirm uses `showModalCard`** (imperative) rather than the
+   `confirm` named overlay, which needs no props plumbing and returns a bool.
+
+### What the next task must know
+- Extended repo signatures: N15 must implement them on the real transport and
+  serialise the new `CustomFood`/`CookItem` fields.
+- Custom foods persist in `AppSettings.customCatalog` (prefs); the picker reads
+  them via `settingsProvider`. No repository method was added for them.
+- `confirm`, `alarms`, `firmware`, … overlays remain placeholders owned by later
+  tasks.
