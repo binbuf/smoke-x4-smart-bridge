@@ -1,3 +1,5 @@
+app.old/
+
 # Build output
 build/
 firmware/build/
