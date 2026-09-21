@@ -45,6 +45,11 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # The pure-Dart domain is host-testable without a binding, so `lib/domain`
+  # tests use `package:test` and run under both `dart test test/domain` and
+  # `flutter test`. The rest of the suite stays on `flutter_test`.
+  test: ^1.31.0
+
   flutter_lints: ^6.0.0
   # Codegen (N0.6)
   build_runner: ^2.15.1
