@@ -197,15 +197,15 @@ void main() {
   testWidgets('a destination can raise a toast', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-timeline')));
+    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-settings')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey<String>('destination-toast')));
     await tester.pump();
-    expect(find.text('Hello from Timeline'), findsOneWidget);
+    expect(find.text('Hello from Settings'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
-    expect(find.text('Hello from Timeline'), findsNothing);
+    expect(find.text('Hello from Settings'), findsNothing);
   });
 
   testWidgets('the dev panel drives screen and overlay', (tester) async {
@@ -215,8 +215,10 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey<String>('dev-screen-timeline')));
     await tester.pumpAndSettle();
+    // N8 replaced the Timeline placeholder with the real screen; `idle` has no
+    // cook, so it renders the one-action empty state.
     expect(
-      find.byKey(const ValueKey<String>('destination-timeline')),
+      find.byKey(const ValueKey<String>('timeline-empty')),
       findsOneWidget,
     );
 

@@ -302,3 +302,42 @@ Status: **done**. `make app.test` green (**339**; N7 adds 36 — 10 widget + 19 
 - N12: reuse `CookChart` for the cook-detail chart.
 - N15: real samples → `buildGraphSeries`; graph share/CSV; `MarkKind.spritz`/`turn` on the wire.
 - N16: consider graph goldens for `idle`/`offline` (only `running` pinned) and the fullscreen golden.
+
+## T09 — N8 Timeline: Gantt, upcoming interventions, event rail, timeline DB projection
+
+Status: **done**. `make app.test` green (**370**; N8 adds 31 — 18 pure + 11 widget + 1 golden + 1 repo); `flutter analyze` and format check clean; `dart test test/domain test/data` green (**137**, was 136). Timeline is a real destination.
+
+**Real paths (all under `app/lib/features/timeline/`; barrel `timeline.dart`)**
+- `timeline_format.dart` — pure: `buildTimelineModel`, `buildUpcoming`, `buildRailEvents`, `TimelineModel`/`TimelineRow`/`UpcomingIntervention`/`TimelineEvent`/`InterventionKind`, `markKindWord`, `railTimeLabel`, the fraction constants and `kFallbackTimeline`.
+- `timeline_model.dart` — `timelineNowProvider`, `timelineModelProvider`.
+- `timeline_page.dart` — `TimelinePage` + `_ScheduleHeader`/`_Gantt`/`_UpcomingGrid`/`_Reminders`/`_EventRail`.
+- Wired: `features/shell/destinations.dart` `TimelineDestination` → `const TimelinePage()`.
+- Tests `app/test/features/timeline_format_test.dart` (17), `app/test/features/timeline_test.dart` (11), `app/test/golden/timeline_golden_test.dart` + `goldens/timeline.golden.txt`; one new repo test in `app/test/data/mock_repository_test.dart`.
+
+**Commands that work**
+- `make app.test` — the N8 gate (370 pass).
+- `cd app && flutter test test/features/timeline_test.dart test/features/timeline_format_test.dart` — 28 fast tests.
+- `cd app && dart test test/domain test/data` — data/domain gate (137).
+- `make app.golden` regenerates `timeline.golden.txt` too.
+
+**Contract facts later tasks need**
+- `buildTimelineModel({cook, pendingSession, catalog, marks, nowMs, autoWrapReminder}) → TimelineModel`. Prototype-exact rules: bar = `totalMin.mid`, stall = 38–72 % of the bar, wrap tick = 55 %, domain tail = 45 min, served-by = +30 min, upcoming capped at 4.
+- `TimelineRow`: `endMs`, `wrapAtMs`, `stallStartMs`/`stallEndMs`, `progressAt(nowMs)`, `hasWrapMilestone`/`hasStall`/`hasSpritz`, resolved `wrapEnabled`/`spritzEnabled`. **The wrap milestone draws whenever `timeline.wrap != null`; the per-cook toggle only gates the nudge.**
+- **`CookItem` gained three fields**: `timeline` (`CookTimeline?`, the N9.18 custom-food seam), `wrapEnabled` and `spritzEnabled` (`bool?`, null = seed from the cut's timeline).
+- **`BridgeRepository` gained `setItemInterventions(jack, {wrap, spritz})`** (null = leave unchanged). Mock implemented; **N15 must implement it on the real transport and serialise the three new `CookItem` fields.**
+- Keys: `timeline-page`, `timeline-empty`, `timeline-header`/`-off-by`/`-served-by`/`-item-count`/`-estimate-note`, `timeline-gantt`/`-axis`/`-gantt-empty`, `timeline-row-<jack>`/`-row-name-<jack>`/`-bar-<jack>`/`-row-end-<jack>`/`-stall-<jack>`/`-wrap-<jack>`/`-now-<jack>`/`-now-label`, `timeline-upcoming`/`-note`/`-empty`/`-<i>`/`-time-<i>`, `timeline-reminders`/`-off`/`-empty`/`-<jack>`/`-wrap-toggle-<jack>`/`-spritz-toggle-<jack>`, `timeline-rail`/`-empty`/`-<i>`/`-dot-<i>`/`-time-<i>`/`-now`, `timeline-add`, `timeline-log-event`.
+
+**Deviations / gotchas**
+- **Upcoming is future-only.** `app.js` lists every turn regardless of time, so `running` would show the sausage turn ~35 min in the past; `buildUpcoming` drops `atMs < nowMs`.
+- **The now line is on every track** (task N8.5), not just jack 1 as in `app.js`; the `NOW` label is on the first track only.
+- **The per-cook reminder toggles are a new surface** — `app.js` has no toggles on the Timeline view (the seed lives in setup). They write the fields N9.11 will seed.
+- `railTimeLabel` appends `· expected` to predictions (prototype); N8.8's wording is also in `timeline-estimate-note` and `timeline-upcoming-note`.
+- Q2 resolved: timeline DB stays read-only; the only per-cook edit is wrap/spritz.
+- `MockBridgeRepository._addItem` does **not** yet carry `CookItem.timeline` across a re-add — N9 must set it.
+- `shell_router_test.dart` updated: the toast test now uses Settings (Timeline is real), and the dev-panel timeline test asserts `timeline-empty` (the `idle` fixture has no cook).
+
+**Follow-ups**
+- N9.11: seed `wrapEnabled`/`spritzEnabled` from the setup toggle; thread custom-food `CookItem.timeline` through `addItem`/`startCook`.
+- N15: implement `setItemInterventions` and `CookItem` serialisation.
+- N16: consider Timeline goldens for `idle`/`existing`/`offline` (only `running` pinned).
+

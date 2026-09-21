@@ -244,6 +244,32 @@ void main() {
       },
     );
 
+    test(
+      'setItemInterventions toggles one item and leaves the rest (N8.10)',
+      () async {
+        final repo = _repo();
+        addTearDown(repo.dispose);
+        final before = await repo.snapshot().first;
+        expect(before.cook.items.first.wrapEnabled, isNull);
+        expect(before.cook.items.first.spritzEnabled, isNull);
+
+        await repo.setItemInterventions(ProbeJack.one, wrap: false);
+        var items = (await repo.snapshot().first).cook.items;
+        expect(items.first.wrapEnabled, isFalse);
+        // A null flag leaves the other override untouched.
+        expect(items.first.spritzEnabled, isNull);
+        // Other items are unchanged.
+        expect(items[1].wrapEnabled, isNull);
+
+        await repo.setItemInterventions(ProbeJack.one, spritz: true);
+        items = (await repo.snapshot().first).cook.items;
+        expect(items.first.wrapEnabled, isFalse);
+        expect(items.first.spritzEnabled, isTrue);
+        // The recorded samples/marks are never touched (I10).
+        expect((await repo.snapshot().first).marks, before.marks);
+      },
+    );
+
     test('applyMode("sta") enters the connecting phase', () async {
       final repo = _repo('bt_only');
       addTearDown(repo.dispose);

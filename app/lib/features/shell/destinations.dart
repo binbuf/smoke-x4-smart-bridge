@@ -17,6 +17,7 @@ import '../../design/design.dart';
 import '../graph/graph.dart';
 import '../live/live_page.dart';
 import '../temps/temps_page.dart';
+import '../timeline/timeline.dart';
 import 'phone_frame.dart';
 import 'shell.dart';
 import 'shell_screen.dart';
@@ -148,8 +149,7 @@ class TimelineDestination extends StatelessWidget {
   const TimelineDestination({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const DestinationPlaceholder(screen: ShellScreen.timeline);
+  Widget build(BuildContext context) => const TimelinePage();
 }
 
 /// Graph destination (N7).

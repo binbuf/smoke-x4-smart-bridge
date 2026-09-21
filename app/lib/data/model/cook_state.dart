@@ -4,12 +4,20 @@ library;
 import '../../domain/domain.dart';
 
 /// One item on the grill, tied to a jack.
+///
+/// N8 adds three Timeline fields: a per-item [timeline] (custom foods bypass
+/// the catalog table, N9.18), and per-cook wrap/spritz reminder overrides. A
+/// `null` override means "seed from the cut's expected timeline"; setup (N9)
+/// writes the concrete values.
 class CookItem {
   const CookItem({
     required this.presetId,
     required this.jack,
     required this.addedAtMs,
     this.styleId,
+    this.timeline,
+    this.wrapEnabled,
+    this.spritzEnabled,
   });
 
   final String presetId;
@@ -17,11 +25,29 @@ class CookItem {
   final int addedAtMs;
   final String? styleId;
 
-  CookItem copyWith({String? styleId}) => CookItem(
+  /// A per-item expected timeline (custom foods, N9.18). Null falls back to the
+  /// catalog's timeline table for [presetId].
+  final CookTimeline? timeline;
+
+  /// Per-cook wrap reminder override; null seeds from [timeline]'s wrap step.
+  final bool? wrapEnabled;
+
+  /// Per-cook spritz reminder override; null seeds from the spritz cadence.
+  final bool? spritzEnabled;
+
+  CookItem copyWith({
+    String? styleId,
+    CookTimeline? timeline,
+    bool? wrapEnabled,
+    bool? spritzEnabled,
+  }) => CookItem(
     presetId: presetId,
     jack: jack,
     addedAtMs: addedAtMs,
     styleId: styleId ?? this.styleId,
+    timeline: timeline ?? this.timeline,
+    wrapEnabled: wrapEnabled ?? this.wrapEnabled,
+    spritzEnabled: spritzEnabled ?? this.spritzEnabled,
   );
 }
 

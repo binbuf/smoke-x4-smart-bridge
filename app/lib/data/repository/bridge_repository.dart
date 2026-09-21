@@ -115,6 +115,12 @@ abstract interface class BridgeRepository {
   /// Set (or clear) a jack's target, tenths °F.
   Future<void> setTarget(ProbeJack jack, int? targetF10);
 
+  /// Toggle a cook item's wrap/spritz reminders for this cook (N8.10).
+  ///
+  /// A null flag leaves the current override untouched. The seed value comes
+  /// from the cut's expected timeline; setup (N9.11) writes the same fields.
+  Future<void> setItemInterventions(ProbeJack jack, {bool? wrap, bool? spritz});
+
   /// Apply a transport mode (`ble` / `ap` / `sta`).
   Future<void> applyMode(String modeId);
 

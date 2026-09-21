@@ -413,6 +413,22 @@ class MockBridgeRepository implements BridgeRepository {
     );
   }
 
+  @override
+  Future<void> setItemInterventions(
+    ProbeJack jack, {
+    bool? wrap,
+    bool? spritz,
+  }) async {
+    final items = <CookItem>[
+      for (final item in _snapshot.cook.items)
+        if (item.jack == jack)
+          item.copyWith(wrapEnabled: wrap, spritzEnabled: spritz)
+        else
+          item,
+    ];
+    _set(_snapshot.copyWith(cook: _snapshot.cook.copyWith(items: items)));
+  }
+
   // ── modes / device verbs ──────────────────────────────────────────────
 
   @override
