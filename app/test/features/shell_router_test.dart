@@ -79,10 +79,7 @@ void main() {
       link: DevDeepLink.parse('?screen=graph&overlay=probe&jack=3'),
     );
 
-    expect(
-      find.byKey(const ValueKey<String>('destination-graph')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey<String>('graph-page')), findsOneWidget);
     // The sheet title and the probe sheet's own header both name the jack.
     expect(find.text('Probe 3'), findsWidgets);
     expect(
@@ -179,13 +176,10 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    // Fullscreen is raised from the placeholder destination shells (Live owns
-    // no toggle; Temps became a real screen in N6).
+    // Fullscreen is raised from the Graph destination's own control (N7.11).
     await tester.tap(find.byKey(const ValueKey<String>('shell-nav-graph')));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey<String>('destination-fullscreen')),
-    );
+    await tester.tap(find.byKey(const ValueKey<String>('graph-fullscreen')));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey<String>('shell-graph-host')),
@@ -203,15 +197,15 @@ void main() {
   testWidgets('a destination can raise a toast', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-graph')));
+    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-timeline')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey<String>('destination-toast')));
     await tester.pump();
-    expect(find.text('Hello from Graph'), findsOneWidget);
+    expect(find.text('Hello from Timeline'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
-    expect(find.text('Hello from Graph'), findsNothing);
+    expect(find.text('Hello from Timeline'), findsNothing);
   });
 
   testWidgets('the dev panel drives screen and overlay', (tester) async {

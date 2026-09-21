@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/dev_panel.dart';
 import '../../data/providers.dart';
 import '../../design/design.dart';
+import '../graph/graph.dart';
 import '../live/live_page.dart';
 import '../temps/temps_page.dart';
 import 'phone_frame.dart';
@@ -156,8 +157,7 @@ class GraphDestination extends StatelessWidget {
   const GraphDestination({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const DestinationPlaceholder(screen: ShellScreen.graph);
+  Widget build(BuildContext context) => const GraphPage();
 }
 
 /// Settings destination (N13).

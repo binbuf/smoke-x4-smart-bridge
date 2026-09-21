@@ -23,6 +23,7 @@ import '../../data/dev_panel.dart';
 import '../../data/providers.dart';
 import '../../design/design.dart';
 import '../dev/dev_panel.dart';
+import '../graph/graph_fullscreen.dart';
 import 'app_bar.dart';
 import 'bottom_nav.dart';
 import 'graph_host.dart';
@@ -367,9 +368,7 @@ class _AppShellState extends ConsumerState<AppShell>
           Positioned.fill(
             child: ShellFullscreenGraphHost(
               onDismiss: _toggleFullGraph,
-              child: ShellFullscreenGraphPlaceholder(
-                onDismiss: _toggleFullGraph,
-              ),
+              child: GraphFullscreenBody(onDismiss: _toggleFullGraph),
             ),
           ),
       ],

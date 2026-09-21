@@ -22,7 +22,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 - [x] T05 — N4 Shell: phone chrome, bottom nav, overlay framework and fullscreen graph host → [tasks/N4-shell.md](tasks/N4-shell.md)
 - [x] T06 — N5 Live: alerts, cook header, stopwatch, instrument mode, adopt banner, probe rail → [tasks/N5-live.md](tasks/N5-live.md)
 - [x] T07 — N6 Temps: per-probe cards, probe sheet, roles/targets, detached handling → [tasks/N6-temps.md](tasks/N6-temps.md)
-- [ ] T08 — N7 Graph: chart, ranges, zoom/pan, fullscreen, legend isolate, targets/bands, stats → [tasks/N7-graph.md](tasks/N7-graph.md)
+- [x] T08 — N7 Graph: chart, ranges, zoom/pan, fullscreen, legend isolate, targets/bands, stats → [tasks/N7-graph.md](tasks/N7-graph.md)
 - [ ] T09 — N8 Timeline: Gantt, upcoming interventions, event rail, timeline DB projection → [tasks/N8-timeline.md](tasks/N8-timeline.md)
 - [ ] T10 — N9 Catalog and setup: new/existing/watch, search, styles, custom food, add-item guard → [tasks/N9-catalog-and-setup.md](tasks/N9-catalog-and-setup.md)
 - [ ] T11 — N10 Connection and provisioning: transport chip, connect sheet, AP/STA flows, rollback UX → [tasks/N10-connection-and-provisioning.md](tasks/N10-connection-and-provisioning.md)
@@ -43,11 +43,11 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 - [ ] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md)
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-09-21T16:01:45Z · 7/17 done
+**Pipeline status** — updated 2026-09-21T17:00:22Z · 8/17 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08
 - Blocked: none
 - Failed: none
-- Remaining: T08, T09, T10, T11, T12, T13, T14, T15, T16, T17
-- Last finished: T07 — done · N6 Temps landed — TempsPage cards/meta/detached/empty + probe sheet (roles, targets, actions); make app.test 302 green, dart test test/domain test/data 136 green, 44 N6 tests + temps golden.
+- Remaining: T09, T10, T11, T12, T13, T14, T15, T16, T17
+- Last finished: T08 — done · N7 Graph landed — CookChart on fl_chart with ranges/zoom/pan/fullscreen/legend-isolate/targets/pit-band/marks/crosshair/window-stats; make app.test 339 green, analyze+format clean, domain/data 136 green, graph golden added.
 <!-- /symphony:status -->

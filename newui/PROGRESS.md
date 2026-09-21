@@ -263,3 +263,42 @@ Status: **done**. `make app.test` green (**302** tests; was 256); `dart test tes
 - N9: honour `context=edit` + `jack` from "Set a target".
 - N11: `DevOverlay.alarmDetail` + real test alarm. N12: share/export.
 - N16: add Temps goldens for `idle`/`offline` (only `running` pinned).
+
+## T08 — N7 Graph: chart, ranges, zoom/pan, fullscreen, legend isolate, targets/bands, stats
+
+Status: **done**. `make app.test` green (**339**; N7 adds 36 — 10 widget + 19 projection + 7 chart-data); `flutter analyze` and format check clean; `dart test test/domain test/data` still green (136). Graph is a real destination and the fullscreen host has the real chart.
+
+**Real paths (all under `app/lib/features/graph/`; barrel `graph.dart`)**
+- `graph_format.dart` — pure: `GraphRange`, `GraphViewState`, `GraphDomain` + prototype-exact `graphDomain()`, `seriesDashArray`/`seriesDash`/`seriesWidth`, `buildGraphSamples`/`buildGraphSeries`, `graphYBounds`, `graphTargets`/`graphPitBand`/`graphMarks`/`graphWindowStats`, `graphZoomHint`, `legendValue`.
+- `graph_model.dart` — `graphNowProvider`, `graphViewProvider` (`NotifierProvider<GraphViewNotifier, GraphViewState>`), `graphSamplesProvider`, `graphModelProvider` + `GraphModel`.
+- `chart_data.dart` — `buildCookChartData(...) → LineChartData`; `chartAreaFillAlpha = 0.10`; `chartBarSeries(...)`.
+- `cook_chart.dart` — `CookChart` (fl_chart `LineChart`, `duration: Duration.zero`).
+- `graph_page.dart` — `GraphPage`; `graph_fullscreen.dart` — `GraphFullscreenBody`.
+- Wired: `features/shell/destinations.dart` `GraphDestination` → `GraphPage`; `features/shell/shell.dart` fullscreen child → `GraphFullscreenBody`. **`ShellFullscreenGraphPlaceholder` was deleted**; `test/features/shell_test.dart` now passes a plain child.
+
+**Commands that work**
+- `make app.test` — the N7 gate (338 pass).
+- `cd app && flutter test test/features/graph_test.dart test/features/graph_format_test.dart test/features/graph_chart_data_test.dart` — 10 + 19 + 7 = 36.
+- `cd app && dart test test/domain test/data` — unchanged (136).
+- `make app.golden` regenerates `app/test/golden/goldens/graph.golden.txt`.
+
+**Contract facts later tasks need**
+- **`CookChart` is provider-free**: `CookChart(model: ChartSeriesModel, domain: GraphDomain, unit:, series: List<GraphSeriesMeta>, targets:, band:, marks:, isolatedJack:, onZoomFactor:, onPanMinutes:)`. N12's history/detail chart reuses it with a different `ChartSeriesModel` (N7.16). `buildCookChartData` is the unit-test surface for the invariants.
+- **The mock has no sample stream.** `buildGraphSamples` resamples `ProbeState.spark` onto one aligned session-seconds grid (30 s cadence, widened so the grid ≤1200 points) then `buildGraphSeries` calls N1.14 `buildChartSeries` (run-split before LTTB, envelope >1200). N15 must feed real `Sample`s through the same `buildGraphSeries`.
+- **View state is shared** via `graphViewProvider`, so the fullscreen chart is the inline chart for the same window by construction. Fullscreen itself is still **local shell state**, not `?fullscreen=1` (N4 follow-up not done).
+- Range chips reset zoom/pan; zoom cap 40×; pan never goes negative. Hint text: `1.5× zoom` / `Pinch or scroll to zoom · drag to pan`.
+- Keys: `graph-page`, `graph-range`, `graph-zoom-out`/`graph-zoom-in`/`graph-fullscreen`, `graph-chart`, `graph-legend`, `graph-zoom-hint`, `graph-reset`, `graph-stats`, `graph-stat-<jack>`, `graph-add-mark`, `graph-share`, `graph-empty`, `graph-crosshair`; fullscreen `shell-graph-title`, `graph-fullscreen-zoom`, `graph-pan-back`/`graph-pan-fwd`, `graph-fullscreen-zoom-out`/`graph-fullscreen-zoom-in`/`graph-fullscreen-reset`, `shell-graph-exit`, `graph-fullscreen-chart`, `graph-fullscreen-legend`.
+- Crosshair = fl_chart `touchCallback` → custom `graph-crosshair` tip; each row is the bar's nearest **real** spot (built-in tooltip is off).
+- `graphNowProvider` (defaults `DateTime.now()`) pins the window; any graph golden/test must override it **and** `shellClockProvider` and pass a fixed `MockBridgeRepository`.
+
+**Deviations / gotchas**
+- Pinch zoom is best-effort (`onScaleUpdate` when `pointerCount >= 2`, untested); wheel + zoom buttons + drag-to-pan are fully wired and tested. `tester.drag` needs several `moveBy`s — a single-move drag only emits the pan start, not an update.
+- Share is a toast (`Opening share sheet — graph`); CSV/share sheet is N15.
+- The Live mini-graph preview (`LiveMiniGraphCard`) is **unchanged** (still an N3 `Sparkline`-style spark). Swapping it to `CookChart` is a follow-up and would move the `app_shell` golden.
+- fl_chart draws 4 y-interval gridlines (min/max forced labels off) instead of the prototype's 5; same display-unit extent.
+- `shell_router_test.dart` updated: the graph deep link asserts `graph-page`; fullscreen taps `graph-fullscreen`; the toast test now uses the Timeline placeholder.
+
+**Follow-ups**
+- N12: reuse `CookChart` for the cook-detail chart.
+- N15: real samples → `buildGraphSeries`; graph share/CSV; `MarkKind.spritz`/`turn` on the wire.
+- N16: consider graph goldens for `idle`/`offline` (only `running` pinned) and the fullscreen golden.

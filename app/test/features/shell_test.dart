@@ -432,9 +432,7 @@ void main() {
         wrap(
           ShellFullscreenGraphHost(
             onDismiss: () => dismissed++,
-            child: ShellFullscreenGraphPlaceholder(
-              onDismiss: () => dismissed++,
-            ),
+            child: const Text('chart'),
           ),
         ),
       );
