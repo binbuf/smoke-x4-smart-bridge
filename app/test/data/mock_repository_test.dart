@@ -281,6 +281,65 @@ void main() {
     });
 
     test(
+      'joinWifi sends the credential over BLE and never stores it',
+      () async {
+        final repo = _repo('bt_only');
+        addTearDown(repo.dispose);
+        await repo.joinWifi(ssid: 'HomeNet-2.4G', password: 'hunter2');
+        final s = await repo.snapshot().first;
+        expect(s.connection.phase, ConnectionPhase.connecting);
+        expect(s.connection.primary, LinkPrimary.bt);
+        expect(s.connection.bt.connected, isTrue);
+        expect(s.connection.wifi.mode, WifiMode.sta);
+        expect(s.connection.wifi.ssid, 'HomeNet-2.4G');
+        // Nothing anywhere in the snapshot carries the password.
+        expect(s.toString(), isNot(contains('hunter2')));
+      },
+    );
+
+    test('useHotspot broadcasts; confirmHotspotJoined completes it', () async {
+      final repo = _repo('bt_only');
+      addTearDown(repo.dispose);
+      await repo.useHotspot();
+      var s = await repo.snapshot().first;
+      expect(s.connection.phase, ConnectionPhase.provisioning);
+      expect(s.connection.primary, LinkPrimary.bt);
+      expect(s.connection.wifi.mode, WifiMode.ap);
+      expect(s.connection.wifi.passkey, 'smoke-4471');
+
+      await repo.confirmHotspotJoined();
+      s = await repo.snapshot().first;
+      expect(s.connection.phase, ConnectionPhase.connected);
+      expect(s.connection.primary, LinkPrimary.wifi);
+      expect(s.connection.wifi.mode, WifiMode.ap);
+      expect(s.connection.wifi.connected, isTrue);
+      expect(s.connection.wifi.ip, '192.168.4.1');
+    });
+
+    test('forgetNetwork clears the SSID and falls back to Bluetooth', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      await repo.forgetNetwork();
+      final s = await repo.snapshot().first;
+      expect(s.connection.wifi.mode, WifiMode.off);
+      expect(s.connection.wifi.ssid, isNull);
+      expect(s.connection.wifi.connected, isFalse);
+      expect(s.connection.primary, LinkPrimary.bt);
+      expect(s.notice, contains('forgotten'));
+    });
+
+    test('resync recovers a rollback to the connected phase', () async {
+      final repo = _repo('switch_rollback');
+      addTearDown(repo.dispose);
+      await repo.resync();
+      final s = await repo.snapshot().first;
+      expect(s.connection.phase, ConnectionPhase.connected);
+      expect(s.connection.error, isNull);
+      expect(s.connection.bt.lastSyncS, 0);
+      expect(s.connection.wifi.lastSyncS, 0);
+    });
+
+    test(
       'startCook stores a custom timeline and its reminders (N9.11/N9.18)',
       () async {
         final repo = _repo('idle');

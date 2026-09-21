@@ -136,18 +136,27 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(
-      find.byKey(const ValueKey<String>('shell-transport-chip')),
-    );
-    await tester.pumpAndSettle();
+    // The reference sheet is the long body (N10.5); open it from the connect
+    // sheet's `?` control.
+    Future<void> openReference() async {
+      await tester.tap(
+        find.byKey(const ValueKey<String>('shell-transport-chip')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey<String>('connection-mode-info-ble')),
+      );
+      await tester.pumpAndSettle();
+    }
 
     Finder sheetScrollable() => find.descendant(
       of: find.byKey(const ValueKey<String>('shell-overlay-sheet')),
       matching: find.byType(Scrollable),
     );
 
+    await openReference();
     await tester.drag(
-      find.byKey(const ValueKey<String>('shell-overlay-copy')),
+      find.byKey(const ValueKey<String>('connection-ref-notice')),
       const Offset(0, -300),
     );
     await tester.pumpAndSettle();
@@ -160,10 +169,7 @@ void main() {
     await tester.tapAt(const Offset(195, 20));
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byKey(const ValueKey<String>('shell-transport-chip')),
-    );
-    await tester.pumpAndSettle();
+    await openReference();
     final reopened = tester
         .state<ScrollableState>(sheetScrollable())
         .position

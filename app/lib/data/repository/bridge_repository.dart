@@ -65,6 +65,22 @@ abstract interface class BridgeRepository {
   /// Drop the link (the bridge keeps recording — I2).
   Future<void> disconnect();
 
+  /// Send home-Wi-Fi credentials to the bridge **over Bluetooth** (N10.7).
+  ///
+  /// The password is an argument only: it is never stored by the app or by
+  /// this repository. The bridge tries to join and reports back through
+  /// [snapshot] (`connecting` then `connected` or a named `error`).
+  Future<void> joinWifi({required String ssid, required String password});
+
+  /// Ask the bridge to broadcast its own hotspot (N10.8).
+  Future<void> useHotspot();
+
+  /// The user confirmed their phone joined the bridge hotspot (N10.8).
+  Future<void> confirmHotspotJoined();
+
+  /// Forget the saved home network — app-side only (N10.9).
+  Future<void> forgetNetwork();
+
   /// Adopt the bridge's already-running session as a cook.
   Future<void> adoptSession();
 

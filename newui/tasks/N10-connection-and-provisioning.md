@@ -61,3 +61,96 @@ never strands the user without a working link.
 
 I9, I13, I15 and "the device is never unreachable". No Wi-Fi secret is persisted
 by the app.
+
+## Hand-off
+
+**Status: done.** `make app.test` green (**451** tests; was 409 — N10 adds 42);
+`flutter analyze` and format check clean; `dart test test/domain test/data`
+green (**143**; was 139 — 4 new repo tests). No golden changed (no golden renders
+the connect/settings surfaces).
+
+### What landed (all under `app/lib/features/connection/`; barrel `connection.dart`)
+
+- `connection_format.dart` — pure: `signalWord`, `agoLabel`, `activeModeId`,
+  `activeMode`, `modeStateWord`, `wifiModeLabel`, `bluetoothSubtitle`,
+  `bridgeBluetoothSubtitle`, `wifiSubtitle`, `bridgeWifiSubtitle`,
+  `ConnectionError` + `connectionErrorOf`/`connectionErrorCopy`,
+  `connectionHasProblem`/`connectionProblemIsWarning`, `ModeFeature` +
+  `featureLabel`/`featureReason`/`featureAvailable`/`capabilityRows`,
+  `fullHistoryRefusal`, `kScannedNetworks`, `kHotspotSsid`/`kHotspotPasskey`.
+- `connect_sheet.dart` — `ConnectSheetBody` (N10.2/N10.3/N10.4/N10.6): device head
+  + pulse, dual `LinkRow`s with a `Data` badge, battery + recording, the
+  error/rollback `InsightBanner` with Try again + Use hotspot, the three mode
+  cards, the Bluetooth rollback explainer, `PrimaryAction` Re-sync now and
+  Disconnect.
+- `mode_cards.dart` — `ConnectionModeCard` (one-word state + `?`),
+  `ConnectionModesBody` (the `modes` sheet), `ModesReferenceBody` (N10.5: summary,
+  good/limited lists, capability matrix with the I13 reason under each missing
+  row).
+- `provision_sheets.dart` — `ProvisionStaBody` (scan list, password field,
+  Connect bridge, named-error banner + hotspot escape hatch) and
+  `ProvisionApBody` (SSID, `MonoWell` passkey, numbered steps, Open Wi-Fi
+  settings, I have joined).
+- `bridge_card.dart` — `BridgeCard` (N10.12–N10.15) with the two-hop subtitles,
+  the capability notice, Re-sync/Change mode/Disconnect and the conditional
+  Forget-network row.
+- Wired: `shell/overlay.dart` resolves `connect`, `modes`, `modesRef`,
+  `provisionSta`, `provisionAp` to the real bodies; `shell/destinations.dart`
+  mounts `BridgeCard` in the Settings placeholder (N13 replaces the rest).
+
+### Repository seam (N15 must implement)
+
+`BridgeRepository` gained four methods, implemented on `MockBridgeRepository`:
+`joinWifi({ssid, password})` (password is an argument only — never stored),
+`useHotspot()`, `confirmHotspotJoined()`, `forgetNetwork()`. `resync()` already
+existed and is unchanged.
+
+### Tests
+
+- `app/test/features/connection_format_test.dart` (17 pure).
+- `app/test/features/connection_test.dart` (21 widget) — includes the exit-gate
+  matrix: all seven scenarios render the right chip projection and a connect
+  sheet with both links; the three problem scenarios show the notice and both
+  recovery buttons.
+- `app/test/data/mock_repository_test.dart` — 4 new tests (joinWifi/useHotspot/
+  forgetNetwork/resync rollback).
+- `app/test/features/shell_router_test.dart` — the per-overlay scroll test now
+  opens the `modesRef` sheet via the connect sheet's `?` button (the connect body
+  is no longer a placeholder with `shell-overlay-copy`).
+
+Commands: `make app.test`; `cd app && flutter test
+test/features/connection_test.dart test/features/connection_format_test.dart`;
+`cd app && dart test test/domain test/data`.
+
+### Deviations / decisions
+
+- **Active mode is derived, not read.** The prototype reads `connection.mode`,
+  which `mock-data.js` never sets, so its mode card never highlights. N10 derives
+  it from `primary` + `wifi.mode` (`activeModeId`); document that as an
+  intentional fix.
+- **Sheet sub-titles are static.** `resolveOverlay` has no snapshot, so the
+  connect sub is `Bluetooth and Wi-Fi` (not the device name) and the modes sub is
+  the prototype's explainer line. The device name is the first card in the body.
+- **Wi-Fi `last sync` is now shown.** `wifiSubtitle`/`bridgeWifiSubtitle` append
+  `agoLabel(lastSyncS)` so the task's "health, signal, last sync" holds for both
+  rows (the prototype only put it on the Bluetooth row).
+- **Named errors are rendered from the connection state.** `connectionErrorCopy`
+  is the single source for the connect sheet and the STA sheet; the mock
+  transitions through `joinWifi`/events, so the error copy is tested by scenario.
+- **No Wi-Fi secret is persisted.** `joinWifi` takes the password as an argument
+  and the mock writes nothing; a repo test asserts the snapshot's `toString()`
+  never contains it.
+- The `modesRef` body keeps its `onDone` for the host contract but does not use
+  it (the `?` opens a new overlay rather than dismissing).
+- The STA "Try again" primary re-submits; the hotspot escape hatch is a ghost
+  button in the error block (I14 keeps one ember primary).
+
+### Follow-ups
+
+- N13: replace the Settings placeholder (the `BridgeCard` is the N10.12 seam);
+  the firmware/OTA rows stay N13's.
+- N14: onboarding step 5 reuses `ConnectionModeCard`; the wizard's mode step is
+  not wired here.
+- N15: implement the four new repository methods on the real transport and keep
+  the password out of storage; `resync` notice copy is UI-side.
+- N16: consider connect-sheet / reference goldens per scenario (none exist).

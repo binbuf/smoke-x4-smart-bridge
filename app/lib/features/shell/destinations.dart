@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/dev_panel.dart';
 import '../../data/providers.dart';
 import '../../design/design.dart';
+import '../connection/bridge_card.dart';
 import '../graph/graph.dart';
 import '../live/live_page.dart';
 import '../temps/temps_page.dart';
@@ -111,6 +112,10 @@ class DestinationPlaceholder extends ConsumerWidget {
             ],
           ),
           if (screen == ShellScreen.settings) ...<Widget>[
+            const SizedBox(height: 12),
+            // N10.12 — the connection/device card. N13 replaces the rest of
+            // this placeholder with the real settings tree.
+            const BridgeCard(),
             const SizedBox(height: 12),
             SmokeCard(
               child: SettingsRow(

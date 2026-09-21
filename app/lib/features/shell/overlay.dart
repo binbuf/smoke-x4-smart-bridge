@@ -21,6 +21,9 @@ import 'package:flutter/material.dart';
 import '../../data/dev_panel.dart';
 import '../../design/design.dart';
 import '../../domain/domain.dart';
+import '../connection/connect_sheet.dart';
+import '../connection/mode_cards.dart';
+import '../connection/provision_sheets.dart';
 import '../live/live_overlays.dart';
 import '../setup/custom_food_sheet.dart';
 import '../setup/setup_sheet.dart';
@@ -142,27 +145,28 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     DevOverlay.connect => SheetOverlay(
       title: 'Connection',
       sub: 'Bluetooth and Wi-Fi',
-      body: body('The dual-link connection sheet lands in N10.'),
+      bodyBuilder: (dismiss) => ConnectSheetBody(onDone: dismiss),
     ),
     DevOverlay.modes => SheetOverlay(
       title: 'Connection modes',
-      sub: 'Switch any time',
-      body: body('Mode switching and rollback UX land in N10.'),
+      sub: 'Switch any time — the app stays reachable',
+      bodyBuilder: (dismiss) => ConnectionModesBody(onDone: dismiss),
     ),
     DevOverlay.modesRef => SheetOverlay(
       title: 'Connection modes',
       sub: 'Technical reference',
-      body: body('The mode reference table lands in N10.'),
+      bodyBuilder: (dismiss) =>
+          ModesReferenceBody(onDone: dismiss, focusMode: request.props['mode']),
     ),
     DevOverlay.provisionSta => SheetOverlay(
       title: 'Join home Wi-Fi',
       sub: 'Sent over Bluetooth',
-      body: body('The STA provisioning flow lands in N10.'),
+      bodyBuilder: (dismiss) => ProvisionStaBody(onDone: dismiss),
     ),
     DevOverlay.provisionAp => SheetOverlay(
       title: 'Use the bridge hotspot',
-      sub: 'Direct link, no router',
-      body: body('The AP provisioning flow lands in N10.'),
+      sub: 'Direct link, no router needed',
+      bodyBuilder: (dismiss) => ProvisionApBody(onDone: dismiss),
     ),
     DevOverlay.alarms => SheetOverlay(
       title: 'Alerts',

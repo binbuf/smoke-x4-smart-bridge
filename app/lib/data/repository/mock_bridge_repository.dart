@@ -153,6 +153,107 @@ class MockBridgeRepository implements BridgeRepository {
   }
 
   @override
+  Future<void> joinWifi({
+    required String ssid,
+    required String password,
+  }) async {
+    // The password is never written anywhere: it exists only for this call
+    // (N10.7, "never stored by the app"). Bluetooth stays primary while the
+    // bridge tries to join, so a failure can always roll back to it.
+    final c = _snapshot.connection;
+    _set(
+      _snapshot.copyWith(
+        connection: c.copyWith(
+          phase: ConnectionPhase.connecting,
+          error: null,
+          primary: LinkPrimary.bt,
+          bt: c.bt.copyWith(
+            connected: true,
+            bars: c.bt.bars ?? 3,
+            lastSyncS: 0,
+          ),
+          wifi: LinkState(mode: WifiMode.sta, ssid: ssid),
+        ),
+        notice: null,
+      ),
+    );
+  }
+
+  @override
+  Future<void> useHotspot() async {
+    final c = _snapshot.connection;
+    _set(
+      _snapshot.copyWith(
+        connection: c.copyWith(
+          phase: ConnectionPhase.provisioning,
+          error: null,
+          primary: LinkPrimary.bt,
+          bt: c.bt.copyWith(
+            connected: true,
+            bars: c.bt.bars ?? 3,
+            lastSyncS: 0,
+          ),
+          wifi: const LinkState(
+            mode: WifiMode.ap,
+            ssid: 'SmokeBridge-A4F2',
+            passkey: 'smoke-4471',
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> confirmHotspotJoined() async {
+    final c = _snapshot.connection;
+    _set(
+      _snapshot.copyWith(
+        connection: c.copyWith(
+          phase: ConnectionPhase.connected,
+          error: null,
+          primary: LinkPrimary.wifi,
+          wifi: const LinkState(
+            mode: WifiMode.ap,
+            connected: true,
+            ssid: 'SmokeBridge-A4F2',
+            passkey: 'smoke-4471',
+            ip: '192.168.4.1',
+            bars: 4,
+            rssi: -40,
+            lastSyncS: 0,
+          ),
+          bt: c.bt.copyWith(connected: true, bars: c.bt.bars ?? 3),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> forgetNetwork() async {
+    final c = _snapshot.connection;
+    final primary = c.primary == LinkPrimary.wifi
+        ? (c.bt.connected ? LinkPrimary.bt : null)
+        : c.primary;
+    _set(
+      _snapshot.copyWith(
+        connection: c.copyWith(
+          primary: primary,
+          wifi: c.wifi.copyWith(
+            mode: WifiMode.off,
+            connected: false,
+            ssid: null,
+            ip: null,
+            bars: null,
+            rssi: null,
+            lastSyncS: null,
+          ),
+        ),
+        notice: 'Network forgotten — the bridge keeps recording.',
+      ),
+    );
+  }
+
+  @override
   Future<void> adoptSession() async {
     final pending = _snapshot.pendingSession;
     if (pending == null) {
