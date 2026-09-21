@@ -12,6 +12,7 @@ import '../alarms/notification_policy.dart';
 import '../content/catalog.dart';
 import '../content/fixtures_data.dart';
 import '../content/scenarios.dart';
+import '../export/cook_export.dart';
 import '../model/alarm.dart';
 import '../model/alarm_rule.dart';
 import '../model/bridge_snapshot.dart';
@@ -787,6 +788,105 @@ class MockBridgeRepository implements BridgeRepository {
     ];
     _historyController.add(history);
   }
+
+  // ── N12 history annotation verbs ──────────────────────────────────────
+
+  @override
+  Future<void> deleteCook(String cookId) async {
+    // The annotation goes; the recording it pointed at is untouched (I10).
+    _history = [
+      for (final h in _history)
+        if (h.id != cookId) h,
+    ];
+    _historyController.add(history);
+  }
+
+  @override
+  Future<void> setCookNotes(String cookId, String notes) async {
+    _history = [
+      for (final h in _history)
+        if (h.id == cookId) h.copyWith(notes: notes) else h,
+    ];
+    _historyController.add(history);
+  }
+
+  @override
+  Future<void> setCookEnded(String cookId, bool ended) async {
+    _history = [
+      for (final h in _history)
+        if (h.id == cookId) h.copyWith(status: ended ? 'done' : 'open') else h,
+    ];
+    _historyController.add(history);
+  }
+
+  @override
+  Future<void> addCookMark(
+    String cookId, {
+    required MarkKind kind,
+    String text = '',
+    int? atMs,
+  }) async {
+    _history = [
+      for (final h in _history)
+        if (h.id == cookId)
+          _withAddedMark(h, kind: kind, text: text, atMs: atMs)
+        else
+          h,
+    ];
+    _historyController.add(history);
+  }
+
+  @override
+  Future<void> deleteCookMark(String cookId, int index) async {
+    _history = [
+      for (final h in _history)
+        if (h.id == cookId)
+          h.copyWith(markEvents: _removeAt(h.markEvents, index))
+        else
+          h,
+    ];
+    _historyController.add(history);
+  }
+
+  @override
+  Future<String> exportCookCsv(String cookId) async {
+    HistoryEntry? entry;
+    for (final h in _history) {
+      if (h.id == cookId) {
+        entry = h;
+        break;
+      }
+    }
+    if (entry == null) {
+      return '';
+    }
+    return buildCookCsv(
+      samples: historySamples(entry),
+      sessionStartedUnixMs: entry.startedAtMs,
+    );
+  }
+
+  /// Appends [mark] to [entry]'s explicit rail. The stored `marks` count follows
+  /// the rail once it is non-empty, so the list card and the rail agree.
+  HistoryEntry _withAddedMark(
+    HistoryEntry entry, {
+    required MarkKind kind,
+    required String text,
+    int? atMs,
+  }) {
+    final at = atMs ?? (entry.startedAtMs + entry.durationS * 1000);
+    final t = ((at - entry.startedAtMs) ~/ 1000).clamp(0, 1 << 31).toInt();
+    final rail = <Mark>[
+      ...historyRail(entry),
+      Mark(t: t, kind: kind, text: text),
+    ];
+    return entry.copyWith(markEvents: rail, marks: rail.length);
+  }
+
+  List<Mark> _removeAt(List<Mark> marks, int index) => <Mark>[
+    for (var i = 0; i < marks.length; i++)
+      if (i != index) marks[i],
+  ];
 
   // ── dev panel ─────────────────────────────────────────────────────────
 

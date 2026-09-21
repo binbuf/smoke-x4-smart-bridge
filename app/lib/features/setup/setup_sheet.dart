@@ -44,6 +44,7 @@ class SetupSheetBody extends ConsumerStatefulWidget {
     this.addContext = false,
     this.initialJack,
     this.initialFoodId,
+    this.initialStyleId,
   });
 
   final VoidCallback onDone;
@@ -56,6 +57,9 @@ class SetupSheetBody extends ConsumerStatefulWidget {
 
   /// A food to preselect — used when returning from the custom-food form.
   final String? initialFoodId;
+
+  /// A preparation style to preselect (N12.11 "Cook again").
+  final String? initialStyleId;
 
   @override
   ConsumerState<SetupSheetBody> createState() => _SetupSheetBodyState();
@@ -93,6 +97,14 @@ class _SetupSheetBodyState extends ConsumerState<SetupSheetBody> {
     super.initState();
     _jack = widget.initialJack ?? ProbeJack.one;
     _selectedId = widget.initialFoodId;
+    _styleId = widget.initialStyleId;
+    // "Cook again" (N12.11) seeds the reminders from the replayed style and
+    // opens the picker on the cut's own category.
+    final food = _selected;
+    if (food != null) {
+      _category = food.category;
+      _applySeed(food, setupStyleById(_stylesFor(food), _styleId));
+    }
   }
 
   @override

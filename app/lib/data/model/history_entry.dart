@@ -1,5 +1,15 @@
 /// N2.21 — past-cook fixtures.
+///
+/// N12 extends the entry with the two things a cook-detail screen needs beyond
+/// the fixture summary: the **actual marks** placed during the cook
+/// ([markEvents]) and any recorded [gaps]. Both default empty, so the generated
+/// seeds (which only carry a mark *count*) keep working. The int `marks` field
+/// stays the fixture's count; [markEvents] is the editable rail (N12.10/N12.14).
+///
+/// **A history entry is an annotation window, never a sample row (I10).**
 library;
+
+import '../../domain/domain.dart';
 
 /// A history fixture, stored relative to "now" so scenarios stay fresh.
 class HistorySeed {
@@ -80,6 +90,8 @@ class HistoryEntry {
     this.photos = 0,
     this.stalledMin = 0,
     this.wrapAtF10,
+    this.markEvents = const <Mark>[],
+    this.gaps = const <RecordedGap>[],
   });
 
   final String id;
@@ -102,10 +114,31 @@ class HistoryEntry {
   final int stalledMin;
   final int? wrapAtF10;
 
+  /// The marks actually placed during the cook (N12.10/N12.14). Empty for a
+  /// generated seed, which then falls back to the derived rail.
+  final List<Mark> markEvents;
+
+  /// Holes in the recording this cook contains (N12.15). Empty means none.
+  final List<RecordedGap> gaps;
+
   /// Planned-vs-actual delta in minutes (positive = ran over).
   int get overrunMin => durationMin - plannedMin;
 
-  HistoryEntry copyWith({bool? favourite}) => HistoryEntry(
+  /// Whether the annotation is still open (reopened, N12.14).
+  bool get isOpen => status != 'done';
+
+  /// The seconds into the cook the annotation's end sits at.
+  int get durationS => durationMin * 60;
+
+  HistoryEntry copyWith({
+    bool? favourite,
+    String? notes,
+    int? marks,
+    int? rating,
+    String? status,
+    List<Mark>? markEvents,
+    List<RecordedGap>? gaps,
+  }) => HistoryEntry(
     id: id,
     name: name,
     presetId: presetId,
@@ -118,13 +151,15 @@ class HistoryEntry {
     peakF10: peakF10,
     targetF10: targetF10,
     favourite: favourite ?? this.favourite,
-    notes: notes,
-    marks: marks,
-    rating: rating,
-    status: status,
+    notes: notes ?? this.notes,
+    marks: marks ?? this.marks,
+    rating: rating ?? this.rating,
+    status: status ?? this.status,
     photos: photos,
     stalledMin: stalledMin,
     wrapAtF10: wrapAtF10,
+    markEvents: markEvents ?? this.markEvents,
+    gaps: gaps ?? this.gaps,
   );
 
   static HistoryEntry fromSeed(HistorySeed seed, int nowMs) => HistoryEntry(

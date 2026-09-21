@@ -78,6 +78,7 @@ void main() {
     bool addContext = false,
     ProbeJack? initialJack,
     String? initialFoodId,
+    String? initialStyleId,
   }) async {
     await repo.selectScenario(scenario);
     tester.view
@@ -91,6 +92,7 @@ void main() {
           addContext: addContext,
           initialJack: initialJack,
           initialFoodId: initialFoodId,
+          initialStyleId: initialStyleId,
         ),
         capture: capture,
       ),
@@ -343,6 +345,30 @@ void main() {
       await pumpSetup(tester, capture: capture);
       await tapKey(tester, 'setup-custom-food');
       expect(capture.overlays.single.overlay, DevOverlay.customFood);
+    });
+  });
+
+  group('repeat-cook prefill (N12.11)', () {
+    testWidgets('a preset and style are preselected', (tester) async {
+      await pumpSetup(
+        tester,
+        initialFoodId: 'pork_butt',
+        initialStyleId: 'texas_pulled',
+        initialJack: ProbeJack.one,
+      );
+
+      // The cut's own category opens, not the Beef default.
+      expect(textAt(tester, 'setup-catalog-count'), contains('Pork'));
+      expect(
+        find.byKey(const ValueKey<String>('setup-food-pork_butt')),
+        findsOneWidget,
+      );
+      // The style is selected, so the summary names it.
+      expect(
+        find.byKey(const ValueKey<String>('setup-style-texas_pulled')),
+        findsOneWidget,
+      );
+      expect(textAt(tester, 'setup-summary-style'), 'Style: Texas Pulled Pork');
     });
   });
 

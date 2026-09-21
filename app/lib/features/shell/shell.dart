@@ -77,6 +77,7 @@ class ShellScope extends InheritedWidget {
     required this.showToast,
     required this.toggleFullGraph,
     required this.openScreen,
+    this.openCookDetail = _noopOpenCookDetail,
     required super.child,
   });
 
@@ -89,12 +90,17 @@ class ShellScope extends InheritedWidget {
   /// Navigates to a bottom-nav destination (Live → Graph, etc.).
   final ValueChanged<ShellScreen> openScreen;
 
+  /// Navigates to one past cook's detail (`/settings/history/:id`, N12.1).
+  final ValueChanged<String> openCookDetail;
+
   static ShellScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ShellScope>();
 
   @override
   bool updateShouldNotify(ShellScope oldWidget) => false;
 }
+
+void _noopOpenCookDetail(String id) {}
 
 /// The persistent shell.
 class AppShell extends ConsumerStatefulWidget {
@@ -201,6 +207,8 @@ class _AppShellState extends ConsumerState<AppShell>
 
   void _onNavSelect(ShellScreen screen) => _go(screen.path);
 
+  void _openCookDetail(String id) => _go('${ShellScreen.history.path}/$id');
+
   void _onBack(ShellScreen screen) {
     switch (screen) {
       case ShellScreen.cookDetail:
@@ -276,6 +284,7 @@ class _AppShellState extends ConsumerState<AppShell>
       showToast: _toast.show,
       toggleFullGraph: _toggleFullGraph,
       openScreen: _onNavSelect,
+      openCookDetail: _openCookDetail,
       child: SmokePulseScope(
         pulse: _pulse,
         child: ShellPhoneFrame(

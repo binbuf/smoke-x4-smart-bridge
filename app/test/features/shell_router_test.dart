@@ -200,6 +200,44 @@ void main() {
     );
   });
 
+  testWidgets('Settings → History → cook detail through the router', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-settings')));
+    await tester.pumpAndSettle();
+    final historyRow = find.byKey(
+      const ValueKey<String>('destination-open-history'),
+    );
+    await tester.ensureVisible(historyRow);
+    await tester.pumpAndSettle();
+    await tester.tap(historyRow);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey<String>('history-page')), findsOneWidget);
+
+    // The history app-bar variant: back + Start a cook + bell (N12.1).
+    expect(
+      find.byKey(const ValueKey<String>('shell-appbar-back')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('shell-appbar-plus')),
+      findsOneWidget,
+    );
+
+    final card = find.byKey(const ValueKey<String>('history-card-c1'));
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey<String>('cook-detail-page')),
+      findsOneWidget,
+    );
+    expect(find.text('Labor Day Pulled Pork'), findsWidgets);
+  });
+
   testWidgets('a destination can raise a toast', (tester) async {
     await pumpApp(tester);
 

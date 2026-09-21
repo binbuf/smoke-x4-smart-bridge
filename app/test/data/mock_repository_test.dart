@@ -563,4 +563,64 @@ void main() {
       expect(repo.firmware.latest, 'v1.5.0');
     });
   });
+
+  group('N12 history annotation verbs (I10)', () {
+    test('deleteCook removes the annotation, never a sample', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      final before = repo.history.length;
+      await repo.deleteCook('c4');
+      expect(repo.history, hasLength(before - 1));
+      expect(repo.history.any((h) => h.id == 'c4'), isFalse);
+      // The live snapshot (the recording) is untouched.
+      expect((await repo.snapshot().first).cook.active, isTrue);
+    });
+
+    test('setCookNotes and setCookEnded edit metadata only', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      await repo.setCookNotes('c2', 'Reverse sear, 2 min a side.');
+      expect(
+        repo.history.firstWhere((h) => h.id == 'c2').notes,
+        'Reverse sear, 2 min a side.',
+      );
+      await repo.setCookEnded('c2', false);
+      expect(repo.history.firstWhere((h) => h.id == 'c2').isOpen, isTrue);
+      await repo.setCookEnded('c2', true);
+      expect(repo.history.firstWhere((h) => h.id == 'c2').isOpen, isFalse);
+    });
+
+    test(
+      'addCookMark seeds the derived rail and deleteCookMark removes one',
+      () async {
+        final repo = _repo();
+        addTearDown(repo.dispose);
+        // c2 has no wrap, so the derived rail is 3 events.
+        await repo.addCookMark('c2', kind: MarkKind.note, text: 'Sauced');
+        final after = repo.history.firstWhere((h) => h.id == 'c2');
+        expect(after.markEvents, hasLength(4));
+        expect(after.markEvents.last.text, 'Sauced');
+        expect(after.marks, 4);
+        await repo.deleteCookMark('c2', 3);
+        expect(
+          repo.history.firstWhere((h) => h.id == 'c2').markEvents,
+          hasLength(3),
+        );
+      },
+    );
+
+    test('exportCookCsv works from the cache with the link down', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      await repo.disconnect();
+      expect(repo.current.connection.phase, ConnectionPhase.offline);
+      final csv = await repo.exportCookCsv('c1');
+      final lines = csv.trimRight().split('\n');
+      expect(lines.first, cookCsvHeader);
+      expect(lines, hasLength(1 + kHistorySampleCount + 1));
+      // The last row is the recorded peak.
+      expect(lines.last, endsWith('203.1,,,,0,-60'));
+      expect(await repo.exportCookCsv('nope'), isEmpty);
+    });
+  });
 }

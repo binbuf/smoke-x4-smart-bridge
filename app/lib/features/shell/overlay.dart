@@ -142,6 +142,7 @@ OverlayContent resolveOverlay(OverlayRequest request) {
           int.tryParse(request.props['jack'] ?? '') ?? 0,
         ),
         initialFoodId: request.props['food'],
+        initialStyleId: request.props['style'],
       ),
     ),
     DevOverlay.connect => SheetOverlay(

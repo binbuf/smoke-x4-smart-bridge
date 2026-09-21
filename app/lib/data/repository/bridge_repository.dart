@@ -190,6 +190,42 @@ abstract interface class BridgeRepository {
   /// Star / unstar a past cook.
   Future<void> setFavourite(String cookId, bool favourite);
 
+  // ── N12 history annotation verbs ──────────────────────────────────────
+  //
+  // Every one of these edits the **annotation**, never a sample row (I10).
+  // N15 implements them on the real CookRepository (drift); the mock keeps
+  // them in memory.
+
+  /// Delete a cook annotation and its marks. The underlying recording is kept
+  /// (N12.13, I8/I10).
+  Future<void> deleteCook(String cookId);
+
+  /// Replace a past cook's notes (N12.14).
+  Future<void> setCookNotes(String cookId, String notes);
+
+  /// End (`false`) or reopen (`true`) a cook annotation (N12.14).
+  Future<void> setCookEnded(String cookId, bool ended);
+
+  /// Add a mark to a past cook at [atMs] (defaults to the cook's end) — the
+  /// "pull" and "marks edit" verbs (N12.14).
+  Future<void> addCookMark(
+    String cookId, {
+    required MarkKind kind,
+    String text = '',
+    int? atMs,
+  });
+
+  /// Remove one mark from a past cook by index (N12.14).
+  Future<void> deleteCookMark(String cookId, int index);
+
+  /// Build the device-compatible CSV for one cook from the cache (N12.12).
+  ///
+  /// The format is byte-compatible with the device's own `format=csv`:
+  /// `t_s,iso8601,p1_f,p2_f,p3_f,p4_f,billows,rssi`, detached probes as empty
+  /// fields, ISO-8601 UTC (empty when the session has no clock, I11). It reads
+  /// the cache, so it works with the bridge offline. N15 streams it from drift.
+  Future<String> exportCookCsv(String cookId);
+
   /// Dev panel: switch scenario.
   Future<void> selectScenario(String key);
 

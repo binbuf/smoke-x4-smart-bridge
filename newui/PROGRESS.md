@@ -488,3 +488,86 @@ test/data` green (**169**, was 143). No golden changed.
 
 
 
+
+
+## T13 — N12 History: history groups, cook detail, favourite/repeat/export/delete
+
+Status: **done**. `flutter test` green (**541**; N12 adds 39 — 12 widget + 12
+format + 9 export/data + 4 repo + 1 setup prefill + 1 router); `flutter analyze`
+and format check clean; `dart test test/domain test/data` green (**182**, was
+169). No golden changed.
+
+**Real paths**
+- `app/lib/data/export/cook_export.dart` — pure: `historySamples(entry)` (the
+  prototype `histPoints` curve, 61 points), `historyRail(entry)` (derived
+  milestones), `buildCookCsv({samples, sessionStartedUnixMs})`, `iso8601Utc`,
+  `cookCsvHeader`, `kHistorySampleCount`.
+- `app/lib/features/history/` — `history_format.dart` (grouping, recap, result
+  stats, chart inputs, marks, gaps, filename/summary), `history_model.dart`
+  (`historyNowProvider`, `historyGroupsProvider`, `historyUnitProvider`),
+  `history_page.dart` (`HistoryPage`), `cook_detail_page.dart`
+  (`CookDetailPage`), barrel `history.dart`.
+- `HistoryEntry` gained `markEvents` (`List<Mark>`, default `const []`), `gaps`
+  (`List<RecordedGap>`, default `const []`), `isOpen`, `durationS` and a full
+  `copyWith`. The int `marks` stays the fixture count.
+- Wired: `destinations.dart` `HistoryDestination` → `HistoryPage`,
+  `CookDetailDestination` → `CookDetailPage(id:)`, and the Settings History row
+  now calls `scope.openScreen(ShellScreen.history)`. `SetupSheetBody` gained
+  `initialStyleId`; `resolveOverlay(setup)` reads the `style` prop.
+
+**Commands that work**
+- `make app.test` — the N12 gate (analyze + format + `flutter test`, 541 pass).
+- `cd app && flutter test test/features/history_test.dart test/features/history_format_test.dart` — 24 fast N12 tests.
+- `cd app && dart test test/data/cook_export_test.dart` — 9 export tests.
+- `cd app && dart test test/domain test/data` — data/domain gate (182).
+
+**Contract facts later tasks need**
+- **`BridgeRepository` gained six methods** (mock implemented; **N15 must
+  implement on the real CookRepository/drift**): `deleteCook(id)`,
+  `setCookNotes(id, notes)`, `setCookEnded(id, ended)`, `addCookMark(id,
+  {kind, text, atMs})`, `deleteCookMark(id, index)`, `exportCookCsv(id)`.
+  `deleteCook`/the verbs only touch the annotation (I10); `exportCookCsv`
+  returns the cache-side CSV string (N15.14 streams it).
+- **`ShellScope` gained `openCookDetail(String id)`** (optional, no-op default),
+  wired in `AppShell` to `/settings/history/<id>`. Tests that build a
+  `ShellScope` without it keep compiling.
+- **CSV is byte-compatible with the device's `format=csv`**: header
+  `t_s,iso8601,p1_f,p2_f,p3_f,p4_f,billows,rssi`, detached = empty field,
+  `iso8601` empty when the session has no clock (I11). Rows come from
+  `historySamples` in the mock (N15 feeds the real cache).
+- Keys: `history-page`, `history-start`, `history-notice`, `history-empty`,
+  `history-group-thisWeek`/`-earlier`, `history-group-count-<group>`,
+  `history-card-<id>`/`-name-<id>`/`-sub-<id>`/`-peak-<id>`; detail
+  `cook-detail-page`/`-missing`/`-header`/`-name`/`-line`/`-stars`/`-fav`/
+  `-recap`/`-recap-<slug>`/`-result`/`-chart`/`-notes`/`-notes-text`/
+  `-notes-edit`/`-notes-sheet`/`-notes-field`/`-notes-save`/`-marks`/
+  `-marks-empty`/`-mark-<i>`/`-mark-time-<i>`/`-mark-title-<i>`/
+  `-mark-delete-<i>`/`-add-mark`/`-mark-sheet`/`-mark-kinds`/`-mark-text`/
+  `-mark-save`/`-pull`/`-gaps`/`-gap-<i>`/`-repeat`/`-share`/`-end`/`-delete`/
+  `-delete-note`.
+
+**Deviations / gotchas**
+- **The share action is a toast**, not a share sheet (`share_plus` is N15.21).
+  The toast reports `cook-<id>.csv · N rows · B bytes`; the CSV itself is real
+  and generated from the cache. N15 wires the sheet.
+- **The marks rail is derived when the fixture has no explicit marks.** The
+  generated seeds carry only a mark *count*; `historyRail` shows the
+  prototype's `Cook started / Wrapped (only when wrapped) / Probe-tender /
+  Pulled`. Editing a mark seeds `markEvents` from that derived rail, so the
+  list card's count and the rail stay in agreement. N15 replaces it with the
+  cache's real `Marks` rows.
+- **"Pull" is a mark, not a separate status**: `cook-detail-pull` appends a
+  `note` mark `Pulled`. End/reopen is `setCookEnded` (status `done`/`open`).
+- **`historyGaps` derives from the grid's own cadence**, not the device's 30 s
+  (the fixture resamples into 60 points, so a 30 s threshold would read every
+  interval as a dropout). Explicit `HistoryEntry.gaps` win.
+- Stars use `tokens.warning` (the prototype's `.fav`/`.stars` gold), which is a
+  deliberate exception to the strict status-hue rule; it is an accent, not a
+  status fill.
+- `historySamples` emits `rssi: -60` (the fixture has no signal); mock-only.
+
+**Follow-ups for later tasks**
+- N13: the Settings tree replaces the placeholder around the History row.
+- N15: implement the six repo methods on the real transport; stream the CSV from
+  drift (N15.14); wire `share_plus` (N15.21).
+- N16: consider History list + cook-detail goldens (none exist).

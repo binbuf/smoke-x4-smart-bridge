@@ -16,6 +16,7 @@ import '../../data/providers.dart';
 import '../../design/design.dart';
 import '../connection/bridge_card.dart';
 import '../graph/graph.dart';
+import '../history/history.dart';
 import '../live/live_page.dart';
 import '../temps/temps_page.dart';
 import '../timeline/timeline.dart';
@@ -123,7 +124,7 @@ class DestinationPlaceholder extends ConsumerWidget {
                 icon: SmokeGlyph.history,
                 name: 'History',
                 sub: 'Past cooks',
-                onTap: () => scope?.showToast('History is N12'),
+                onTap: () => scope?.openScreen(ShellScreen.history),
               ),
             ),
           ],
@@ -179,8 +180,7 @@ class HistoryDestination extends StatelessWidget {
   const HistoryDestination({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const DestinationPlaceholder(screen: ShellScreen.history);
+  Widget build(BuildContext context) => const HistoryPage();
 }
 
 /// Cook detail destination (N12).
@@ -190,6 +190,5 @@ class CookDetailDestination extends StatelessWidget {
   final String? id;
 
   @override
-  Widget build(BuildContext context) =>
-      const DestinationPlaceholder(screen: ShellScreen.cookDetail);
+  Widget build(BuildContext context) => CookDetailPage(id: id);
 }
