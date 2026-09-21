@@ -8,11 +8,12 @@
  *   §1  State + constants
  *   §2  Formatting helpers (temps, time, units)
  *   §3  SVG helpers (icons, sparklines, gauge, chart)
- *   §4  Domain helpers (catalog, timelines, derived values)
+ *   §4  Domain helpers (catalog, styles, timelines, derived values)
  *   §5  Renderers — chrome (appbar / nav / dev panel)
- *   §6  Renderers — views (live / timeline / graph / cooks / device / detail)
- *   §7  Renderers — overlays (onboarding / setup / connect / modes / alarms …)
- *   §8  Actions + event delegation
+ *   §6  Renderers — views (live / temps / timeline / graph / settings /
+ *                   history / cookDetail)
+ *   §7  Renderers — overlays
+ *   §8  Actions + event delegation + mock event bus
  *   §9  Boot + tick
  *
  * Comments prefixed `[BIZ]` are rules that must survive the port to Dart.
@@ -30,19 +31,28 @@
     scenarioKey: M.defaultScenario,
     screen: 'live',
     units: M.settings.units,
-    themeProfile: M.settings.themeProfile,
+    themeMode: M.settings.themeMode,           // system | light | dark
+    displayProfile: M.settings.displayProfile, // standard | daylight
+    density: M.settings.density,               // compact | comfortable
+    reducedMotion: M.settings.reducedMotion,
     settings: Object.assign({}, M.settings),
 
     overlay: null,
     onboardStep: 0,
+    onboardTroubleshoot: false,
 
     selectedCookId: null,
     chartRange: 'all',
     isolatedProbe: null,
+    graph: { zoom: 1, pan: 0 },
+    fullGraph: false,
 
-    catalog: { category: 'Beef', selectedId: null, doneness: null, jack: 1 },
+    catalog: { category: 'Beef', selectedId: null, doneness: null, jack: 1, styleId: null },
     setupMode: 'new',
     pendingAck: {},
+
+    confirm: null,     // { title, body, confirmLabel, danger, action, data }
+    customForm: null,  // working draft while adding a custom food
   };
 
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -125,6 +135,7 @@
     alertTriangle: '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
     alertCircle: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
     info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+    question: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/>',
     zap: '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>',
     bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>',
     share: '<path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><path d="M16 6l-4-4-4 4M12 2v13"/>',
@@ -136,6 +147,7 @@
     arrowUp: '<path d="M12 19V5M5 12l7-7 7 7"/>',
     arrowDown: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
     arrowRight: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+    arrowLeft: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
     minus: '<path d="M5 12h14"/>',
     utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3z"/>',
     wrap: '<path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>',
@@ -144,24 +156,42 @@
     calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
     sun: '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>',
     moon: '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>',
+    monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
     sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
     more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
     activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
     mapPin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>',
     package: '<path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>',
-    wifiOff: '<path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.58 9M1.42 9a15.91 15.91 0 014.7-2.88M8.53 16.11a6 6 0 016.95 0M12 20h.01"/>',
     upload: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
     compass: '<circle cx="12" cy="12" r="10"/><path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/>',
     key: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>',
+    signal: '<path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 20V4"/>',
+    expand: '<path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/>',
+    compress: '<path d="M8 3v3a2 2 0 01-2 2H3M16 3v3a2 2 0 002 2h3M8 21v-3a2 2 0 00-2-2H3M16 21v-3a2 2 0 012-2h3"/>',
+    zoomIn: '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>',
+    zoomOut: '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M8 11h6"/>',
+    qr: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 20h1M17 17h1v1"/>',
+    wifiOff: '<path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.58 9M1.42 9a15.91 15.91 0 014.7-2.88M8.53 16.11a6 6 0 016.95 0M12 20h.01"/>',
+    camera: '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>',
+    star: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
   };
   function icon(name, size) {
     const p = ICON_PATHS[name] || '';
     const s = size || 18;
-    return '<svg viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+    return '<svg viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
+  }
+  function iconBtn(name, action, opts) {
+    opts = opts || {};
+    return '<button class="icon-btn" data-action="' + action + '"' + (opts.data || '') + ' aria-label="' + esc(opts.label || action) + '" title="' + esc(opts.label || action) + '">' + icon(name) + (opts.badge || '') + '</button>';
   }
 
-  const GLYPH = { brisket: '🥩', beef: '🥩', steak: '🥩', pork: '🍖', ribs: '🍖', poultry: '🍗', wholeBird: '🍗', fish: '🐟', ground: '🍔', egg: '🥚', ambient: '🥔', pit: '🔥', unstated: '🍽️' };
+  const GLYPH = {
+    brisket: '🥩', beef: '🥩', steak: '🥩', pork: '🍖', ribs: '🍖', poultry: '🍗', wholeBird: '🦃',
+    fish: '🐟', shellfish: '🦐', game: '🦌', ground: '🍔', egg: '🥚', veg: '🥦', potato: '🥔',
+    cheese: '🧀', bread: '🍞', fruit: '🍑', side: '🍲', ambient: '🥔', pit: '🔥', unstated: '🍽️',
+  };
   function foodAvatar(glyph, cls) {
     const g = glyph || 'unstated';
     return '<span class="food-avatar fa-' + esc(g) + (cls ? ' ' + cls : '') + '">' + (GLYPH[g] || '🍽️') + '</span>';
@@ -195,7 +225,7 @@
     const arc = '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="7" stroke-linecap="round" stroke-dasharray="' +
       (frac * circ).toFixed(1) + ' ' + circ.toFixed(1) + '"/>';
     return '<div class="gauge"><svg width="' + size + '" height="' + size + '">' +
-      '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="7"/>' + band + arc +
+      '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" stroke="var(--hairline-strong)" stroke-width="7"/>' + band + arc +
       '</svg><div class="g-center"><div class="g-val">' + esc(o.center) + '</div><div class="g-cap">' + esc(o.caption || '') + '</div></div></div>';
   }
 
@@ -204,13 +234,15 @@
   //   labelled ON the line; crosshair returns the nearest real sample.
   function buildChart(series, opts) {
     opts = opts || {};
-    const W = 340, H = 190, padL = 30, padR = 12, padT = 12, padB = 26;
+    const W = 340, H = opts.height || 190, padL = 30, padR = 12, padT = 12, padB = 26;
     const xMin = opts.xMin, xMax = opts.xMax;
     let yMin = opts.yMin, yMax = opts.yMax;
     if (yMin === undefined) {
       let lo = Infinity, hi = -Infinity;
       series.forEach((s) => s.points.forEach((p) => { if (p.y < lo) lo = p.y; if (p.y > hi) hi = p.y; }));
+      if (lo === Infinity) { lo = 32; hi = 220; }
       yMin = Math.floor((lo - 8) / 25) * 25; yMax = Math.ceil((hi + 8) / 25) * 25;
+      if (yMax === yMin) yMax = yMin + 25;
     }
     const x = (v) => padL + ((v - xMin) / (xMax - xMin)) * (W - padL - padR);
     const y = (v) => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
@@ -218,9 +250,13 @@
     for (let i = 0; i <= 4; i++) {
       const gy = padT + (i / 4) * (H - padT - padB);
       const gv = yMax - (i / 4) * (yMax - yMin);
-      svg += '<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="rgba(255,255,255,0.07)"/>';
-      svg += '<text x="' + (padL - 5) + '" y="' + (gy + 3) + '" fill="#94A3B8" font-size="8.5" text-anchor="end" font-family="JetBrains Mono, monospace">' + Math.round(conv(gv)) + '</text>';
+      svg += '<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="var(--hairline)"/>';
+      svg += '<text x="' + (padL - 5) + '" y="' + (gy + 3) + '" fill="var(--text-muted)" font-size="8.5" text-anchor="end" font-family="JetBrains Mono, monospace">' + Math.round(conv(gv)) + '</text>';
     }
+    (opts.bands || []).forEach((b) => {
+      const y0 = y(b.max), y1 = y(b.min);
+      svg += '<rect x="' + padL + '" y="' + y0.toFixed(1) + '" width="' + (W - padL - padR) + '" height="' + Math.max(0, y1 - y0).toFixed(1) + '" fill="' + (b.color || 'var(--warning)') + '" opacity="0.08"/>';
+    });
     (opts.targets || []).forEach((t) => {
       if (t.value === null || t.value === undefined) return;
       const ty = y(t.value);
@@ -230,7 +266,7 @@
     series.forEach((s) => {
       if (s.hidden) return;
       const dim = opts.isolated && opts.isolated !== s.probe;
-      const col = dim ? 'rgba(255,255,255,0.18)' : s.color;
+      const col = dim ? 'var(--chrome-dim)' : s.color;
       const d = s.points.map((p, i) => (i ? 'L' : 'M') + x(p.x).toFixed(1) + ' ' + y(p.y).toFixed(1)).join(' ');
       if (!dim && s.points.length > 1) {
         const area = d + ' L' + x(s.points[s.points.length - 1].x).toFixed(1) + ' ' + (H - padB) + ' L' + x(s.points[0].x).toFixed(1) + ' ' + (H - padB) + ' Z';
@@ -245,22 +281,28 @@
     (opts.marks || []).forEach((mk) => {
       const mx = x(mk.x);
       if (mx < padL || mx > W - padR) return;
-      svg += '<line x1="' + mx.toFixed(1) + '" y1="' + padT + '" x2="' + mx.toFixed(1) + '" y2="' + (H - padB) + '" stroke="#FAB219" stroke-width="1" stroke-dasharray="2 3" opacity="0.45"/>';
+      svg += '<line x1="' + mx.toFixed(1) + '" y1="' + padT + '" x2="' + mx.toFixed(1) + '" y2="' + (H - padB) + '" stroke="var(--warning)" stroke-width="1" stroke-dasharray="2 3" opacity="0.45"/>';
     });
-    if (opts.now !== undefined && opts.now <= xMax) {
-      svg += '<line x1="' + x(opts.now).toFixed(1) + '" y1="' + padT + '" x2="' + x(opts.now).toFixed(1) + '" y2="' + (H - padB) + '" stroke="#F8FAFC" opacity="0.5"/>';
+    if (opts.now !== undefined && opts.now <= xMax && opts.now >= xMin) {
+      svg += '<line x1="' + x(opts.now).toFixed(1) + '" y1="' + padT + '" x2="' + x(opts.now).toFixed(1) + '" y2="' + (H - padB) + '" stroke="var(--text-hi)" opacity="0.5"/>';
     }
     for (let i = 0; i <= 4; i++) {
       const v = xMin + (i / 4) * (xMax - xMin), px = x(v);
-      svg += '<text x="' + px.toFixed(1) + '" y="' + (H - 8) + '" fill="#94A3B8" font-size="8.5" text-anchor="middle" font-family="JetBrains Mono, monospace">' + esc(opts.xLabels ? opts.xLabels(v) : Math.round(v)) + '</text>';
+      svg += '<text x="' + px.toFixed(1) + '" y="' + (H - 8) + '" fill="var(--text-muted)" font-size="8.5" text-anchor="middle" font-family="JetBrains Mono, monospace">' + esc(opts.xLabels ? opts.xLabels(v) : Math.round(v)) + '</text>';
     }
     return svg + '</svg>';
   }
 
   // ===================================================== §4 DOMAIN HELPERS ====
-  function catalogById(id) { return M.CATALOG.find((c) => c.id === id); }
-  function catalogInCat(cat) { return M.CATALOG.filter((c) => c.category === cat); }
-  function timelineFor(id) { return M.TIMELINES[id] || null; }
+  function allCatalog() { return M.CATALOG.concat(state.settings.customCatalog || []); }
+  function catalogById(id) { return allCatalog().find((c) => c.id === id); }
+  function catalogInCat(cat) { return allCatalog().filter((c) => c.category === cat); }
+  function timelineFor(id) {
+    const c = catalogById(id);
+    if (c && c.timeline) return c.timeline;
+    return M.TIMELINES[id] || null;
+  }
+  function stylesFor(id) { return M.STYLES[id] || null; }
   function donenessFor(cat, id) {
     if (!cat) return null;
     if (!id) id = cat.defaultDoneness;
@@ -282,6 +324,10 @@
     const co = carryoverFor(cat);
     return co <= 0 ? 0 : co <= 2 ? 5 : co <= 5 ? 10 : 20;
   }
+  function styleName(id) {
+    for (const k in M.STYLES) { const s = M.STYLES[k].find((x) => x.id === id); if (s) return s.name; }
+    return null;
+  }
 
   function rng(seed) {
     return function () {
@@ -300,9 +346,8 @@
     for (let i = 0; i <= n; i++) {
       const p = i / n, xx = elapsedMin * p;
       let v;
-      if (probe.role === 'pit') {
-        v = start + (cur - start) * p + Math.sin(p * 9) * 6 + (r() - 0.5) * 3;
-      } else {
+      if (probe.role === 'pit') v = start + (cur - start) * p + Math.sin(p * 9) * 6 + (r() - 0.5) * 3;
+      else {
         let e = Math.pow(p, 0.55);
         if (probe.stalled && p > 0.55 && p < 0.88) e = Math.pow(0.55, 0.55) + (p - 0.55) * 0.12;
         v = start + (cur - start) * e + (r() - 0.5) * 2.2;
@@ -312,34 +357,56 @@
     pts[n].y = cur;
     return pts;
   }
-  function seriesColor(jack) { return ['var(--p1)', 'var(--p2)', '#1FA31F', 'var(--p4)'][jack - 1] || 'var(--p1)'; }
+  function seriesColor(jack) { return ['var(--p1)', 'var(--p2)', 'var(--p3)', 'var(--p4)'][jack - 1] || 'var(--p1)'; }
 
   // ==================================================== §5 RENDER: CHROME ====
   function renderAppbar() { $('#appbar').innerHTML = appbarHtml(); }
 
+  function linkInfo() {
+    const c = scenario().connection;
+    const bt = c.bt || {}, wifi = c.wifi || {};
+    let label, iconName, cls = '';
+    if (c.phase === 'offline') { label = 'Offline'; iconName = 'wifiOff'; cls = 'is-offline'; }
+    else if (c.phase === 'connecting') { label = 'Connecting…'; iconName = 'refresh'; cls = 'is-busy'; }
+    else if (c.phase === 'provisioning') { label = 'Hotspot'; iconName = 'wifi'; cls = 'is-busy'; }
+    else if (c.phase === 'rollback') { label = 'Bluetooth'; iconName = 'bluetooth'; cls = 'is-busy'; }
+    else if (c.primary === 'bt') { label = 'Bluetooth'; iconName = 'bluetooth'; }
+    else if (c.primary === 'wifi') { label = wifi.mode === 'ap' ? 'Bridge Wi-Fi' : 'Home Wi-Fi'; iconName = wifi.mode === 'ap' ? 'wifi' : 'router'; }
+    else { label = 'Offline'; iconName = 'wifiOff'; cls = 'is-offline'; }
+    const btDot = '<span class="lc-radio' + (bt.connected ? ' on' : '') + (c.primary === 'bt' ? ' pri' : '') + '" title="Bluetooth">' + icon('bluetooth', 13) + '</span>';
+    const wifiDot = '<span class="lc-radio' + (wifi.connected ? ' on' : '') + (c.primary === 'wifi' ? ' pri' : '') + '" title="Wi-Fi">' + icon(wifi.mode === 'ap' ? 'wifi' : 'router', 13) + '</span>';
+    return { label: label, iconName: iconName, cls: cls, btDot: btDot, wifiDot: wifiDot, c: c };
+  }
+
   function appbarHtml() {
-    const s = scenario(), c = s.connection;
-    const online = c.state === 'connected';
-    const mode = M.MODES.find((m) => m.id === c.mode) || M.MODES[0];
-    const modeIcon = c.mode === 'ble' ? 'bluetooth' : c.mode === 'ap' ? 'wifi' : 'router';
+    const s = scenario();
     const alarms = (s.alarms || []).filter((a) => !a.acked && !state.pendingAck[a.id]);
     const badge = alarms.length ? '<span class="dot-badge">' + alarms.length + '</span>' : '';
-    const bell = '<button class="icon-btn" data-action="open-alerts" title="Alerts">' + icon('bell') + badge + '</button>';
+    const bell = iconBtn('bell', 'open-alerts', { label: 'Alerts', badge: badge });
 
     if (state.screen === 'cookDetail') {
-      return '<button class="icon-btn" data-action="back">' + icon('chevronLeft') + '</button>' +
+      return '<button class="icon-btn" data-action="back" aria-label="Back">' + icon('chevronLeft') + '</button>' +
         '<div><div class="ab-title" style="font-size:17px">Cook detail</div></div><div class="spacer"></div>' + bell;
     }
-    if (state.screen === 'cooks') {
-      return '<div><div class="ab-title">Cooks</div><div class="ab-sub">History & new cooks</div></div><div class="spacer"></div>' +
-        '<button class="icon-btn" data-action="open-setup" title="Start a cook">' + icon('plus') + '</button>' + bell;
+    if (state.screen === 'history') {
+      return '<button class="icon-btn" data-action="nav" data-screen="settings" aria-label="Back">' + icon('chevronLeft') + '</button>' +
+        '<div><div class="ab-title">History</div><div class="ab-sub">Past cooks</div></div><div class="spacer"></div>' +
+        iconBtn('plus', 'open-setup', { label: 'Start a cook' }) + bell;
     }
-    const chip = '<button class="transport' + (online ? '' : ' is-offline') + '" data-action="open-connect">' +
-      '<span class="pulse-dot ' + (online ? '' : 'idle') + '"></span>' + icon(modeIcon, 14) +
-      '<span class="tp-label">' + (online ? esc(mode.name) : 'Offline') + '</span>' +
-      '<span class="tp-detail">· ' + (online ? (c.lastSyncS < 60 ? c.lastSyncS + 's' : Math.round(c.lastSyncS / 60) + 'm') : ago(Date.now() - c.lastSyncS * 1000)) + '</span></button>';
-    if (state.screen === 'live') return chip + '<div class="spacer"></div>' + bell;
-    const titles = { timeline: ['Timeline', 'Expected & actual'], graph: ['Graph', 'All probes'], device: ['Device', 'Connection & settings'] };
+    if (state.screen === 'live') {
+      const li = linkInfo();
+      const chip = '<button class="link-chip ' + li.cls + '" data-action="open-connect" aria-label="Connection status">' +
+        '<span class="pulse-dot ' + (li.c.phase === 'offline' ? 'idle' : li.c.phase === 'connected' ? '' : 'warn') + '"></span>' +
+        icon(li.iconName, 14) + '<span class="lc-label">' + esc(li.label) + '</span>' +
+        '<span class="lc-sep"></span>' + li.btDot + li.wifiDot + '</button>';
+      return chip + '<div class="spacer"></div>' + bell;
+    }
+    const titles = {
+      temps: ['Temperatures', 'Every probe, up close'],
+      timeline: ['Timeline', 'Expected & actual'],
+      graph: ['Graph', 'All probes'],
+      settings: ['Settings', 'Connection & preferences'],
+    };
     const t = titles[state.screen] || ['Smoke', ''];
     return '<div><div class="ab-title">' + t[0] + '</div><div class="ab-sub">' + t[1] + '</div></div><div class="spacer"></div>' + bell;
   }
@@ -347,40 +414,44 @@
   function renderNav() {
     const items = [
       { id: 'live', label: 'Live', icon: 'activity' },
+      { id: 'temps', label: 'Temps', icon: 'thermometer' },
       { id: 'timeline', label: 'Timeline', icon: 'list' },
       { id: 'graph', label: 'Graph', icon: 'chart' },
-      { id: 'cooks', label: 'Cooks', icon: 'history' },
-      { id: 'device', label: 'Device', icon: 'cpu' },
+      { id: 'settings', label: 'Settings', icon: 'sliders' },
     ];
     const alarmCount = (scenario().alarms || []).filter((a) => !a.acked && !state.pendingAck[a.id]).length;
     $('#nav').innerHTML = items.map((it) => {
-      const on = state.screen === it.id || (state.screen === 'cookDetail' && it.id === 'cooks');
+      const on = state.screen === it.id ||
+        (state.screen === 'cookDetail' && it.id === 'settings') ||
+        (state.screen === 'history' && it.id === 'settings');
       const dot = it.id === 'live' && alarmCount ? '<span class="ndot"></span>' : '';
-      return '<button class="nav-item' + (on ? ' on' : '') + '" data-action="nav" data-screen="' + it.id + '">' +
+      return '<button class="nav-item' + (on ? ' on' : '') + '" data-action="nav" data-screen="' + it.id + '" aria-label="' + it.label + '">' +
         icon(it.icon) + '<span class="nlabel">' + it.label + '</span>' + dot + '</button>';
     }).join('');
   }
 
   function renderView() {
-    const map = { live: viewLive, timeline: viewTimeline, graph: viewGraph, cooks: viewCooks, cookDetail: viewCookDetail, device: viewDevice };
+    const map = {
+      live: viewLive, temps: viewTemps, timeline: viewTimeline, graph: viewGraph,
+      settings: viewSettings, history: viewHistory, cookDetail: viewCookDetail,
+    };
     $('#view').innerHTML = (map[state.screen] || viewLive)();
-    if (state.screen === 'graph') wireChart();
   }
 
   // ====================================================== §6 RENDER: VIEWS ====
-  // ---- Live ----------------------------------------------------------------
+  // ---- Live (glance) -------------------------------------------------------
   function viewLive() {
-    const s = scenario(), c = s.connection, cook = s.cook;
+    const s = scenario(), cook = s.cook;
     const grate = s.probes.find((p) => p.role === 'pit');
     let html = '';
 
-    // 1. Alarm strip(s) — highest severity first, inline acknowledge.
     html += alarmStrips(s);
 
-    // 2. Adopt banner — the "hook into already-collected data" case.
+    if (s.notice) html += '<div class="cap-notice warn mb3">' + icon('info') + '<div class="cn-text">' + esc(s.notice) + '</div></div>';
+
     if (s.pendingSession && !cook.active) {
       const ps = s.pendingSession;
-      html += '<div class="card" style="border-color:rgba(217,89,38,0.4);background:linear-gradient(180deg,rgba(217,89,38,0.10),var(--card) 60%)">' +
+      html += '<div class="card" style="border-color:rgba(var(--pit-rgb),0.4);background:linear-gradient(180deg,rgba(var(--pit-rgb),0.10),var(--card) 60%)">' +
         '<div class="card-head">' + icon('history') + '<div class="card-title">A cook is already running</div></div>' +
         '<div class="body small">Your bridge has been recording for <b class="hi">' + fmtDuration(Date.now() - ps.startedAtMs) + '</b> with ' +
         ps.probeCount + ' probes attached (' + ps.samples + ' samples). We can pull that history in and build the cook around it.</div>' +
@@ -388,20 +459,19 @@
         '<button class="btn ghost" data-action="discard-session">Start fresh</button></div></div>';
     }
 
-    // 3. Cook header + stopwatch (or instrument mode).
     if (cook.active) {
       const firstCat = catalogById((cook.items[0] || {}).id);
       html += '<div class="card">' +
         '<div class="cook-head">' + foodAvatar(firstCat ? firstCat.glyph : 'unstated') +
         '<div class="ch-meta"><div class="ch-name">' + esc(cook.name) + '</div>' +
         '<div class="ch-line">' + icon('lock', 12) + 'Recording on the bridge — safe even if this phone drops</div></div>' +
-        '<button class="icon-btn" data-action="open-setup" title="Cook settings">' + icon('sliders') + '</button></div>' +
+        iconBtn('sliders', 'open-setup', { label: 'Cook settings' }) + '</div>' +
         '<div class="stopwatch mt4' + (cook.paused ? ' paused' : '') + '">' +
         '<div><div class="sw-label">Cook time</div><div class="sw-time" id="swTime">' + fmtStopwatch(Date.now() - cook.startedAtMs) + '</div>' +
         '<div class="sw-started">Started ' + fmtClock(cook.startedAtMs) + (cook.paused ? ' · paused' : '') + '</div></div>' +
         '<div class="spacer"></div><div class="sw-actions">' +
-        '<button class="sw-btn" data-action="pause-cook" title="' + (cook.paused ? 'Resume' : 'Pause') + '">' + icon(cook.paused ? 'play' : 'pause') + '</button>' +
-        '<button class="sw-btn" data-action="edit-start" title="Adjust start time">' + icon('edit') + '</button>' +
+        '<button class="sw-btn" data-action="pause-cook" aria-label="' + (cook.paused ? 'Resume' : 'Pause') + '" title="' + (cook.paused ? 'Resume' : 'Pause') + '">' + icon(cook.paused ? 'play' : 'pause') + '</button>' +
+        '<button class="sw-btn" data-action="edit-start" aria-label="Adjust start time" title="Adjust start time">' + icon('edit') + '</button>' +
         '</div></div></div>';
     } else {
       html += '<div class="card">' +
@@ -412,35 +482,26 @@
         '<button class="btn ghost" data-action="nav" data-screen="graph">' + icon('chart') + 'View graph</button></div></div>';
     }
 
-    // 4. Hero — the grate/pit temperature. [BIZ] Hero is always ink, never hue.
-    if (grate) {
-      const tp = tempParts(grate.tempF);
-      const band = cook.pitBand;
-      const inBand = grate.tempF !== null && grate.tempF >= band[0] && grate.tempF <= band[1];
-      html += '<div class="card hero mt3"><div class="hero-info">' +
-        '<div class="hero-kicker">' + icon('flame', 13) + 'Grate · Jack ' + grate.jack + '</div>' +
-        '<div class="hero-temp"><span>' + tp.num + '</span><span class="dec">' + tp.dec + '</span><span class="unit">' + tp.unit + '</span></div>' +
-        '<div class="hero-target">Target <b>' + fmtTemp(grate.targetF, 0) + '</b> · ' + (grate.freshness === 'live' ? 'live' : 'stale') + '</div>' +
-        '<div class="hero-band">Pit band ' + band[0] + '–' + band[1] + '° F ' + (inBand ? '<span style="color:var(--positive)">· in band</span>' : '<span style="color:var(--warning)">· out of band</span>') + '</div>' +
-        '<div class="row mt2">' + trendChip(grate.trendFPerHr, true) + '</div></div>' +
-        '<div class="hero-side">' + gauge({
-          value: grate.tempF, min: 0, max: 500, color: 'var(--p1)', center: fmtTemp(grate.tempF, 0).replace(unitLabel(), ''), caption: 'grate',
-          bandMin: grate.tempF !== null ? grate.tempF - 30 : undefined, bandMax: grate.tempF !== null ? grate.tempF + 30 : undefined,
-        }) + '</div></div>';
-    }
+    const attached = s.probes.filter((p) => p.attached && p.role !== 'unused');
+    const meats = attached.filter((p) => p.role === 'food');
+    const hottest = meats.slice().sort((a, b) => (b.tempF || 0) - (a.tempF || 0))[0];
+    const done = meats.filter((p) => p.targetF && p.tempF >= p.targetF).length;
+    const toTarget = meats.filter((p) => p.targetF && p.tempF < p.targetF).length;
+    html += '<div class="section-label">At a glance</div><div class="summary-strip">' +
+      '<div class="ss"><div class="ss-k">Grate</div><div class="ss-v">' + (grate && grate.attached ? fmtTemp(grate.tempF, 0).replace(unitLabel(), '') : '—') + '<span class="tiny muted">' + (grate && grate.attached ? unitLabel() : '') + '</span></div><div class="ss-s">' + (grate && grate.attached ? 'Pit band ' + cook.pitBand[0] + '–' + cook.pitBand[1] + '°' : 'No pit probe') + '</div></div>' +
+      '<div class="ss"><div class="ss-k">Hottest food</div><div class="ss-v">' + (hottest ? fmtTemp(hottest.tempF, 0).replace(unitLabel(), '') : '—') + '<span class="tiny muted">' + (hottest ? unitLabel() : '') + '</span></div><div class="ss-s">' + (hottest ? esc(probeName(hottest, cook)) : 'None attached') + '</div></div>' +
+      '<div class="ss"><div class="ss-k">To target</div><div class="ss-v">' + toTarget + '</div><div class="ss-s">' + (done ? done + ' ready' : 'none ready yet') + '</div></div></div>';
 
-    // 5. Timer board — FRONT AND CENTER. 3 meat timers + 1 grate timer.
-    html += '<div class="section-label">' + icon('clock', 13) + 'Timers<span class="spacer"></span><span class="muted tiny">tap to manage</span></div>' +
-      '<div class="timer-grid">' + s.probes.map((p) => timerTile(p, cook)).join('') + '</div>';
+    html += '<div class="section-label">' + icon('thermometer', 13) + 'Probes<span class="spacer"></span>' +
+      '<span class="link" data-action="nav" data-screen="temps">Details</span></div>' +
+      '<div class="probe-rail">' + s.probes.map((p) => compactProbe(p, cook)).join('') + '</div>';
 
-    // 6. Mini live graph.
     const elapsedMin = cook.startedAtMs ? Math.round((Date.now() - cook.startedAtMs) / 60000) : 0;
     html += '<div class="card tap mt3" data-action="nav" data-screen="graph">' +
       '<div class="card-head">' + icon('chart') + '<div class="card-title">Live graph</div><span class="spacer"></span>' +
       '<span class="tiny muted">' + (state.units === 'C' ? '°C' : '°F') + ' · last ' + elapsedMin + 'm</span>' + icon('chevronRight') + '</div>' +
       '<div class="chart">' + miniChart(s) + '</div></div>';
 
-    // 7. Quick actions.
     html += '<div class="section-label">Quick actions</div><div class="btn-row">' +
       '<button class="btn" data-action="open-mark">' + icon('bookmark') + 'Mark</button>' +
       '<button class="btn" data-action="open-setup">' + icon('plus') + 'Add food</button></div>';
@@ -452,56 +513,41 @@
     if (!alarms.length) return '';
     const order = { critical: 0, warning: 1, info: 2 };
     alarms.sort((a, b) => order[a.severity] - order[b.severity]);
-    return alarms.slice(0, 3).map((a) => {
+    let html = '';
+    if (alarms.length > 1) html += '<div class="row between mb2"><span class="tiny muted">' + alarms.length + ' active alerts</span><span class="link" data-action="ack-all">Acknowledge all</span></div>';
+    html += alarms.slice(0, 3).map((a) => {
       const ic = a.severity === 'critical' ? 'alertCircle' : a.severity === 'warning' ? 'alertTriangle' : 'info';
-      const tier = a.tier === 'device' ? '<span class="tier-tag device">Device</span>' : '<span class="tier-tag app">Advisory</span>';
-      return '<div class="alarm-bar ' + a.severity + '" data-action="open-alerts">' +
+      const tier = a.tier === 'device' ? '<span class="tier-tag device">Device</span>' : '<span class="tier-tag app">Insight</span>';
+      return '<div class="alarm-bar ' + a.severity + '" data-action="open-alarm-detail" data-id="' + a.id + '">' +
         '<span class="al-icon">' + icon(ic) + '</span><div class="al-text">' +
         '<div class="al-title">' + esc(a.rule) + ' ' + tier + '</div>' +
         '<div class="al-detail">' + esc(a.detail) + (a.valueF ? ' · ' + fmtTemp(a.valueF) : '') + '</div></div>' +
-        '<button class="al-ack" data-action="ack-alarm" data-id="' + a.id + '">Ack</button></div>';
+        '<button class="al-ack" data-action="ack-alarm" data-id="' + a.id + '" aria-label="Acknowledge" title="Acknowledge">' + icon('check', 17) + '</button></div>';
     }).join('');
+    return html;
   }
 
   // [BIZ] Detached probe renders "— / Unplugged", never 0 (I3).
-  // [BIZ] Stale removes derived values (ETA/trend) instead of greying (I4).
-  function timerTile(p, cook) {
-    const item = (cook.items || []).find((it) => it.jack === p.jack);
-    const cat = item ? catalogById(item.id) : null;
+  function compactProbe(p, cook) {
     const isGrate = p.role === 'pit';
-    const attached = p.attached;
+    const attached = p.attached && p.role !== 'unused';
     const tp = attached ? tempParts(p.tempF) : { num: '—', dec: '', unit: '' };
     const target = isGrate ? (cook.grateTargetF || p.targetF) : p.targetF;
     const prog = (attached && target && p.tempF !== null) ? Math.max(0, Math.min(1, p.tempF / target)) : 0;
-    const canShowDerived = p.freshness === 'live';
-
+    const canShow = p.freshness === 'live';
     let flags = '';
-    if (p.stalled && canShowDerived) flags += '<span class="tt-stall">STALL</span>';
-    if (attached && target && p.tempF >= target - 0.001) flags += '<span class="tt-done">DONE</span>';
-    if (isGrate) flags += '<span class="tt-grate-tag">Grate</span>';
-
-    let sub = !attached ? '<span style="color:var(--text-muted)">Unplugged</span>'
-      : isGrate ? 'Pit band ' + cook.pitBand[0] + '–' + cook.pitBand[1] + '° F'
-      : 'Target <b>' + fmtTemp(target, 0) + '</b>';
-
-    let etaBlock = '';
-    if (canShowDerived && p.etaMin !== null && p.etaMin !== undefined) {
-      etaBlock = '<div class="tt-eta">' + icon('clock', 13) + '<span class="eta-big">' + fmtEta(p.etaMin) + '</span><span class="eta-note">to pull</span></div>';
-    } else if (canShowDerived && p.stalled) {
-      etaBlock = '<div class="tt-eta"><span class="eta-note">ETA paused during stall</span></div>';
-    } else if (!canShowDerived && attached) {
-      etaBlock = '<div class="tt-eta"><span class="eta-note">' + (p.freshness === 'frozen' ? 'Stale — estimates hidden' : 'Estimate unavailable') + '</span></div>';
-    }
-    const phase = phaseOf(p);
-    return '<div class="timer-tile p' + p.jack + (isGrate ? ' grate' : '') + '" data-action="open-probe" data-jack="' + p.jack + '">' +
+    if (p.stalled && canShow) flags += '<span class="tt-stall">STALL</span>';
+    if (attached && target && p.tempF >= target) flags += '<span class="tt-done">DONE</span>';
+    const sub = !p.attached ? 'Unplugged' : p.role === 'unused' ? 'Unused' :
+      isGrate ? 'Pit band ' + cook.pitBand[0] + '–' + cook.pitBand[1] + '°' :
+      (canShow && p.etaMin !== null && p.etaMin !== undefined ? fmtEta(p.etaMin) + ' to pull' : (target ? 'Target ' + fmtTemp(target, 0) : 'No target'));
+    return '<div class="compact-probe p' + p.jack + (isGrate ? ' grate' : '') + '" data-action="open-probe" data-jack="' + p.jack + '">' +
       '<div class="tt-flags">' + flags + '</div>' +
-      '<div class="tt-top"><span class="jack-badge ' + (attached ? 'p' + p.jack : 'detached') + '">' + p.jack + '</span>' +
-      '<span class="tt-name">' + esc(cat ? cat.name : (isGrate ? 'Grate' : 'Probe ' + p.jack)) + '</span></div>' +
-      '<div class="tt-temp' + (attached ? '' : ' detached') + '">' + tp.num + '<span class="u">' + (attached ? tp.dec + tp.unit : '') + '</span></div>' +
-      '<div class="tt-sub">' + sub + '</div>' +
-      (attached && target ? '<div class="tt-progress"><i style="width:' + (prog * 100).toFixed(0) + '%"></i></div>' : '') +
-      etaBlock +
-      (phase && attached && !isGrate ? '<div class="tt-sub" style="margin-top:7px">' + phase + '</div>' : '') + '</div>';
+      '<div class="cp-top"><span class="jack-badge ' + (p.attached ? 'p' + p.jack : 'detached') + '" style="width:22px;height:22px;font-size:11px">' + p.jack + '</span>' +
+      '<span class="cp-name">' + esc(probeName(p, cook)) + '</span></div>' +
+      '<div class="cp-temp">' + tp.num + '<span class="u">' + (attached ? tp.dec + tp.unit : '') + '</span></div>' +
+      '<div class="cp-sub">' + esc(sub) + '</div>' +
+      (attached && target ? '<div class="cp-bar"><i style="width:' + (prog * 100).toFixed(0) + '%"></i></div>' : '') + '</div>';
   }
 
   function phaseOf(p) {
@@ -536,10 +582,69 @@
     return svg + '</svg>';
   }
 
+  // ---- Temps (big widgets) -------------------------------------------------
+  function viewTemps() {
+    const s = scenario(), cook = s.cook;
+    const attached = s.probes.filter((p) => p.attached && p.role !== 'unused');
+    if (!attached.length) {
+      return emptyState('No probes attached', 'Plug a probe into the Smoke X4 and it will appear here the moment the bridge hears it.', 'nav', 'View graph', 'thermometer');
+    }
+    let html = '<div class="row between mb3"><span class="tiny muted">' + attached.length + ' attached · updated ' +
+      (s.connection.phase === 'connected' ? 'live' : 'stale') + '</span>' +
+      '<div class="seg"><button data-action="set-units" data-units="F" class="' + (state.units === 'F' ? 'on' : '') + '">°F</button>' +
+      '<button data-action="set-units" data-units="C" class="' + (state.units === 'C' ? 'on' : '') + '">°C</button></div></div>';
+
+    html += '<div class="stack">' + attached.map((p) => tempCard(p, cook)).join('') + '</div>';
+
+    const detached = s.probes.filter((p) => !p.attached || p.role === 'unused');
+    if (detached.length) {
+      html += '<div class="section-label">Not attached</div><div class="card subtle">' + detached.map((p, i) =>
+        '<div class="link-row off" style="cursor:default;' + (i === detached.length - 1 ? 'border-bottom:none' : '') + '">' +
+        '<div class="lr-icon">' + icon('thermometer') + '</div><div class="lr-meta"><div class="lr-name">Jack ' + p.jack + '</div>' +
+        '<div class="lr-sub">Unplugged — absent, never 0°</div></div>' +
+        '<div class="lr-right"><button class="btn ghost sm" data-action="open-probe" data-jack="' + p.jack + '">Set role</button></div></div>').join('') + '</div>';
+    }
+    html += '<div class="btn-row mt4"><button class="btn" data-action="open-mark">' + icon('bookmark') + 'Add mark</button>' +
+      '<button class="btn ghost" data-action="open-setup">' + icon('plus') + 'Add food</button></div>';
+    return html;
+  }
+
+  function tempCard(p, cook) {
+    const isGrate = p.role === 'pit';
+    const attached = p.attached;
+    const tp = attached ? tempParts(p.tempF) : { num: '—', dec: '', unit: '' };
+    const target = isGrate ? (cook.grateTargetF || p.targetF) : p.targetF;
+    const canShow = p.freshness === 'live';
+    const prog = (attached && target && p.tempF !== null) ? Math.max(0, Math.min(1, p.tempF / target)) : 0;
+    const fresh = p.freshness === 'live' ? 'Live' : p.freshness === 'aging' ? 'Aging' : p.freshness === 'frozen' ? 'Stale' : '—';
+    let flags = '';
+    if (p.stalled && canShow) flags += '<span class="tt-stall">STALL</span>';
+    if (attached && target && p.tempF >= target) flags += '<span class="tt-done">DONE</span>';
+    if (isGrate) flags += '<span class="tt-grate-tag">Grate</span>';
+    return '<div class="temp-card p' + p.jack + (attached ? '' : ' detached') + '" data-action="open-probe" data-jack="' + p.jack + '">' +
+      '<div class="tc-head"><span class="jack-badge ' + (attached ? 'p' + p.jack : 'detached') + '">' + p.jack + '</span>' +
+      '<span class="tc-name">' + esc(probeName(p, cook)) + '</span><span class="spacer"></span>' + flags + '</div>' +
+      '<div class="tc-body"><div class="tc-temp">' + tp.num + '<span class="u">' + (attached ? tp.dec + tp.unit : '') + '</span></div>' +
+      '<div class="tc-side">' + (canShow ? trendChip(p.trendFPerHr, true) : '<span class="trend-chip flat">stale</span>') +
+      '<span class="tiny muted">' + fresh + '</span></div></div>' +
+      (attached && target ? '<div class="tt-progress mt3"><i style="width:' + (prog * 100).toFixed(0) + '%"></i></div>' : '') +
+      '<div class="tc-meta">' + tempMeta(p, isGrate, cook) + '</div></div>';
+  }
+  function tempMeta(p, isGrate, cook) {
+    const canShow = p.freshness === 'live';
+    const cells = [];
+    if (isGrate) {
+      const inBand = p.tempF !== null && p.tempF >= cook.pitBand[0] && p.tempF <= cook.pitBand[1];
+      cells.push(['Pit band', cook.pitBand[0] + '–' + cook.pitBand[1] + '°'], ['Status', inBand ? 'In band' : 'Out']);
+    } else if (p.targetF) {
+      cells.push(['Target', fmtTemp(p.targetF, 0)], ['Pull at', p.pullF ? fmtTemp(p.pullF, 0) : '—']);
+      cells.push(['ETA', canShow && p.etaMin !== null && p.etaMin !== undefined ? fmtEta(p.etaMin) : (p.stalled && canShow ? 'Stalled' : '—')]);
+    }
+    cells.push(['High', fmtTemp(p.peakF, 0)], ['Avg', fmtTemp(p.avgF, 0)]);
+    return cells.map((c) => '<div class="tc-m"><div class="tc-mk">' + c[0] + '</div><div class="tc-mv">' + c[1] + '</div></div>').join('');
+  }
+
   // ---- Timeline ------------------------------------------------------------
-  // [BIZ] The Timeline is database-driven (MOCK.TIMELINES), not a guess: every
-  // cut carries expected total, stall window, wrap point, spritz cadence,
-  // turn point and rest. See NOTES.md §Timeline DB.
   function viewTimeline() {
     const s = scenario(), cook = s.cook;
     if (!cook.active && !s.pendingSession) {
@@ -622,27 +727,44 @@
   }
 
   // ---- Graph ---------------------------------------------------------------
-  function viewGraph() {
+  function graphDomain() {
     const s = scenario(), cook = s.cook;
     const started = cook.startedAtMs || (Date.now() - 60 * 60000);
-    const now = Date.now(), elapsed = (now - started) / 60000;
-    const ranges = { '15m': 15, '1h': 60, '6h': 360, 'all': elapsed };
-    const span = ranges[state.chartRange] || elapsed;
-    const xMin = Math.max(0, elapsed - span), xMax = Math.max(span, elapsed);
-    const series = s.probes.filter((p) => p.attached && p.spark && p.spark.length).map((p) => {
-      const all = buildSeries(p, { startedAtMs: now - elapsed * 60000 });
-      return { probe: p.jack, color: seriesColor(p.jack), points: all.filter((q) => q.x >= xMin), width: p.role === 'pit' ? 2.6 : 2, dash: [null, '7 4', '2 4', '9 3 2 3'][p.jack - 1] || null };
+    const now = Date.now(), elapsed = Math.max(5, (now - started) / 60000);
+    const ranges = { '15m': 15, '1h': 60, '6h': 360, all: elapsed };
+    const base = ranges[state.chartRange] || elapsed;
+    const span = Math.max(2, base / state.graph.zoom);
+    const viewEnd = Math.max(span, elapsed - state.graph.pan);
+    const xMin = Math.max(0, viewEnd - span), xMax = Math.min(elapsed, xMin + span);
+    return { started: started, elapsed: elapsed, xMin: xMin, xMax: xMax, now: elapsed };
+  }
+  function graphSeries() {
+    const s = scenario();
+    const d = graphDomain();
+    return s.probes.filter((p) => p.attached && p.spark && p.spark.length).map((p) => {
+      const all = buildSeries(p, { startedAtMs: Date.now() - d.elapsed * 60000 });
+      return { probe: p.jack, color: seriesColor(p.jack), points: all.filter((q) => q.x >= d.xMin), width: p.role === 'pit' ? 2.6 : 2, dash: [null, '7 4', '2 4', '9 3 2 3'][p.jack - 1] || null };
     });
+  }
+  function viewGraph() {
+    const s = scenario(), cook = s.cook, d = graphDomain();
+    const series = graphSeries();
     const targets = s.probes.filter((p) => p.attached && p.targetF !== null && p.targetF !== undefined)
       .map((p) => ({ value: p.targetF, color: seriesColor(p.jack), label: fmtTemp(p.targetF, 0) }));
-    const marks = (s.marks || []).map((mk) => ({ x: (mk.atMs - started) / 60000 })).filter((m) => m.x >= xMin);
-    lastChart = { series: series.map((sr) => ({ name: probeName(s.probes.find((p) => p.jack === sr.probe), cook), points: sr.points })), xMin: xMin, xMax: xMax, started: started };
+    const marks = (s.marks || []).map((mk) => ({ x: (mk.atMs - d.started) / 60000 })).filter((m) => m.x >= d.xMin);
+    lastChart = { series: series.map((sr) => ({ name: probeName(s.probes.find((p) => p.jack === sr.probe), cook), points: sr.points })), xMin: d.xMin, xMax: d.xMax, started: d.started };
 
-    let html = '<div class="seg-chips mb3">' + ['15m', '1h', '6h', 'all'].map((r) =>
-      '<button class="chip' + (state.chartRange === r ? ' on' : '') + '" data-action="chart-range" data-range="' + r + '">' + r + '</button>').join('') + '</div>';
+    let html = '<div class="row between mb3"><div class="seg-chips">' + ['15m', '1h', '6h', 'all'].map((r) =>
+      '<button class="chip' + (state.chartRange === r ? ' on' : '') + '" data-action="graph-range" data-range="' + r + '">' + r + '</button>').join('') + '</div>' +
+      '<div class="zoom-bar">' +
+      '<button class="zb" data-action="graph-zoom" data-dir="out" aria-label="Zoom out">' + icon('zoomOut') + '</button>' +
+      '<button class="zb" data-action="graph-zoom" data-dir="in" aria-label="Zoom in">' + icon('zoomIn') + '</button>' +
+      '<button class="zb" data-action="graph-fullscreen" aria-label="Fullscreen">' + icon('expand') + '</button></div></div>';
+
     html += '<div class="chart-wrap"><div class="chart" id="chartHost">' + buildChart(series, {
-      xMin: xMin, xMax: xMax, targets: targets, marks: marks, now: elapsed, isolated: state.isolatedProbe,
-      xLabels: (v) => fmtClock(started + v * 60000),
+      xMin: d.xMin, xMax: d.xMax, targets: targets, marks: marks, now: d.now, isolated: state.isolatedProbe,
+      bands: [{ min: cook.pitBand[0], max: cook.pitBand[1], color: 'var(--warning)' }],
+      xLabels: (v) => fmtClock(d.started + v * 60000),
     }) + '<div class="crosshair-tip" id="chartTip"></div></div>';
     html += '<div class="legend">' + s.probes.map((p) => {
       if (!p.attached) return '';
@@ -650,7 +772,9 @@
       return '<button class="legend-item' + (dim ? ' dim' : '') + '" data-action="isolate" data-jack="' + p.jack + '">' +
         '<span class="legend-swatch" style="' + legendSwatch(p.jack) + '"></span>' +
         '<span class="lg-name">' + esc(probeName(p, cook)) + '</span><span class="lg-val">' + fmtTemp(p.tempF) + '</span></button>';
-    }).join('') + '</div></div>';
+    }).join('') + '</div>' +
+      '<div class="row between mt3"><span class="tiny muted">' + (state.graph.zoom > 1 ? (state.graph.zoom.toFixed(1) + '× zoom') : 'Pinch or scroll to zoom · drag to pan') + '</span>' +
+      (state.graph.zoom > 1 || state.graph.pan ? '<span class="link" data-action="graph-reset">Reset view</span>' : '') + '</div></div>';
 
     html += '<div class="section-label">' + icon('activity', 13) + 'Window statistics</div><div class="card">';
     s.probes.filter((p) => p.attached).forEach((p, idx, arr) => {
@@ -660,14 +784,37 @@
     });
     html += '</div>';
     html += '<div class="btn-row mt3"><button class="btn" data-action="open-mark">' + icon('bookmark') + 'Add mark</button>' +
-      '<button class="btn ghost" data-action="export">' + icon('download') + 'Export CSV</button></div>';
+      '<button class="btn ghost" data-action="export" data-scope="graph" aria-label="Share graph">' + icon('share') + 'Share</button></div>';
     return html;
   }
   function statMini(label, val) { return '<div class="center"><div class="tiny muted">' + label + '</div><div class="mono hi small">' + val + '</div></div>'; }
 
+  function renderFullGraph() {
+    const s = scenario(), cook = s.cook, d = graphDomain();
+    const series = graphSeries();
+    const targets = s.probes.filter((p) => p.attached && p.targetF).map((p) => ({ value: p.targetF, color: seriesColor(p.jack), label: fmtTemp(p.targetF, 0) }));
+    lastChart = { series: series.map((sr) => ({ name: probeName(s.probes.find((p) => p.jack === sr.probe), cook), points: sr.points })), xMin: d.xMin, xMax: d.xMax, started: d.started };
+    return '<div class="graph-full" id="graphFull"><div class="gf-head">' +
+      '<div><div class="ab-title" style="font-size:17px">Graph</div><div class="ab-sub">' + (state.graph.zoom > 1 ? state.graph.zoom.toFixed(1) + '×' : 'full range') + '</div></div><div class="spacer"></div>' +
+      '<div class="zoom-bar">' +
+      '<button class="zb" data-action="graph-pan" data-dir="back" aria-label="Pan back">' + icon('arrowLeft') + '</button>' +
+      '<button class="zb" data-action="graph-zoom" data-dir="out" aria-label="Zoom out">' + icon('zoomOut') + '</button>' +
+      '<button class="zb" data-action="graph-zoom" data-dir="in" aria-label="Zoom in">' + icon('zoomIn') + '</button>' +
+      '<button class="zb" data-action="graph-pan" data-dir="fwd" aria-label="Pan forward">' + icon('arrowRight') + '</button>' +
+      '<button class="zb" data-action="graph-reset" aria-label="Reset">' + icon('refresh') + '</button>' +
+      '<button class="zb" data-action="graph-fullscreen" aria-label="Exit fullscreen">' + icon('compress') + '</button></div></div>' +
+      '<div class="gf-body"><div class="gf-chart"><div class="chart" id="chartHostFull">' +
+      buildChart(series, { height: 420, xMin: d.xMin, xMax: d.xMax, targets: targets, now: d.now, isolated: state.isolatedProbe,
+        bands: [{ min: cook.pitBand[0], max: cook.pitBand[1] }], xLabels: (v) => fmtClock(d.started + v * 60000) }) +
+      '<div class="crosshair-tip" id="chartTipFull"></div></div>' +
+      '<div class="legend mt3">' + s.probes.filter((p) => p.attached).map((p) =>
+        '<button class="legend-item' + (state.isolatedProbe && state.isolatedProbe !== p.jack ? ' dim' : '') + '" data-action="isolate" data-jack="' + p.jack + '">' +
+        '<span class="legend-swatch" style="' + legendSwatch(p.jack) + '"></span><span class="lg-name">' + esc(probeName(p, cook)) + '</span>' +
+        '<span class="lg-val">' + fmtTemp(p.tempF) + '</span></button>').join('') + '</div></div></div></div>';
+  }
+
   // [BIZ] Hue is never the only identity channel: each probe also owns a
-  // stroke pattern (P1 solid, P2 dashed, P3 dotted, P4 dash-dot) that survives
-  // a monochrome export. The legend swatch must show it too.
+  // stroke pattern (P1 solid, P2 dashed, P3 dotted, P4 dash-dot).
   function legendSwatch(jack) {
     const c = seriesColor(jack);
     if (jack === 1) return 'background:' + c;
@@ -677,15 +824,104 @@
   }
 
   function probeName(p, cook) {
-    if (p.role === 'pit') return 'Grate · jack 4';
+    if (!p) return 'Probe';
+    if (p.role === 'pit') return 'Grate · jack ' + p.jack;
     if (p.role === 'unused') return 'Jack ' + p.jack + ' · unused';
     const it = (cook.items || []).find((i) => i.jack === p.jack);
     const cat = it ? catalogById(it.id) : null;
     return cat ? cat.name : 'Probe ' + p.jack;
   }
 
-  // ---- Cooks / history -----------------------------------------------------
-  function viewCooks() {
+  // ---- Settings ------------------------------------------------------------
+  function viewSettings() {
+    const s = scenario(), c = s.connection;
+    const bt = c.bt || {}, wifi = c.wifi || {};
+    const primaryIsBt = c.primary === 'bt';
+    const wifiModeLabel = wifi.mode === 'ap' ? 'Bridge hotspot' : wifi.mode === 'sta' ? (wifi.ssid || 'Home Wi-Fi') : 'Off';
+
+    let html = '<div class="card"><div class="card-head">' + icon('link') + '<div class="card-title">' + esc(c.deviceName) + '</div>' +
+      '<span class="spacer"></span><span class="pulse-dot ' + (c.phase === 'offline' ? 'idle' : c.phase === 'connected' ? '' : 'warn') + '"></span></div>';
+
+    html += '<div class="link-row' + (bt.connected ? '' : ' off') + '"><div class="lr-icon">' + icon('bluetooth') + '</div>' +
+      '<div class="lr-meta"><div class="lr-name">Bluetooth' + (primaryIsBt && bt.connected ? ' <span class="mode-badge">Carrying data</span>' : (bt.warm ? ' <span class="tier-tag app">Warm</span>' : '')) + '</div>' +
+      '<div class="lr-sub">' + (bt.connected ? 'Connected · ' + signalWord(bt.bars) + (bt.rssi ? ' · ' + bt.rssi + ' dBm' : '') + (bt.lastSyncS !== null ? ' · ' + ago(Date.now() - bt.lastSyncS * 1000) : '') : 'Not connected') + '</div></div>' +
+      '<div class="lr-right">' + signalBars(bt.bars) + '</div></div>';
+
+    html += '<div class="link-row' + (wifi.connected ? '' : ' off') + '"><div class="lr-icon">' + icon(wifi.mode === 'ap' ? 'wifi' : 'router') + '</div>' +
+      '<div class="lr-meta"><div class="lr-name">Wi-Fi' + (c.primary === 'wifi' && wifi.connected ? ' <span class="mode-badge">Carrying data</span>' : '') + '</div>' +
+      '<div class="lr-sub">' + (wifi.mode === 'off' ? 'Not set up' : wifi.connected ? wifiModeLabel + (wifi.ip ? ' · ' + wifi.ip : '') + ' · ' + signalWord(wifi.bars) : (c.phase === 'connecting' ? 'Connecting to ' + esc(wifi.ssid || '') + '…' : 'Not connected')) + '</div></div>' +
+      '<div class="lr-right">' + signalBars(wifi.bars) + '</div></div>';
+
+    html += '<div class="row between small mt3"><span class="muted">Battery</span><span class="hi">' + (c.batteryPct === null ? '—' : c.batteryPct + '%') + '</span></div>' +
+      '<div class="row between small mt2"><span class="muted">Recording</span><span class="hi">' + (c.recording ? 'Yes — on the bridge' : 'No') + '</span></div>';
+
+    html += '<div class="btn-row mt4"><button class="btn" data-action="resync">' + icon('refresh') + 'Re-sync</button>' +
+      '<button class="btn ghost" data-action="open-modes">' + icon('sliders') + 'Change mode</button></div>' +
+      '<button class="btn ghost mt2" data-action="disconnect">' + icon('unlink') + 'Disconnect</button></div>';
+
+    html += '<div class="section-label">Set up Wi-Fi</div><div class="card">' +
+      setRow('wifi', 'Join your home network', 'Keeps your phone on the internet; reach the bridge anywhere', icon('chevronRight'), 'provision-sta') +
+      setRow('router', 'Use the bridge hotspot', 'No home network needed — join the bridge directly', icon('chevronRight'), 'provision-ap') +
+      (wifi.mode === 'sta' && wifi.connected ? setRow('unlink', 'Forget network', esc(wifi.ssid || ''), '', 'forget-network') : '') + '</div>';
+
+    html += '<div class="section-label">' + icon('history', 13) + 'Cooks</div><div class="card">' +
+      setRow('history', 'History', 'Past cooks, notes, ratings and exports', icon('chevronRight'), 'open-history') + '</div>';
+
+    html += '<div class="section-label">Preferences</div><div class="card">' +
+      setRow('thermometer', 'Units', 'Temperatures in ' + (state.units === 'C' ? 'Celsius' : 'Fahrenheit'),
+        '<div class="seg"><button data-action="set-units" data-units="F" class="' + (state.units === 'F' ? 'on' : '') + '">°F</button>' +
+        '<button data-action="set-units" data-units="C" class="' + (state.units === 'C' ? 'on' : '') + '">°C</button></div>') +
+      setRow('monitor', 'Appearance', themeLabel(),
+        '<div class="seg"><button data-action="set-theme" data-theme="system" class="' + (state.themeMode === 'system' ? 'on' : '') + '">Auto</button>' +
+        '<button data-action="set-theme" data-theme="light" class="' + (state.themeMode === 'light' ? 'on' : '') + '">Light</button>' +
+        '<button data-action="set-theme" data-theme="dark" class="' + (state.themeMode === 'dark' ? 'on' : '') + '">Dark</button></div>') +
+      setRow('sun', 'High-contrast profile', state.displayProfile === 'daylight' ? 'On — for bright sun' : 'Off', toggle('__profile', state.displayProfile === 'daylight')) +
+      setRow('sliders', 'Density', state.density === 'compact' ? 'Compact — more at a glance' : 'Comfortable', toggle('__density', state.density === 'comfortable')) +
+      setRow('eye', 'Reduce motion', state.reducedMotion ? 'Animations minimised' : 'Full motion', toggle('__motion', state.reducedMotion)) +
+      setRow('bell', 'Alarms & monitoring', state.settings.monitoring ? 'Watching in the background' : 'Off', icon('chevronRight'), 'open-alerts') +
+      setRow('key', 'Prefer my own alarms', 'Manual alarms win over device rules', toggle('preferManualAlarm')) +
+      setRow('moon', 'Quiet hours', 'Silences warning & info 10pm–6am. Critical always sounds', toggle('quietHours')) +
+      setRow('link', 'Keep Bluetooth warm', 'Faster failover while on Wi-Fi', toggle('holdBle')) +
+      setRow('calendar', 'Wrap / spritz reminders', 'Use the expected timeline for nudges', toggle('autoWrapReminder')) + '</div>';
+
+    html += '<div class="section-label">Bridge</div><div class="card">' +
+      setRow('cpu', 'Firmware', 'v1.4.2 · up to date', icon('chevronRight')) +
+      setRow('upload', 'Update firmware', 'Over Wi-Fi only', icon('chevronRight')) +
+      setRow('info', 'About & diagnostics', 'Device id, signal, logs', icon('chevronRight')) + '</div>';
+    html += '<div class="card subtle mt3"><div class="tiny muted">A bridge with no clock stores no timestamp — never a made-up one. A detached probe is absent, never 0.</div></div>';
+    return html;
+  }
+  function themeLabel() {
+    if (state.themeMode === 'system') return 'Follows your phone (' + resolvedTheme() + ')';
+    return state.themeMode === 'light' ? 'Light' : 'Dark';
+  }
+  function signalWord(n) {
+    if (n === null || n === undefined) return 'no signal';
+    return ['none', 'weak', 'fair', 'good', 'strong'][n] || 'good';
+  }
+  function signalBars(n) {
+    if (n === null || n === undefined) return '<span class="muted">—</span>';
+    let s = '';
+    for (let i = 1; i <= 4; i++) s += '<span style="display:inline-block;width:4px;height:' + (4 + i * 3) + 'px;margin-left:2px;border-radius:1px;background:' + (i <= n ? 'var(--text-hi)' : 'var(--hairline-strong)') + '"></span>';
+    return '<span style="display:inline-flex;align-items:flex-end">' + s + '</span>';
+  }
+  function setRow(ic, name, sub, right, action) {
+    return '<div class="set-row"' + (action ? ' data-action="' + action + '"' : '') + '><div class="sr-icon">' + icon(ic) + '</div>' +
+      '<div class="sr-meta"><div class="sr-name">' + name + '</div><div class="sr-sub">' + sub + '</div></div>' +
+      '<div class="sr-right">' + right + '</div></div>';
+  }
+  function toggle(key, on) {
+    const v = state.settings[key] !== undefined ? state.settings[key] : !!on;
+    return '<button class="toggle' + (v ? ' on' : '') + '" data-action="toggle-setting" data-key="' + key + '" aria-label="Toggle ' + key + '"></button>';
+  }
+  function emptyState(title, copy, action, actionLabel, ic) {
+    return '<div class="state"><div class="st-art">' + icon(ic || 'calendar', 34) + '</div>' +
+      '<div class="st-title">' + esc(title) + '</div><div class="st-copy">' + esc(copy) + '</div>' +
+      (action ? '<button class="btn primary" style="width:auto" data-action="' + action + '">' + esc(actionLabel) + '</button>' : '') + '</div>';
+  }
+
+  // ---- History (was Cooks) -------------------------------------------------
+  function viewHistory() {
     let html = '<button class="btn primary" data-action="open-setup">' + icon('plus') + 'Start a new cook</button>' +
       '<div class="cap-notice mt3">' + icon('info') +
       '<div class="cn-text">Every cook is an annotation over one continuous recording. The bridge records even when this app is closed — <b>you never lose the gap.</b></div></div>';
@@ -698,7 +934,7 @@
       html += '<div class="section-label">' + g.label + '<span class="spacer"></span><span class="tiny muted">' + rows.length + '</span></div><div class="stack">' +
         rows.map((h) => '<div class="cook-card" data-action="select-cook" data-id="' + h.id + '">' + foodAvatar(h.glyph) +
           '<div class="cc-meta"><div class="cc-name">' + esc(h.name) + (h.favourite ? ' <span class="fav">★</span>' : '') + '</div>' +
-          '<div class="cc-sub"><span>' + fmtDay(h.startedAtMs) + '</span><span>' + fmtDuration(h.durationMin * 60000) + '</span><span>' + h.marks + ' marks</span></div></div>' +
+          '<div class="cc-sub"><span>' + fmtDay(h.startedAtMs) + '</span><span>' + fmtDuration(h.durationMin * 60000) + '</span><span>' + h.marks + ' marks</span>' + (h.photos ? '<span>' + h.photos + ' photos</span>' : '') + '</div></div>' +
           '<div class="cc-right"><div class="cc-peak">' + fmtTemp(h.peakF, 0) + '</div><div class="cc-peak-label">peak</div></div>' + icon('chevronRight') + '</div>').join('') + '</div>';
     });
     return html;
@@ -708,9 +944,17 @@
     const h = M.HISTORY.find((x) => x.id === state.selectedCookId) || M.HISTORY[0];
     let html = '<div class="card"><div class="cook-head">' + foodAvatar(h.glyph, 'lg') +
       '<div class="ch-meta"><div class="ch-name">' + esc(h.name) + '</div>' +
-      '<div class="ch-line">' + fmtDay(h.startedAtMs) + ' · ' + fmtClock(h.startedAtMs) + ' · ' + fmtDuration(h.durationMin * 60000) + '</div>' +
+      '<div class="ch-line">' + fmtDay(h.startedAtMs) + ' · ' + fmtClock(h.startedAtMs) + ' · ' + fmtDuration(h.durationMin * 60000) + (styleName(h.styleId) ? ' · ' + esc(styleName(h.styleId)) : '') + '</div>' +
       '<div class="stars mt1">' + '★'.repeat(h.rating) + '☆'.repeat(5 - h.rating) + '</div></div>' +
-      '<button class="icon-btn" data-action="toggle-fav" data-id="' + h.id + '">' + icon('bookmark') + '</button></div></div>';
+      iconBtn('bookmark', 'toggle-fav', { data: ' data-id="' + h.id + '"', label: 'Favourite' }) + '</div></div>';
+
+    const diff = h.durationMin - (h.plannedMin || h.durationMin);
+    html += '<div class="section-label">Recap</div><div class="card">' +
+      recapRow('Cook time', fmtDuration(h.durationMin * 60000), h.plannedMin ? (diff === 0 ? 'On plan' : (diff > 0 ? '+' + diff + ' min vs plan' : diff + ' min vs plan')) : '') +
+      recapRow('Peak temp', fmtTemp(h.peakF, 0), h.targetF ? (h.peakF >= h.targetF ? 'Reached target ' + fmtTemp(h.targetF, 0) : 'Target ' + fmtTemp(h.targetF, 0)) : '') +
+      (h.stalledMin ? recapRow('Longest stall', h.stalledMin + ' min', 'Evaporative plateau') : '') +
+      (h.wrapAtF ? recapRow('Wrapped at', fmtTemp(h.wrapAtF, 0), '') : '') + '</div>';
+
     html += '<div class="section-label">Result</div><div class="stat-grid">' + stat('Peak', fmtTemp(h.peakF, 0)) + stat('Target', fmtTemp(h.targetF, 0)) + stat('Marks', String(h.marks)) + '</div>';
     html += '<div class="section-label">Chart</div><div class="chart-wrap"><div class="chart">' + buildChart(
       [{ probe: 1, color: seriesColor(1), width: 2, points: histPoints(h) }], {
@@ -721,9 +965,12 @@
     html += '<div class="section-label">Marks</div><div class="rail">' + [['Cook started', 0], ['Wrapped', 0.5], ['Probe-tender', 0.85], ['Pulled', 1]].map((m) =>
       '<div class="rail-item"><span class="rail-dot done"></span><div class="rail-time">' + fmtClock(h.startedAtMs + m[1] * h.durationMin * 60000) + '</div><div class="rail-title">' + m[0] + '</div></div>').join('') + '</div>';
     html += '<div class="btn-row mt4"><button class="btn" data-action="repeat-cook" data-id="' + h.id + '">' + icon('refresh') + 'Cook again</button>' +
-      '<button class="btn ghost" data-action="export">' + icon('download') + 'Export</button></div>';
+      '<button class="btn ghost" data-action="export" data-scope="cook" aria-label="Share cook">' + icon('share') + 'Share</button></div>';
     html += '<button class="btn danger mt3" data-action="delete-cook">' + icon('trash') + 'Delete cook</button>';
     return html;
+  }
+  function recapRow(k, v, note) {
+    return '<div class="row between small" style="padding:5px 0"><span class="muted">' + k + '</span><span class="hi bold">' + v + (note ? ' <span class="tiny muted" style="font-weight:500">· ' + esc(note) + '</span>' : '') + '</span></div>';
   }
   function histPoints(h) {
     const n = 60, pts = [], r = rng(h.id.length * 31 + 7);
@@ -739,89 +986,66 @@
   }
   function stat(label, val) { return '<div class="stat"><div class="st-label">' + label + '</div><div class="st-val">' + val + '</div></div>'; }
 
-  // ---- Device --------------------------------------------------------------
-  function viewDevice() {
-    const s = scenario(), c = s.connection, online = c.state === 'connected';
-    const mode = M.MODES.find((m) => m.id === c.mode) || M.MODES[0];
-    let html = '<div class="card"><div class="card-head">' + icon('link') + '<div class="card-title">' + esc(c.deviceName) + '</div>' +
-      '<span class="spacer"></span><span class="pulse-dot ' + (online ? '' : 'idle') + '"></span></div>' +
-      devRow('Mode', esc(mode.name)) + devRow('Phone → bridge', signalBars(c.bleBars !== null ? c.bleBars : c.routerBars)) +
-      (c.mode === 'sta' ? devRow('Bridge → router', signalBars(c.routerBars)) : '') +
-      devRow('Battery', c.batteryPct === null ? '—' : c.batteryPct + '%') +
-      devRow('Recording', c.recording ? 'Yes — on the bridge' : 'No') +
-      '<div class="btn-row mt4"><button class="btn" data-action="resync">' + icon('refresh') + 'Re-sync</button>' +
-      '<button class="btn ghost" data-action="open-modes">' + icon('sliders') + 'Change mode</button></div>' +
-      '<button class="btn ghost mt2" data-action="disconnect">' + icon('unlink') + 'Disconnect</button></div>';
-    html += '<div class="section-label">How you are connected</div><div class="cap-notice">' + icon('info') +
-      '<div class="cn-text">' + esc(mode.summary) + '</div></div>';
-    html += '<div class="section-label">Settings</div><div class="card">' +
-      setRow('thermometer', 'Units', 'Temperatures in ' + (state.units === 'C' ? 'Celsius' : 'Fahrenheit'),
-        '<button class="chip' + (state.units === 'F' ? ' on' : '') + '" data-action="set-units" data-units="F">°F</button>' +
-        '<button class="chip' + (state.units === 'C' ? ' on' : '') + '" data-action="set-units" data-units="C">°C</button>') +
-      setRow('sun', 'Display profile', state.themeProfile === 'daylight' ? 'Daylight (high contrast)' : 'Dark (default)',
-        '<button class="chip' + (state.themeProfile === 'dark' ? ' on' : '') + '" data-action="set-theme" data-theme="dark">Dark</button>' +
-        '<button class="chip' + (state.themeProfile === 'daylight' ? ' on' : '') + '" data-action="set-theme" data-theme="daylight">Sun</button>') +
-      setRow('bell', 'Alarms & monitoring', state.settings.monitoring ? 'Watching in the background' : 'Off', icon('chevronRight'), 'open-alerts') +
-      setRow('key', 'Prefer my own alarms', 'Manual alarms win over device rules', toggle('preferManualAlarm')) +
-      setRow('moon', 'Quiet hours', 'Silences warning & info 10pm–6am. Critical always sounds', toggle('quietHours')) +
-      setRow('link', 'Keep Bluetooth warm', 'Faster failover while on Wi-Fi', toggle('holdBle')) +
-      setRow('calendar', 'Wrap / spritz reminders', 'Use the expected timeline for nudges', toggle('autoWrapReminder')) + '</div>';
-    html += '<div class="section-label">Bridge</div><div class="card">' +
-      setRow('cpu', 'Firmware', 'v1.4.2 · up to date', icon('chevronRight')) +
-      setRow('upload', 'Update firmware', 'Over Wi-Fi only', icon('chevronRight')) +
-      setRow('info', 'About & diagnostics', 'Device id, signal, logs', icon('chevronRight')) + '</div>';
-    html += '<div class="card subtle mt3"><div class="tiny muted">A bridge with no clock stores no timestamp — never a made-up one. A detached probe is absent, never 0.</div></div>';
-    return html;
-  }
-  function devRow(k, v) { return '<div class="row between small mt2"><span class="muted">' + k + '</span><span class="hi">' + v + '</span></div>'; }
-  function signalBars(n) {
-    if (n === null || n === undefined) return '—';
-    let s = '';
-    for (let i = 1; i <= 4; i++) s += '<span style="display:inline-block;width:4px;height:' + (4 + i * 3) + 'px;margin-left:2px;border-radius:1px;background:' + (i <= n ? 'var(--text-hi)' : 'rgba(255,255,255,0.16)') + '"></span>';
-    return '<span style="display:inline-flex;align-items:flex-end">' + s + '</span>';
-  }
-  function setRow(ic, name, sub, right, action) {
-    return '<div class="set-row"' + (action ? ' data-action="' + action + '"' : '') + '><div class="sr-icon">' + icon(ic) + '</div>' +
-      '<div class="sr-meta"><div class="sr-name">' + name + '</div><div class="sr-sub">' + sub + '</div></div>' +
-      '<div class="sr-right">' + right + '</div></div>';
-  }
-  function toggle(key, on) {
-    const v = state.settings[key] !== undefined ? state.settings[key] : !!on;
-    return '<button class="toggle' + (v ? ' on' : '') + '" data-action="toggle-setting" data-key="' + key + '"></button>';
-  }
-  function emptyState(title, copy, action, actionLabel, ic) {
-    return '<div class="state"><div class="st-art">' + icon(ic || 'calendar', 34) + '</div>' +
-      '<div class="st-title">' + esc(title) + '</div><div class="st-copy">' + esc(copy) + '</div>' +
-      (action ? '<button class="btn primary" style="width:auto" data-action="' + action + '">' + icon('plus') + esc(actionLabel) + '</button>' : '') + '</div>';
-  }
-
   // =================================================== §7 RENDER: OVERLAYS ====
   function renderOverlays() {
     const host = $('#overlays');
     const o = state.overlay;
-    if (!o) { host.innerHTML = ''; return; }
-    const map = {
-      onboarding: overlayOnboarding, setup: overlaySetup, connect: overlayConnect,
-      modes: overlayModes, alarms: overlayAlarms, mark: overlayMark,
-      probe: overlayProbe, adopt: overlayAdopt, editStart: overlayEditStart,
-    };
-    host.innerHTML = (map[o.name] || (() => ''))(o.props || {});
-    if (o.name === 'graph') { /* no-op */ }
+    let html = '';
+    if (o) {
+      const map = {
+        onboarding: overlayOnboarding, setup: overlaySetup, connect: overlayConnect,
+        modes: overlayModes, modesRef: overlayModesRef, provisionSta: overlayProvisionSta,
+        provisionAp: overlayProvisionAp, alarms: overlayAlarms, alarmDetail: overlayAlarmDetail,
+        mark: overlayMark, probe: overlayProbe, adopt: overlayAdopt, editStart: overlayEditStart,
+        confirm: overlayConfirm, customFood: overlayCustomFood,
+      };
+      html = (map[o.name] || (() => ''))(o.props || {});
+    }
+    if (state.fullGraph) html += renderFullGraph();
+    host.innerHTML = html;
   }
   function openOverlay(name, props) { state.overlay = { name: name, props: props || {} }; renderOverlays(); }
-  function closeOverlay() { state.overlay = null; renderOverlays(); }
+  function closeOverlay() { state.overlay = null; state.confirm = null; renderOverlays(); }
   function scrim(inner, center) { return '<div class="scrim open' + (center ? ' center' : '') + '" data-action="scrim-click">' + inner + '</div>'; }
+  function sheetWrap(title, sub, body) {
+    return scrim('<div class="sheet"><div class="sheet-grab"></div>' +
+      '<div class="sheet-head"><div style="flex:1"><div class="sh-title">' + title + '</div><div class="sh-sub">' + sub + '</div></div>' +
+      '<button class="icon-btn" data-action="close-overlay" aria-label="Close">' + icon('x') + '</button></div>' +
+      '<div class="sheet-body">' + body + '</div></div>');
+  }
+
+  // ---- Confirm dialog (long-item warning, delete, etc.) --------------------
+  function openConfirm(opts) { state.confirm = opts; state.overlay = { name: 'confirm', props: {} }; renderOverlays(); }
+  function overlayConfirm() {
+    const cf = state.confirm;
+    if (!cf) return '';
+    return scrim('<div class="modal-card"><div class="sh-title" style="font-family:var(--font-display);font-weight:700;font-size:19px;color:var(--text-hi);margin-bottom:8px">' + esc(cf.title) + '</div>' +
+      '<div class="body small">' + cf.body + '</div>' +
+      '<div class="btn-row mt4"><button class="btn ' + (cf.danger ? 'danger' : 'primary') + '" data-action="confirm-yes">' + esc(cf.confirmLabel || 'Confirm') + '</button>' +
+      '<button class="btn ghost" data-action="confirm-no">Cancel</button></div></div>', true);
+  }
 
   // ---- Onboarding wizard ---------------------------------------------------
   // [BIZ] The passkey is shown ONLY on the device OLED. The app cannot render a
-  // real code, so it coaches the user BEFORE Android's own (wrong) dialog,
-  // which says "Usually 0000 or 1234".
+  // real code, so it coaches the user BEFORE Android's own (wrong) dialog.
   function overlayOnboarding() {
     const steps = ['welcome', 'preflight', 'scan', 'passkey', 'sync', 'network', 'name', 'done'];
     const i = state.onboardStep;
     const rail = '<div class="step-rail">' + steps.map((st, idx) =>
       '<span class="step-dot' + (idx === i ? ' on' : idx < i ? ' done' : '') + '"></span>').join('') + '</div>';
     let body = '';
+    if (state.onboardTroubleshoot) {
+      body = '<div class="card-title center">Let’s find it again</div>' +
+        '<div class="body small center mt2 mb3">A few things fix almost every pairing problem.</div>' +
+        permRow('cpu', 'Is the bridge powered?', 'Its screen should show a heartbeat', true) +
+        permRow('bluetooth', 'Bluetooth on?', 'And the phone is within a few metres', true) +
+        permRow('refresh', 'Restart the bridge', 'Hold the button until the screen blinks', false) +
+        '<button class="btn mt4" data-action="onboard-prev">' + icon('chevronLeft') + 'Back</button>';
+      return scrim('<div class="sheet"><div class="sheet-grab"></div><div class="sheet-head"><div style="flex:1">' + rail + '</div></div>' +
+        '<div class="sheet-body">' + body + '</div><div class="sheet-foot"><div class="btn-row">' +
+        '<button class="btn ghost" data-action="close-overlay">Close</button>' +
+        '<button class="btn primary" data-action="onboard-next">Try again</button></div></div></div>');
+    }
     if (i === 0) {
       body = '<div class="bridge-art scanning">' + icon('cpu', 62) + '</div>' +
         '<div class="center"><div class="card-title" style="font-size:22px">Meet your SmokeBridge</div>' +
@@ -836,7 +1060,8 @@
       body = '<div class="center"><div class="scan-ring">' + icon('bluetooth', 30) + '</div>' +
         '<div class="card-title mt4">Looking for your bridge</div><div class="body small mt2">Hold your phone near the bridge. Its screen shows a 6-digit code when it is ready.</div></div>' +
         '<div class="card mt4" data-action="onboard-next" style="cursor:pointer"><div class="row">' + icon('cpu', 20) +
-        '<div style="flex:1"><div class="hi bold small">SmokeBridge-A4F2</div><div class="tiny muted">Strong signal · ready to pair</div></div>' + icon('chevronRight') + '</div></div>';
+        '<div style="flex:1"><div class="hi bold small">SmokeBridge-A4F2</div><div class="tiny muted">Strong signal · ready to pair</div></div>' + icon('chevronRight') + '</div></div>' +
+        '<div class="center mt3"><span class="link" data-action="onboard-troubleshoot">Can’t find it?</span></div>';
     } else if (i === 3) {
       body = '<div class="card-title center">Enter the code from the bridge</div>' +
         '<div class="body small center mt2 mb3">The bridge’s own screen shows six digits. Type them here — not the “0000 or 1234” your phone suggests.</div>' +
@@ -847,8 +1072,8 @@
         '<div class="body small mt2">Put the Smoke X4 into sync mode. The bridge pairs with it silently — it never transmits except for one tiny acknowledgement.</div></div>' +
         '<div class="cap-notice mt4">' + icon('info') + '<div class="cn-text">This keeps the bridge a pure listener. It cannot interfere with your base station.</div></div>';
     } else if (i === 5) {
-      body = '<div class="card-title">How should we stay in touch?</div><div class="body small mt2 mb3">You can change this any time from the Device tab.</div>' +
-        M.MODES.map((m) => modeCard(m, m.id === 'ble')).join('');
+      body = '<div class="card-title">How should we stay in touch?</div><div class="body small mt2 mb3">You can change this any time from Settings. Switching happens over Bluetooth.</div>' +
+        M.MODES.map((m) => modeCardCompact(m, m.id === 'ble')).join('');
     } else if (i === 6) {
       body = '<div class="card-title">Almost there</div><div class="body small mt2 mb3">Name this bridge and pick your units.</div>' +
         '<div class="card inset"><div class="tiny muted mb2">Bridge name</div><div class="hi bold">Backyard Bridge</div></div>' +
@@ -871,20 +1096,17 @@
       '<div class="sr-right">' + (granted ? '<span style="color:var(--positive)">' + icon('check') + '</span>' : '<button class="btn sm">Allow</button>') + '</div></div>';
   }
 
-  function modeCard(m, active) {
-    return '<div class="mode-card' + (active ? ' on' : '') + '" data-action="set-mode" data-mode="' + m.id + '" style="margin-bottom:10px">' +
+  // Compact mode row: name + one-word state + ? info. No paragraphs.
+  function modeCardCompact(m, active) {
+    const stateWord = active ? 'Active' : (m.requiresWifiCreds ? 'Needs password' : 'Available');
+    return '<div class="mode-card' + (active ? ' on' : '') + '" data-action="set-mode" data-mode="' + m.id + '">' +
       '<div class="mode-icon">' + icon(m.icon) + '</div><div class="mode-body">' +
       '<div class="row between"><div class="mode-name">' + esc(m.name) + '</div>' + (active ? '<span class="mode-badge">Active</span>' : '') + '</div>' +
-      '<div class="mode-tag">' + esc(m.tagline) + '</div><div class="mode-desc">' + esc(m.summary) + '</div>' +
-      '<div class="mode-lists">' + m.good.map((g) => '<div class="mode-li good">' + esc(g) + '</div>').join('') +
-      m.limited.map((g) => '<div class="mode-li limit">' + esc(g) + '</div>').join('') + '</div></div></div>';
+      '<div class="mode-tag">' + esc(m.tagline) + ' · ' + stateWord + '</div></div>' +
+      '<button class="mode-info" data-action="open-modes-ref" data-mode="' + m.id + '" aria-label="About ' + esc(m.name) + '" title="About this mode">' + icon('question') + '</button></div>';
   }
 
-  // ---- Setup sheet (the catalog) -------------------------------------------
-  // Three first-class ways to start (the brief's flexibility requirement):
-  //   new      — set up before you light the fire
-  //   existing — hook into data the bridge already collected
-  //   watch    — no targets, just live numbers
+  // ---- Setup sheet (catalog + styles + custom) -----------------------------
   function overlaySetup() {
     const mode = state.setupMode, cat = state.catalog.category;
     const sel = state.catalog.selectedId ? catalogById(state.catalog.selectedId) : null;
@@ -892,6 +1114,8 @@
     const pull = sel ? pullTempFor(sel, don) : null;
     const cook = scenario().cook, assigned = {};
     (cook.items || []).forEach((it) => { assigned[it.jack] = it.id; });
+    const styles = sel ? stylesFor(sel.id) : null;
+    const style = styles && state.catalog.styleId ? styles.find((s) => s.id === state.catalog.styleId) : null;
 
     let html = '<div class="seg-chips mb3">' +
       '<button class="chip' + (mode === 'new' ? ' on' : '') + '" data-action="setup-mode" data-mode="new">Start a cook</button>' +
@@ -915,25 +1139,34 @@
         '<button class="chip on">' + (ps ? 'Bridge session start' : 'Just now') + '</button><button class="chip">I will set a time</button></div>';
     }
 
-    html += '<div class="tiny muted mt4 mb2">' + (mode === 'existing' ? 'WHAT IS ON THE GRILL?' : 'WHAT ARE YOU COOKING?') + '</div>' +
+    html += '<div class="row between mt4 mb2"><span class="tiny muted">' + (mode === 'existing' ? 'WHAT IS ON THE GRILL?' : 'WHAT ARE YOU COOKING?') + '</span>' +
+      '<span class="link" data-action="open-custom">' + icon('plus', 12) + 'Custom food</span></div>' +
       '<div class="filter-row mb3">' + M.CATEGORIES.map((c) =>
         '<button class="chip' + (c === cat ? ' on' : '') + '" data-action="catalog-cat" data-cat="' + esc(c) + '">' + esc(c) + '</button>').join('') + '</div>' +
       '<div class="catalog-grid">' + catalogInCat(cat).map((item) => {
         const d = donenessFor(item, item.defaultDoneness);
-        return '<button class="catalog-item' + (state.catalog.selectedId === item.id ? ' selected' : '') + '" data-action="catalog-pick" data-id="' + item.id + '">' +
-          foodAvatar(item.glyph) + '<div class="ci-name">' + esc(item.name) + '</div><div class="ci-meta">' + esc(item.blurb) + '</div>' +
+        return '<button class="catalog-item' + (state.catalog.selectedId === item.id ? ' selected' : '') + (item.custom ? ' custom' : '') + '" data-action="catalog-pick" data-id="' + item.id + '">' +
+          foodAvatar(item.glyph) + '<div class="row between" style="width:100%"><div class="ci-name">' + esc(item.name) + '</div>' + (item.custom ? '<span class="ci-badge">Custom</span>' : '') + '</div>' +
+          '<div class="ci-meta">' + esc(item.blurb) + '</div>' +
           '<div class="ci-temp">' + icon('target', 11) + ' ' + fmtTemp(d.targetF, 0) + ' · pit ' + item.pitBand[0] + '–' + item.pitBand[1] + '°</div></button>';
       }).join('') + '</div>';
 
     if (sel) {
+      if (styles) {
+        html += '<div class="tiny muted mt4 mb2">STYLE</div><div class="style-grid">' + styles.map((st) =>
+          '<div class="style-card' + (style && style.id === st.id ? ' on' : '') + '" data-action="style-pick" data-id="' + st.id + '">' +
+          '<div class="sc-icon">' + icon('utensils') + '</div><div class="sc-meta"><div class="sc-name">' + esc(st.name) + '</div>' +
+          '<div class="sc-tag">' + esc(st.tagline) + '</div><div class="sc-note">' + esc(st.note) + '</div></div></div>').join('') + '</div>';
+      }
       if (sel.doneness.length > 1) {
         html += '<div class="tiny muted mt4 mb2">DONENESS</div><div class="seg-chips">' + sel.doneness.map((d) =>
           '<button class="chip' + (donenessFor(sel, state.catalog.doneness).id === d.id ? ' on' : '') + '" data-action="doneness-pick" data-id="' + d.id + '">' + esc(d.label) + ' · ' + fmtTemp(d.targetF, 0) + '</button>').join('') + '</div>';
       }
       const carry = carryoverFor(sel), tl = timelineFor(sel.id);
-      html += '<div class="card subtle mt3"><div class="row between small"><span class="muted">Target (after rest)</span><span class="hi bold">' + fmtTemp(don.targetF, 0) + '</span></div>' +
+      const targetF = style ? style.targetF : don.targetF;
+      html += '<div class="card subtle mt3"><div class="row between small"><span class="muted">Target (after rest)</span><span class="hi bold">' + fmtTemp(targetF, 0) + '</span></div>' +
         (carry > 0 ? '<div class="row between small mt2"><span class="muted">Pull early by carryover</span><span class="hi">' + fmtTemp(pull, 0) + ' (−' + carry + '°)</span></div>' : '') +
-        '<div class="row between small mt2"><span class="muted">Expected rest</span><span class="hi">' + restMinutesFor(sel) + ' min</span></div>' +
+        '<div class="row between small mt2"><span class="muted">Expected rest</span><span class="hi">' + (style ? style.restMin : restMinutesFor(sel)) + ' min</span></div>' +
         '<div class="row between small mt2"><span class="muted">Expected cook</span><span class="hi">' + (tl ? tl.totalMin[0] + '–' + tl.totalMin[1] + ' min' : '—') + '</span></div></div>';
       html += '<div class="tiny muted mt4 mb2">WHICH PROBE?</div><div class="seg-chips">';
       [1, 2, 3, 4].forEach((j) => {
@@ -955,52 +1188,139 @@
       : state.setupMode === 'watch' ? 'Live numbers, no plan' : 'Set up before, during, or after you light the fire';
     return scrim('<div class="sheet"><div class="sheet-grab"></div>' +
       '<div class="sheet-head"><div style="flex:1"><div class="sh-title">' + title + '</div><div class="sh-sub">' + sub + '</div></div>' +
-      '<button class="icon-btn" data-action="close-overlay">' + icon('x') + '</button></div>' +
+      '<button class="icon-btn" data-action="close-overlay" aria-label="Close">' + icon('x') + '</button></div>' +
       '<div class="sheet-body">' + inner + '</div></div>');
   }
 
-  // ---- Connect sheet -------------------------------------------------------
+  // ---- Custom food form ----------------------------------------------------
+  function overlayCustomFood() {
+    const f = state.customForm || (state.customForm = {
+      name: '', category: 'Beef', glyph: 'beef', hazard: 'wholeMuscleRedMeat', thickness: 'medium',
+      pitLo: 225, pitHi: 275, targetF: 145, totalLo: 60, totalHi: 120, restMin: 10, wrapTemp: 0, spritz: 0,
+    });
+    const glyphs = ['beef', 'steak', 'pork', 'ribs', 'poultry', 'wholeBird', 'fish', 'shellfish', 'game', 'ground', 'egg', 'veg', 'potato', 'cheese', 'bread', 'fruit', 'side'];
+    const html = '<div class="cap-notice mb3">' + icon('info') + '<div class="cn-text">Custom foods live alongside the built-in catalog. Give it a target and an expected timeline and the app will plan around it.</div></div>' +
+      '<div class="field"><div class="f-label">Name</div><input id="cfName" placeholder="e.g. Smoked Lamb Ribs" value="' + esc(f.name) + '" /></div>' +
+      '<div class="field-row"><div class="field"><div class="f-label">Category</div><select id="cfCat">' + M.CATEGORIES.map((c) => '<option' + (c === f.category ? ' selected' : '') + '>' + c + '</option>').join('') + '</select></div>' +
+      '<div class="field"><div class="f-label">Icon</div><select id="cfGlyph">' + glyphs.map((g) => '<option' + (g === f.glyph ? ' selected' : '') + '>' + g + '</option>').join('') + '</select></div></div>' +
+      '<div class="field-row"><div class="field"><div class="f-label">Hazard class</div><select id="cfHazard">' +
+      [['wholeMuscleRedMeat', 'Whole muscle (red meat)'], ['pork', 'Pork'], ['poultry', 'Poultry'], ['ground', 'Ground meat'], ['fish', 'Fish'], ['egg', 'Egg'], ['unstated', 'None / veg']].map((h) => '<option value="' + h[0] + '"' + (h[0] === f.hazard ? ' selected' : '') + '>' + h[1] + '</option>').join('') + '</select></div>' +
+      '<div class="field"><div class="f-label">Thickness</div><select id="cfThick">' +
+      [['thin', 'Thin'], ['medium', 'Medium'], ['thick', 'Thick']].map((t) => '<option value="' + t[0] + '"' + (t[0] === f.thickness ? ' selected' : '') + '>' + t[1] + '</option>').join('') + '</select></div></div>' +
+      '<div class="field-row"><div class="field"><div class="f-label">Pit band low (°F)</div><input id="cfPitLo" type="number" value="' + f.pitLo + '" /></div>' +
+      '<div class="field"><div class="f-label">Pit band high (°F)</div><input id="cfPitHi" type="number" value="' + f.pitHi + '" /></div></div>' +
+      '<div class="field-row"><div class="field"><div class="f-label">Target final (°F)</div><input id="cfTarget" type="number" value="' + f.targetF + '" /></div>' +
+      '<div class="field"><div class="f-label">Rest (min)</div><input id="cfRest" type="number" value="' + f.restMin + '" /></div></div>' +
+      '<div class="field-row"><div class="field"><div class="f-label">Cook time low (min)</div><input id="cfTotalLo" type="number" value="' + f.totalLo + '" /></div>' +
+      '<div class="field"><div class="f-label">Cook time high (min)</div><input id="cfTotalHi" type="number" value="' + f.totalHi + '" /></div></div>' +
+      '<div class="field-row"><div class="field"><div class="f-label">Wrap at (°F, 0 = never)</div><input id="cfWrap" type="number" value="' + f.wrapTemp + '" /></div>' +
+      '<div class="field"><div class="f-label">Spritz every (min, 0 = never)</div><input id="cfSpritz" type="number" value="' + f.spritz + '" /></div></div>' +
+      '<div class="btn-row mt4"><button class="btn primary" data-action="custom-save">' + icon('check') + 'Add to catalog</button>' +
+      '<button class="btn ghost" data-action="close-overlay">Cancel</button></div>';
+    return sheetWrap('Custom food', 'Add your own cut to the catalog', html);
+  }
+
+  // ---- Connect sheet (dual-link + compact modes) ---------------------------
   function overlayConnect() {
-    const s = scenario(), c = s.connection, online = c.state === 'connected';
-    const mode = M.MODES.find((m) => m.id === c.mode) || M.MODES[0];
-    let body = '<div class="card"><div class="row">' + icon(online ? 'link' : 'unlink', 20) +
-      '<div style="flex:1"><div class="hi bold">' + esc(c.deviceName) + '</div>' +
-      '<div class="tiny muted">' + (online ? 'Connected via ' + esc(mode.name) + ' · last reading ' + ago(Date.now() - c.lastSyncS * 1000) : 'Not connected') + '</div></div>' +
-      '<span class="pulse-dot ' + (online ? '' : 'idle') + '"></span></div></div>' +
-      '<div class="tiny muted mt4 mb2">SWITCH MODE — ALWAYS AVAILABLE OVER BLUETOOTH</div>' +
-      M.MODES.map((m) => modeCard(m, m.id === c.mode)).join('') +
+    const s = scenario(), c = s.connection;
+    const bt = c.bt || {}, wifi = c.wifi || {};
+    const primaryIsBt = c.primary === 'bt';
+    let body = '<div class="card"><div class="card-head">' + icon(c.phase === 'offline' ? 'unlink' : 'link') + '<div class="card-title">' + esc(c.deviceName) + '</div>' +
+      '<span class="spacer"></span><span class="pulse-dot ' + (c.phase === 'offline' ? 'idle' : c.phase === 'connected' ? '' : 'warn') + '"></span></div>';
+
+    body += '<div class="link-row' + (bt.connected ? '' : ' off') + '"><div class="lr-icon">' + icon('bluetooth') + '</div>' +
+      '<div class="lr-meta"><div class="lr-name">Bluetooth' + (primaryIsBt && bt.connected ? ' <span class="mode-badge">Data</span>' : '') + '</div>' +
+      '<div class="lr-sub">' + (bt.connected ? signalWord(bt.bars) + ' · ' + (bt.lastSyncS !== null ? ago(Date.now() - bt.lastSyncS * 1000) : '') : 'Not connected') + '</div></div>' +
+      '<div class="lr-right">' + signalBars(bt.bars) + '</div></div>';
+    body += '<div class="link-row' + (wifi.connected ? '' : ' off') + '"><div class="lr-icon">' + icon(wifi.mode === 'ap' ? 'wifi' : 'router') + '</div>' +
+      '<div class="lr-meta"><div class="lr-name">Wi-Fi' + (c.primary === 'wifi' && wifi.connected ? ' <span class="mode-badge">Data</span>' : '') + '</div>' +
+      '<div class="lr-sub">' + (wifi.mode === 'off' ? 'Not set up' : wifi.connected ? (wifi.mode === 'ap' ? 'Bridge hotspot' : esc(wifi.ssid || '')) + ' · ' + signalWord(wifi.bars) : 'Not connected') + '</div></div>' +
+      '<div class="lr-right">' + signalBars(wifi.bars) + '</div></div>';
+
+    if (c.phase === 'error' || c.phase === 'rollback') {
+      const msg = c.error === 'wrong_password' ? 'That Wi-Fi password was rejected. The bridge kept Bluetooth so nothing is lost.'
+        : c.error === 'router_unreachable' ? 'The bridge could not reach the router. Check the network name and that the router is on.'
+        : s.notice || 'The last change did not stick. The bridge kept its previous link.';
+      body += '<div class="cap-notice ' + (c.phase === 'rollback' ? 'warn' : 'crit') + ' mt3">' + icon('alertTriangle') + '<div class="cn-text">' + esc(msg) + '</div></div>' +
+        '<div class="btn-row mt3"><button class="btn primary" data-action="provision-sta">' + icon('refresh') + 'Try again</button>' +
+        '<button class="btn ghost" data-action="provision-ap">' + icon('wifi') + 'Use hotspot</button></div>';
+    }
+
+    body += '<div class="tiny muted mt4 mb2">SWITCH MODE — ALWAYS AVAILABLE OVER BLUETOOTH</div>' +
+      M.MODES.map((m) => modeCardCompact(m, m.id === c.mode)).join('') +
       '<div class="cap-notice mt2">' + icon('info') + '<div class="cn-text">Switching to Wi-Fi happens over Bluetooth, so it works even when the bridge is not on a network. If the new mode fails, the bridge keeps its old network and Bluetooth stays as your escape hatch.</div></div>' +
       '<div class="btn primary mt4" data-action="resync">' + icon('refresh') + 'Re-sync now</div>' +
       '<button class="btn ghost mt2" data-action="disconnect">' + icon('unlink') + 'Disconnect</button>';
-    return scrim('<div class="sheet"><div class="sheet-grab"></div>' +
-      '<div class="sheet-head"><div style="flex:1"><div class="sh-title">Connection</div><div class="sh-sub">' + esc(c.deviceName) + '</div></div>' +
-      '<button class="icon-btn" data-action="close-overlay">' + icon('x') + '</button></div><div class="sheet-body">' + body + '</div></div>');
+    return sheetWrap('Connection', esc(c.deviceName), body);
   }
 
-  // ---- Modes sheet ---------------------------------------------------------
+  // ---- Modes sheet (compact, links to reference) ---------------------------
   function overlayModes() {
     const c = scenario().connection;
-    let html = '<div class="cap-notice">' + icon('compass') + '<div class="cn-text">Three ways to talk to the bridge. They trade range, features and battery differently — pick what fits where you cook.</div></div><div class="mt3"></div>';
+    let html = '<div class="cap-notice">' + icon('compass') + '<div class="cn-text">Three ways to talk to the bridge. Tap <b>?</b> on any one for the full technical detail.</div></div><div class="mt3"></div>';
+    html += M.MODES.map((m) => modeCardCompact(m, m.id === c.mode)).join('');
+    return sheetWrap('Connection modes', 'Switch any time — the app stays reachable', html);
+  }
+
+  // ---- Technical reference (the old long text lives here) ------------------
+  function overlayModesRef(props) {
+    const c = scenario().connection;
+    const focus = props.mode;
+    let html = '<div class="cap-notice">' + icon('info') + '<div class="cn-text">The bridge is a pure listener: it never transmits except for one tiny LoRa acknowledgement. All three modes share that rule.</div></div><div class="mt3"></div>';
     html += M.MODES.map((m) => {
       const cap = m.capability;
-      return modeCard(m, m.id === c.mode) +
-        '<div class="card subtle" style="margin:-4px 0 12px"><div class="tiny muted mb2">Capabilities in this mode</div>' +
-        capRow('Live readings', cap.live) + capRow('2-hour preview', cap.preview) + capRow('Full history download', cap.fullHistory) +
-        capRow('Alarm-rule editing', cap.rules) + capRow('Firmware update', cap.ota) + '</div>';
+      const open = !focus || focus === m.id;
+      return '<div class="card' + (m.id === c.mode ? '' : ' subtle') + '" style="margin-bottom:10px">' +
+        '<div class="row"><div class="mode-icon">' + icon(m.icon) + '</div><div style="flex:1"><div class="mode-name">' + esc(m.name) + (m.id === c.mode ? ' <span class="mode-badge">Active</span>' : '') + '</div><div class="mode-tag">' + esc(m.tagline) + '</div></div></div>' +
+        '<div class="body small mt3">' + esc(m.summary) + '</div>' +
+        (open ? '<div class="mt2">' + m.good.map((g) => '<div class="mode-li good">' + esc(g) + '</div>').join('') +
+          m.limited.map((g) => '<div class="mode-li limit">' + esc(g) + '</div>').join('') + '</div>' +
+          '<div class="divider"></div><div class="tiny muted mb2">CAPABILITIES</div>' +
+          capRow('Live readings', cap.live) + capRow('2-hour preview', cap.preview) + capRow('Full history download', cap.fullHistory) +
+          capRow('Alarm-rule editing', cap.rules) + capRow('Firmware update', cap.ota) : '') +
+        '</div>';
     }).join('');
-    return scrim('<div class="sheet"><div class="sheet-grab"></div>' +
-      '<div class="sheet-head"><div style="flex:1"><div class="sh-title">Connection modes</div><div class="sh-sub">Switch any time — the app stays reachable</div></div>' +
-      '<button class="icon-btn" data-action="close-overlay">' + icon('x') + '</button></div><div class="sheet-body">' + html + '</div></div>');
+    return sheetWrap('Connection modes', 'Technical reference', html);
   }
   function capRow(label, ok) {
-    return '<div class="row between small" style="padding:3px 0"><span class="body">' + label + '</span>' +
+    return '<div class="cap-row"><span class="body">' + label + '</span>' +
       (ok ? '<span style="color:var(--positive)">' + icon('check', 15) + '</span>' : '<span class="muted">—</span>') + '</div>';
+  }
+
+  // ---- Provision: join home Wi-Fi ------------------------------------------
+  function overlayProvisionSta() {
+    const nets = [{ ssid: 'HomeNet-5G', bars: 4 }, { ssid: 'HomeNet-2.4G', bars: 3 }, { ssid: 'Backyard-AP', bars: 2 }];
+    const html = '<div class="cap-notice">' + icon('info') + '<div class="cn-text">The bridge joins your home Wi-Fi so your phone keeps its internet and you can reach the bridge anywhere in range. The password is sent over Bluetooth and is not stored in the app.</div></div>' +
+      '<div class="tiny muted mt4 mb2">CHOOSE A NETWORK</div><div class="card subtle">' +
+      nets.map((n, i) => '<div class="link-row" style="cursor:pointer' + (i === nets.length - 1 ? ';border-bottom:none' : '') + '" data-action="pick-wifi" data-ssid="' + esc(n.ssid) + '">' +
+        '<div class="lr-icon">' + icon('wifi') + '</div><div class="lr-meta"><div class="lr-name">' + esc(n.ssid) + '</div><div class="lr-sub">' + signalWord(n.bars) + '</div></div>' +
+        '<div class="lr-right">' + signalBars(n.bars) + icon('chevronRight') + '</div></div>').join('') + '</div>' +
+      '<div class="field mt3"><div class="f-label">Password</div><input id="wifiPass" type="password" placeholder="••••••••" /></div>' +
+      '<div class="btn primary mt2" data-action="wifi-submit">' + icon('link') + 'Connect bridge</div>' +
+      '<button class="btn ghost mt2" data-action="close-overlay">Cancel</button>';
+    return sheetWrap('Join home Wi-Fi', 'Sent over Bluetooth', html);
+  }
+
+  // ---- Provision: use the bridge hotspot -----------------------------------
+  function overlayProvisionAp() {
+    const c = scenario().connection, wifi = c.wifi || {};
+    const ssid = wifi.ssid || 'SmokeBridge-A4F2';
+    const pass = wifi.passkey || 'smoke-4471';
+    const html = '<div class="cap-notice">' + icon('info') + '<div class="cn-text">No home network? The bridge can broadcast its own. Your phone joins it directly — some phones will warn there is “no internet”, which is normal.</div></div>' +
+      '<div class="card mt3"><div class="row"><div class="lr-icon">' + icon('wifi') + '</div><div style="flex:1"><div class="hi bold small">' + esc(ssid) + '</div><div class="tiny muted">Bridge hotspot</div></div>' +
+      '<div class="lr-icon">' + icon('qr') + '</div></div>' +
+      '<div class="tiny muted mt3 mb2">Network password</div><div class="mono-well sm">' + esc(pass) + '</div></div>' +
+      '<ol class="body small mt3" style="padding-left:18px;line-height:1.8"><li>Open your phone’s Wi-Fi settings.</li><li>Join <b class="hi">' + esc(ssid) + '</b>.</li><li>Come back — the app finds the bridge automatically.</li></ol>' +
+      '<button class="btn primary mt4" data-action="open-wifi-settings">' + icon('wifi') + 'Open Wi-Fi settings</button>' +
+      '<button class="btn ghost mt2" data-action="fire-event" data-id="ap-joined">' + icon('check') + 'I have joined (simulate)</button>' +
+      '<div class="tiny muted center mt2">The bridge stays on Bluetooth until you confirm.</div>';
+    return sheetWrap('Use the bridge hotspot', 'Direct link, no router needed', html);
   }
 
   // ---- Alarms sheet --------------------------------------------------------
   // [BIZ] Two visibly separate tiers (I2):
   //   DEVICE  — the nine rules on the ESP32, authoritative. The app mirrors.
-  //   APP     — advisory only (ETA soon, stall, unreachable). Never re-decides.
+  //   APP     — insights only (ETA soon, stall, unreachable). Never re-decides.
   function overlayAlarms() {
     const s = scenario();
     const active = (s.alarms || []).filter((a) => !a.acked && !state.pendingAck[a.id]);
@@ -1009,10 +1329,10 @@
       html += '<div class="section-label" style="margin-top:0">Active now</div>';
       html += active.map((a) => {
         const ic = a.severity === 'critical' ? 'alertCircle' : a.severity === 'warning' ? 'alertTriangle' : 'info';
-        return '<div class="alarm-bar ' + a.severity + '" style="cursor:default">' + '<span class="al-icon">' + icon(ic) + '</span>' +
-          '<div class="al-text"><div class="al-title">' + esc(a.rule) + ' ' + (a.tier === 'device' ? '<span class="tier-tag device">Device</span>' : '<span class="tier-tag app">Advisory</span>') + '</div>' +
+        return '<div class="alarm-bar ' + a.severity + '" data-action="open-alarm-detail" data-id="' + a.id + '">' + '<span class="al-icon">' + icon(ic) + '</span>' +
+          '<div class="al-text"><div class="al-title">' + esc(a.rule) + ' ' + (a.tier === 'device' ? '<span class="tier-tag device">Device</span>' : '<span class="tier-tag app">Insight</span>') + '</div>' +
           '<div class="al-detail">' + esc(a.detail) + '</div></div>' +
-          '<button class="al-ack" data-action="ack-alarm" data-id="' + a.id + '">Acknowledge</button></div>';
+          '<button class="al-ack" data-action="ack-alarm" data-id="' + a.id + '" aria-label="Acknowledge" title="Acknowledge">' + icon('check', 17) + '</button></div>';
       }).join('');
     } else {
       html += '<div class="cap-notice">' + icon('check') + '<div class="cn-text">No active alarms. The bridge is watching with or without this app.</div></div>';
@@ -1022,13 +1342,13 @@
       '<div style="flex:1"><div class="hi bold small">This phone will wake you</div><div class="tiny muted">Notifications allowed · critical alarms bypass quiet hours</div></div></div>' +
       '<button class="btn ghost sm mt3" data-action="test-alarm">' + icon('zap') + 'Send a test alarm</button></div>';
 
-    html += '<div class="section-label">Device rules <span class="spacer"></span><span class="tiny muted">authoritative</span></div><div class="card">' +
+    html += '<div class="section-label">From the bridge <span class="spacer"></span><span class="tiny muted">authoritative</span></div><div class="card">' +
       M.ALARM_RULES.filter((r) => r.tier === 'device').map((r) =>
         '<div class="set-row"><div class="sr-icon">' + icon(r.severity === 'critical' ? 'alertCircle' : 'alertTriangle') + '</div>' +
         '<div class="sr-meta"><div class="sr-name">' + r.name + '</div><div class="sr-sub">' + r.desc + ' · ' + r.scoped + '</div></div>' +
         '<div class="sr-right">' + toggle('__dev_' + r.id, r.enabled) + '</div></div>').join('') + '</div>';
 
-    html += '<div class="section-label">App advisories <span class="spacer"></span><span class="tiny muted">never overrides the device</span></div><div class="card">' +
+    html += '<div class="section-label">Insights from the app <span class="spacer"></span><span class="tiny muted">never overrides the bridge</span></div><div class="card">' +
       M.ALARM_RULES.filter((r) => r.tier === 'app').map((r) =>
         '<div class="set-row"><div class="sr-icon">' + icon('info') + '</div>' +
         '<div class="sr-meta"><div class="sr-name">' + r.name + '</div><div class="sr-sub">' + r.desc + '</div></div>' +
@@ -1038,9 +1358,29 @@
       setRow('key', 'Prefer my own alarms', 'Your manual alarms win over the device rules', toggle('preferManualAlarm')) +
       setRow('moon', 'Quiet hours', 'Silence warning & info 10pm–6am · critical always sounds', toggle('quietHours')) +
       setRow('bell', 'Background monitoring', 'Check on the bridge and bubble up alarms', toggle('monitoring')) + '</div>';
-    return scrim('<div class="sheet"><div class="sheet-grab"></div>' +
-      '<div class="sheet-head"><div style="flex:1"><div class="sh-title">Alarms</div><div class="sh-sub">Device rules and app advisories, kept separate</div></div>' +
-      '<button class="icon-btn" data-action="close-overlay">' + icon('x') + '</button></div><div class="sheet-body">' + html + '</div></div>');
+    return sheetWrap('Alerts', 'From the bridge and insights from the app, kept separate', html);
+  }
+
+  // ---- Alarm detail --------------------------------------------------------
+  function overlayAlarmDetail(props) {
+    const s = scenario();
+    const a = (s.alarms || []).find((x) => x.id === props.id);
+    if (!a) { closeOverlay(); return ''; }
+    const ic = a.severity === 'critical' ? 'alertCircle' : a.severity === 'warning' ? 'alertTriangle' : 'info';
+    const body = '<div class="card ' + a.severity + '" style="border-color:rgba(var(--' + (a.severity === 'critical' ? 'critical' : a.severity === 'warning' ? 'warning' : 'info') + '-rgb),0.35)">' +
+      '<div class="row"><span class="al-icon" style="color:var(--' + (a.severity === 'critical' ? 'critical' : a.severity === 'warning' ? 'warning' : 'info') + ')">' + icon(ic, 22) + '</span>' +
+      '<div style="flex:1"><div class="hi bold">' + esc(a.rule) + '</div><div class="tiny muted">' + fmtClock(a.atMs) + ' · ' + ago(a.atMs) + '</div></div>' +
+      (a.tier === 'device' ? '<span class="tier-tag device">Device</span>' : '<span class="tier-tag app">Insight</span>') + '</div>' +
+      '<div class="body small mt3">' + esc(a.detail) + '</div></div>' +
+      '<div class="card subtle mt3"><div class="tiny muted mb2">Why this fired</div>' +
+      '<div class="row between small" style="padding:4px 0"><span class="muted">Rule</span><span class="hi">' + esc(a.ruleId || a.id) + '</span></div>' +
+      (a.trigger ? '<div class="row between small" style="padding:4px 0"><span class="muted">Trigger</span><span class="hi">' + esc(a.trigger) + '</span></div>' : '') +
+      (a.valueF ? '<div class="row between small" style="padding:4px 0"><span class="muted">Reading</span><span class="hi mono">' + fmtTemp(a.valueF) + '</span></div>' : '') +
+      (a.suggestion ? '<div class="row between small" style="padding:4px 0"><span class="muted">Suggestion</span><span class="hi">' + esc(a.suggestion) + '</span></div>' : '') + '</div>' +
+      '<div class="btn-row mt4"><button class="btn primary" data-action="ack-alarm" data-id="' + a.id + '">' + icon('check') + 'Acknowledge</button>' +
+      '<button class="btn ghost" data-action="snooze-alarm" data-id="' + a.id + '">' + icon('clock') + 'Snooze 10m</button></div>' +
+      '<button class="btn ghost mt2" data-action="nav" data-screen="graph">' + icon('chart') + 'View on graph</button>';
+    return sheetWrap('Alert', a.tier === 'device' ? 'From the bridge' : 'Insight from the app', body);
   }
 
   // ---- Mark sheet ----------------------------------------------------------
@@ -1055,11 +1395,9 @@
       '<div class="catalog-grid">' + kinds.map((x) =>
         '<button class="catalog-item" data-action="mark-kind" data-kind="' + x.k + '" style="align-items:center;text-align:center;gap:6px">' +
         '<span style="color:var(--text-body)">' + icon(x.icon, 22) + '</span><div class="ci-name">' + x.label + '</div></button>').join('') + '</div>' +
-      '<div class="card inset mt3"><div class="tiny muted mb2">Add a note (optional)</div><div class="body small">Wrapped the brisket in butcher paper…</div></div>' +
-      '<div class="btn primary mt4" data-action="close-overlay">' + icon('check') + 'Save mark</div>';
-    return scrim('<div class="sheet"><div class="sheet-grab"></div>' +
-      '<div class="sheet-head"><div style="flex:1"><div class="sh-title">Add a mark</div><div class="sh-sub">A timestamped event on this cook</div></div>' +
-      '<button class="icon-btn" data-action="close-overlay">' + icon('x') + '</button></div><div class="sheet-body">' + html + '</div></div>');
+      '<div class="field mt3"><div class="f-label">Add a note (optional)</div><textarea id="markNote" rows="2" placeholder="Wrapped the brisket in butcher paper…"></textarea></div>' +
+      '<div class="btn primary mt2" data-action="close-overlay">' + icon('check') + 'Save mark</div>';
+    return sheetWrap('Add a mark', 'A timestamped event on this cook', html);
   }
 
   // ---- Probe detail sheet --------------------------------------------------
@@ -1082,9 +1420,7 @@
       '<div class="row mt2">' + trendChip(p.trendFPerHr, true) + '</div></div>' +
       '<div class="hero-side">' + sparkline(p.spark || [], seriesColor(jack), 96, 54) + '</div></div>';
 
-    if (!isGrate && p.targetF !== null && p.targetF !== undefined) {
-      html += '<div class="card subtle mt3">' + phaseTrack(p) + '</div>';
-    }
+    if (!isGrate && p.targetF !== null && p.targetF !== undefined) html += '<div class="card subtle mt3">' + phaseTrack(p) + '</div>';
     html += '<div class="stat-grid mt3">' + stat('High', fmtTemp(p.peakF, 0)) + stat('Avg', fmtTemp(p.avgF, 0)) + stat('Low', fmtTemp(p.lowF, 0)) + '</div>';
 
     html += '<div class="tiny muted mt4 mb2">ROLE</div><div class="seg-chips">' +
@@ -1103,10 +1439,8 @@
     }
     html += '<div class="btn-row mt4"><button class="btn" data-action="mark-pulled" data-jack="' + jack + '">' + icon('check') + 'Mark pulled</button>' +
       '<button class="btn ghost" data-action="test-alarm">' + icon('zap') + 'Test alarm</button></div>' +
-      '<button class="btn ghost mt2" data-action="export">' + icon('share') + 'Export this probe</button>';
-    return scrim('<div class="sheet"><div class="sheet-grab"></div>' +
-      '<div class="sheet-head"><div style="flex:1"><div class="sh-title">Probe ' + jack + '</div><div class="sh-sub">' + (cat ? esc(cat.name) : 'Jack details') + '</div></div>' +
-      '<button class="icon-btn" data-action="close-overlay">' + icon('x') + '</button></div><div class="sheet-body">' + html + '</div></div>');
+      '<button class="btn ghost mt2" data-action="export" data-scope="probe" aria-label="Share probe">' + icon('share') + 'Share this probe</button>';
+    return sheetWrap('Probe ' + jack, cat ? esc(cat.name) : 'Jack details', html);
   }
   function phaseTrack(p) {
     const pull = p.pullF === null || p.pullF === undefined ? p.targetF : p.pullF;
@@ -1150,6 +1484,10 @@
   }
 
   // =============================================== §8 ACTIONS + DELEGATION ====
+  let lastChart = null;
+  let dragState = null;
+  let pendingSsid = 'HomeNet-5G';
+
   function toast(msg) {
     const t = $('#toast');
     t.textContent = msg; t.classList.add('show');
@@ -1157,25 +1495,153 @@
   }
   function go(screen) { state.screen = screen; render(); $('#view').scrollTop = 0; }
 
-  function startCook(mode) {
-    const s = scenario();
-    const sel = catalogById(state.catalog.selectedId);
-    if (!sel) { toast('Pick a food first'); return; }
+  function resolvedTheme() {
+    if (state.themeMode === 'light') return 'light';
+    if (state.themeMode === 'dark') return 'dark';
+    try { return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; } catch (e) { return 'light'; }
+  }
+  function applyBodyClasses() {
+    const cls = ['theme-' + resolvedTheme()];
+    if (state.displayProfile === 'daylight') cls.push('profile-daylight');
+    cls.push('density-' + (state.density === 'comfortable' ? 'comfortable' : 'compact'));
+    if (state.reducedMotion) cls.push('reduced-motion');
+    document.body.className = cls.join(' ');
+  }
+
+  // ---- Cook lifecycle ------------------------------------------------------
+  function addItemToCook(presetId, jack, styleId) {
+    const s = scenario(), cook = s.cook, cat = catalogById(presetId);
+    if (!cook.active) {
+      cook.active = true; cook.paused = false;
+      cook.startedAtMs = Date.now();
+      cook.name = (cat ? cat.name : 'Cook') + ' cook';
+      cook.grateTargetF = cook.grateTargetF || 250;
+      cook.items = [];
+    }
+    const start = Date.now();
+    cook.items = (cook.items || []).filter((it) => it.jack !== jack);
+    cook.items.push({ id: presetId, jack: jack, addedAtMs: start, styleId: styleId || null });
+    const st = styleId ? (stylesFor(presetId) || []).find((x) => x.id === styleId) : null;
+    if (st && st.pitBand) cook.pitBand = st.pitBand;
+    const p = s.probes.find((pp) => pp.jack === jack);
+    if (p) {
+      const don = donenessFor(cat, state.catalog.doneness);
+      p.role = 'food'; p.attached = true; p.freshness = 'live';
+      p.targetF = st ? st.targetF : (don ? don.targetF : null);
+      p.pullF = p.targetF !== null ? p.targetF - carryoverFor(cat) : null;
+      if (p.tempF === null || p.tempF === undefined) p.tempF = 60;
+    }
+    closeOverlay(); go('live');
+    toast((cat ? cat.name : 'Item') + ' added to the cook');
+  }
+
+  function requestAdd(presetId, jack, styleId) {
+    const s = scenario(), cook = s.cook, cat = catalogById(presetId);
+    const tl = timelineFor(presetId) || { totalMin: [60, 90] };
+    const mid = (tl.totalMin[0] + tl.totalMin[1]) / 2;
+    if (cook.active && (cook.items || []).length) {
+      const existing = Math.max.apply(null, cook.items.map((it) => {
+        const t = timelineFor(it.id) || { totalMin: [60, 90] };
+        return it.addedAtMs + ((t.totalMin[0] + t.totalMin[1]) / 2) * 60000;
+      }));
+      const newFinish = Date.now() + mid * 60000;
+      if (newFinish > existing + 15 * 60000) {
+        const delay = Math.round((newFinish - existing) / 60000);
+        openConfirm({
+          title: 'This will run long', confirmLabel: 'Add anyway',
+          body: '<b class="hi">' + esc(cat ? cat.name : 'This item') + '</b> takes about <b class="hi">' + Math.round(mid) + ' min</b>, so it would finish roughly <b class="hi">' + fmtDuration(delay * 60000) + '</b> after everything else is already off the grill. Add it to this cook?',
+          action: 'add-item', data: { presetId: presetId, jack: jack, styleId: styleId },
+        });
+        return;
+      }
+    }
+    addItemToCook(presetId, jack, styleId);
+  }
+
+  function adoptCook() {
+    const s = scenario(), cook = s.cook;
+    const sel = catalogById(state.catalog.selectedId) || catalogById('beef_brisket');
+    const ps = s.pendingSession;
+    cook.active = true; cook.paused = false;
+    cook.name = (sel ? sel.name : 'Cook') + ' (adopted)';
+    cook.startedAtMs = ps ? ps.startedAtMs : Date.now();
+    cook.grateTargetF = cook.grateTargetF || 250;
+    cook.items = (cook.items || []).filter((it) => it.jack !== 1);
+    cook.items.push({ id: sel.id, jack: 1, addedAtMs: cook.startedAtMs });
+    const p = s.probes.find((pp) => pp.jack === 1);
     const don = donenessFor(sel, state.catalog.doneness);
-    const start = mode === 'existing' && s.pendingSession ? s.pendingSession.startedAtMs : Date.now();
-    s.cook.active = true; s.cook.paused = false;
-    s.cook.name = sel.name + (mode === 'existing' ? ' (adopted)' : ' cook');
-    s.cook.startedAtMs = start;
-    s.cook.grateTargetF = s.cook.grateTargetF || 250;
-    s.cook.items = (s.cook.items || []).filter((it) => it.jack !== state.catalog.jack);
-    s.cook.items.push({ id: sel.id, jack: state.catalog.jack, addedAtMs: start });
-    const p = s.probes.find((pp) => pp.jack === state.catalog.jack);
-    if (p) { p.role = 'food'; p.attached = true; p.targetF = don.targetF; p.pullF = pullTempFor(sel, don); p.freshness = 'live'; if (p.tempF === null) p.tempF = 60; }
-    const pulled = mode === 'existing' && s.pendingSession ? s.pendingSession.samples : 0;
+    if (p) { p.role = 'food'; p.attached = true; p.targetF = don ? don.targetF : null; p.freshness = 'live'; if (p.tempF === null) p.tempF = 60; }
+    const pulled = ps ? ps.samples : 0;
     s.pendingSession = null;
-    closeOverlay();
-    go('live');
-    toast(mode === 'existing' ? 'Cook adopted · pulled ' + pulled + ' samples' : sel.name + ' cook started');
+    closeOverlay(); go('live');
+    toast('Cook adopted · pulled ' + pulled + ' samples');
+  }
+
+  // ---- Mock event bus ------------------------------------------------------
+  function fireEvent(id) {
+    const s = scenario(), c = s.connection;
+    switch (id) {
+      case 'ble-connected':
+        c.phase = 'connected'; c.error = null;
+        c.bt = Object.assign({}, c.bt, { available: true, connected: true, bars: 3, rssi: -60, lastSyncS: 0 });
+        if (!c.primary) c.primary = 'bt';
+        break;
+      case 'ble-dropped':
+        c.bt = Object.assign({}, c.bt, { connected: false, bars: 0, lastSyncS: 60, warm: false });
+        if (c.primary === 'bt') c.primary = (c.wifi && c.wifi.connected) ? 'wifi' : null;
+        if (!c.primary) c.phase = 'offline';
+        break;
+      case 'wifi-connecting':
+        c.phase = 'connecting'; c.error = null; c.primary = 'bt';
+        c.bt = Object.assign({}, c.bt, { connected: true, bars: c.bt.bars || 3, lastSyncS: 0 });
+        c.wifi = Object.assign({}, c.wifi, { mode: 'sta', connected: false, ssid: pendingSsid, ip: null, bars: null, rssi: null, lastSyncS: null });
+        break;
+      case 'wifi-wrong-password':
+        c.phase = 'error'; c.error = 'wrong_password'; c.primary = 'bt';
+        c.bt = Object.assign({}, c.bt, { connected: true, bars: c.bt.bars || 3 });
+        c.wifi = Object.assign({}, c.wifi, { mode: 'sta', connected: false, ssid: pendingSsid, bars: null, rssi: null });
+        break;
+      case 'wifi-router-unreachable':
+        c.phase = 'error'; c.error = 'router_unreachable'; c.primary = 'bt';
+        c.bt = Object.assign({}, c.bt, { connected: true, bars: c.bt.bars || 3 });
+        c.wifi = Object.assign({}, c.wifi, { mode: 'sta', connected: false, ssid: pendingSsid, bars: 0, rssi: -92 });
+        break;
+      case 'wifi-connected':
+        c.phase = 'connected'; c.error = null;
+        c.wifi = Object.assign({}, c.wifi, { mode: 'sta', connected: true, ssid: pendingSsid, ip: '192.168.1.42', bars: 4, rssi: -48, lastSyncS: 0 });
+        c.bt = Object.assign({}, c.bt, { connected: true, warm: true, bars: c.bt.bars || 3, lastSyncS: 0 });
+        c.primary = 'wifi';
+        break;
+      case 'ap-broadcasting':
+        c.phase = 'provisioning'; c.error = null; c.primary = 'bt';
+        c.bt = Object.assign({}, c.bt, { connected: true, bars: c.bt.bars || 3 });
+        c.wifi = { available: true, connected: false, mode: 'ap', ssid: 'SmokeBridge-A4F2', passkey: 'smoke-4471', bars: null, rssi: null, lastSyncS: null, warm: false };
+        break;
+      case 'ap-joined':
+        c.phase = 'connected'; c.error = null;
+        c.wifi = Object.assign({}, c.wifi, { mode: 'ap', connected: true, ssid: 'SmokeBridge-A4F2', passkey: 'smoke-4471', ip: '192.168.4.1', bars: 4, rssi: -40, lastSyncS: 0 });
+        c.primary = 'wifi';
+        break;
+      case 'switch-rollback':
+        c.phase = 'rollback'; c.error = 'switch_failed'; c.primary = 'bt';
+        c.bt = Object.assign({}, c.bt, { connected: true, bars: c.bt.bars || 3, lastSyncS: 0 });
+        c.wifi = Object.assign({}, c.wifi, { connected: false });
+        s.notice = 'The bridge could not join that network, so it kept Bluetooth. Nothing was lost.';
+        break;
+      case 'resync-complete':
+        c.phase = 'connected'; c.error = null; s.notice = null;
+        if (c.bt) c.bt.lastSyncS = 0;
+        if (c.wifi) c.wifi.lastSyncS = 0;
+        break;
+      case 'alarm-target':
+        s.alarms = (s.alarms || []).concat([{ id: 'evt_target_' + Date.now(), tier: 'device', severity: 'critical', rule: 'Target reached', detail: 'A probe crossed its target going up.', valueF: 201, atMs: Date.now(), acked: false, ruleId: 'target_reached', trigger: 'Crossed target upward', suggestion: 'Pull it now and rest.' }]);
+        break;
+      case 'alarm-pit-crash':
+        s.alarms = (s.alarms || []).concat([{ id: 'evt_crash_' + Date.now(), tier: 'device', severity: 'critical', rule: 'Pit temperature falling fast', detail: 'Down 18°F in 12 min. Check fuel and vents.', valueF: 248.6, atMs: Date.now(), acked: false, ruleId: 'pit_crash', trigger: 'Fell 18°F in 12 min', suggestion: 'Open a vent or add a lit chimney.' }]);
+        break;
+    }
+    closeOverlay(); render();
+    toast('Event: ' + id);
   }
 
   document.addEventListener('click', function (e) {
@@ -1185,24 +1651,32 @@
     const s = scenario();
     switch (a) {
       case 'nav': go(el.dataset.screen); break;
-      case 'back': go('cooks'); break;
+      case 'back': go('history'); break;
       case 'dev-screen': go(el.dataset.screen); break;
       case 'scenario': {
         const key = el.dataset.key;
         M.SCENARIOS[key] = JSON.parse(JSON.stringify(SCEN_TEMPLATE[key]));
-        state.scenarioKey = key; closeOverlay(); render(); break;
+        state.scenarioKey = key; state.graph = { zoom: 1, pan: 0 }; closeOverlay(); render(); break;
       }
+      case 'fire-event': fireEvent(el.dataset.id); break;
       case 'open-overlay': openOverlay(el.dataset.name); break;
       case 'close-overlay': closeOverlay(); break;
-      case 'scrim-click': if (e.target === el) closeOverlay(); break;
+      case 'scrim-click': if (e.target === el) { closeOverlay(); if (state.fullGraph) { state.fullGraph = false; renderOverlays(); } } break;
       case 'open-connect': openOverlay('connect'); break;
       case 'open-modes': openOverlay('modes'); break;
+      case 'open-modes-ref': openOverlay('modesRef', { mode: el.dataset.mode }); break;
+      case 'provision-sta': openOverlay('provisionSta'); break;
+      case 'provision-ap': openOverlay('provisionAp'); break;
       case 'open-alerts': openOverlay('alarms'); break;
       case 'open-mark': openOverlay('mark'); break;
-      case 'open-setup': state.catalog.selectedId = state.catalog.selectedId || null; openOverlay('setup'); break;
+      case 'open-setup': openOverlay('setup'); break;
+      case 'open-custom': state.customForm = null; openOverlay('customFood'); break;
       case 'open-probe': openOverlay('probe', { jack: Number(el.dataset.jack) }); break;
+      case 'open-history': go('history'); break;
+      case 'open-alarm-detail': openOverlay('alarmDetail', { id: el.dataset.id }); break;
+      case 'open-wifi-settings': toast('Opening your phone’s Wi-Fi settings…'); break;
       case 'adopt': openOverlay('adopt'); break;
-      case 'adopt-confirm': state.catalog.selectedId = state.catalog.selectedId || 'beef_brisket'; state.catalog.jack = 1; startCook('existing'); break;
+      case 'adopt-confirm': state.catalog.selectedId = state.catalog.selectedId || 'beef_brisket'; state.catalog.jack = 1; adoptCook(); break;
       case 'discard-session': s.pendingSession = null; toast('Started fresh — old recording kept on the bridge'); render(); break;
       case 'edit-start': openOverlay('editStart'); break;
       case 'set-start': {
@@ -1213,104 +1687,231 @@
       }
       case 'pause-cook': s.cook.paused = !s.cook.paused; render(); toast(s.cook.paused ? 'Cook paused' : 'Cook resumed'); break;
       case 'setup-mode': state.setupMode = el.dataset.mode; renderOverlays(); break;
-      case 'catalog-cat': state.catalog.category = el.dataset.cat; state.catalog.selectedId = null; renderOverlays(); break;
-      case 'catalog-pick': state.catalog.selectedId = el.dataset.id; state.catalog.doneness = null; renderOverlays(); break;
-      case 'doneness-pick': state.catalog.doneness = el.dataset.id; renderOverlays(); break;
+      case 'catalog-cat': state.catalog.category = el.dataset.cat; state.catalog.selectedId = null; state.catalog.styleId = null; renderOverlays(); break;
+      case 'catalog-pick': state.catalog.selectedId = el.dataset.id; state.catalog.doneness = null; state.catalog.styleId = null; renderOverlays(); break;
+      case 'style-pick': state.catalog.styleId = el.dataset.id; renderOverlays(); break;
+      case 'doneness-pick': {
+        state.catalog.doneness = el.dataset.id;
+        const o = state.overlay;
+        if (o && o.name === 'probe') {
+          const jack = o.props.jack, p = s.probes.find((x) => x.jack === jack);
+          const it = (s.cook.items || []).find((x) => x.jack === jack);
+          const cat = it ? catalogById(it.id) : null;
+          const don = cat ? donenessFor(cat, el.dataset.id) : null;
+          if (p && don) { p.targetF = don.targetF; p.pullF = pullTempFor(cat, don); }
+        }
+        render(); break;
+      }
       case 'catalog-jack': state.catalog.jack = Number(el.dataset.jack); renderOverlays(); break;
-      case 'start-cook': startCook('new'); break;
-      case 'start-existing': startCook('existing'); break;
+      case 'start-cook': {
+        const sel = catalogById(state.catalog.selectedId);
+        if (!sel) { toast('Pick a food first'); break; }
+        if (s.cook.active) requestAdd(sel.id, state.catalog.jack, state.catalog.styleId);
+        else addItemToCook(sel.id, state.catalog.jack, state.catalog.styleId);
+        break;
+      }
+      case 'start-existing': {
+        const sel = catalogById(state.catalog.selectedId);
+        if (!sel) { toast('Pick a food first'); break; }
+        state.catalog.jack = state.catalog.jack || 1;
+        adoptCook(); break;
+      }
       case 'start-watch': s.cook.active = false; closeOverlay(); go('live'); toast('Watching live — no cook set'); break;
-      case 'ack-alarm': state.pendingAck[el.dataset.id] = true; render(); toast('Alarm acknowledged'); break;
+      case 'add-item': if (state.confirm && state.confirm.data) { const d = state.confirm.data; closeOverlay(); addItemToCook(d.presetId, d.jack, d.styleId); } break;
+      case 'confirm-yes': {
+        const cf = state.confirm; state.confirm = null;
+        if (cf && cf.action === 'add-item') { closeOverlay(); addItemToCook(cf.data.presetId, cf.data.jack, cf.data.styleId); }
+        else if (cf && cf.action === 'delete-cook') { closeOverlay(); toast('Deleted (mock)'); go('history'); }
+        else { closeOverlay(); renderOverlays(); }
+        break;
+      }
+      case 'confirm-no': state.confirm = null; closeOverlay(); break;
+      case 'ack-alarm': state.pendingAck[el.dataset.id] = true; closeOverlay(); render(); toast('Alarm acknowledged'); break;
+      case 'ack-all': (s.alarms || []).forEach((al) => { state.pendingAck[al.id] = true; }); render(); toast('All alerts acknowledged'); break;
+      case 'snooze-alarm': closeOverlay(); toast('Snoozed for 10 minutes'); break;
       case 'test-alarm': toast('Test alarm sent to your phone'); break;
       case 'set-units': state.units = el.dataset.units; render(); break;
-      case 'set-theme': state.themeProfile = el.dataset.theme; render(); break;
+      case 'set-theme': state.themeMode = el.dataset.theme; render(); break;
+      case 'cycle-theme': {
+        const order = ['system', 'light', 'dark'];
+        state.themeMode = order[(order.indexOf(state.themeMode) + 1) % order.length];
+        render(); break;
+      }
+      case 'toggle-profile': state.displayProfile = state.displayProfile === 'daylight' ? 'standard' : 'daylight'; render(); break;
       case 'toggle-setting': {
         const k = el.dataset.key;
-        if (k.indexOf('__') === 0) { toast('Rule toggled'); break; }
-        state.settings[k] = !state.settings[k]; render(); break;
+        if (k === '__profile') state.displayProfile = state.displayProfile === 'daylight' ? 'standard' : 'daylight';
+        else if (k === '__density') state.density = state.density === 'compact' ? 'comfortable' : 'compact';
+        else if (k === '__motion') state.reducedMotion = !state.reducedMotion;
+        else if (k.indexOf('__') === 0) { toast('Rule toggled'); break; }
+        else state.settings[k] = !state.settings[k];
+        render(); break;
       }
       case 'set-mode': {
-        const id = el.dataset.mode, m = M.MODES.find((x) => x.id === id);
-        s.connection.mode = id; s.connection.state = 'connected'; s.connection.lastSyncS = 0;
-        if (id === 'ble') { s.connection.bleBars = 3; s.connection.routerBars = null; }
-        else if (id === 'ap') { s.connection.bleBars = null; s.connection.routerBars = 4; }
-        else { s.connection.bleBars = null; s.connection.routerBars = 4; }
-        closeOverlay(); render(); toast('Switched to ' + m.name); break;
+        const id = el.dataset.mode;
+        if (id === 'ble') {
+          const c = s.connection;
+          c.phase = 'connected'; c.error = null; c.primary = 'bt';
+          c.bt = Object.assign({}, c.bt, { available: true, connected: true, bars: c.bt.bars || 3, lastSyncS: 0, warm: true });
+          closeOverlay(); render(); toast('Switched to Bluetooth');
+        } else if (id === 'ap') openOverlay('provisionAp');
+        else openOverlay('provisionSta');
+        break;
       }
-      case 'resync': s.connection.state = 'connected'; s.connection.lastSyncS = 0; render(); toast('Re-synced · up to date'); break;
-      case 'disconnect': s.connection.state = 'offline'; s.connection.lastSyncS = 30; closeOverlay(); render(); toast('Disconnected — the bridge keeps recording'); break;
-      case 'chart-range': state.chartRange = el.dataset.range; render(); break;
+      case 'pick-wifi': pendingSsid = el.dataset.ssid; toast(pendingSsid + ' selected'); break;
+      case 'wifi-submit': {
+        const inp = document.getElementById('wifiPass');
+        if (inp && !inp.value) { toast('Enter the Wi-Fi password'); break; }
+        closeOverlay(); fireEvent('wifi-connected'); break;
+      }
+      case 'forget-network': {
+        s.connection.wifi = Object.assign({}, s.connection.wifi, { mode: 'off', connected: false, ssid: null, ip: null, bars: null });
+        if (s.connection.primary === 'wifi') s.connection.primary = s.connection.bt && s.connection.bt.connected ? 'bt' : null;
+        render(); toast('Network forgotten'); break;
+      }
+      case 'resync': s.connection.phase = 'connected'; s.connection.error = null; s.connection.lastSyncS = 0; if (s.connection.bt) s.connection.bt.lastSyncS = 0; if (s.connection.wifi) s.connection.wifi.lastSyncS = 0; render(); toast('Re-synced · up to date'); break;
+      case 'disconnect':
+        s.connection.phase = 'offline'; s.connection.primary = null;
+        s.connection.bt = Object.assign({}, s.connection.bt, { connected: false, bars: 0 });
+        s.connection.wifi = Object.assign({}, s.connection.wifi, { connected: false, bars: 0 });
+        closeOverlay(); render(); toast('Disconnected — the bridge keeps recording'); break;
+      case 'graph-range': state.chartRange = el.dataset.range; state.graph = { zoom: 1, pan: 0 }; render(); break;
+      case 'graph-zoom': {
+        const dir = el.dataset.dir;
+        state.graph.zoom = dir === 'in' ? Math.min(40, state.graph.zoom * 1.5) : Math.max(1, state.graph.zoom / 1.5);
+        if (state.graph.zoom === 1) state.graph.pan = 0;
+        render(); break;
+      }
+      case 'graph-pan': {
+        const d = graphDomain(), span = d.xMax - d.xMin;
+        const step = span * 0.4;
+        state.graph.pan = el.dataset.dir === 'back' ? Math.max(0, state.graph.pan + step) : Math.max(0, state.graph.pan - step);
+        render(); break;
+      }
+      case 'graph-reset': state.graph = { zoom: 1, pan: 0 }; render(); break;
+      case 'graph-fullscreen': state.fullGraph = !state.fullGraph; renderOverlays(); if (state.fullGraph) wireGraph(); break;
       case 'isolate': state.isolatedProbe = state.isolatedProbe === Number(el.dataset.jack) ? null : Number(el.dataset.jack); render(); break;
       case 'select-cook': state.selectedCookId = el.dataset.id; go('cookDetail'); break;
       case 'toggle-fav': { const h = M.HISTORY.find((x) => x.id === el.dataset.id); h.favourite = !h.favourite; render(); break; }
       case 'repeat-cook': {
         const h = M.HISTORY.find((x) => x.id === el.dataset.id);
-        state.catalog.selectedId = h.presetId; state.catalog.category = catalogById(h.presetId).category; state.catalog.doneness = null; state.catalog.jack = 1;
+        state.catalog.selectedId = h.presetId; state.catalog.category = catalogById(h.presetId).category; state.catalog.doneness = null; state.catalog.styleId = h.styleId || null; state.catalog.jack = 1;
         state.setupMode = 'new'; openOverlay('setup'); break;
       }
-      case 'delete-cook': toast('Deleted (mock)'); go('cooks'); break;
-      case 'export': toast('Exporting CSV — works offline'); break;
+      case 'delete-cook':
+        openConfirm({ title: 'Delete this cook?', body: 'This removes the annotation and its marks. The underlying bridge recording is kept.', confirmLabel: 'Delete', danger: true, action: 'delete-cook' });
+        break;
+      case 'export': toast('Opening share sheet — ' + (el.dataset.scope || 'data')); break;
       case 'mark-kind': { const k = el.dataset.kind; closeOverlay(); toast('Marked: ' + k.replace('_', ' ')); break; }
       case 'mark-pulled': closeOverlay(); toast('Pulled — rest timer started'); break;
       case 'probe-role': { const p = s.probes.find((x) => x.jack === Number(el.dataset.jack)); p.role = el.dataset.role; render(); break; }
-      case 'onboard-next': state.onboardStep = Math.min(7, state.onboardStep + 1); renderOverlays(); break;
-      case 'onboard-prev': state.onboardStep = Math.max(0, state.onboardStep - 1); renderOverlays(); break;
+      case 'custom-save': {
+        const g = (id) => { const el2 = document.getElementById(id); return el2 ? el2.value : ''; };
+        const name = g('cfName').trim();
+        if (!name) { toast('Give it a name'); break; }
+        const item = {
+          id: 'custom_' + Date.now(), category: g('cfCat'), name: name, glyph: g('cfGlyph'), hazard: g('cfHazard'), thickness: g('cfThick'),
+          pitBand: [Number(g('cfPitLo')) || 225, Number(g('cfPitHi')) || 275], blurb: 'Custom food', custom: true,
+          doneness: [{ id: 'custom', label: 'Target', targetF: Number(g('cfTarget')) || 160 }], defaultDoneness: 'custom',
+          timeline: {
+            totalMin: [Number(g('cfTotalLo')) || 60, Number(g('cfTotalHi')) || 120], stall: null,
+            wrap: Number(g('cfWrap')) > 0 ? { tempF: Number(g('cfWrap')), label: 'Wrap', note: 'Wrap at the set temperature.' } : null,
+            spritzEveryMin: Number(g('cfSpritz')) > 0 ? Number(g('cfSpritz')) : null, turn: null, restMin: Number(g('cfRest')) || 0,
+            phases: [{ id: 'on', label: 'On the smoker', note: 'Custom timeline.' }, { id: 'pull', label: 'Pull', note: 'At target, rest before serving.' }],
+          },
+        };
+        state.settings.customCatalog.push(item);
+        state.catalog.category = item.category; state.catalog.selectedId = item.id; state.catalog.doneness = null; state.catalog.styleId = null;
+        state.customForm = null; closeOverlay(); render(); toast('Added ' + name + ' to the catalog');
+        break;
+      }
+      case 'onboard-troubleshoot': state.onboardTroubleshoot = true; renderOverlays(); break;
+      case 'onboard-next':
+        if (state.onboardTroubleshoot) { state.onboardTroubleshoot = false; renderOverlays(); break; }
+        state.onboardStep = Math.min(7, state.onboardStep + 1); renderOverlays(); break;
+      case 'onboard-prev':
+        if (state.onboardTroubleshoot) { state.onboardTroubleshoot = false; renderOverlays(); break; }
+        state.onboardStep = Math.max(0, state.onboardStep - 1); renderOverlays(); break;
       case 'finish-onboard': state.onboardStep = 0; closeOverlay(); go('live'); toast('Welcome — you are connected'); break;
       default: break;
     }
   });
 
-  // ---- Chart crosshair -----------------------------------------------------
-  let lastChart = null;
-  function wireChart() {
-    const host = document.getElementById('chartHost');
-    const tip = document.getElementById('chartTip');
-    if (!host || !tip || !lastChart) return;
-    const svg = host.querySelector('svg');
-    if (!svg) return;
-    host.onmousemove = function (ev) {
-      const rect = svg.getBoundingClientRect();
-      const vbx = ((ev.clientX - rect.left) / rect.width) * 340;
-      const frac = (vbx - 30) / (340 - 30 - 12);
-      const t = lastChart.xMin + frac * (lastChart.xMax - lastChart.xMin);
-      let rows = '', nearestT = t;
-      lastChart.series.forEach((sr) => {
-        let best = null, bd = Infinity;
-        sr.points.forEach((p) => { const d = Math.abs(p.x - t); if (d < bd) { bd = d; best = p; } });
-        if (best) { nearestT = best.x; rows += '<div class="ct-row"><span class="ct-name">' + esc(sr.name) + '</span><span class="ct-val">' + fmtTemp(best.y) + '</span></div>'; }
+  // ---- Chart crosshair + gestures ------------------------------------------
+  function wireGraph() {
+    ['chartHost', 'chartHostFull'].forEach(function (id) {
+      const host = document.getElementById(id);
+      if (!host) return;
+      const tip = host.querySelector('.crosshair-tip');
+      const svg = host.querySelector('svg');
+      if (!svg) return;
+
+      host.addEventListener('mousemove', function (ev) {
+        if (dragState) return;
+        if (!lastChart) return;
+        const rect = svg.getBoundingClientRect();
+        const vbx = ((ev.clientX - rect.left) / rect.width) * 340;
+        const frac = (vbx - 30) / (340 - 30 - 12);
+        const t = lastChart.xMin + frac * (lastChart.xMax - lastChart.xMin);
+        let rows = '', nearestT = t;
+        lastChart.series.forEach(function (sr) {
+          let best = null, bd = Infinity;
+          sr.points.forEach(function (p) { const d = Math.abs(p.x - t); if (d < bd) { bd = d; best = p; } });
+          if (best) { nearestT = best.x; rows += '<div class="ct-row"><span class="ct-name">' + esc(sr.name) + '</span><span class="ct-val">' + fmtTemp(best.y) + '</span></div>'; }
+        });
+        if (tip) {
+          tip.innerHTML = '<div class="ct-time">' + fmtClock(lastChart.started + nearestT * 60000) + '</div>' + rows;
+          tip.style.display = 'block';
+          tip.style.left = Math.min(rect.width - 160, Math.max(0, ev.clientX - rect.left + 10)) + 'px';
+          tip.style.top = '8px';
+        }
       });
-      tip.innerHTML = '<div class="ct-time">' + fmtClock(lastChart.started + nearestT * 60000) + '</div>' + rows;
-      tip.style.display = 'block';
-      const tw = 150;
-      tip.style.left = Math.min(rect.width - tw, Math.max(0, ev.clientX - rect.left + 10)) + 'px';
-      tip.style.top = '8px';
-    };
-    host.onmouseleave = function () { tip.style.display = 'none'; };
+      host.addEventListener('mouseleave', function () { if (tip) tip.style.display = 'none'; });
+      host.addEventListener('wheel', function (ev) {
+        ev.preventDefault();
+        state.graph.zoom = ev.deltaY < 0 ? Math.min(40, state.graph.zoom * 1.2) : Math.max(1, state.graph.zoom / 1.2);
+        if (state.graph.zoom === 1) state.graph.pan = 0;
+        render();
+      }, { passive: false });
+      host.addEventListener('pointerdown', function (ev) { dragState = { x: ev.clientX }; host.style.cursor = 'grabbing'; });
+      host.addEventListener('pointermove', function (ev) {
+        if (!dragState) return;
+        const rect = host.getBoundingClientRect();
+        const d = graphDomain(), span = d.xMax - d.xMin;
+        state.graph.pan = Math.max(0, state.graph.pan - ((ev.clientX - dragState.x) / rect.width) * span);
+        dragState.x = ev.clientX;
+        render();
+      });
+      host.addEventListener('pointerup', function () { dragState = null; host.style.cursor = ''; });
+      host.addEventListener('pointerleave', function () { dragState = null; });
+    });
   }
 
   // ======================================================== §9 BOOT + TICK ====
   const SCEN_TEMPLATE = JSON.parse(JSON.stringify(M.SCENARIOS));
 
   function renderDev() {
-    const scen = Object.keys(M.SCENARIOS).map((k) =>
+    $('#dpScenarios').innerHTML = Object.keys(M.SCENARIOS).map((k) =>
       '<button class="dp-btn' + (state.scenarioKey === k ? ' on' : '') + '" data-action="scenario" data-key="' + k + '">' + esc(M.SCENARIOS[k].label) + '</button>').join('');
-    $('#dpScenarios').innerHTML = scen;
-    const screens = ['live', 'timeline', 'graph', 'cooks', 'device'];
+    const screens = ['live', 'temps', 'timeline', 'graph', 'settings', 'history'];
     $('#dpScreens').innerHTML = screens.map((sc) =>
       '<button class="dp-btn' + (state.screen === sc ? ' on' : '') + '" data-action="dev-screen" data-screen="' + sc + '">' + sc + '</button>').join('');
-    const overlays = [['onboarding', 'Onboarding'], ['setup', 'Cook setup'], ['connect', 'Connection'], ['modes', 'Modes'], ['alarms', 'Alarms'], ['mark', 'Add mark'], ['adopt', 'Adopt session'], ['editStart', 'Edit start']];
+    const overlays = [['onboarding', 'Onboarding'], ['setup', 'Cook setup'], ['connect', 'Connection'], ['modes', 'Modes'], ['modesRef', 'Modes reference'], ['provisionSta', 'Join Wi-Fi'], ['provisionAp', 'Hotspot'], ['alarms', 'Alerts'], ['mark', 'Add mark'], ['adopt', 'Adopt'], ['editStart', 'Edit start'], ['customFood', 'Custom food']];
     $('#dpOverlays').innerHTML = overlays.map((o) =>
       '<button class="dp-btn" data-action="open-overlay" data-name="' + o[0] + '">' + o[1] + '</button>').join('');
+    $('#dpEvents').innerHTML = M.EVENTS.map((e) =>
+      '<button class="dp-btn dp-event" data-action="fire-event" data-id="' + e.id + '" title="' + esc(e.hint) + '">' + esc(e.label) + '</button>').join('');
     $('#dpSettings').innerHTML =
       '<button class="dp-btn" data-action="set-units" data-units="' + (state.units === 'F' ? 'C' : 'F') + '">Units: ' + state.units + ' → ' + (state.units === 'F' ? 'C' : 'F') + '</button>' +
-      '<button class="dp-btn" data-action="set-theme" data-theme="' + (state.themeProfile === 'dark' ? 'daylight' : 'dark') + '">Profile: ' + state.themeProfile + '</button>' +
+      '<button class="dp-btn" data-action="cycle-theme">Theme: ' + state.themeMode + '</button>' +
+      '<button class="dp-btn" data-action="toggle-profile">Profile: ' + state.displayProfile + '</button>' +
       '<button class="dp-btn" data-action="open-connect">Simulate connection sheet</button>';
   }
 
   function render() {
-    document.body.classList.toggle('daylight', state.themeProfile === 'daylight');
+    applyBodyClasses();
     renderAppbar(); renderNav(); renderView(); renderOverlays(); renderDev();
-    if (state.screen === 'graph') wireChart();
+    if (state.screen === 'graph' || state.fullGraph) wireGraph();
   }
 
   function tick() {
@@ -1324,7 +1925,7 @@
   }
 
   // Optional deep links so any view can be opened directly, e.g.
-  //   index.html?screen=graph&scenario=idle&overlay=setup&units=C
+  //   index.html?screen=graph&scenario=idle&overlay=setup&units=C&theme=light
   try {
     if (typeof location !== 'undefined') {
       const raw = (location.search || '').replace(/^\?/, '') + '&' + (location.hash || '').replace(/^#/, '');
@@ -1332,15 +1933,15 @@
       if (q.get('scenario') && M.SCENARIOS[q.get('scenario')]) state.scenarioKey = q.get('scenario');
       if (q.get('screen')) state.screen = q.get('screen');
       if (q.get('units')) state.units = q.get('units');
+      if (q.get('theme')) state.themeMode = q.get('theme');
       if (q.get('overlay')) state.overlay = { name: q.get('overlay'), props: {} };
     }
   } catch (e) { /* deep links are a prototype nicety only */ }
 
-  // First run: open onboarding when the app has never connected.
   render();
   setInterval(tick, 1000);
   tick();
 
-  // Expose a couple of hooks for manual poking in the console.
-  window.SMOKE_UI = { state: state, open: openOverlay, close: closeOverlay, render: render };
+  // Expose a few hooks for manual poking in the console.
+  window.SMOKE_UI = { state: state, open: openOverlay, close: closeOverlay, render: render, fire: fireEvent };
 })();

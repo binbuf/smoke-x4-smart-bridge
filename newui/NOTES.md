@@ -34,30 +34,73 @@ index.html?screen=timeline&units=C
 
 ## 2. Information architecture
 
-Five bottom-nav destinations, one overlay stack.
+Five bottom-nav destinations, one overlay stack, plus a fullscreen graph.
 
 ```
-Live        The "now" screen. Alarms, cook header + stopwatch, grate hero,
-            the 4-timer board, mini graph, quick actions.
+Live        The "now" glance: sticky alert strip, summary strip (grate /
+            hottest / to-target), compact probe rail, mini graph, quick actions.
+Temps       Big per-probe widgets — large numerals, trend, sparkline, stats,
+            target/pull/ETA. Tap a card for the probe sheet. This is where the
+            timer-board detail moved so Live can breathe.
 Timeline    Database-driven expectation. Gantt of every item on the grill,
             upcoming interventions (wrap/spritz/turn), event rail.
-Graph       Full multi-series chart, range chips, tap-to-isolate legend,
-            per-probe window stats.
-Cooks       History list grouped by recency + "start a new cook".
-Device      Connection (mode switcher, two-hop signal, re-sync, disconnect),
-            settings (units, profile, alarms, transport), bridge facts.
+Graph       Multi-series chart with range chips, zoom + pan + fullscreen,
+            band shading, tap-to-isolate legend, per-probe window stats.
+Settings    Dual-link connection (Bluetooth + Wi-Fi, independently), Wi-Fi
+            provisioning, appearance, alarms, and History. No 5th "Cooks" tab.
+History     Inside Settings. Past cooks grouped by recency + cook detail with a
+            planned-vs-actual recap. "Cook again" replays preset + style.
 ```
 
 Overlays (sheets/modals), all reachable from the dev panel:
 
-`onboarding` · `setup` (the catalog + three start modes) · `connect` ·
-`modes` · `alarms` · `mark` · `probe` (tap a timer tile) · `adopt` ·
-`editStart`.
+`onboarding` · `setup` (catalog + style packs + custom food + three start modes) ·
+`connect` (dual-link) · `modes` · `modesRef` (the technical reference the `?`
+opens) · `provisionSta` · `provisionAp` · `alarms` · `alarmDetail` · `mark` ·
+`probe` · `adopt` · `editStart` · `confirm` (generic, used for the long-item
+warning) · `customFood`.
 
 **Why this shape.** The brief asks for timers front-and-centre *and* a graph
 *and* a timeline *and* a catalog. Those are four different mental modes, so they
-get four destinations; the alarm strip and transport chip are global chrome that
-persist across all of them.
+get four destinations. The fifth is Settings (which owns History). Alerts and
+the transport chip are global chrome that persist across all of them.
+
+### 2.1 Theme, profile and density (new)
+
+Three independent axes, all applied as classes on `<body>`:
+
+| Axis | Values | Default | Where |
+|---|---|---|---|
+| `themeMode` | `system` \| `light` \| `dark` | `system` | Settings → Appearance |
+| `displayProfile` | `standard` \| `daylight` | `standard` | Settings → High-contrast |
+| `density` | `compact` \| `comfortable` | `compact` | Settings → Density |
+
+`theme-light` / `theme-dark` swap the whole token set; `profile-daylight` layers
+a high-contrast boost on either. `density-compact` tightens padding. Status and
+series tints are written `rgba(var(--x-rgb), a)` so they retint with the theme.
+In Flutter these are `ThemeMode` + a `ThemeExtension` for the contrast profile.
+
+### 2.2 The cook-style packs (new)
+
+Selecting a cut is not enough — "Pork Shoulder" could be Texas pulled pork or
+Kālua pork. `MOCK.STYLES` keys cook variants to a preset id; each sets pit band,
+wrap, spritz, target, rest and timeline together. Every catalog entry has a
+synthesized timeline, so the Timeline tab works for all of them. A `Custom food`
+form adds user cuts with their own target + timeline (stored on the item as
+`timeline`, bypassing `MOCK.TIMELINES`).
+
+### 2.3 The dual-link connection model (new)
+
+`connection.bt` and `connection.wifi` are independent links with their own
+health; `connection.primary` says which carries data; `connection.phase` is
+`connected | connecting | offline | provisioning | rollback | error`. Wi-Fi has
+`mode: off | ap | sta`. The appbar chip shows the primary plus two radio
+indicators. The connection sheet, Settings and the provisioning flows all read
+the same model. `MOCK.EVENTS` is the mock event bus — the dev panel fires
+`ble-connected`, `wifi-connecting`, `wifi-wrong-password`,
+`wifi-router-unreachable`, `wifi-connected`, `ap-broadcasting`, `ap-joined`,
+`switch-rollback`, `resync-complete` and alarm events; each mutates the active
+scenario. In Flutter these become live bridge state from `ConnectionSupervisor`.
 
 ---
 
@@ -218,8 +261,14 @@ without losing anything.
 | Alarm strip + sheet | `AlarmBar`, `planNotifications()`, `AlarmRuleSpec`, two-tier model (§6.4) |
 | Prefer-my-own-alarms | **new setting** — device alarms are authoritative; this only changes which *notification* wins |
 | Background monitoring | `CookMonitor` + `ForegroundServiceHost` |
-| Cooks history | `CookRepository.list/watch`, `CookDetailView` |
+| Cooks history | `CookRepository.list/watch`, `CookDetailView`; now reached from **Settings → History** |
 | Onboarding | `SetupMachine` (§12), `BridgeIllustration`, `PasskeyDisplay` |
+| Theme mode (system/light/dark) | **new** — `ThemeMode` + a light token set; `SmokeTokens.daylight` becomes the high-contrast profile |
+| Cook-style packs | **new** — preset + style record; sets pit band/wrap/spritz/target/timeline |
+| Custom foods | **new** — user presets with their own timeline, stored with the preset library |
+| Dual-link connection UI | `ConnectionSupervisor` capability/health for BLE **and** Wi-Fi, exposed as two independent links |
+| Wi-Fi provisioning (AP/STA) | `app_net` modes; the passphrase/SSID/QR flow + rollback timer |
+| Mock event bus | **new** — dev-only; maps to live bridge state in the real app |
 | Units toggle | `domain/analysis/units.dart`; storage stays tenths-°F |
 | Daylight profile | `SmokeTokens.daylight` |
 | Empty / problem states | `EmptyState`, `ProblemState`, `CapabilityNotice` |
@@ -247,14 +296,21 @@ without losing anything.
 
 ---
 
-## 8. Design tokens (copy verbatim)
+## 8. Design tokens
 
-Surfaces `#07090E / #0F131D / #161C2A / #121824 / #1E2638 / #04060A`; ink
+Dark surfaces `#07090E / #0F131D / #161C2A / #121824 / #1E2638 / #04060A`; ink
 `#F8FAFC / #CBD5E1 / #94A3B8 / #64748B`. Series `#D95926 / #9085E9 / #008300 /
 #3987E5`. Status `#F04444 / #FAB219 / #10B981 / #94A3B8`. Radii 20 / 14 / 8 /
 999. Spacing is a 4 dp scale. Fonts Archivo (display), Inter (text),
-JetBrains Mono (keys/ids). All of this already exists in `app/lib/design/` — the
-prototype does not invent a single new token.
+JetBrains Mono (keys/ids).
+
+**Added:** a real **light** palette (`body.theme-light`) with weightier series
+hues (`#C2410C / #6D5BD0 / #0F7A0F / #2563EB`) so they stay legible on white,
+a high-contrast profile on top of either theme, motion tokens
+(`--ease-standard`, `--ease-emphasis`, `--dur-*`), a focus ring, and
+`--*-rgb` companions so every status/series tint is written
+`rgba(var(--x-rgb), a)` and retints with the theme. All of this should live in
+`app/lib/design/` in Flutter.
 
 ---
 
@@ -280,10 +336,13 @@ prototype does not invent a single new token.
 ## 10. How to iterate on the prototype
 
 - Switch **scenario** in the dev panel to see the same screen handle
-  offline / idle / running / existing-session.
+  offline / idle / running / existing-session and every connection state.
+- Fire **mock events** in the dev panel to move the link through
+  connecting / wrong-password / unreachable / hotspot / rollback, and to raise
+  alarms, without a bridge.
 - Switch **screen** and open any **overlay** directly.
-- Toggle **units** and **profile** (daylight is a contrast profile, not a light
-  theme).
+- Toggle **units**, **theme** (system/light/dark) and **profile** (daylight is a
+  contrast profile, not a light theme).
 - The prototype never talks to a bridge. Every value is in `mock-data.js`.
 - `app.js` is commented with `[BIZ]` (rules that must survive) and `[FLUTTER]`
   (which engine to reuse). Search for those markers when porting.
