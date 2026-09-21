@@ -712,9 +712,30 @@ body.theme-light .phone {
 .catalog-item .ci-temp { font-family: var(--font-mono); font-size: 11px; color: var(--text-body); }
 .catalog-item.custom { border-style: dashed; }
 .catalog-item .ci-badge { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--p2); border: 1px solid rgba(var(--p2-rgb), 0.4); border-radius: 5px; padding: 1px 5px; }
+.catalog-item .ci-var { color: var(--p1); font-weight: 700; }
+
+/* Catalog search */
+.catalog-search {
+  display: flex; align-items: center; gap: 9px; padding: 0 12px; margin-bottom: 12px;
+  background: var(--well); border: 1px solid var(--hairline); border-radius: var(--r-control);
+  color: var(--text-muted);
+}
+.catalog-search svg { flex: none; }
+.catalog-search input {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+  font-family: var(--font-text); font-size: 13px; color: var(--text-hi); padding: 11px 0;
+}
+.catalog-search input::placeholder { color: var(--text-muted); }
+.catalog-search .cs-clear { background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: grid; place-items: center; padding: 4px; }
+.catalog-count { font-family: var(--font-mono); }
 
 /* Style cards (cook-style packs) */
 .style-grid { display: grid; gap: 8px; }
+.style-card .sc-region {
+  font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--p1); border: 1px solid rgba(var(--p1-rgb), 0.35); border-radius: 5px;
+  padding: 1px 5px; vertical-align: middle;
+}
 .style-card {
   display: flex; align-items: center; gap: var(--s3); padding: 12px 14px;
   background: var(--card); border: 1px solid var(--hairline); border-radius: var(--r-control);
@@ -850,6 +871,23 @@ body.theme-light .phone {
 .set-row .sr-right { flex: none; display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12.5px; }
 .set-row.disabled { opacity: 0.5; }
 .set-row .sr-right svg { width: 16px; height: 16px; }
+.set-row.danger .sr-name { color: var(--critical); }
+.set-row.danger .sr-icon { color: var(--critical); background: rgba(var(--critical-rgb), 0.10); }
+
+/* Device verbs (restart / forget / factory / OTA progress) */
+.verb-head { display: grid; place-items: center; padding: 6px 0 14px; color: var(--positive); }
+.verb-head svg { width: 44px; height: 44px; }
+.verb-spin { display: inline-grid; place-items: center; color: var(--p1); }
+.verb-spin svg { animation: verbSpin 1s linear infinite; }
+@keyframes verbSpin { to { transform: rotate(360deg); } }
+.verb-step { display: flex; align-items: center; gap: 11px; padding: 10px 2px; border-bottom: 1px solid var(--hairline); }
+.verb-step:last-child { border-bottom: none; }
+.verb-step .vs-dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none; border: 1px solid var(--hairline-strong); color: var(--text-muted); font-size: 10px; }
+.verb-step .vs-label { font-size: 13px; color: var(--text-muted); }
+.verb-step.on .vs-dot { border-color: rgba(var(--pit-rgb), 0.6); color: var(--p1); background: rgba(var(--pit-rgb), 0.10); }
+.verb-step.on .vs-label { color: var(--text-hi); font-weight: 600; }
+.verb-step.done .vs-dot { border-color: rgba(var(--positive-rgb), 0.5); background: rgba(var(--positive-rgb), 0.12); color: var(--positive); }
+.verb-step.done .vs-label { color: var(--text-hi); }
 
 /* Toggle */
 .toggle { width: 42px; height: 25px; border-radius: 99px; background: var(--card-raised); border: 1px solid var(--hairline-strong); position: relative; cursor: pointer; flex: none; transition: background var(--dur-med); }

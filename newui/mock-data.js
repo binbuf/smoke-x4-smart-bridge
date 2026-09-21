@@ -324,51 +324,836 @@
     { id: 'misc_butter', category: 'Misc', name: 'Smoked Butter', glyph: 'side', hazard: 'unstated', thickness: 'thin', pitBand: [180, 225], blurb: 'Cold smoke a block — instant upgrade.',
       doneness: [ { id: 'done', label: 'Smoky (80°F)', targetF: 80 } ], defaultDoneness: 'done',
       tl: { total: [60, 120], rest: 0, on: 'Cold smoke, keep it from melting.' } },
+
+    // ── Beef (offal & braising cuts) ───────────────────────────────────
+    { id: 'beef_cheeks', category: 'Beef', name: 'Beef Cheeks', glyph: 'beef', hazard: 'wholeMuscleRedMeat', thickness: 'medium', pitBand: [250, 300], blurb: 'Marrow-rich and gelatinous — built for a long braise.',
+      doneness: [ { id: 'tender', label: 'Shreddable', targetF: 205 } ], defaultDoneness: 'tender',
+      tl: { total: [240, 360], stall: [150, 165, 60, 120], wrap: [165, 'Braise covered', 'Chile adobo or red wine.'], spritz: null, rest: 20, on: 'Low and covered.' } },
+    { id: 'beef_oxtail', category: 'Beef', name: 'Beef Oxtail', glyph: 'beef', hazard: 'wholeMuscleRedMeat', thickness: 'medium', pitBand: [250, 300], blurb: 'Sticky, rich and falling off the bone.',
+      doneness: [ { id: 'tender', label: 'Fall-apart', targetF: 205 } ], defaultDoneness: 'tender',
+      tl: { total: [240, 360], stall: [150, 165, 60, 120], wrap: [165, 'Braise covered', 'Braise until it releases the bone.'], spritz: null, rest: 20, on: 'Brown hard, then braise.' } },
+    { id: 'beef_tongue', category: 'Beef', name: 'Beef Tongue', glyph: 'beef', hazard: 'wholeMuscleRedMeat', thickness: 'medium', pitBand: [250, 300], blurb: 'Braise, peel, then slice or chop.',
+      doneness: [ { id: 'tender', label: 'Peelable', targetF: 205 } ], defaultDoneness: 'tender',
+      tl: { total: [180, 300], wrap: [165, 'Braise covered', 'Braise until the skin peels cleanly.'], spritz: null, rest: 20, on: 'Cured or plain, then braised.' } },
+    { id: 'beef_shank', category: 'Beef', name: 'Beef Shank', glyph: 'beef', hazard: 'wholeMuscleRedMeat', thickness: 'thick', pitBand: [250, 300], blurb: 'Cross-cut and braised until it gives.',
+      doneness: [ { id: 'tender', label: 'Fork-tender', targetF: 205 } ], defaultDoneness: 'tender',
+      tl: { total: [240, 360], stall: [150, 165, 60, 120], wrap: [165, 'Braise covered', 'With wine, tomato and soffritto.'], spritz: null, rest: 20, on: 'Brown, then braise low.' } },
+
+    // ── Pork (head, hock) ──────────────────────────────────────────────
+    { id: 'pork_head', category: 'Pork', name: 'Pork Head (Whole Hog)', glyph: 'pork', hazard: 'pork', thickness: 'thick', pitBand: [250, 275], blurb: 'A pit roast for a crowd — juicy and smoky.',
+      doneness: [ { id: 'tender', label: 'Pullable', targetF: 190 } ], defaultDoneness: 'tender',
+      tl: { total: [480, 720], stall: [150, 170, 120, 240], wrap: [165, 'Cover', 'Wrap or cover to keep it moist.'], spritz: 45, rest: 45, on: 'Low and slow, skin up.' } },
+    { id: 'pork_hock', category: 'Pork', name: 'Ham Hock', glyph: 'pork', hazard: 'pork', thickness: 'medium', pitBand: [250, 300], blurb: 'The seasoning bone — smoke it for beans and greens.',
+      doneness: [ { id: 'tender', label: 'Tender', targetF: 200 } ], defaultDoneness: 'tender',
+      tl: { total: [180, 300], wrap: [165, 'Wrap', 'Finish covered with a little liquid.'], spritz: 45, rest: 20, on: 'Split and smoked hard.' } },
+
+    // ── Poultry (breasts, legs, game birds, offal) ─────────────────────
+    { id: 'poultry_duck_breast', category: 'Poultry', name: 'Duck Breast', glyph: 'poultry', hazard: 'poultry', thickness: 'medium', pitBand: [300, 350], blurb: 'Score the fat and serve it pink.',
+      doneness: [ { id: 'rose', label: 'Rosé (135°F)', targetF: 135 }, { id: 'classic', label: 'Classic (150°F)', targetF: 150 } ], defaultDoneness: 'rose',
+      tl: { total: [20, 35], turn: { elapsedMin: 10, note: 'Render fat skin-side down.' }, rest: 8, on: 'Score the fat, start skin-side down.' } },
+    { id: 'poultry_turkey_legs', category: 'Poultry', name: 'Smoked Turkey Legs', glyph: 'poultry', hazard: 'poultry', thickness: 'thick', pitBand: [275, 325], blurb: 'Fairground-style — cook past the minimum to 175°F.',
+      doneness: [ { id: 'done', label: 'Done (175°F)', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [120, 180], spritz: 30, rest: 15, on: 'Cured or brined, then smoked.' } },
+    { id: 'poultry_quail', category: 'Poultry', name: 'Quail', glyph: 'poultry', hazard: 'poultry', thickness: 'thin', pitBand: [375, 425], blurb: 'Tiny birds — hot and fast.',
+      doneness: [ { id: 'done', label: 'Done (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [20, 30], turn: { elapsedMin: 10, note: 'Turn once.' }, rest: 5, on: 'Hot and fast, oiled.' } },
+    { id: 'poultry_pheasant', category: 'Poultry', name: 'Pheasant', glyph: 'wholeBird', hazard: 'poultry', thickness: 'medium', pitBand: [325, 375], blurb: 'Lean game bird — keep it moist.',
+      doneness: [ { id: 'done', label: 'Done (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [45, 75], spritz: 30, rest: 10, on: 'Bacon or butter to protect the lean meat.' } },
+    { id: 'poultry_liver', category: 'Poultry', name: 'Chicken Livers', glyph: 'poultry', hazard: 'poultry', thickness: 'thin', pitBand: [350, 400], blurb: 'Rumaki or a coarse country pâté.',
+      doneness: [ { id: 'done', label: 'Done (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [15, 30], turn: { elapsedMin: 8, note: 'Turn once.' }, rest: 5, on: 'Bacon-wrapped, or into a pâté.' } },
+
+    // ── Seafood (more fish & shellfish) ────────────────────────────────
+    { id: 'fish_mackerel', category: 'Seafood', name: 'Mackerel', glyph: 'fish', hazard: 'fish', thickness: 'thin', pitBand: [325, 375], blurb: 'Oily, rich and great with a glaze.',
+      doneness: [ { id: 'done', label: 'Flaky (145°F)', targetF: 145 } ], defaultDoneness: 'done',
+      tl: { total: [15, 25], turn: { elapsedMin: 7, note: 'Flip once.' }, rest: 3, on: 'Skin side down on a clean grate.' } },
+    { id: 'fish_sardines', category: 'Seafood', name: 'Sardines', glyph: 'fish', hazard: 'fish', thickness: 'thin', pitBand: [400, 500], blurb: 'Whole, oiled and grilled fast.',
+      doneness: [ { id: 'done', label: 'Done (145°F)', targetF: 145 } ], defaultDoneness: 'done',
+      tl: { total: [6, 12], turn: { elapsedMin: 3, note: 'Turn once, gently.' }, rest: 2, on: 'Very hot, oiled grate.' } },
+    { id: 'fish_mussels', category: 'Seafood', name: 'Mussels', glyph: 'shellfish', hazard: 'fish', thickness: 'thin', pitBand: [375, 425], blurb: 'Open them in wine, garlic and butter.',
+      doneness: [ { id: 'done', label: 'Opened (145°F)', targetF: 145 } ], defaultDoneness: 'done',
+      tl: { total: [10, 20], rest: 2, on: 'In a covered pan or foil pack.' } },
+    { id: 'fish_clams', category: 'Seafood', name: 'Clams', glyph: 'shellfish', hazard: 'fish', thickness: 'thin', pitBand: [375, 425], blurb: 'Littlenecks in garlic butter, or into a chowder.',
+      doneness: [ { id: 'done', label: 'Opened (145°F)', targetF: 145 } ], defaultDoneness: 'done',
+      tl: { total: [10, 20], rest: 2, on: 'In a covered pan so they steam open.' } },
+    { id: 'fish_squid', category: 'Seafood', name: 'Squid / Calamari', glyph: 'shellfish', hazard: 'fish', thickness: 'thin', pitBand: [400, 500], blurb: 'Hot and fast, or it turns to rubber.',
+      doneness: [ { id: 'done', label: 'Done (145°F)', targetF: 145 } ], defaultDoneness: 'done',
+      tl: { total: [4, 8], turn: { elapsedMin: 2, note: 'Flip once.' }, rest: 1, on: 'Screaming hot and quick.' } },
+    { id: 'fish_octopus', category: 'Seafood', name: 'Octopus', glyph: 'shellfish', hazard: 'fish', thickness: 'medium', pitBand: [225, 275], blurb: 'Braise to tender, then char.',
+      doneness: [ { id: 'done', label: 'Tender (175°F)', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [60, 120], wrap: [165, 'Braise covered', 'Braise until a knife slides in easily.'], spritz: null, rest: 10, on: 'Braise first, char at the very end.' } },
+    { id: 'fish_alligator', category: 'Seafood', name: 'Alligator', glyph: 'fish', hazard: 'fish', thickness: 'thin', pitBand: [375, 425], blurb: 'Firm, mild and lean — blackened or fried.',
+      doneness: [ { id: 'done', label: 'Done (160°F)', targetF: 160 } ], defaultDoneness: 'done',
+      tl: { total: [12, 20], turn: { elapsedMin: 6, note: 'Flip once.' }, rest: 3, on: 'Hot and fast, do not overcook.' } },
+    { id: 'fish_frog_legs', category: 'Seafood', name: 'Frog Legs', glyph: 'fish', hazard: 'fish', thickness: 'thin', pitBand: [375, 425], blurb: 'Delicate, mild and best blackened.',
+      doneness: [ { id: 'done', label: 'Done (160°F)', targetF: 160 } ], defaultDoneness: 'done',
+      tl: { total: [10, 18], turn: { elapsedMin: 5, note: 'Flip once.' }, rest: 3, on: 'Hot and fast over clean heat.' } },
+    { id: 'fish_crawfish', category: 'Seafood', name: 'Crawfish', glyph: 'shellfish', hazard: 'fish', thickness: 'thin', pitBand: [350, 400], blurb: 'A boil favourite, or smoked tails.',
+      doneness: [ { id: 'done', label: 'Done (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [10, 20], rest: 2, on: 'Boiled with seasoning, or smoked in butter.' } },
+    { id: 'fish_whole_bass', category: 'Seafood', name: 'Whole Sea Bass', glyph: 'fish', hazard: 'fish', thickness: 'medium', pitBand: [375, 425], blurb: 'Whole fish stuffed with lemon and herbs.',
+      doneness: [ { id: 'done', label: 'Flaky (145°F)', targetF: 145 } ], defaultDoneness: 'done',
+      tl: { total: [20, 35], turn: { elapsedMin: 10, note: 'Turn once in a basket.' }, rest: 5, on: 'In a fish basket so it does not stick.' } },
+
+    // ── Lamb (ribs) ────────────────────────────────────────────────────
+    { id: 'lamb_ribs', category: 'Lamb', name: 'Lamb Ribs', glyph: 'ribs', hazard: 'wholeMuscleRedMeat', thickness: 'thin', pitBand: [250, 275], blurb: 'Rich, sweet and quicker than pork ribs.',
+      doneness: [ { id: 'tender', label: 'Bite-tender', targetF: 200 } ], defaultDoneness: 'tender',
+      tl: { total: [150, 240], wrap: [165, 'Wrap', 'Butter, honey and sauce in the wrap.'], spritz: 45, rest: 15, on: 'Bone side down.' } },
+
+    // ── Game (more wild game) ──────────────────────────────────────────
+    { id: 'game_elk', category: 'Game', name: 'Elk Roast', glyph: 'game', hazard: 'wholeMuscleRedMeat', thickness: 'thick', pitBand: [225, 275], blurb: 'Leaner and sweeter than beef.',
+      doneness: [ { id: 'rare', label: 'Rare', targetF: 125 }, { id: 'medrare', label: 'Medium rare', targetF: 135 } ], defaultDoneness: 'medrare',
+      tl: { total: [90, 150], spritz: 30, rest: 20, on: 'Wrapped in bacon to protect the lean meat.' } },
+    { id: 'game_antelope', category: 'Game', name: 'Antelope Roast', glyph: 'game', hazard: 'wholeMuscleRedMeat', thickness: 'medium', pitBand: [225, 275], blurb: 'Very lean — fast cook, long rest.',
+      doneness: [ { id: 'rare', label: 'Rare', targetF: 125 }, { id: 'medrare', label: 'Medium rare', targetF: 135 } ], defaultDoneness: 'medrare',
+      tl: { total: [45, 90], spritz: 20, rest: 15, on: 'Oil and herb rub, then a gentle smoke.' } },
+    { id: 'game_squirrel', category: 'Game', name: 'Squirrel', glyph: 'game', hazard: 'poultry', thickness: 'thin', pitBand: [250, 300], blurb: 'Small and lean — best smothered in gravy.',
+      doneness: [ { id: 'done', label: 'Tender (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [60, 120], wrap: [165, 'Braise covered', 'Smother in onion gravy.'], spritz: null, rest: 10, on: 'Brown, then braise.' } },
+    { id: 'game_wild_turkey', category: 'Game', name: 'Wild Turkey', glyph: 'wholeBird', hazard: 'poultry', thickness: 'thick', pitBand: [275, 325], blurb: 'Leaner and drier than farmed — inject it.',
+      doneness: [ { id: 'done', label: 'Done (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [150, 240], turn: { elapsedMin: 60, note: 'Rotate for even colour.' }, rest: 20, on: 'Breast side up, injected and indirect.' } },
+
+    // ── Veggies (more) ─────────────────────────────────────────────────
+    { id: 'veg_artichoke', category: 'Veggies', name: 'Grilled Artichokes', glyph: 'veg', hazard: 'unstated', thickness: 'medium', pitBand: [350, 400], blurb: 'Steamed first, then charred with lemon butter.',
+      doneness: [ { id: 'done', label: 'Tender', targetF: 190 } ], defaultDoneness: 'done',
+      tl: { total: [30, 50], turn: { elapsedMin: 15, note: 'Flip once.' }, rest: 0, on: 'Steam, halve, oil and grill.' } },
+    { id: 'veg_cabbage', category: 'Veggies', name: 'Grilled Cabbage', glyph: 'veg', hazard: 'unstated', thickness: 'medium', pitBand: [375, 425], blurb: 'Thick wedges, deep char, sweet centre.',
+      doneness: [ { id: 'done', label: 'Tender', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [20, 40], turn: { elapsedMin: 10, note: 'Flip once.' }, rest: 0, on: 'Wedges, oiled, cut side down.' } },
+    { id: 'veg_brussels', category: 'Veggies', name: 'Brussels Sprouts', glyph: 'veg', hazard: 'unstated', thickness: 'thin', pitBand: [350, 400], blurb: 'Charred leaves, crisp outside and tender inside.',
+      doneness: [ { id: 'done', label: 'Charred', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [20, 35], turn: { elapsedMin: 12, note: 'Stir once.' }, rest: 0, on: 'Oiled, on a basket or foil pan.' } },
+    { id: 'veg_okra', category: 'Veggies', name: 'Grilled Okra', glyph: 'veg', hazard: 'unstated', thickness: 'thin', pitBand: [350, 400], blurb: 'Dry, hot and charred so it does not go slimy.',
+      doneness: [ { id: 'done', label: 'Charred', targetF: 170 } ], defaultDoneness: 'done',
+      tl: { total: [12, 20], turn: { elapsedMin: 6, note: 'Turn once.' }, rest: 0, on: 'Dry pods, hot grate.' } },
+    { id: 'veg_eggplant', category: 'Veggies', name: 'Smoked Eggplant', glyph: 'veg', hazard: 'unstated', thickness: 'medium', pitBand: [350, 400], blurb: 'Whole for baba ganoush, or halved and glazed.',
+      doneness: [ { id: 'done', label: 'Collapsed', targetF: 190 } ], defaultDoneness: 'done',
+      tl: { total: [30, 60], turn: { elapsedMin: 20, note: 'Turn for even char.' }, rest: 0, on: 'Whole over direct heat.' } },
+    { id: 'veg_sweet_potato', category: 'Veggies', name: 'Sweet Potatoes', glyph: 'potato', hazard: 'unstated', thickness: 'medium', pitBand: [350, 400], blurb: 'Fork-tender, caramelised edges.',
+      doneness: [ { id: 'done', label: 'Fork-tender', targetF: 205 } ], defaultDoneness: 'done',
+      tl: { total: [50, 80], rest: 5, on: 'Whole or halved, indirect.' } },
+    { id: 'veg_plantain', category: 'Veggies', name: 'Plantains', glyph: 'fruit', hazard: 'unstated', thickness: 'thin', pitBand: [350, 400], blurb: 'Sweet maduros or salty tostones.',
+      doneness: [ { id: 'done', label: 'Caramelised', targetF: 180 } ], defaultDoneness: 'done',
+      tl: { total: [15, 25], turn: { elapsedMin: 8, note: 'Turn once.' }, rest: 0, on: 'Ripe for sweet, green for crisp.' } },
+    { id: 'veg_onion', category: 'Veggies', name: 'Smoked Onions', glyph: 'veg', hazard: 'unstated', thickness: 'medium', pitBand: [300, 350], blurb: 'Sweet, jammy and smoky.',
+      doneness: [ { id: 'done', label: 'Jammy', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [45, 75], turn: { elapsedMin: 25, note: 'Turn once.' }, rest: 0, on: 'Halved and oiled, cut side down.' } },
+    { id: 'veg_garlic', category: 'Veggies', name: 'Smoked Garlic', glyph: 'veg', hazard: 'unstated', thickness: 'thin', pitBand: [300, 350], blurb: 'Whole bulbs turn soft, sweet and spreadable.',
+      doneness: [ { id: 'done', label: 'Soft', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [45, 75], rest: 0, on: 'Whole bulbs, tops cut, oiled and foiled.' } },
+    { id: 'veg_tomato', category: 'Veggies', name: 'Smoked Tomatoes', glyph: 'veg', hazard: 'unstated', thickness: 'thin', pitBand: [225, 275], blurb: 'Concentrated and sweet — great for sauce.',
+      doneness: [ { id: 'done', label: 'Softened', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [45, 90], turn: { elapsedMin: 30, note: 'Turn once.' }, rest: 0, on: 'Halved, cut side up, low.' } },
+    { id: 'veg_romaine', category: 'Veggies', name: 'Grilled Romaine', glyph: 'veg', hazard: 'unstated', thickness: 'thin', pitBand: [375, 425], blurb: 'Charred hearts — a grilled Caesar waiting to happen.',
+      doneness: [ { id: 'done', label: 'Charred', targetF: 170 } ], defaultDoneness: 'done',
+      tl: { total: [6, 12], turn: { elapsedMin: 3, note: 'Turn once.' }, rest: 0, on: 'Halved, cut side down, hot.' } },
+    { id: 'veg_avocado', category: 'Veggies', name: 'Grilled Avocado', glyph: 'veg', hazard: 'unstated', thickness: 'thin', pitBand: [375, 425], blurb: 'Warm, smoky and creamy.',
+      doneness: [ { id: 'done', label: 'Warm', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [6, 12], turn: { elapsedMin: 4, note: 'Do not move until it releases.' }, rest: 0, on: 'Halved, cut side down, hot.' } },
+
+    // ── Sides (more) ───────────────────────────────────────────────────
+    { id: 'side_stuffing', category: 'Sides', name: 'Smoked Stuffing', glyph: 'bread', hazard: 'unstated', thickness: 'medium', pitBand: [300, 350], blurb: 'Sage, sausage and a golden top.',
+      doneness: [ { id: 'done', label: 'Set (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [45, 75], rest: 10, on: 'In a buttered dish, uncovered for a crust.' } },
+    { id: 'side_scallop_potatoes', category: 'Sides', name: 'Scalloped Potatoes', glyph: 'potato', hazard: 'unstated', thickness: 'medium', pitBand: [350, 400], blurb: 'Thin slices, cream, bubbling cheese.',
+      doneness: [ { id: 'done', label: 'Tender (175°F)', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [60, 90], rest: 10, on: 'In a cream-filled dish, indirect.' } },
+    { id: 'side_green_bean', category: 'Sides', name: 'Green Bean Casserole', glyph: 'veg', hazard: 'unstated', thickness: 'medium', pitBand: [350, 400], blurb: 'Cream of mushroom and crispy onions.',
+      doneness: [ { id: 'done', label: 'Bubbling', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [40, 60], rest: 10, on: 'In a dish, topped with fried onion.' } },
+    { id: 'side_collards', category: 'Sides', name: 'Collard Greens', glyph: 'veg', hazard: 'unstated', thickness: 'medium', pitBand: [250, 300], blurb: 'Ham hock, vinegar, pepper — Southern gold.',
+      doneness: [ { id: 'done', label: 'Silky', targetF: 180 } ], defaultDoneness: 'done',
+      tl: { total: [90, 150], wrap: [165, 'Cover', 'Braise with ham hock until silky.'], spritz: null, rest: 0, on: 'In a covered pan with ham hock.' } },
+    { id: 'side_coleslaw', category: 'Sides', name: 'Coleslaw', glyph: 'veg', hazard: 'unstated', thickness: 'thin', pitBand: [35, 40], blurb: 'No cook — the pulled-pork partner. Chill and dress.',
+      doneness: [ { id: 'done', label: 'Chilled (38°F)', targetF: 38 } ], defaultDoneness: 'done',
+      tl: { total: [5, 10], rest: 0, on: 'Shred, dress and hold cold.' } },
+    { id: 'side_potato_salad', category: 'Sides', name: 'Potato Salad', glyph: 'potato', hazard: 'unstated', thickness: 'medium', pitBand: [35, 40], blurb: 'Boil, dress, chill — mustard or German style.',
+      doneness: [ { id: 'done', label: 'Chilled (38°F)', targetF: 38 } ], defaultDoneness: 'done',
+      tl: { total: [20, 30], rest: 0, on: 'Boil, dress and hold cold.' } },
+    { id: 'side_corn_pudding', category: 'Sides', name: 'Corn Pudding', glyph: 'side', hazard: 'unstated', thickness: 'medium', pitBand: [350, 400], blurb: 'Creamy, sweet and golden-topped.',
+      doneness: [ { id: 'done', label: 'Set (175°F)', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [45, 75], rest: 10, on: 'In a buttered dish, water bath optional.' } },
+    { id: 'side_hushpuppies', category: 'Sides', name: 'Hushpuppies', glyph: 'bread', hazard: 'unstated', thickness: 'thin', pitBand: [375, 425], blurb: 'Crisp cornmeal bites, fried or grilled.',
+      doneness: [ { id: 'done', label: 'Golden (175°F)', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [10, 20], turn: { elapsedMin: 5, note: 'Turn once.' }, rest: 0, on: 'Fried, or grilled on a basket.' } },
+
+    // ── Desserts ───────────────────────────────────────────────────────
+    { id: 'dessert_apple_crisp', category: 'Desserts', name: 'Apple Crisp', glyph: 'fruit', hazard: 'unstated', thickness: 'medium', pitBand: [325, 375], blurb: 'Smoked until the oat topping bubbles.',
+      doneness: [ { id: 'done', label: 'Bubbling (180°F)', targetF: 180 } ], defaultDoneness: 'done',
+      tl: { total: [40, 60], rest: 15, on: 'In a cast-iron skillet, indirect.' } },
+    { id: 'dessert_banana_pudding', category: 'Desserts', name: 'Banana Pudding', glyph: 'fruit', hazard: 'unstated', thickness: 'medium', pitBand: [70, 100], blurb: 'Cold-smoke the bananas, then layer and chill.',
+      doneness: [ { id: 'done', label: 'Chilled (40°F)', targetF: 40 } ], defaultDoneness: 'done',
+      tl: { total: [20, 40], rest: 180, on: 'Cold smoke, then assemble and chill.' } },
+    { id: 'dessert_cobbler', category: 'Desserts', name: 'Fruit Cobbler', glyph: 'fruit', hazard: 'unstated', thickness: 'medium', pitBand: [350, 400], blurb: 'Biscuit-topped and golden.',
+      doneness: [ { id: 'done', label: 'Golden (190°F)', targetF: 190 } ], defaultDoneness: 'done',
+      tl: { total: [45, 75], rest: 15, on: 'In a skillet or dish, indirect.' } },
+    { id: 'dessert_smores', category: 'Desserts', name: 'Skillet S’mores', glyph: 'side', hazard: 'unstated', thickness: 'thin', pitBand: [325, 375], blurb: 'Chocolate, marshmallow and graham — melted together.',
+      doneness: [ { id: 'done', label: 'Molten (170°F)', targetF: 170 } ], defaultDoneness: 'done',
+      tl: { total: [10, 20], rest: 5, on: 'In a cast-iron skillet.' } },
+    { id: 'dessert_brownies', category: 'Desserts', name: 'Smoked Brownies', glyph: 'side', hazard: 'unstated', thickness: 'medium', pitBand: [325, 375], blurb: 'Fudgy, with a whisper of smoke.',
+      doneness: [ { id: 'done', label: 'Set (175°F)', targetF: 175 } ], defaultDoneness: 'done',
+      tl: { total: [30, 45], rest: 20, on: 'In a buttered pan, indirect.' } },
+    { id: 'dessert_cheesecake', category: 'Desserts', name: 'Smoked Cheesecake', glyph: 'cheese', hazard: 'unstated', thickness: 'thick', pitBand: [250, 300], blurb: 'Gently smoked, then chilled overnight.',
+      doneness: [ { id: 'done', label: 'Set (165°F)', targetF: 165 } ], defaultDoneness: 'done',
+      tl: { total: [60, 90], rest: 240, on: 'Indirect, low — then chill completely.' } },
+    { id: 'dessert_cinnamon_rolls', category: 'Desserts', name: 'Smoked Cinnamon Rolls', glyph: 'bread', hazard: 'unstated', thickness: 'medium', pitBand: [300, 350], blurb: 'Smoked, then frosted while warm.',
+      doneness: [ { id: 'done', label: 'Golden (190°F)', targetF: 190 } ], defaultDoneness: 'done',
+      tl: { total: [30, 50], rest: 20, on: 'In a buttered pan, indirect.' } },
+    { id: 'dessert_grilled_fruit', category: 'Desserts', name: 'Grilled Stone Fruit', glyph: 'fruit', hazard: 'unstated', thickness: 'thin', pitBand: [375, 425], blurb: 'Peaches, plums and nectarines, charred and honeyed.',
+      doneness: [ { id: 'done', label: 'Charred', targetF: 150 } ], defaultDoneness: 'done',
+      tl: { total: [8, 15], turn: { elapsedMin: 4, note: 'Turn once.' }, rest: 0, on: 'Halved, cut side down, hot.' } },
   ];
 
-  const CATEGORIES = ['Beef', 'Pork', 'Poultry', 'Seafood', 'Lamb', 'Game', 'Veggies', 'Sides', 'Misc'];
+  const CATEGORIES = ['Beef', 'Pork', 'Poultry', 'Seafood', 'Lamb', 'Game', 'Veggies', 'Sides', 'Misc', 'Desserts'];
 
-  // ── Cook-style packs ──────────────────────────────────────────────────
-  // Selecting a cut is not enough: "Pork Shoulder" could be Texas pulled
-  // pork or Kālua pork. A style sets pit band, wrap, spritz, target and the
-  // expected timeline together. [FLUTTER] maps to a preset+style record.
+  // ── Cook-style packs (the cook-variant database) ───────────────────────
+  // Selecting a cut is not enough: "Pork Shoulder" could be Texas pulled pork,
+  // Kālua pork, Carolina, Cuban mojo, pernil or cochinita pibil — and the same
+  // logic repeats for every meat, bird and fish. A style is a *named regional
+  // preparation* that sets pit band, wrap, spritz, target, rest and the whole
+  // expected timeline together. This table is a headline feature: it is why one
+  // cut can become a dozen recognisable dishes. [FLUTTER] maps to a
+  // preset+style record keyed by the same preset id.
+  //
+  // `region` is shown as a badge so the app teaches the taxonomy: Texas,
+  // Carolina, Memphis, Kansas City, Alabama, Hawaii, Yucatán, Korea, Japan,
+  // Tandoor, Provence, Churrasco, Cajun, Cantonese … It is content, not chrome.
+  //
+  // wrap: [tempF, label, note] | null.  spritz: minutes between spritzes | null.
+  function S(id, name, region, tagline, pit, target, wrap, spritz, rest, note) {
+    return { id: id, name: name, region: region, tagline: tagline, pitBand: pit, targetF: target, wrap: wrap, spritz: spritz, restMin: rest, note: note };
+  }
+
   const STYLES = {
+    // ── Beef ──────────────────────────────────────────────────────────
     beef_brisket: [
-      { id: 'central_texas', name: 'Central Texas', tagline: 'Salt & pepper, butcher paper', pitBand: [225, 275], targetF: 201, wrap: [165, 'Wrap in butcher paper', 'Protects the bark through the stall.'], spritz: null, restMin: 60, note: 'The benchmark. Fat side up, no mop, paper at the stall.' },
-      { id: 'competition', name: 'Competition', tagline: 'Injected, foil at the stall', pitBand: [250, 275], targetF: 203, wrap: [165, 'Foil (Texas crutch)', 'Speeds the cook and keeps it moist.'], spritz: 30, restMin: 90, note: 'Richer, sweeter, faster. Judges love it.' },
-      { id: 'hot_fast', name: 'Hot & Fast', tagline: '300°F, smaller cuts', pitBand: [300, 325], targetF: 200, wrap: [165, 'Foil', 'Essential at this temp.'], spritz: 30, restMin: 45, note: 'For when you started late. Still great, less margin.' },
-    ],
-    pork_butt: [
-      { id: 'texas_pulled', name: 'Texas Pulled Pork', tagline: 'Yellow mustard + rub, 250°F', pitBand: [225, 275], targetF: 201, wrap: [165, 'Wrap in foil (optional)', 'Foil for speed; leave open for bark.'], spritz: null, restMin: 60, note: 'Yellow mustard binder, coarse rub, long rest.' },
-      { id: 'kalua', name: 'Kālua Pork', tagline: 'Salt + liquid smoke, covered', pitBand: [250, 300], targetF: 200, wrap: [165, 'Cover with foil (or banana leaf)', 'Traditional: leaves, salt, and ti.'], spritz: null, restMin: 45, note: 'Hawaiian-style: sea salt, liquid smoke, covered, shredded with cabbage.' },
-      { id: 'carolina', name: 'Carolina', tagline: 'Vinegar mop + pepper', pitBand: [225, 275], targetF: 200, wrap: null, spritz: 45, restMin: 45, note: 'Mop with vinegar and red pepper; serve with a vinegar sauce.' },
-      { id: 'cuban_mojo', name: 'Cuban Mojo', tagline: 'Citrus, garlic, oregano', pitBand: [250, 275], targetF: 200, wrap: [170, 'Wrap in foil', 'Finish in its own juices.'], spritz: 45, restMin: 30, note: 'Mojo marinade, then smoke and finish in foil with sour orange.' },
-    ],
-    pork_ribs: [
-      { id: '321', name: '3-2-1 (Spare)', tagline: '3h smoke · 2h wrapped · 1h saucy', pitBand: [225, 250], targetF: 195, wrap: [165, 'Wrap in foil', 'Second act: 2 hours wrapped with a splash.'], spritz: 45, restMin: 15, note: 'The classic. Reliable, tender, saucy.' },
-      { id: 'no_wrap', name: 'No-Wrap', tagline: 'Kiss the bone', pitBand: [225, 275], targetF: 195, wrap: null, spritz: 45, restMin: 10, note: 'Firmer bite, better bark, longer cook.' },
-    ],
-    pork_babyback: [
-      { id: '221', name: '2-2-1', tagline: 'Shorter than spare ribs', pitBand: [225, 250], targetF: 190, wrap: [165, 'Wrap in foil', '2 hours wrapped.'], spritz: 45, restMin: 15, note: 'The baby-back standard.' },
-      { id: 'no_wrap', name: 'No-Wrap', tagline: 'Crisp bark, bite-tender', pitBand: [250, 275], targetF: 190, wrap: null, spritz: 30, restMin: 10, note: 'For bark purists.' },
+      S('central_texas', 'Central Texas', 'Texas', 'Salt & pepper, butcher paper', [225, 275], 201, [165, 'Wrap in butcher paper', 'Protects the bark through the stall.'], null, 60, 'The benchmark. Fat side up, no mop, paper at the stall.'),
+      S('competition', 'Competition', 'KCBS', 'Injected, foil at the stall', [250, 275], 203, [165, 'Foil (Texas crutch)', 'Speeds the cook and keeps it moist.'], 30, 90, 'Richer, sweeter, faster. Judges love it.'),
+      S('hot_fast', 'Hot & Fast', 'Modern', '300°F, smaller cuts', [300, 325], 200, [165, 'Foil', 'Essential at this temp.'], 30, 45, 'For when you started late. Still great, less margin.'),
+      S('southside', 'Southside Market', 'Texas', 'Elgin hot sausage town favourite', [225, 275], 201, [160, 'Wrap in paper', 'Set the bark, then paper.'], 45, 45, 'The Elgin, Texas style — heavy black pepper, quick paper wrap.'),
+      S('montreal_smoked', 'Montreal Smoked Meat', 'Quebec', 'Cured, peppery, steamed to finish', [225, 250], 203, [170, 'Steam to finish', 'Steam is what makes it deli-soft.'], null, 60, 'Cured flat, rubbed in coarse pepper, smoked then steamed.'),
     ],
     beef_ribeye: [
-      { id: 'reverse_sear', name: 'Reverse Sear', tagline: 'Low, then screaming hot', pitBand: [225, 275], targetF: 135, wrap: null, spritz: null, restMin: 8, note: 'Even edge-to-edge colour with a hard crust.' },
-      { id: 'direct', name: 'Direct', tagline: 'Hot and fast', pitBand: [400, 500], targetF: 135, wrap: null, spritz: null, restMin: 5, note: 'Weeknight. Crust first, quick finish.' },
+      S('reverse_sear', 'Reverse Sear', 'Modern', 'Low, then screaming hot', [225, 275], 135, null, null, 8, 'Even edge-to-edge colour with a hard crust.'),
+      S('direct', 'Direct', 'Weeknight', 'Hot and fast', [400, 500], 135, null, null, 5, 'Crust first, quick finish over the coals.'),
+      S('cowboy', 'Cowboy Cut', 'Texas', 'Bone-in, coarse salt', [225, 275], 135, null, null, 10, 'Thick bone-in ribeye, salt only, finished over flame.'),
+      S('blackened', 'Blackened', 'Cajun', 'Cast-iron spice crust', [400, 500], 130, null, null, 6, 'Heavy Cajun seasoning seared hard in a ripping pan.'),
+    ],
+    beef_prime_rib: [
+      S('reverse_sear', 'Reverse Sear', 'Classic', 'Low roast, then blast the crust', [225, 275], 135, null, null, 30, 'Gentle roast, then a 500°F finish for the crust.'),
+      S('salt_crusted', 'Salt Crusted', 'Classic', 'Rock salt shell', [225, 275], 130, null, null, 30, 'Packed in rock salt — seasons and insulates at once.'),
+      S('au_jus', 'Au Jus', 'French', 'Horseradish and jus', [250, 300], 135, [130, 'Rest in jus', 'Hold it warm in the jus before slicing.'], 45, 30, 'Roast to rare, serve with a strong jus and horseradish.'),
+    ],
+    beef_chuck: [
+      S('pepper_stout', 'Pepper Stout Beef', 'Modern', 'Stout, peppers, shredded', [250, 300], 205, [165, 'Braise in stout', 'Beer, peppers and onions in a foil pan.'], null, 30, 'Chicago-style shredded chuck braised in stout with peppers.'),
+      S('barbacoa', 'Barbacoa', 'Mexican', 'Chiles, cumin, tender shred', [250, 300], 200, [165, 'Wrap with chile adobo', 'Banana leaf or foil, chile coating.'], null, 30, 'Slow-braised with guajillo and cumin, shredded for tacos.'),
+      S('italian_beef', 'Italian Beef', 'Chicago', 'Pepperoncini, dipped', [250, 300], 200, [165, 'Braise with giardiniera', 'Finish in its own seasoned jus.'], null, 30, 'Thin-sliced roast with giardiniera, served wet.'),
+    ],
+    beef_burger: [
+      S('smash', 'Smash', 'Diner', 'Thin, crusty, hot grid', [400, 500], 160, null, null, 3, 'Smash thin on a screaming grate for maximum crust.'),
+      S('smoked', 'Smoked', 'BBQ', 'Low smoke, then sauce', [225, 275], 160, null, null, 3, 'Smoke low to finish, glaze in the last ten minutes.'),
+      S('tallow', 'Tallow Griddled', 'Modern', 'Seared in beef fat', [400, 500], 155, null, null, 3, 'Griddled in tallow for a deep, beefy crust.'),
+    ],
+    beef_shortribs: [
+      S('galbi', 'Galbi (Korean)', 'Korea', 'Soy, pear, sesame marinade', [250, 300], 200, null, 45, 15, 'Marinated in soy, Asian pear and sesame, grilled hot.'),
+      S('braised', 'Braised', 'Classic', 'Red wine, mirepoix, rich', [250, 300], 205, [165, 'Braise covered', 'Low and covered until the collagen gives.'], null, 20, 'A rich red-wine braise — fork-tender and glossy.'),
+      S('dino', 'Dino Ribs', 'Texas', 'Salt & pepper, paper wrapped', [250, 275], 203, [165, 'Wrap in paper', 'Protect the bark through the stall.'], 60, 30, 'Big plate ribs smoked to a clean, buttery pull.'),
     ],
     beef_tritip: [
-      { id: 'california', name: 'Santa Maria', tagline: 'Rub, smoke, sear', pitBand: [225, 275], targetF: 135, wrap: null, spritz: null, restMin: 10, note: 'The California classic: garlic, salt, pepper, red oak if you have it.' },
+      S('california', 'Santa Maria', 'California', 'Rub, smoke, sear', [225, 275], 135, null, null, 10, 'Garlic, salt, pepper, red oak if you have it.'),
+      S('grilled_direct', 'Grilled Direct', 'Weeknight', 'Hot, fast, rested', [375, 425], 135, null, null, 8, 'Direct over coals, turned often, rested before slicing.'),
     ],
+    beef_flank: [
+      S('carne_asada', 'Carne Asada', 'Mexican', 'Citrus, garlic, char', [400, 500], 135, null, null, 8, 'Lime, garlic and chile marinade, then a hard char.'),
+      S('chimichurri', 'Chimichurri', 'Argentina', 'Parsley, vinegar, garlic', [400, 500], 130, null, null, 8, 'Grilled hot and blanketed in herb chimichurri.'),
+    ],
+    beef_skirt: [
+      S('fajita', 'Fajita', 'Tex-Mex', 'Marinated, charred, sliced', [450, 550], 135, null, null, 5, 'The fajita classic — marinated, screamed on the grate.'),
+      S('arrachera', 'Arrachera', 'Mexico', 'Lime, beer, soy marinade', [400, 500], 135, null, null, 5, 'Mexican arrachera with a citrus-beer marinade.'),
+    ],
+    beef_picanha: [
+      S('churrasco', 'Churrasco', 'Brazil', 'Skewered, fat cap, coarse salt', [375, 425], 135, null, null, 10, 'Rock salt on the fat cap, rotated over coals.'),
+      S('brazilian_roast', 'Brazilian Roast', 'Brazil', 'Fat cap up, indirect', [225, 275], 135, null, 45, 10, 'Roasted fat-side-up, rested and sliced like steak.'),
+    ],
+    beef_denver: [
+      S('seared', 'Hard Seared', 'Modern', 'Salt, high heat, fast', [400, 500], 135, null, null, 5, 'Well-marbled and forgiving — hard sear, quick rest.'),
+      S('teriyaki', 'Teriyaki', 'Japan', 'Glazed sweet soy', [375, 425], 140, null, null, 5, 'Glazed with sweet soy and grilled to a shine.'),
+    ],
+    beef_backribs: [
+      S('kansas_city', 'Kansas City', 'Missouri', 'Sweet rub, BBQ glaze', [250, 275], 200, [165, 'Wrap with sauce', 'Braise with apple juice and a splash of sauce.'], 45, 20, 'Sticky, sweet and smoky — sauce at the end.'),
+      S('memphis_dry', 'Memphis Dry', 'Tennessee', 'Dry rub, no sauce', [250, 275], 200, null, 45, 20, 'A dry-rub finish — no sauce ever touches the plate.'),
+    ],
+    beef_pastrami: [
+      S('deli', 'Deli Style', 'New York', 'Rye pepper, steamed', [225, 275], 203, [165, 'Wrap & steam', 'Foil with a splash of stock to finish.'], null, 60, 'Deli-style: cured, smoked, then steamed until it slices like butter.'),
+      S('montreal', 'Montreal', 'Quebec', 'Heavier pepper, more smoke', [225, 250], 203, [170, 'Steam to finish', 'Steam is what makes it deli-soft.'], null, 60, 'Heavier pepper and smoke than the New York version.'),
+    ],
+    beef_meatloaf: [
+      S('bacon_wrapped', 'Bacon Wrapped', 'Classic', 'Bacon lattice, ketchup glaze', [250, 300], 160, null, null, 10, 'Wrapped in a bacon lattice, glazed at the end.'),
+      S('glazed', 'BBQ Glazed', 'Modern', 'Smoked, sauced, caramelised', [250, 300], 160, null, null, 10, 'Smoked then brushed with BBQ glaze until sticky.'),
+    ],
+    beef_tenderloin: [
+      S('chateaubriand', 'Chateaubriand', 'French', 'Whole roast, red wine jus', [225, 275], 135, null, null, 20, 'Roasted whole and rested long. Never overshoot.'),
+      S('bacon_wrapped', 'Bacon Wrapped', 'Classic', 'Lean meat, bacon shield', [275, 325], 135, null, null, 15, 'Bacon protects the lean meat as it roasts.'),
+    ],
+    beef_cheeks: [
+      S('barbacoa', 'Barbacoa', 'Mexican', 'Chile braise, shred', [250, 300], 205, [165, 'Braise covered', 'Guajillo, cumin and onion until it shreds.'], null, 20, 'The classic barbacoa cut — marrow-rich and shreddable.'),
+      S('bourguignon', 'Bourguignon', 'French', 'Red wine, lardons, pearl onion', [250, 300], 205, [165, 'Braise in wine', 'A rich Burgundy braise.'], null, 20, 'Beef cheeks braised in red wine with lardons.'),
+    ],
+    beef_oxtail: [
+      S('braised', 'Braised', 'Classic', 'Deep, sticky, gelatinous', [250, 300], 205, [165, 'Braise covered', 'Falls off the bone after a long braise.'], null, 20, 'Slow braise — the richest, stickiest cut on the animal.'),
+      S('jamaican', 'Jamaican Brown Stew', 'Jamaica', 'Browning sauce, allspice', [250, 300], 205, [165, 'Braise with browning', 'Allspice, scallion, scotch bonnet.'], null, 20, 'Brown-stewed with allspice and scotch bonnet.'),
+    ],
+    beef_tongue: [
+      S('lengua', 'Lengua', 'Mexican', 'Tacos, salsa verde', [250, 300], 205, [165, 'Braise until peelable', 'The skin peels away after a long braise.'], null, 20, 'Braised, peeled, and chopped for tacos de lengua.'),
+      S('pastrami', 'Tongue Pastrami', 'Deli', 'Cured, smoked, thin sliced', [225, 275], 203, [165, 'Steam to finish', 'Steam, then slice thin.'], null, 45, 'Cured and smoked like pastrami, sliced paper-thin.'),
+    ],
+    beef_shank: [
+      S('osso_buco', 'Osso Buco', 'Italy', 'Milanese, gremolata', [250, 300], 205, [165, 'Braise covered', 'Wine, tomato and soffritto until it releases.'], null, 20, 'Braised cross-cut shank with gremolata.'),
+      S('braised', 'Braised Shank', 'Classic', 'Fork-tender, rich jus', [250, 300], 205, [165, 'Braise covered', 'Low and covered with stock and aromatics.'], null, 20, 'A long, slow braise that turns the shank silky.'),
+    ],
+
+    // ── Pork ──────────────────────────────────────────────────────────
+    pork_butt: [
+      S('texas_pulled', 'Texas Pulled Pork', 'Texas', 'Yellow mustard + rub, 250°F', [225, 275], 201, [165, 'Wrap in foil (optional)', 'Foil for speed; leave open for bark.'], null, 60, 'Yellow mustard binder, coarse rub, long rest.'),
+      S('kalua', 'Kālua Pork', 'Hawaii', 'Salt + liquid smoke, covered', [250, 300], 200, [165, 'Cover with foil (or banana leaf)', 'Traditional: leaves, salt, and ti.'], null, 45, 'Hawaiian: sea salt, liquid smoke, covered, shredded with cabbage.'),
+      S('carolina', 'Carolina', 'South Carolina', 'Vinegar mop + pepper', [225, 275], 200, null, 45, 45, 'Mop with vinegar and red pepper; serve with a vinegar sauce.'),
+      S('cuban_mojo', 'Cuban Mojo', 'Cuba', 'Citrus, garlic, oregano', [250, 275], 200, [170, 'Wrap in foil', 'Finish in its own juices.'], 45, 30, 'Mojo marinade, then smoke and finish in foil with sour orange.'),
+      S('memphis', 'Memphis Pulled', 'Tennessee', 'Dry rub, tomato or vinegar', [225, 275], 200, null, 45, 45, 'Dry-rubbed, pulled, and dressed with a thin sauce.'),
+      S('alabama_white', 'Alabama White', 'Alabama', 'White sauce, horseradish', [225, 275], 200, null, 45, 45, 'Finished with tangy white sauce — mayo, vinegar, horseradish.'),
+      S('pernil', 'Pernil', 'Puerto Rico', 'Garlic, oregano, adobo', [275, 325], 200, [165, 'Cover and finish', 'Crisp the skin at the very end.'], 45, 30, 'Garlic-and-oregano roasted pork shoulder with crackling skin.'),
+      S('cochinita_pibil', 'Cochinita Pibil', 'Yucatán', 'Achiote, sour orange, banana leaf', [250, 300], 200, [165, 'Wrap in banana leaf', 'Achiote and sour orange, wrapped tight.'], null, 30, 'Yucatecan achiote pork, slow-cooked in banana leaf.'),
+    ],
+    pork_ribs: [
+      S('321', '3-2-1 (Spare)', 'KCBS', '3h smoke · 2h wrapped · 1h saucy', [225, 250], 195, [165, 'Wrap in foil', 'Second act: 2 hours wrapped with a splash.'], 45, 15, 'The classic. Reliable, tender, saucy.'),
+      S('no_wrap', 'No-Wrap', 'Modern', 'Kiss the bone', [225, 275], 195, null, 45, 10, 'Firmer bite, better bark, longer cook.'),
+      S('memphis_dry', 'Memphis Dry', 'Tennessee', 'Dry rub, no sauce', [225, 275], 195, null, 45, 10, 'Rubbed all over, never sauced, served with slaw.'),
+      S('kansas_city', 'Kansas City', 'Missouri', 'Sweet, sticky, sauced', [225, 275], 195, [165, 'Wrap with brown sugar', 'Butter, brown sugar, honey and sauce.'], 45, 15, 'The thick, sweet KC style — sauce at every stage.'),
+      S('st_louis', 'St. Louis Cut', 'Missouri', 'Squared, trimmed, rubbed', [225, 275], 195, null, 45, 10, 'Trimmed to a neat rectangle for even cooking.'),
+      S('alabama_white', 'Alabama White', 'Alabama', 'White sauce finish', [250, 275], 195, null, 30, 10, 'Pulled off the heat and dunked in white sauce.'),
+      S('jerk', 'Jerk', 'Jamaica', 'Scotch bonnet, allspice, pimento', [275, 325], 200, null, 30, 10, 'Jerk-rubbed over pimento wood — fiery and aromatic.'),
+    ],
+    pork_babyback: [
+      S('221', '2-2-1', 'KCBS', 'Shorter than spare ribs', [225, 250], 190, [165, 'Wrap in foil', '2 hours wrapped.'], 45, 15, 'The baby-back standard.'),
+      S('no_wrap', 'No-Wrap', 'Modern', 'Crisp bark, bite-tender', [250, 275], 190, null, 30, 10, 'For bark purists.'),
+      S('kansas_city', 'Kansas City', 'Missouri', 'Sweet glaze, fall-apart', [225, 275], 190, [165, 'Wrap with honey butter', 'Honey, butter and sauce in the wrap.'], 45, 15, 'Sticky and sweet, the crowd-pleaser.'),
+      S('honey_glazed', 'Honey Glazed', 'Modern', 'Honey-soy lacquer', [225, 275], 190, null, 30, 10, 'Brushed with a honey-soy lacquer until glossy.'),
+      S('memphis_dry', 'Memphis Dry', 'Tennessee', 'Dry rub finish', [225, 275], 190, null, 45, 10, 'A dusting of dry rub right before serving.'),
+    ],
+    pork_loin: [
+      S('porchetta', 'Porchetta', 'Italy', 'Rolled, herbed, crackling', [250, 300], 145, [140, 'Hold at temp', 'Pull at 145°F and rest — it dries fast.'], 30, 15, 'Rolled with fennel, garlic and rosemary, skin crisped.'),
+      S('crown_roast', 'Crown Roast', 'Classic', 'Frenched rack, roasted', [275, 325], 145, null, 30, 15, 'French-trimmed and roasted into a crown.'),
+      S('maple_glazed', 'Maple Glazed', 'Vermont', 'Maple and mustard', [275, 325], 145, null, 30, 10, 'Maple and grainy mustard glaze, basted near the end.'),
+    ],
+    pork_belly: [
+      S('burnt_ends', 'Burnt Ends', 'KCBS', 'Cubed, sauced, back on', [250, 275], 200, [165, 'Wrap', 'Then cube and sauce for burnt ends.'], 45, 15, 'Cubed, sauced and returned to the heat until sticky.'),
+      S('chicharron', 'Chicharrón', 'Spain', 'Crisped skin, crackling', [300, 350], 205, null, null, 10, 'Skin-side down until it puffs into glassy crackling.'),
+      S('sichuan', 'Sichuan Twice-Cooked', 'China', 'Chilli, doubanjiang, peppercorn', [300, 350], 195, null, null, 10, 'Braised then wok-fired with chilli bean paste.'),
+    ],
+    pork_sausage: [
+      S('texas_hot_guts', 'Texas Hot Guts', 'Texas', 'Elgin-style, coarse, peppery', [225, 275], 160, null, null, 5, 'The Elgin hot link — coarse, peppery, snap casing.'),
+      S('italian', 'Italian', 'Italy', 'Fennel, garlic, sweet', [225, 275], 160, null, null, 5, 'Sweet fennel sausage, grilled with peppers and onion.'),
+      S('cheddar_jalapeno', 'Cheddar Jalapeño', 'Modern', 'Melty cheese, chilli bite', [225, 275], 160, null, null, 5, 'Cheddar and jalapeño — watch the casing at high heat.'),
+    ],
+    pork_chops: [
+      S('tomahawk', 'Tomahawk', 'Modern', 'Long bone, reverse sear', [225, 275], 145, null, null, 8, 'Long-bone chop, reverse-seared for an even blush.'),
+      S('brined_apple', 'Brined & Apple', 'Classic', 'Brine, apple, sage', [275, 325], 145, null, null, 8, 'Brined for a day, served with apple and sage.'),
+      S('jerk', 'Jerk', 'Jamaica', 'Scotch bonnet rub', [300, 350], 150, null, null, 5, 'Jerk-rubbed and grilled hot.'),
+    ],
+    pork_tenderloin: [
+      S('bacon_wrapped', 'Bacon Wrapped', 'Classic', 'Lean meat, bacon shield', [275, 325], 145, null, null, 8, 'Bacon keeps the lean tenderloin from drying.'),
+      S('teriyaki', 'Teriyaki', 'Japan', 'Sweet soy glaze', [325, 375], 145, null, null, 5, 'Glazed with sweet soy, sesame and scallion.'),
+    ],
+    pork_ham: [
+      S('honey_baked', 'Honey Baked', 'Classic', 'Honey, clove, pineapple', [225, 275], 140, null, 30, 20, 'Scored, studded with clove, then honey-glazed.'),
+      S('double_smoked', 'Double Smoked', 'Modern', 'Re-smoked, deep bark', [225, 275], 145, null, 30, 20, 'Fully cooked ham re-smoked for a deeper bark.'),
+      S('dr_pepper', 'Dr Pepper Glaze', 'Texas', 'Soda-spiked sweet glaze', [225, 275], 140, null, 30, 20, 'Basted in a Dr Pepper and brown sugar reduction.'),
+    ],
+    pork_char_siu: [
+      S('cantonese', 'Cantonese', 'China', 'Maltose, char, red lacquer', [300, 375], 145, null, null, 10, 'The Cantonese original — maltose, soy and red fermented bean curd.'),
+      S('honey_char', 'Honey Char', 'Modern', 'Honey-soy lacquer', [300, 375], 145, null, null, 10, 'A honey-forward lacquer for extra stickiness.'),
+    ],
+    pork_carnitas: [
+      S('citrus', 'Citrus Braise', 'Mexico', 'Orange, lime, garlic', [250, 300], 200, [165, 'Cover / wrap', 'Braise in citrus and lard until shreddable.'], null, 20, 'Orange, lime and garlic braise, crisped at the end.'),
+      S('confit', 'Confit', 'France', 'Slow in its own fat', [225, 275], 200, [165, 'Cover in fat', 'Cook gently in lard, then crisp.'], null, 20, 'Pork shoulder confit in lard — impossibly tender.'),
+    ],
+    pork_suckling: [
+      S('lechon', 'Lechón', 'Philippines', 'Whole pig, crisp skin', [250, 300], 145, null, 30, 45, 'Whole roasted pig with shatteringly crisp skin.'),
+      S('cuban', 'Cuban Lechón', 'Cuba', 'Mojo, garlic, sour orange', [250, 300], 145, null, 30, 45, 'Mojo-marinated then roasted low until the skin cracks.'),
+      S('crackling', 'Crackling Focus', 'Classic', 'Dry skin, oil, salt', [275, 325], 145, null, 30, 45, 'Skin dried overnight for maximum crackle.'),
+    ],
+    pork_head: [
+      S('cochon_de_lait', 'Cochon de Lait', 'Louisiana', 'Slow pit, juicy, smoky', [250, 275], 190, null, 45, 45, 'Cajun whole-hog pit roast, pulled and dressed.'),
+      S('porchetta_di_testa', 'Porchetta di Testa', 'Italy', 'Rolled head cheese', [225, 275], 160, [150, 'Press overnight', 'Pressed into a terrine and chilled.'], null, 60, 'Boneless rolled head, poached, pressed and sliced.'),
+    ],
+    pork_hock: [
+      S('braised', 'Braised', 'Classic', 'Collard-rich, gelatinous', [250, 300], 200, [165, 'Braise covered', 'With collards, beans or sauerkraut.'], null, 20, 'The seasoning bone — braised for gelatin and depth.'),
+      S('smoked', 'Smoked', 'Southern', 'Split, smoky, intense', [225, 275], 200, [165, 'Wrap', 'Split it so the smoke gets in.'], 45, 20, 'Split and smoked hard for a strong ham hock.'),
+    ],
+
+    // ── Poultry ───────────────────────────────────────────────────────
     poultry_whole: [
-      { id: 'classic_roast', name: 'Classic Roast', tagline: 'Butter under the skin', pitBand: [275, 325], targetF: 165, wrap: null, spritz: null, restMin: 20, note: 'Rub butter under the breast skin.' },
-      { id: 'spatchcock', name: 'Spatchcock', tagline: 'Flat and fast', pitBand: [350, 400], targetF: 165, wrap: null, spritz: null, restMin: 10, note: 'Backbone out, pressed flat — cuts the time nearly in half.' },
+      S('classic_roast', 'Classic Roast', 'Classic', 'Butter under the skin', [275, 325], 165, null, null, 20, 'Rub butter under the breast skin.'),
+      S('spatchcock', 'Spatchcock', 'Modern', 'Flat and fast', [350, 400], 165, null, null, 10, 'Backbone out, pressed flat — cuts the time nearly in half.'),
+      S('cajun_injected', 'Cajun Injected', 'Louisiana', 'Butter-garlic injection', [300, 350], 165, null, null, 20, 'Injected with Cajun butter, rubbed inside and out.'),
+      S('maple_brined', 'Maple Brined', 'Vermont', 'Maple, salt, rosemary', [275, 325], 165, null, null, 20, 'Maple brine keeps the breast juicy under high heat.'),
+      S('jerk', 'Jerk', 'Jamaica', 'Scotch bonnet, allspice', [325, 375], 165, null, 30, 20, 'Spatchcocked and slathered in jerk paste.'),
+    ],
+    poultry_turkey_breast: [
+      S('cajun', 'Cajun', 'Louisiana', 'Creole butter injection', [275, 325], 165, null, null, 15, 'Injected with Creole butter, rubbed in Cajun spice.'),
+      S('brined', 'Brined', 'Classic', 'Wet brine, herbs', [275, 325], 165, null, null, 15, 'Overnight brine, then herb butter under the skin.'),
+      S('herb', 'Herb Butter', 'Classic', 'Rosemary, thyme, sage', [275, 325], 165, null, null, 15, 'Herb butter stuffed under the skin.'),
+    ],
+    poultry_breast: [
+      S('blackened', 'Blackened', 'Cajun', 'Spice crust, hot pan', [375, 425], 165, null, null, 5, 'Cajun spice seared hard for a black crust.'),
+      S('teriyaki', 'Teriyaki', 'Japan', 'Sweet soy, sesame', [350, 400], 165, null, null, 5, 'Glazed with sweet soy and sesame.'),
+      S('souvlaki', 'Souvlaki', 'Greece', 'Lemon, oregano, yogurt', [375, 425], 165, null, null, 5, 'Lemon-oregano marinade, grilled on skewers.'),
+    ],
+    poultry_thigh: [
+      S('yakitori', 'Yakitori', 'Japan', 'Tare glaze, binchotan', [375, 425], 180, null, null, 5, 'Skewered and basted with tare over hot coals.'),
+      S('jerk', 'Jerk', 'Jamaica', 'Scotch bonnet, pimento', [325, 375], 180, null, 20, 5, 'Dark meat takes jerk beautifully — smoky and fiery.'),
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [375, 425], 180, null, null, 5, 'Yogurt-and-spice marinade, charred hot.'),
+      S('cajun', 'Cajun', 'Louisiana', 'Blackening spice', [375, 425], 180, null, null, 5, 'Bold blackening spice on juicy dark meat.'),
+    ],
+    poultry_wings: [
+      S('buffalo', 'Buffalo', 'New York', 'Butter, cayenne, vinegar', [375, 425], 175, null, null, 5, 'Crisp them first, then toss in classic buffalo sauce.'),
+      S('korean_gochujang', 'Korean Gochujang', 'Korea', 'Sweet-spicy chilli glaze', [375, 425], 175, null, null, 5, 'Gochujang, honey and sesame — sticky and fiery.'),
+      S('jerk', 'Jerk', 'Jamaica', 'Scotch bonnet rub', [375, 425], 175, null, null, 5, 'Jerk-rubbed and grilled until charred at the edges.'),
+      S('lemon_pepper', 'Lemon Pepper', 'Modern', 'Buttery lemon, cracked pepper', [375, 425], 175, null, null, 5, 'Tossed in lemon-pepper butter the moment they come off.'),
+    ],
+    poultry_spatchcock: [
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [375, 425], 165, null, null, 10, 'Flat bird, tandoori marinade, hard char.'),
+      S('jerk', 'Jerk', 'Jamaica', 'Pimento, scotch bonnet', [350, 400], 165, null, 20, 10, 'Jerk paste under and over the skin.'),
+      S('lemon_herb', 'Lemon & Herb', 'Provence', 'Herbes de Provence, lemon', [350, 400], 165, null, null, 10, 'Herbes de Provence and lemon halves under the bird.'),
+    ],
+    poultry_beercan: [
+      S('stout', 'Stout Can', 'Modern', 'Coffee stout steam', [325, 375], 165, null, null, 10, 'A stout in the can steams and darkens the meat.'),
+      S('cajun', 'Cajun Can', 'Louisiana', 'Creole butter, beer', [325, 375], 165, null, null, 10, 'Creole-spiced, sat on a can of lager.'),
+    ],
+    poultry_duck: [
+      S('peking', 'Peking', 'China', 'Crisp skin, scallion, pancake', [250, 300], 165, null, null, 15, 'Air-dried skin, roasted crisp, served with pancakes.'),
+      S('tea_smoked', 'Tea Smoked', 'China', 'Lapsang, rice, brown sugar', [200, 250], 155, null, null, 15, 'Smoked over tea leaves and rice, then roasted.'),
+      S('orange', 'Orange Glazed', 'France', 'Orange, honey, star anise', [300, 350], 160, null, null, 15, 'Glazed with orange, honey and star anise.'),
+    ],
+    poultry_cornish: [
+      S('bacon_wrapped', 'Bacon Wrapped', 'Classic', 'Bacon, herbs, lemon', [325, 375], 165, null, null, 10, 'A bacon blanket keeps these little birds moist.'),
+      S('herb', 'Herb Roasted', 'Provence', 'Thyme, rosemary, garlic', [325, 375], 165, null, null, 10, 'Stuffed with herbs and roasted until golden.'),
+    ],
+    poultry_legs: [
+      S('jerk', 'Jerk', 'Jamaica', 'Scotch bonnet, allspice', [325, 375], 175, null, 20, 5, 'Jerk marinade, grilled slow then hard at the end.'),
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [375, 425], 175, null, null, 5, 'Yogurt marinade, charred and finished with lime.'),
+      S('adobo', 'Adobo', 'Philippines', 'Soy, vinegar, bay, garlic', [325, 375], 175, null, null, 5, 'Soy-vinegar adobo, braised then finished on the grill.'),
+    ],
+    poultry_duck_breast: [
+      S('pan_roast', 'Pan Roast', 'France', 'Score the fat, render', [300, 350], 135, null, null, 8, 'Score and render the fat, finish skin-side down.'),
+      S('honey_soy', 'Honey Soy', 'Asia', 'Honey, soy, five-spice', [350, 400], 135, null, null, 5, 'Glazed with honey, soy and five-spice.'),
+    ],
+    poultry_turkey_legs: [
+      S('cajun', 'Cajun', 'Louisiana', 'Creole butter injected', [300, 350], 175, null, null, 15, 'Legs take longer than the breast — cook to 175°F.'),
+      S('smoked', 'Cherry Smoked', 'Modern', 'Fruitwood, brown sugar', [275, 325], 175, null, 30, 15, 'Cherry wood and a brown-sugar rub.'),
+    ],
+    poultry_quail: [
+      S('bacon_wrapped', 'Bacon Wrapped', 'Southern', 'Bacon, jalapeño, cream cheese', [375, 425], 165, null, null, 5, 'Stuffed with jalapeño cream cheese and wrapped in bacon.'),
+      S('marinated', 'Citrus Marinated', 'Mediterranean', 'Lemon, oregano, olive oil', [375, 425], 165, null, null, 5, 'A quick citrus-herb marinade, grilled fast.'),
+    ],
+    poultry_pheasant: [
+      S('bacon_wrapped', 'Bacon Wrapped', 'Classic', 'Lean bird, bacon shield', [325, 375], 165, null, 30, 10, 'Bacon and a butter baste keep this lean bird moist.'),
+      S('cider_brined', 'Cider Brined', 'Modern', 'Apple cider brine', [325, 375], 165, null, null, 10, 'Apple-cider brine, roasted with apples and onion.'),
+    ],
+    poultry_liver: [
+      S('rumaki', 'Rumaki', 'Tiki', 'Bacon, water chestnut, teriyaki', [375, 425], 165, null, null, 5, 'Bacon-wrapped chicken liver with a teriyaki glaze.'),
+      S('pâté', 'Country Pâté', 'France', 'Brandy, herbs, coarse', [275, 325], 165, [160, 'Bath and chill', 'Bake in a water bath, then press and chill.'], null, 120, 'A coarse country pâté with brandy and thyme.'),
+    ],
+
+    // ── Seafood ───────────────────────────────────────────────────────
+    fish_salmon: [
+      S('cedar', 'Cedar Plank', 'Pacific NW', 'Soaked plank, low heat', [225, 275], 145, null, null, 5, 'Soak the plank, smoke low, gentle finish.'),
+      S('hot_fast', 'Hot & Fast', 'Modern', 'Skin down, crisp', [325, 375], 145, null, null, 3, 'Crisp the skin, keep the centre moist.'),
+      S('teriyaki', 'Teriyaki', 'Japan', 'Sweet soy, sesame', [325, 375], 145, null, null, 3, 'Glazed with sweet soy and finished with sesame.'),
+      S('hot_smoked', 'Hot Smoked', 'Scandinavia', 'Cured, smoked, flaky', [200, 250], 145, null, null, 5, 'Light cure then a long, cool smoke for flaky hot-smoked salmon.'),
+      S('dijon_plank', 'Dijon & Dill', 'Scandinavia', 'Mustard, dill, lemon', [225, 275], 145, null, null, 5, 'Dijon-dill butter under a lemon slice.'),
+    ],
+    fish_trout: [
+      S('lemon_butter', 'Lemon Butter', 'Classic', 'Lemon, capers, butter', [225, 275], 145, null, null, 5, 'Stuffed with lemon and dill, basted in butter.'),
+      S('bacon_wrapped', 'Bacon Wrapped', 'Campfire', 'Bacon, herbs, whole fish', [275, 325], 145, null, null, 5, 'Whole trout wrapped in bacon and grilled in a basket.'),
+      S('almondine', 'Almondine', 'France', 'Brown butter, almonds', [225, 275], 145, null, null, 5, 'Finished with brown butter and toasted almonds.'),
+    ],
+    fish_shrimp: [
+      S('cajun', 'Cajun', 'Louisiana', 'Butter, garlic, cayenne', [325, 375], 145, null, null, 2, 'The shrimp boil flavours — butter, garlic and cayenne.'),
+      S('scampi', 'Scampi', 'Italy', 'Garlic, white wine, butter', [325, 375], 145, null, null, 2, 'Garlic, white wine and lemon butter.'),
+      S('garlic_butter', 'Garlic Butter', 'Classic', 'Garlic, parsley, lemon', [325, 375], 145, null, null, 2, 'Simple garlic-parsley butter, grilled on skewers.'),
+    ],
+    fish_tuna: [
+      S('sesame_seared', 'Sesame Seared', 'Japan', 'Sesame crust, rare centre', [450, 550], 125, null, null, 3, 'Sesame crust, seared hard, raw in the middle.'),
+      S('teriyaki', 'Teriyaki', 'Japan', 'Tare glazed, quick sear', [400, 500], 125, null, null, 3, 'Tare-glazed and seared just long enough to mark.'),
+    ],
+    fish_cod: [
+      S('fish_taco', 'Fish Taco', 'Baja', 'Battered, cabbage, crema', [375, 425], 145, null, null, 3, 'Baja-style — flaky, bright, in a warm tortilla.'),
+      S('lemon_butter', 'Lemon Butter', 'Classic', 'Lemon, parsley, butter', [225, 275], 145, null, null, 5, 'Gentle heat, lemon-parsley butter.'),
+      S('miso', 'Miso Glazed', 'Japan', 'White miso, mirin, ginger', [325, 375], 145, null, null, 3, 'Sweet white-miso glaze that caramelises beautifully.'),
+    ],
+    fish_halibut: [
+      S('miso_glazed', 'Miso Glazed', 'Japan', 'White miso, mirin', [325, 375], 145, null, null, 3, 'Miso-mirin glaze, broiled to a shine.'),
+      S('blackened', 'Blackened', 'Cajun', 'Spice crust, cast iron', [400, 500], 145, null, null, 3, 'Hard Cajun crust on a meaty, lean fillet.'),
+    ],
+    fish_catfish: [
+      S('cajun', 'Cajun', 'Louisiana', 'Cornmeal, cayenne, hot oil', [350, 400], 145, null, null, 3, 'The Louisiana classic — cornmeal and cayenne.'),
+      S('cornmeal', 'Cornmeal Crusted', 'Southern', 'Buttermilk, cornmeal', [350, 400], 145, null, null, 3, 'Buttermilk dip, cornmeal crust, hot and fast.'),
+    ],
+    fish_swordfish: [
+      S('salsa_verde', 'Salsa Verde', 'Italy', 'Parsley, capers, lemon', [375, 425], 145, null, null, 5, 'Grilled hard, served with a sharp salsa verde.'),
+      S('lemon', 'Lemon & Olive Oil', 'Mediterranean', 'Lemon, oregano, olive oil', [325, 375], 145, null, null, 5, 'Simple lemon-oregano marinade, grilled over coals.'),
+    ],
+    fish_scallops: [
+      S('bacon_wrapped', 'Bacon Wrapped', 'Classic', 'Bacon, maple, sear', [400, 500], 145, null, null, 2, 'Maple-glazed bacon wrapped around a dry scallop.'),
+      S('cajun', 'Cajun', 'Louisiana', 'Blackening spice', [450, 550], 145, null, null, 2, 'Blackening spice and a screaming-hot sear.'),
+    ],
+    fish_lobster: [
+      S('garlic_butter', 'Garlic Butter', 'Classic', 'Butter, garlic, lemon', [300, 350], 140, null, null, 3, 'Split, brushed with garlic butter, grilled shell-down.'),
+      S('cajun', 'Cajun Butter', 'Louisiana', 'Creole butter, cayenne', [300, 350], 140, null, null, 3, 'Creole butter with a cayenne kick.'),
+    ],
+    fish_crab: [
+      S('garlic_butter', 'Garlic Butter', 'Classic', 'Butter, garlic, parsley', [300, 350], 140, null, null, 2, 'Warmed through in a foil pan of garlic butter.'),
+      S('cajun', 'Cajun', 'Louisiana', 'Old Bay, butter, lemon', [300, 350], 140, null, null, 2, 'Old Bay, butter and lemon — the porch pick.'),
+    ],
+    fish_oysters: [
+      S('charbroiled', 'Charbroiled', 'Gulf', 'Butter, garlic, parmesan', [400, 500], 145, null, null, 5, 'On the half shell over a hot fire with garlic-parmesan butter.'),
+      S('rockefeller', 'Rockefeller', 'New Orleans', 'Spinach, absinthe, parmesan', [375, 425], 145, null, null, 5, 'The New Orleans classic — spinach, herbs and parmesan.'),
+    ],
+    fish_mackerel: [
+      S('teriyaki', 'Teriyaki', 'Japan', 'Sweet soy, sesame', [325, 375], 145, null, null, 3, 'Oily and rich — brilliant with a sweet-soy glaze.'),
+      S('salt_grill', 'Salt Grilled', 'Japan', 'Coarse salt, crisp skin', [400, 500], 145, null, null, 3, 'Salted and grilled skin-side down until crisp.'),
+    ],
+    fish_sardines: [
+      S('grilled', 'Simple Grilled', 'Mediterranean', 'Olive oil, lemon, parsley', [400, 500], 145, null, null, 2, 'Whole sardines, oiled and grilled fast over coals.'),
+      S('escabeche', 'Escabeche', 'Spain', 'Vinegar, onion, bay', [350, 400], 145, null, null, 2, 'Fried then marinated in a vinegar-escabeche.'),
+    ],
+    fish_mussels: [
+      S('wine_garlic', 'White Wine & Garlic', 'France', 'Wine, shallot, parsley', [375, 425], 145, null, null, 2, 'Steamed open in white wine, shallot and parsley.'),
+      S('smoked', 'Smoked', 'Modern', 'Smoke, then steam', [225, 275], 145, null, null, 2, 'Smoked briefly then finished in a covered pan.'),
+    ],
+    fish_clams: [
+      S('garlic_butter', 'Garlic Butter', 'Classic', 'Garlic, butter, parsley', [375, 425], 145, null, null, 2, 'Littlenecks opened in garlic butter.'),
+      S('chowder', 'Smoked Chowder', 'New England', 'Cream, bacon, potato', [250, 300], 165, null, null, 5, 'Smoked clams folded into a creamy chowder.'),
+    ],
+    fish_squid: [
+      S('calamari', 'Grilled Calamari', 'Mediterranean', 'Lemon, olive oil, chilli', [400, 500], 145, null, null, 2, 'Hot and fast — squid turns rubbery if overcooked.'),
+      S('salt_pepper', 'Salt & Pepper', 'Cantonese', 'Five-spice, chilli, scallion', [450, 550], 145, null, null, 2, 'The Cantonese salt-and-pepper treatment.'),
+    ],
+    fish_octopus: [
+      S('galician', 'Galician', 'Spain', 'Boiled, paprika, olive oil', [225, 275], 175, null, null, 10, 'Boiled tender then grilled and dressed in paprika oil.'),
+      S('charred', 'Charred', 'Mediterranean', 'Lemon, oregano', [375, 425], 175, null, null, 10, 'Braised first, then charred over the fire.'),
+    ],
+    fish_alligator: [
+      S('cajun', 'Cajun', 'Louisiana', 'Blackened, cayenne', [375, 425], 160, null, null, 3, 'Firm, mild and lean — blackened hard and fast.'),
+      S('fried', 'Southern Fried', 'Southern', 'Buttermilk, cornmeal', [375, 425], 160, null, null, 3, 'Buttermilk and cornmeal, fried golden.'),
+    ],
+    fish_frog_legs: [
+      S('cajun', 'Cajun', 'Louisiana', 'Blackened, garlic butter', [375, 425], 160, null, null, 3, 'The Cajun classic — blackened and finished in garlic butter.'),
+      S('lemon_butter', 'Lemon Butter', 'Classic', 'Lemon, parsley, butter', [375, 425], 160, null, null, 3, 'Delicate and mild — basted in lemon butter.'),
+    ],
+    fish_crawfish: [
+      S('boil', 'Cajun Boil', 'Louisiana', 'Zatarain’s, corn, potato', [350, 400], 165, null, null, 2, 'The crawfish boil — heavily seasoned, with corn and potato.'),
+      S('smoked', 'Smoked Tails', 'Modern', 'Butter, garlic, smoke', [250, 300], 165, null, null, 2, 'Tails smoked gently then tossed in garlic butter.'),
+    ],
+    fish_whole_bass: [
+      S('salt_grill', 'Salt Grilled', 'Mediterranean', 'Whole, lemon, herbs', [375, 425], 145, null, null, 5, 'Whole fish stuffed with lemon and herbs, grilled in a basket.'),
+      S('banana_leaf', 'Banana Leaf', 'Asia', 'Ginger, scallion, lime', [325, 375], 145, null, null, 5, 'Wrapped in banana leaf with ginger and scallion.'),
+    ],
+
+    // ── Lamb ──────────────────────────────────────────────────────────
+    lamb_chops: [
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [400, 500], 135, null, null, 5, 'Yogurt marinade, charred hard on the outside.'),
+      S('rosemary_garlic', 'Rosemary & Garlic', 'Provence', 'Garlic, rosemary, olive oil', [375, 425], 135, null, null, 5, 'Rub with garlic and rosemary, grill fast.'),
+      S('harissa', 'Harissa', 'North Africa', 'Chilli paste, cumin, coriander', [400, 500], 135, null, null, 5, 'Harissa-rubbed and grilled until blistered.'),
     ],
     lamb_leg: [
-      { id: 'rosemary_garlic', name: 'Rosemary & Garlic', tagline: 'Studded and roasted', pitBand: [225, 275], targetF: 135, wrap: null, spritz: 45, restMin: 20, note: 'Stud with garlic and rosemary.' },
+      S('rosemary_garlic', 'Rosemary & Garlic', 'Provence', 'Studded and roasted', [225, 275], 135, null, 45, 20, 'Stud with garlic and rosemary.'),
+      S('moroccan', 'Moroccan', 'Morocco', 'Ras el hanout, apricot', [250, 300], 145, null, 45, 20, 'Ras el hanout and apricots — sweet, spiced and tender.'),
+      S('greek', 'Greek', 'Greece', 'Lemon, oregano, potato', [250, 300], 140, null, 45, 20, 'Lemon, oregano and potatoes roasted in the pan.'),
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [325, 375], 145, null, null, 15, 'Yogurt marinated and roasted hard, no wrap.'),
     ],
-    fish_salmon: [
-      { id: 'cedar', name: 'Cedar Plank', tagline: 'Soaked plank, low heat', pitBand: [225, 275], targetF: 145, wrap: null, spritz: null, restMin: 5, note: 'Soak the plank, smoke low, gentle finish.' },
-      { id: 'hot_fast', name: 'Hot & Fast', tagline: 'Skin down, crisp', pitBand: [325, 375], targetF: 145, wrap: null, spritz: null, restMin: 3, note: 'Crisp the skin, keep the centre moist.' },
+    lamb_shoulder: [
+      S('moroccan', 'Moroccan', 'Morocco', 'Ras el hanout, apricot, almond', [250, 275], 200, [165, 'Cover', 'Braise with spices, apricots and almonds.'], 60, 30, 'Slow-braised Moroccan lamb with dried fruit.'),
+      S('harissa', 'Harissa Pulled', 'North Africa', 'Chilli, cumin, coriander', [250, 275], 200, [165, 'Wrap', 'Chilli paste and aromatics in the wrap.'], 60, 30, 'Harissa-rubbed and pulled for wraps and flatbread.'),
+      S('pulled', 'Smoked Pulled', 'Modern', 'Rub, smoke, pull', [250, 275], 200, [165, 'Wrap', 'Foil to finish and rest.'], 60, 30, 'Dry-rubbed, smoked low and pulled like pork.'),
+    ],
+    lamb_rack: [
+      S('pistachio_crusted', 'Pistachio Crusted', 'Modern', 'Pistachio, dijon, breadcrumb', [250, 300], 135, null, null, 10, 'Dijon-herb coat with crushed pistachio.'),
+      S('dijon', 'Dijon & Herb', 'French', 'Dijon, thyme, garlic', [250, 300], 135, null, null, 10, 'The French classic — dijon, thyme and garlic.'),
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [300, 350], 135, null, null, 8, 'Yogurt marinade, roasted to a charred blush.'),
+    ],
+    lamb_shanks: [
+      S('osso_buco', 'Osso Buco', 'Italy', 'Milanese, gremolata, saffron', [250, 275], 200, [165, 'Braise covered', 'Wine, tomato and gremolata.'], null, 20, 'A lamb version of the Milanese classic.'),
+      S('moroccan', 'Moroccan', 'Morocco', 'Ras el hanout, chickpea', [250, 275], 200, [165, 'Braise covered', 'With chickpeas, apricots and spice.'], null, 20, 'Spiced, fruity braise until it falls off the bone.'),
+    ],
+    lamb_kofta: [
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [325, 375], 160, null, null, 3, 'Skewered, spiced and grilled over coals.'),
+      S('merguez', 'Merguez', 'North Africa', 'Harissa, cumin, coriander', [325, 375], 160, null, null, 3, 'The North African sausage — smoky, spicy and lamby.'),
+      S('mint_yogurt', 'Mint Yogurt', 'Mediterranean', 'Mint, sumac, yogurt', [325, 375], 160, null, null, 3, 'Served with mint-yogurt and sumac onion.'),
+    ],
+    lamb_ribs: [
+      S('kansas_city', 'Kansas City', 'Missouri', 'Sweet rub, sauce glaze', [250, 275], 200, [165, 'Wrap', 'Butter, honey and sauce in the wrap.'], 45, 15, 'Ribs from the lamb breast — rich and sweet.'),
+      S('harissa', 'Harissa', 'North Africa', 'Chilli, honey, lemon', [250, 275], 200, [165, 'Wrap', 'Chilli-honey baste.'], 45, 15, 'Fiery harissa and honey basted lamb ribs.'),
+    ],
+
+    // ── Game ──────────────────────────────────────────────────────────
+    game_venison: [
+      S('juniper', 'Juniper & Gin', 'Nordic', 'Juniper, rosemary, cream', [225, 275], 135, null, 30, 20, 'Juniper berries and rosemary keep the lean, gamy meat elegant.'),
+      S('bacon_wrapped', 'Bacon Wrapped', 'Campfire', 'Bacon, thyme, pepper', [250, 300], 135, null, 30, 20, 'Bacon-and-herb wrap protects the lean roast.'),
+    ],
+    game_boar: [
+      S('italian_ragu', 'Italian Ragù', 'Italy', 'Chianti, tomato, rosemary', [250, 275], 200, [165, 'Braise covered', 'Slow braise in Chianti and tomato.'], 60, 45, 'Wild boar ragù — richer and gamer than pork.'),
+      S('pulled', 'Pulled', 'Modern', 'Rub, smoke, pull', [225, 275], 200, [165, 'Wrap', 'Foil to finish.'], 60, 45, 'Smoked and pulled like pork shoulder, a touch leaner.'),
+    ],
+    game_bison: [
+      S('blackened', 'Blackened', 'Cajun', 'Spice crust, hot sear', [400, 500], 130, null, null, 5, 'Leaner than beef — hard sear, pull early.'),
+      S('reverse_sear', 'Reverse Sear', 'Modern', 'Low, then blast', [225, 275], 130, null, null, 6, 'Even blush with a dark crust.'),
+    ],
+    game_rabbit: [
+      S('hunter', 'Hunter Style', 'Italy', 'Tomato, olive, wine, herbs', [250, 300], 160, [160, 'Braise covered', 'With tomato, olives and white wine.'], 20, 10, 'Coniglio alla cacciatora — braised with olives and wine.'),
+      S('bacon_wrapped', 'Bacon Wrapped', 'Campfire', 'Bacon, herbs, butter', [225, 275], 160, null, 20, 10, 'Basted with butter and wrapped in bacon.'),
+    ],
+    game_elk: [
+      S('juniper', 'Juniper Rubbed', 'Nordic', 'Juniper, pepper, smoke', [225, 275], 130, null, 30, 20, 'Lean and herbaceous — smoke gently and never overshoot.'),
+      S('coffee_cocoa', 'Coffee & Cocoa', 'Modern', 'Coffee, cocoa, chilli', [250, 300], 135, null, 30, 20, 'A coffee-cocoa crust for a gamy, lean roast.'),
+    ],
+    game_antelope: [
+      S('herb_crusted', 'Herb Crusted', 'Modern', 'Thyme, pepper, mustard', [225, 275], 130, null, 30, 20, 'Very lean — cook fast and rest well.'),
+    ],
+    game_squirrel: [
+      S('smothered', 'Smothered', 'Southern', 'Gravy, onion, bay', [250, 300], 165, [165, 'Braise covered', 'Smother in onion gravy until tender.'], 20, 10, 'Classic Southern smothered squirrel and gravy.'),
+    ],
+    game_wild_turkey: [
+      S('cajun', 'Cajun Injected', 'Louisiana', 'Creole butter injection', [300, 350], 165, null, null, 20, 'Leaner and drier than farmed — inject generously.'),
+      S('herb', 'Herb Roasted', 'Classic', 'Sage, thyme, butter', [275, 325], 165, null, null, 20, 'Herb butter under the skin, roasted low.'),
+    ],
+
+    // ── Veggies ───────────────────────────────────────────────────────
+    veg_potato: [
+      S('loaded', 'Loaded', 'Diner', 'Cheddar, bacon, sour cream', [350, 400], 205, null, null, 5, 'Split and loaded with cheddar, bacon and scallion.'),
+      S('rosemary', 'Rosemary Salt', 'Provence', 'Rosemary, sea salt, oil', [350, 400], 205, null, null, 5, 'Rubbed in oil, rosemary and flaky salt.'),
+    ],
+    veg_corn: [
+      S('elote', 'Elote', 'Mexico', 'Mayo, cotija, chilli, lime', [350, 400], 180, null, null, 0, 'Charred, then rolled in crema, cotija and chilli.'),
+      S('honey_butter', 'Honey Butter', 'Classic', 'Honey, butter, pepper', [350, 400], 180, null, null, 0, 'Basted in honey butter and turned often.'),
+    ],
+    veg_mushrooms: [
+      S('garlic_butter', 'Garlic Butter', 'Classic', 'Garlic, butter, parsley', [225, 275], 160, null, null, 0, 'In a foil pan with garlic butter and thyme.'),
+      S('soy_sesame', 'Soy Sesame', 'Asia', 'Soy, sesame, ginger', [225, 275], 160, null, null, 0, 'Soy, sesame and ginger — great with any smoke.'),
+    ],
+    veg_skewers: [
+      S('balsamic', 'Balsamic', 'Mediterranean', 'Balsamic, garlic, herbs', [325, 375], 175, null, null, 0, 'Balsamic-garlic marinade, charred at the edges.'),
+      S('tandoori', 'Tandoori', 'India', 'Yogurt, garam masala', [350, 400], 175, null, null, 0, 'Yogurt-marinated and charred hot.'),
+    ],
+    veg_peppers: [
+      S('mexican', 'Mexican', 'Mexico', 'Black bean, corn, queso', [350, 400], 175, null, null, 5, 'Stuffed with black beans, corn and queso fresco.'),
+      S('italian', 'Italian', 'Italy', 'Sausage, rice, parmesan', [350, 400], 175, null, null, 5, 'Stuffed with sausage, rice and parmesan.'),
+    ],
+    veg_asparagus: [
+      S('lemon_parm', 'Lemon Parmesan', 'Mediterranean', 'Lemon, parmesan, oil', [375, 425], 170, null, null, 0, 'Oiled, grilled, then lemon and shaved parmesan.'),
+      S('balsamic', 'Balsamic', 'Mediterranean', 'Balsamic glaze, garlic', [375, 425], 170, null, null, 0, 'Finished with a balsamic glaze reduction.'),
+    ],
+    veg_cauli: [
+      S('buffalo', 'Buffalo', 'Modern', 'Hot sauce, butter, blue cheese', [375, 425], 190, null, null, 0, 'Charred then tossed in buffalo sauce.'),
+      S('tahini', 'Tahini & Herb', 'Middle East', 'Tahini, lemon, za’atar', [350, 400], 190, null, null, 0, 'Drizzled with tahini-lemon and za’atar.'),
+    ],
+    veg_broccoli: [
+      S('soy_sesame', 'Soy Sesame', 'Asia', 'Soy, sesame, garlic', [300, 350], 170, null, null, 0, 'Tossed in soy, sesame and garlic.'),
+      S('cheesy', 'Cheesy', 'Classic', 'Cheddar, cream', [350, 400], 175, null, null, 0, 'Smoked then smothered in a cheddar cream.'),
+    ],
+    veg_zucchini: [
+      S('italian', 'Italian', 'Italy', 'Olive oil, parmesan, basil', [350, 400], 175, null, null, 0, 'Grilled planks with olive oil, parmesan and basil.'),
+      S('miso', 'Miso Glazed', 'Japan', 'Miso, mirin, sesame', [350, 400], 175, null, null, 0, 'Miso-mirin glaze that caramelises on the grate.'),
+    ],
+    veg_tofu: [
+      S('szechuan', 'Szechuan', 'China', 'Chilli bean paste, peppercorn', [250, 300], 165, null, null, 0, 'Pressed, smoked, then tossed in chilli bean paste.'),
+      S('teriyaki', 'Teriyaki', 'Japan', 'Sweet soy, sesame', [250, 300], 165, null, null, 0, 'Teriyaki-glazed smoked tofu.'),
+    ],
+    veg_halloumi: [
+      S('honey_chili', 'Honey Chilli', 'Modern', 'Honey, chilli, lime', [375, 425], 165, null, null, 0, 'Golden then drizzled with honey and chilli.'),
+      S('herb', 'Herb Oil', 'Mediterranean', 'Oregano, olive oil, lemon', [375, 425], 165, null, null, 0, 'Brushed with oregano oil and lemon.'),
+    ],
+    veg_artichoke: [
+      S('lemon_butter', 'Lemon Butter', 'Classic', 'Lemon, butter, garlic', [350, 400], 190, null, null, 5, 'Halved, oiled and grilled, served with lemon butter.'),
+      S('romesco', 'Romesco', 'Spain', 'Romesco sauce, almond', [350, 400], 190, null, null, 5, 'Charred and served with romesco.'),
+    ],
+    veg_cabbage: [
+      S('charred_wedge', 'Charred Wedge', 'Modern', 'Olive oil, lemon, parmesan', [375, 425], 175, null, null, 0, 'Thick wedges, charred hard, dressed with lemon.'),
+      S('bacon_braised', 'Bacon Braised', 'Southern', 'Bacon, cider, bay', [250, 300], 175, [165, 'Cover', 'Braise with bacon and cider.'], null, 5, 'Smoked then braised with bacon and cider vinegar.'),
+    ],
+    veg_brussels: [
+      S('bacon_maple', 'Bacon Maple', 'Modern', 'Bacon, maple, balsamic', [350, 400], 175, null, null, 0, 'Charred sprouts with bacon and a maple drizzle.'),
+      S('balsamic', 'Balsamic', 'Mediterranean', 'Balsamic, garlic', [350, 400], 175, null, null, 0, 'Tossed in balsamic and garlic.'),
+    ],
+    veg_okra: [
+      S('cajun', 'Cajun', 'Louisiana', 'Cajun spice, oil', [350, 400], 170, null, null, 0, 'Whole pods, Cajun-rubbed and grilled dry.'),
+      S('smothered', 'Smothered', 'Southern', 'Tomato, onion, pepper', [300, 350], 175, null, null, 5, 'Smothered with tomato, onion and bell pepper.'),
+    ],
+    veg_eggplant: [
+      S('baba_ganoush', 'Baba Ganoush', 'Middle East', 'Tahini, garlic, lemon', [350, 400], 190, null, null, 0, 'Smoked whole until collapsed, then blended with tahini.'),
+      S('miso', 'Miso Glazed', 'Japan', 'Miso, mirin, sesame', [350, 400], 185, null, null, 0, 'Miso-glazed halves, roasted until glossy.'),
+    ],
+    veg_sweet_potato: [
+      S('cinnamon_butter', 'Cinnamon Butter', 'Classic', 'Cinnamon, butter, brown sugar', [350, 400], 205, null, null, 5, 'Roasted and split with cinnamon butter.'),
+      S('chipotle', 'Chipotle', 'Mexico', 'Chipotle, honey, lime', [350, 400], 205, null, null, 5, 'Chipotle-honey butter and lime.'),
+    ],
+    veg_plantain: [
+      S('maduros', 'Maduros', 'Caribbean', 'Sweet, caramelised', [350, 400], 180, null, null, 0, 'Ripe plantains grilled until caramelised.'),
+      S('tostones', 'Tostones', 'Caribbean', 'Twice-fried, salty', [375, 425], 175, null, null, 0, 'Green plantains smashed and grilled crisp.'),
+    ],
+    veg_onion: [
+      S('blooming', 'Blooming', 'Fairground', 'Battered, spiced, fried', [350, 400], 175, null, null, 5, 'Cut, battered and grilled into a bloom.'),
+      S('smoked_rings', 'Smoked Rings', 'Modern', 'Sweet onion, smoke', [300, 350], 175, null, null, 5, 'Thick sweet-onion rings, slow-smoked.'),
+    ],
+    veg_garlic: [
+      S('roasted_bulb', 'Roasted Bulb', 'Classic', 'Olive oil, salt, foil', [300, 350], 175, null, null, 0, 'Whole bulbs, oiled and smoked until soft and sweet.'),
+      S('smoked_confit', 'Smoked Confit', 'Modern', 'Oil-poached, thyme', [250, 300], 175, null, null, 0, 'Confit in oil with thyme until spreadable.'),
+    ],
+    veg_tomato: [
+      S('smoked', 'Smoked Slices', 'Southern', 'Smoke, salt, olive oil', [225, 275], 175, null, null, 0, 'Thick slices, smoked low, salt and oil.'),
+      S('blistered', 'Blistered', 'Mediterranean', 'High heat, oregano', [400, 500], 175, null, null, 0, 'Blistered on a ripping grate with oregano.'),
+    ],
+    veg_romaine: [
+      S('grilled_caesar', 'Grilled Caesar', 'Modern', 'Caesar, parmesan, lemon', [375, 425], 170, null, null, 0, 'Halved, grilled cut-side down, dressed as Caesar.'),
+      S('charred', 'Charred & Anchovy', 'Mediterranean', 'Anchovy, lemon, oil', [375, 425], 170, null, null, 0, 'Charred and drizzled with anchovy-lemon dressing.'),
+    ],
+    veg_avocado: [
+      S('grilled', 'Grilled', 'Modern', 'Lime, chilli, oil', [375, 425], 165, null, null, 0, 'Halved, grilled cut-side down, finished with lime.'),
+      S('smoked_guac', 'Smoked Guacamole', 'Mexico', 'Smoke, lime, onion', [225, 275], 165, null, null, 0, 'Smoked then mashed into a smoky guacamole.'),
+    ],
+
+    // ── Sides ─────────────────────────────────────────────────────────
+    side_beans: [
+      S('pit', 'Under-the-Pit', 'Texas', 'Catch the brisket drippings', [225, 275], 180, null, null, 0, 'Smoked under the brisket so every drip lands in the pan.'),
+      S('bbq_bourbon', 'BBQ Bourbon', 'Modern', 'Bourbon, molasses, bacon', [225, 275], 180, null, null, 0, 'Bourbon, molasses and bacon — thick and boozy.'),
+      S('pinto_texas', 'Texas Pintos', 'Texas', 'Pinto, chilli, cumin', [225, 275], 180, null, null, 0, 'Pintos with chilli, cumin and a ham hock.'),
+    ],
+    side_mac: [
+      S('smoked_gouda', 'Smoked Gouda', 'Modern', 'Gouda, gruyère, crumb', [225, 275], 165, null, null, 10, 'Smoked gouda and gruyère under a buttery crumb.'),
+      S('jalapeno', 'Jalapeño', 'Southwest', 'Jalapeño, cheddar, bacon', [225, 275], 165, null, null, 10, 'Jalapeño, cheddar and bacon folded through.'),
+    ],
+    side_queso: [
+      S('chorizo', 'Chorizo', 'Tex-Mex', 'Chorizo, pepper, tomato', [225, 275], 160, null, null, 0, 'Chorizo and roasted pepper in a smooth cheese dip.'),
+      S('salsa', 'Salsa Fuego', 'Mexico', 'Chile, tomato, onion', [225, 275], 160, null, null, 0, 'Smoked chile-tomato salsa blended into queso.'),
+    ],
+    side_cheese: [
+      S('cheddar', 'Cold Smoked Cheddar', 'Wisconsin', 'Sharp cheddar, cold smoke', [70, 100], 90, null, null, 120, 'Never let it melt — cold smoke then rest and seal.'),
+      S('gouda', 'Cold Smoked Gouda', 'Netherlands', 'Gouda, gentle smoke', [70, 100], 90, null, null, 120, 'A gentle cold smoke that turns gouda nutty and rich.'),
+    ],
+    side_pineapple: [
+      S('brown_sugar', 'Brown Sugar', 'Modern', 'Brown sugar, butter, rum', [250, 300], 150, null, null, 0, 'Brown sugar, butter and a splash of rum.'),
+      S('chili_lime', 'Chili Lime', 'Mexico', 'Chilli, lime, salt', [250, 300], 150, null, null, 0, 'Chilli-lime and flaky salt.'),
+    ],
+    side_peaches: [
+      S('bourbon', 'Bourbon', 'Southern', 'Bourbon, brown sugar, butter', [225, 275], 150, null, null, 0, 'Halved, drizzled with bourbon and brown sugar.'),
+      S('honey_ricotta', 'Honey Ricotta', 'Modern', 'Honey, ricotta, basil', [225, 275], 150, null, null, 0, 'Honeyed and served over whipped ricotta.'),
+    ],
+    side_nuts: [
+      S('sweet_spicy', 'Sweet & Spicy', 'Modern', 'Sugar, cayenne, rosemary', [225, 275], 160, null, null, 0, 'Sugar, cayenne and rosemary, stirred often.'),
+      S('rosemary', 'Rosemary Butter', 'Classic', 'Butter, rosemary, salt', [225, 275], 160, null, null, 0, 'Butter and rosemary, smoked low.'),
+    ],
+    side_cornbread: [
+      S('jalapeno_cheddar', 'Jalapeño Cheddar', 'Southern', 'Jalapeño, cheddar, honey', [350, 400], 200, null, null, 10, 'Jalapeño and cheddar with a honey-butter top.'),
+      S('honey', 'Honey Skillet', 'Southern', 'Honey, butter, cast iron', [350, 400], 200, null, null, 10, 'Baked in a hot skillet and brushed with honey butter.'),
+    ],
+    side_salsa: [
+      S('charred', 'Charred Tomatillo', 'Mexico', 'Tomatillo, chile, lime', [225, 275], 170, null, null, 0, 'Charred tomatillos, chile and lime, then blitzed.'),
+      S('mango_habanero', 'Mango Habañero', 'Mexico', 'Mango, habañero, lime', [225, 275], 170, null, null, 0, 'Sweet mango with a habañero bite.'),
+    ],
+    side_stuffing: [
+      S('sausage_herb', 'Sausage & Herb', 'Classic', 'Sage, sausage, celery', [300, 350], 165, null, null, 10, 'Sage sausage stuffing smoked in a buttered dish.'),
+      S('cornbread', 'Cornbread', 'Southern', 'Cornbread, pecan, herb', [300, 350], 165, null, null, 10, 'Cornbread, pecan and herb stuffing.'),
+    ],
+    side_scallop_potatoes: [
+      S('cheddar', 'Cheddar', 'Classic', 'Cheddar, cream, onion', [350, 400], 175, null, null, 10, 'Thin-sliced potatoes in a cheddar cream.'),
+      S('gruyere', 'Gruyère', 'French', 'Gruyère, thyme, cream', [350, 400], 175, null, null, 10, 'Gruyère and thyme gratin.'),
+    ],
+    side_green_bean: [
+      S('classic', 'Classic Casserole', 'Classic', 'Mushroom, fried onion', [350, 400], 165, null, null, 10, 'Cream of mushroom and crispy fried onions.'),
+      S('bacon', 'Bacon & Almond', 'Modern', 'Bacon, almond, garlic', [350, 400], 165, null, null, 10, 'Bacon, toasted almond and garlic green beans.'),
+    ],
+    side_collards: [
+      S('ham_hock', 'Ham Hock', 'Southern', 'Ham hock, vinegar, pepper', [250, 300], 180, [165, 'Cover', 'Braise with ham hock until silky.'], null, 0, 'Slow-braised collards with ham hock and a splash of vinegar.'),
+      S('smoked', 'Smoked', 'Southern', 'Smoke, onion, chilli', [225, 275], 180, null, null, 0, 'Smoked with onion and chilli, finished with vinegar.'),
+    ],
+    side_coleslaw: [
+      S('vinegar', 'Vinegar', 'Carolina', 'Vinegar, sugar, celery seed', [225, 275], 0, null, null, 0, 'The Carolina pulled-pork partner — sharp and crunchy.'),
+      S('creamy', 'Creamy', 'Classic', 'Mayo, buttermilk, dill', [225, 275], 0, null, null, 0, 'Creamy buttermilk slaw, good under anything.'),
+    ],
+    side_potato_salad: [
+      S('mustard', 'Mustard', 'Southern', 'Mustard, egg, relish', [225, 275], 0, null, null, 0, 'Yellow-mustard potato salad with egg and relish.'),
+      S('german', 'German', 'Germany', 'Bacon, vinegar, onion', [225, 275], 0, null, null, 0, 'Warm German potato salad with bacon and vinegar.'),
+    ],
+    side_corn_pudding: [
+      S('creamed', 'Creamed', 'Southern', 'Cream, butter, corn', [350, 400], 175, null, null, 10, 'Creamy corn pudding with a golden top.'),
+      S('jalapeno', 'Jalapeño', 'Southwest', 'Jalapeño, cheddar', [350, 400], 175, null, null, 10, 'Jalapeño-cheddar corn pudding.'),
+    ],
+    side_hushpuppies: [
+      S('cajun', 'Cajun', 'Louisiana', 'Cornmeal, onion, cayenne', [375, 425], 175, null, null, 0, 'Cornmeal and onion, fried golden — Cajun spice.'),
+      S('jalapeno', 'Jalapeño', 'Southwest', 'Jalapeño, cheddar, corn', [375, 425], 175, null, null, 0, 'Jalapeño-cheddar hushpuppies.'),
+    ],
+
+    // ── Desserts ──────────────────────────────────────────────────────
+    dessert_apple_crisp: [
+      S('oat_cinnamon', 'Oat Cinnamon', 'Classic', 'Oats, brown sugar, butter', [325, 375], 180, null, null, 15, 'Smoked until the oat topping is crisp and bubbling.'),
+      S('bourbon_pecan', 'Bourbon Pecan', 'Southern', 'Bourbon, pecan, caramel', [325, 375], 180, null, null, 15, 'Bourbon caramel and toasted pecan crumble.'),
+    ],
+    dessert_banana_pudding: [
+      S('classic', 'Classic', 'Southern', 'Vanilla wafer, cream', [70, 100], 80, null, null, 180, 'Cold-smoked bananas, then layered classic-Nilla pudding.'),
+      S('bourbon', 'Bourbon', 'Southern', 'Bourbon, caramel, cream', [70, 100], 80, null, null, 180, 'A splash of bourbon in the custard.'),
+    ],
+    dessert_cobbler: [
+      S('peach', 'Peach', 'Southern', 'Peach, butter, biscuit', [350, 400], 190, null, null, 15, 'The Southern peach cobbler, smoked until golden.'),
+      S('berry', 'Berry', 'Classic', 'Mixed berry, sugar, biscuit', [350, 400], 190, null, null, 15, 'Mixed-berry cobbler with a buttermilk biscuit top.'),
+    ],
+    dessert_smores: [
+      S('skillet', 'Skillet', 'Campfire', 'Chocolate, marshmallow, graham', [325, 375], 170, null, null, 5, 'A cast-iron skillet of chocolate, marshmallow and graham.'),
+      S('bacon', 'Bacon', 'Modern', 'Bacon, chocolate, caramel', [325, 375], 170, null, null, 5, 'Bacon adds smoke and salt to the classic.'),
+    ],
+    dessert_brownies: [
+      S('sea_salt', 'Sea Salt', 'Modern', 'Dark chocolate, flaky salt', [325, 375], 175, null, null, 20, 'Fudgy brownies finished with flaky sea salt.'),
+      S('smoked_chocolate', 'Smoked Chocolate', 'Modern', 'Dark chocolate, smoke', [300, 350], 175, null, null, 20, 'The smoke deepens dark chocolate beautifully.'),
+    ],
+    dessert_cheesecake: [
+      S('smoked', 'Smoked', 'Modern', 'Cream cheese, smoke, graham', [250, 300], 165, null, null, 240, 'Smoked gently, then chilled overnight.'),
+      S('basque', 'Basque', 'Spain', 'Burnt top, custardy centre', [400, 500], 165, null, null, 240, 'A deliberately burnt top over a custardy centre.'),
+    ],
+    dessert_cinnamon_rolls: [
+      S('cream_cheese', 'Cream Cheese', 'Classic', 'Cinnamon, cream cheese icing', [300, 350], 190, null, null, 20, 'Smoked, then frosted with cream cheese icing.'),
+      S('maple_bacon', 'Maple Bacon', 'Modern', 'Maple, bacon, pecan', [300, 350], 190, null, null, 20, 'Maple-bacon icing and toasted pecan.'),
+    ],
+    dessert_grilled_fruit: [
+      S('honey_yogurt', 'Honey Yogurt', 'Mediterranean', 'Honey, yogurt, pistachio', [375, 425], 150, null, null, 0, 'Stone fruit grilled hard, served with honey-yogurt.'),
+      S('balsamic', 'Balsamic', 'Mediterranean', 'Balsamic, mint, sugar', [375, 425], 150, null, null, 0, 'Balsamic-mint glaze on charred fruit.'),
+    ],
+
+    // ── Misc ──────────────────────────────────────────────────────────
+    misc_egg_bake: [
+      S('bacon_cheddar', 'Bacon Cheddar', 'Classic', 'Bacon, cheddar, scallion', [325, 375], 160, null, null, 10, 'The diner standard — custard set through at 160°F.'),
+      S('spinach_feta', 'Spinach Feta', 'Mediterranean', 'Spinach, feta, dill', [325, 375], 160, null, null, 10, 'Spinach and feta with dill, baked until just set.'),
+    ],
+    misc_casserole: [
+      S('chorizo', 'Chorizo', 'Tex-Mex', 'Chorizo, pepper, potato', [300, 350], 160, null, null, 10, 'Chorizo, roasted pepper and potato, read at the centre.'),
+      S('sausage_gravy', 'Sausage Gravy', 'Southern', 'Sausage, gravy, biscuit', [300, 350], 160, null, null, 10, 'Breakfast sausage and gravy baked under a biscuit top.'),
+    ],
+    misc_pizza: [
+      S('margherita', 'Margherita', 'Italy', 'Tomato, mozzarella, basil', [450, 550], 205, null, null, 2, 'Hot stone, fast bake, smoky crust.'),
+      S('bbq_chicken', 'BBQ Chicken', 'Modern', 'Smoked chicken, red onion, cilantro', [450, 550], 205, null, null, 2, 'Smoked chicken, BBQ sauce and red onion on a hot stone.'),
+    ],
+    misc_pretzel: [
+      S('mustard', 'Mustard', 'Classic', 'Butter, mustard powder, salt', [225, 275], 160, null, null, 0, 'Seasoned butter and mustard powder, smoked low.'),
+      S('cinnamon_sugar', 'Cinnamon Sugar', 'Sweet', 'Butter, cinnamon, sugar', [225, 275], 160, null, null, 0, 'A sweet smoked snack — cinnamon, sugar and butter.'),
+    ],
+    misc_jerky: [
+      S('teriyaki', 'Teriyaki', 'Japan', 'Soy, ginger, mirin', [160, 180], 160, null, null, 0, 'Thin strips, low temp, dry until leathery.'),
+      S('pepper', 'Cracked Pepper', 'Classic', 'Coarse pepper, soy, Worcestershire', [160, 180], 160, null, null, 0, 'The original: coarse pepper and a savoury marinade.'),
+      S('cajun', 'Cajun', 'Louisiana', 'Cayenne, garlic, paprika', [160, 180], 160, null, null, 0, 'A hot Cajun marinade for a spicy jerky.'),
+    ],
+    misc_butter: [
+      S('garlic_herb', 'Garlic & Herb', 'Classic', 'Garlic, parsley, sea salt', [180, 225], 80, null, null, 0, 'Cold-smoke a block with garlic and herbs folded in.'),
+      S('maple', 'Maple', 'Vermont', 'Maple, flaky salt', [180, 225], 80, null, null, 0, 'Maple and flaky salt — unreal on cornbread.'),
     ],
   };
 
@@ -653,9 +1438,47 @@
     { id: 'alarm-pit-crash', label: 'Alarm: pit crash', hint: 'Fire a device pit-crash alarm.' },
   ];
 
+  // ── Device identity, firmware and diagnostics ─────────────────────────
+  // [FLUTTER] DEVICE maps to the `app_config` identity + `device_facts.dart`;
+  // FIRMWARE maps to `app_ota`. The OTA rules are real and must survive:
+  //   - upload is Wi-Fi only (AP or STA); Bluetooth cannot carry an image
+  //   - an active recording session returns 409 `session_active` unless forced
+  //   - a failed health gate within 120 s of boot auto-rolls back to the old slot
+  const DEVICE = {
+    id: 'A4F2-9C71',
+    hardware: 'rev C · ESP32-S3',
+    version: 'v1.4.2',
+    versionDate: '2026-07-18',
+    bootloader: '2.1.0',
+    channel: 'stable',        // 'stable' | 'beta'
+    available: null,          // populated by "Check for updates" (mock)
+    uptimeMin: 4387,
+    heapKb: 128,
+    storage: { usedKb: 36, totalKb: 512, sessions: 12, days: 54 },
+    lastCrash: null,
+    logs: [
+      { t: '09:12:04', level: 'info', text: 'LoRa sync acquired — base station paired' },
+      { t: '09:12:09', level: 'info', text: 'Session SMK-4482 opened, 4 probes attached' },
+      { t: '09:41:22', level: 'warn', text: 'Probe 3 detached briefly — reconnect 4 s' },
+      { t: '09:58:01', level: 'info', text: 'Wi-Fi STA connected — 192.168.1.42' },
+      { t: '10:02:47', level: 'info', text: 'Alarm rule pit_crash fired (device tier)' },
+    ],
+  };
+  const FIRMWARE = {
+    latest: 'v1.5.0',
+    latestDate: '2026-09-02',
+    sizeKb: 1024,
+    notes: [
+      'Faster BLE history streaming on long sessions',
+      'Pit-crash rule: less sensitive to lid openings',
+      'Fixes a rare AP fallback race after router loss',
+    ],
+    rollback: 'A failed health check within 120 s of boot auto-rolls back to the previous slot. Nothing is lost.',
+  };
+
   // ── Exposed model ─────────────────────────────────────────────────────
   window.MOCK = {
-    F, TIMELINES, CATALOG, CATEGORIES, STYLES, SCENARIOS, HISTORY, MODES, ALARM_RULES, EVENTS,
+    F, TIMELINES, CATALOG, CATEGORIES, STYLES, SCENARIOS, HISTORY, MODES, ALARM_RULES, EVENTS, DEVICE, FIRMWARE,
     defaultScenario: 'running',
     settings: {
       units: 'F',               // 'F' | 'C'  (display only; data stays °F)
@@ -668,6 +1491,8 @@
       monitoring: true,         // background alarm monitoring on/off
       holdBle: true,            // keep BLE warm while on Wi-Fi for fast failover
       autoWrapReminder: true,   // Timeline tab sends wrap/spritz reminders
+      otaChannel: 'stable',     // 'stable' | 'beta'
+      forceOta: false,          // allow an OTA while a session is recording (409 override)
       customCatalog: [],        // user-defined foods (persisted in Flutter)
     },
   };

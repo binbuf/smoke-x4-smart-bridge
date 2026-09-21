@@ -47,12 +47,13 @@
     graph: { zoom: 1, pan: 0 },
     fullGraph: false,
 
-    catalog: { category: 'Beef', selectedId: null, doneness: null, jack: 1, styleId: null },
+    catalog: { category: 'Beef', selectedId: null, doneness: null, jack: 1, styleId: null, query: '' },
     setupMode: 'new',
     pendingAck: {},
 
     confirm: null,     // { title, body, confirmLabel, danger, action, data }
     customForm: null,  // working draft while adding a custom food
+    verb: null,        // { kind, title, sub, steps, step, done } for device verbs
   };
 
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -885,9 +886,14 @@
       setRow('calendar', 'Wrap / spritz reminders', 'Use the expected timeline for nudges', toggle('autoWrapReminder')) + '</div>';
 
     html += '<div class="section-label">Bridge</div><div class="card">' +
-      setRow('cpu', 'Firmware', 'v1.4.2 · up to date', icon('chevronRight')) +
-      setRow('upload', 'Update firmware', 'Over Wi-Fi only', icon('chevronRight')) +
-      setRow('info', 'About & diagnostics', 'Device id, signal, logs', icon('chevronRight')) + '</div>';
+      setRow('cpu', 'Firmware', esc(M.DEVICE.version) + ' · ' + (M.DEVICE.available ? 'update available' : 'up to date'), icon('chevronRight'), 'open-firmware') +
+      setRow('upload', 'Update firmware', M.DEVICE.available ? 'Install ' + esc(M.DEVICE.available) + ' over Wi-Fi' : 'Over Wi-Fi only', icon('chevronRight'), 'open-firmware-update') +
+      setRow('info', 'About & diagnostics', esc(M.DEVICE.id) + ' · signal, storage, logs', icon('chevronRight'), 'open-diagnostics') + '</div>';
+
+    html += '<div class="section-label">' + icon('sliders', 13) + 'Device actions</div><div class="card">' +
+      setRow('refresh', 'Restart the bridge', 'Recovers a hung bridge · recording pauses ~30 s', icon('chevronRight'), 'ask-restart') +
+      setRow('unlink', 'Forget this bridge', 'Remove pairing and Wi-Fi from this app', icon('chevronRight'), 'ask-forget') +
+      setRow('alertTriangle', 'Factory reset', 'Erase all settings, Wi-Fi and recorded sessions', icon('chevronRight'), 'ask-factory', 'danger') + '</div>';
     html += '<div class="card subtle mt3"><div class="tiny muted">A bridge with no clock stores no timestamp — never a made-up one. A detached probe is absent, never 0.</div></div>';
     return html;
   }
@@ -905,8 +911,8 @@
     for (let i = 1; i <= 4; i++) s += '<span style="display:inline-block;width:4px;height:' + (4 + i * 3) + 'px;margin-left:2px;border-radius:1px;background:' + (i <= n ? 'var(--text-hi)' : 'var(--hairline-strong)') + '"></span>';
     return '<span style="display:inline-flex;align-items:flex-end">' + s + '</span>';
   }
-  function setRow(ic, name, sub, right, action) {
-    return '<div class="set-row"' + (action ? ' data-action="' + action + '"' : '') + '><div class="sr-icon">' + icon(ic) + '</div>' +
+  function setRow(ic, name, sub, right, action, cls) {
+    return '<div class="set-row' + (cls ? ' ' + cls : '') + '"' + (action ? ' data-action="' + action + '"' : '') + '><div class="sr-icon">' + icon(ic) + '</div>' +
       '<div class="sr-meta"><div class="sr-name">' + name + '</div><div class="sr-sub">' + sub + '</div></div>' +
       '<div class="sr-right">' + right + '</div></div>';
   }
@@ -998,6 +1004,7 @@
         provisionAp: overlayProvisionAp, alarms: overlayAlarms, alarmDetail: overlayAlarmDetail,
         mark: overlayMark, probe: overlayProbe, adopt: overlayAdopt, editStart: overlayEditStart,
         confirm: overlayConfirm, customFood: overlayCustomFood,
+        firmware: overlayFirmware, firmwareUpdate: overlayFirmwareUpdate, diagnostics: overlayDiagnostics, verb: overlayVerb,
       };
       html = (map[o.name] || (() => ''))(o.props || {});
     }
@@ -1139,23 +1146,34 @@
         '<button class="chip on">' + (ps ? 'Bridge session start' : 'Just now') + '</button><button class="chip">I will set a time</button></div>';
     }
 
+    const q = (state.catalog.query || '').trim().toLowerCase();
+    const list = q
+      ? allCatalog().filter((i) => i.name.toLowerCase().indexOf(q) >= 0 || i.category.toLowerCase().indexOf(q) >= 0 || (i.blurb || '').toLowerCase().indexOf(q) >= 0)
+      : catalogInCat(cat);
     html += '<div class="row between mt4 mb2"><span class="tiny muted">' + (mode === 'existing' ? 'WHAT IS ON THE GRILL?' : 'WHAT ARE YOU COOKING?') + '</span>' +
       '<span class="link" data-action="open-custom">' + icon('plus', 12) + 'Custom food</span></div>' +
-      '<div class="filter-row mb3">' + M.CATEGORIES.map((c) =>
-        '<button class="chip' + (c === cat ? ' on' : '') + '" data-action="catalog-cat" data-cat="' + esc(c) + '">' + esc(c) + '</button>').join('') + '</div>' +
-      '<div class="catalog-grid">' + catalogInCat(cat).map((item) => {
+      '<div class="catalog-search">' + icon('search', 15) + '<input id="catalogSearch" type="search" placeholder="Search all foods — brisket, kalua, jerk, elote…" value="' + esc(state.catalog.query || '') + '" />' +
+      (q ? '<button class="cs-clear" data-action="catalog-clear" aria-label="Clear search">' + icon('x', 14) + '</button>' : '') + '</div>' +
+      '<div class="filter-row mb2">' + M.CATEGORIES.map((c) =>
+        '<button class="chip' + (c === cat && !q ? ' on' : '') + '" data-action="catalog-cat" data-cat="' + esc(c) + '">' + esc(c) + '</button>').join('') + '</div>' +
+      '<div class="catalog-count tiny muted mb2">' + list.length + (q ? ' result' + (list.length === 1 ? '' : 's') + ' for “' + esc(state.catalog.query) + '”' : ' foods in ' + esc(cat)) + '</div>' +
+      (list.length ? '<div class="catalog-grid">' + list.map((item) => {
         const d = donenessFor(item, item.defaultDoneness);
+        const variants = stylesFor(item.id);
         return '<button class="catalog-item' + (state.catalog.selectedId === item.id ? ' selected' : '') + (item.custom ? ' custom' : '') + '" data-action="catalog-pick" data-id="' + item.id + '">' +
           foodAvatar(item.glyph) + '<div class="row between" style="width:100%"><div class="ci-name">' + esc(item.name) + '</div>' + (item.custom ? '<span class="ci-badge">Custom</span>' : '') + '</div>' +
           '<div class="ci-meta">' + esc(item.blurb) + '</div>' +
-          '<div class="ci-temp">' + icon('target', 11) + ' ' + fmtTemp(d.targetF, 0) + ' · pit ' + item.pitBand[0] + '–' + item.pitBand[1] + '°</div></button>';
-      }).join('') + '</div>';
+          '<div class="ci-temp">' + icon('target', 11) + ' ' + fmtTemp(d.targetF, 0) + ' · pit ' + item.pitBand[0] + '–' + item.pitBand[1] + '°' +
+          (variants ? ' · <span class="ci-var">' + variants.length + ' styles</span>' : '') + '</div></button>';
+      }).join('') + '</div>' : '<div class="state" style="padding:18px 0"><div class="st-copy">No foods match that search.</div></div>');
 
     if (sel) {
       if (styles) {
-        html += '<div class="tiny muted mt4 mb2">STYLE</div><div class="style-grid">' + styles.map((st) =>
+        html += '<div class="row between mt4 mb2"><span class="tiny muted">PREPARATION STYLE</span><span class="tiny muted">' + styles.length + ' ways to cook ' + esc(sel.name) + '</span></div>' +
+          '<div class="tiny muted mb2" style="margin-top:-4px">Same cut, different dish. Pick the one you are making — it sets the pit band, wrap, target, rest and timeline.</div>' +
+          '<div class="style-grid">' + styles.map((st) =>
           '<div class="style-card' + (style && style.id === st.id ? ' on' : '') + '" data-action="style-pick" data-id="' + st.id + '">' +
-          '<div class="sc-icon">' + icon('utensils') + '</div><div class="sc-meta"><div class="sc-name">' + esc(st.name) + '</div>' +
+          '<div class="sc-icon">' + icon('utensils') + '</div><div class="sc-meta"><div class="sc-name">' + esc(st.name) + (st.region ? ' <span class="sc-region">' + esc(st.region) + '</span>' : '') + '</div>' +
           '<div class="sc-tag">' + esc(st.tagline) + '</div><div class="sc-note">' + esc(st.note) + '</div></div></div>').join('') + '</div>';
       }
       if (sel.doneness.length > 1) {
@@ -1483,6 +1501,175 @@
       body + '<div class="btn-row mt4"><button class="btn ghost" data-action="close-overlay">Close</button></div></div>', true);
   }
 
+  // ---- Firmware (installed version + changelog) ----------------------------
+  // [FLUTTER] app_ota: OTA is Wi-Fi-only, versioned, and auto-rolls back if the
+  // post-boot health gate fails. The UI must state the transport requirement and
+  // the session conflict before the user commits (I5, I8, I12-adjacent).
+  function overlayFirmware() {
+    const d = M.DEVICE;
+    const body = '<div class="card"><div class="row"><div class="sr-icon">' + icon('cpu') + '</div>' +
+      '<div style="flex:1"><div class="hi bold">' + esc(d.version) + '</div><div class="tiny muted">Installed ' + esc(d.versionDate) + ' · ' + esc(d.channel) + ' channel</div></div>' +
+      (d.available ? '<span class="ci-badge" style="color:var(--warning);border-color:rgba(var(--warning-rgb),0.4)">Update</span>' : '<span style="color:var(--positive)">' + icon('check') + '</span>') + '</div>' +
+      '<div class="divider"></div>' +
+      diagRow('Hardware', d.hardware) + diagRow('Bootloader', d.bootloader) + diagRow('Auto-rollback', 'On') + '</div>' +
+      '<div class="section-label">Update channel</div><div class="seg-chips">' +
+      [['stable', 'Stable'], ['beta', 'Beta']].map((c) =>
+        '<button class="chip' + (state.settings.otaChannel === c[0] ? ' on' : '') + '" data-action="set-ota-channel" data-channel="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' +
+      '<div class="cap-notice mt3">' + icon('info') + '<div class="cn-text">Firmware is delivered <b>over Wi-Fi only</b> — Bluetooth cannot carry an image. ' + esc(M.FIRMWARE.rollback) + '</div></div>' +
+      (d.available
+        ? '<div class="card subtle mt3"><div class="tiny muted mb2">Available now</div><div class="hi bold">' + esc(d.available) + '</div>' +
+          '<div class="btn primary mt3" data-action="open-firmware-update">' + icon('upload') + 'Install ' + esc(d.available) + '</div></div>'
+        : '<div class="btn primary mt4" data-action="check-firmware">' + icon('refresh') + 'Check for updates</div>');
+    return sheetWrap('Firmware', esc(M.DEVICE.version), body);
+  }
+
+  function overlayFirmwareUpdate() {
+    const d = M.DEVICE, fw = M.FIRMWARE, s = scenario(), c = s.connection, wifi = c.wifi || {};
+    const wifiOk = !!wifi.connected;
+    const cook = s.cook;
+    const conflict = cook.active && !state.settings.forceOta;
+    let body = '';
+    if (!d.available) {
+      body = '<div class="cap-notice">' + icon('check') + '<div class="cn-text">You are on the latest ' + esc(state.settings.otaChannel) + ' release, <b>' + esc(d.version) + '</b>.</div></div>' +
+        '<div class="btn primary mt4" data-action="check-firmware">' + icon('refresh') + 'Check again</div>';
+      return sheetWrap('Update firmware', 'Over Wi-Fi only', body);
+    }
+    body += '<div class="card"><div class="row between"><div><div class="tiny muted">Installed</div><div class="hi bold">' + esc(d.version) + '</div></div>' +
+      icon('arrowRight') + '<div style="text-align:right"><div class="tiny muted">Available</div><div class="hi bold" style="color:var(--p1)">' + esc(fw.latest) + '</div></div></div>' +
+      '<div class="divider"></div>' + fw.notes.map((n) => '<div class="mode-li good">' + esc(n) + '</div>').join('') +
+      '<div class="row between tiny muted mt2"><span>' + esc(fw.latestDate) + '</span><span>' + fw.sizeKb + ' KB</span></div></div>';
+
+    if (!wifiOk) {
+      body += '<div class="cap-notice warn mt3">' + icon('alertTriangle') + '<div class="cn-text">This bridge is not on Wi-Fi right now. An image is too big for Bluetooth — <b>join home Wi-Fi or the bridge hotspot</b> before updating.</div></div>' +
+        '<div class="btn-row mt3"><button class="btn primary" data-action="provision-sta">' + icon('router') + 'Join Wi-Fi</button>' +
+        '<button class="btn ghost" data-action="provision-ap">' + icon('wifi') + 'Use hotspot</button></div>';
+    } else {
+      body += '<div class="cap-notice mt3">' + icon('info') + '<div class="cn-text">Connected over Wi-Fi. Do not power the bridge off during the update.</div></div>';
+    }
+    if (cook.active) {
+      body += '<div class="cap-notice ' + (state.settings.forceOta ? '' : 'crit') + ' mt3">' + icon('alertTriangle') +
+        '<div class="cn-text">A cook is <b>recording right now</b>. Updating pauses recording and normally returns <b>409 session_active</b>. Force it only if you accept losing this window.</div></div>' +
+        '<div class="set-row mt2"><div class="sr-icon">' + icon('zap') + '</div><div class="sr-meta"><div class="sr-name">Force update during this cook</div><div class="sr-sub">Overrides the session-active guard</div></div>' +
+        '<div class="sr-right">' + toggle('forceOta') + '</div></div>';
+    }
+    const disabled = !wifiOk || conflict;
+    body += '<button class="btn primary mt4' + (disabled ? ' disabled' : '') + '" data-action="' + (disabled ? '' : 'firmware-install') + '">' +
+      icon('upload') + 'Install ' + esc(fw.latest) + '</button>';
+    if (!wifiOk) body += '<div class="tiny muted center mt2">Wi-Fi required to install</div>';
+    else if (conflict) body += '<div class="tiny muted center mt2">Force the update above, or wait until the cook is done</div>';
+    return sheetWrap('Update firmware', 'Over Wi-Fi only', body);
+  }
+
+  // ---- About & diagnostics -------------------------------------------------
+  function overlayDiagnostics() {
+    const d = M.DEVICE, s = scenario(), c = s.connection, bt = c.bt || {}, wifi = c.wifi || {};
+    let body = '<div class="card"><div class="card-head">' + icon('cpu') + '<div class="card-title">' + esc(c.deviceName) + '</div>' +
+      '<span class="spacer"></span><span class="mono tiny muted">' + esc(d.id) + '</span></div>' +
+      diagRow('Firmware', d.version + ' · ' + d.channel) + diagRow('Hardware', d.hardware) + diagRow('Bootloader', d.bootloader) +
+      diagRow('Uptime', fmtDuration(d.uptimeMin * 60000)) + diagRow('Free heap', d.heapKb + ' KB') +
+      diagRow('Battery', c.batteryPct === null ? '—' : c.batteryPct + '%') + diagRow('Recording', c.recording ? 'Yes — on the bridge' : 'No') +
+      diagRow('Last crash', d.lastCrash || 'None') + '</div>';
+
+    body += '<div class="section-label">Signal</div><div class="card">' +
+      '<div class="link-row' + (bt.connected ? '' : ' off') + '"><div class="lr-icon">' + icon('bluetooth') + '</div>' +
+      '<div class="lr-meta"><div class="lr-name">Bluetooth</div><div class="lr-sub">' + (bt.connected ? signalWord(bt.bars) + (bt.rssi ? ' · ' + bt.rssi + ' dBm' : '') : 'Not connected') + '</div></div>' +
+      '<div class="lr-right">' + signalBars(bt.bars) + '</div></div>' +
+      '<div class="link-row' + (wifi.connected ? '' : ' off') + '"><div class="lr-icon">' + icon('router') + '</div>' +
+      '<div class="lr-meta"><div class="lr-name">Wi-Fi</div><div class="lr-sub">' + (wifi.mode === 'off' ? 'Not set up' : wifi.connected ? esc(wifi.ssid || '') + (wifi.ip ? ' · ' + wifi.ip : '') + ' · ' + signalWord(wifi.bars) : 'Not connected') + '</div></div>' +
+      '<div class="lr-right">' + signalBars(wifi.bars) + '</div></div></div>';
+
+    const st = d.storage;
+    body += '<div class="section-label">Storage</div><div class="card">' +
+      diagRow('Sessions kept', st.sessions + ' of 64') +
+      diagRow('Flash used', st.usedKb + ' of ' + st.totalKb + ' KB') +
+      diagRow('Retention', '~' + st.days + ' days of recording') +
+      '<div class="tt-progress mt2"><i style="width:' + Math.round((st.usedKb / st.totalKb) * 100) + '%"></i></div></div>';
+
+    body += '<div class="section-label">Recent logs</div><div class="card mono" style="font-size:11px">' +
+      d.logs.map((l) => '<div class="row" style="gap:8px;padding:5px 0;border-bottom:1px solid var(--hairline)">' +
+        '<span class="muted">' + esc(l.t) + '</span>' +
+        '<span style="color:' + (l.level === 'warn' ? 'var(--warning)' : l.level === 'error' ? 'var(--critical)' : 'var(--text-body)') + '">' + esc(l.level) + '</span>' +
+        '<span class="hi" style="flex:1">' + esc(l.text) + '</span></div>').join('') + '</div>';
+
+    body += '<div class="btn-row mt4"><button class="btn" data-action="copy-diagnostics">' + icon('download') + 'Copy diagnostics</button>' +
+      '<button class="btn ghost" data-action="field-report">' + icon('share') + 'Field report</button></div>';
+    return sheetWrap('About & diagnostics', esc(d.id), body);
+  }
+  function diagRow(k, v) {
+    return '<div class="row between small" style="padding:6px 0;border-bottom:1px solid var(--hairline)"><span class="muted">' + k + '</span><span class="hi mono" style="font-size:12px">' + esc(v) + '</span></div>';
+  }
+
+  // ---- Device verbs (restart / forget / factory / OTA progress) ------------
+  const VERBS = {
+    restart: { title: 'Restarting the bridge', sub: 'Settings and the recording are kept.', steps: ['Stopping recording cleanly', 'Draining the sample buffer', 'Rebooting', 'LoRa re-sync', 'Reconnecting'] },
+    forget: { title: 'Forgetting this bridge', sub: 'Pairing and Wi-Fi are removed from this app only.', steps: ['Dropping the Bluetooth bond', 'Clearing saved Wi-Fi from the app', 'Stopping background monitoring'] },
+    factory: { title: 'Factory resetting', sub: 'Everything on the bridge is being erased.', steps: ['Stopping recording', 'Erasing recorded sessions', 'Clearing Wi-Fi and alarm rules', 'Restoring defaults', 'Rebooting to setup mode'] },
+    ota: { title: 'Installing firmware', sub: 'Do not power off the bridge.', steps: ['Verifying the image', 'Streaming over Wi-Fi', 'Writing the inactive slot', 'Rebooting into the new slot', 'Health check'] },
+  };
+  function openVerb(kind) {
+    const V = VERBS[kind] || VERBS.restart;
+    state.verb = { kind: kind, title: V.title, sub: V.sub, steps: V.steps, step: 0, done: false };
+    state.overlay = { name: 'verb', props: {} };
+    renderOverlays();
+    runVerb();
+  }
+  function runVerb() {
+    const v = state.verb;
+    if (!v || v.done) return;
+    if (v.step >= v.steps.length) { applyVerb(v.kind); v.done = true; renderOverlays(); return; }
+    v.step += 1; renderOverlays();
+    setTimeout(function () { if (state.verb === v) runVerb(); }, 680);
+  }
+  function applyVerb(kind) {
+    const s = scenario(), c = s.connection;
+    if (kind === 'restart') {
+      c.phase = 'connecting'; c.error = null;
+      setTimeout(function () {
+        c.phase = 'connected';
+        c.bt = Object.assign({}, c.bt, { connected: true, bars: c.bt.bars || 3, lastSyncS: 0 });
+        if (!c.primary) c.primary = 'bt';
+        render();
+      }, 2200);
+      s.notice = 'Bridge restarted — recording resumed.';
+    } else if (kind === 'forget') {
+      c.phase = 'offline'; c.primary = null;
+      c.bt = Object.assign({}, c.bt, { connected: false, bars: 0, warm: false });
+      c.wifi = Object.assign({}, c.wifi, { mode: 'off', connected: false, ssid: null, ip: null, bars: null });
+      s.notice = 'Bridge forgotten — pair again with its passkey.';
+    } else if (kind === 'factory') {
+      c.phase = 'offline'; c.primary = null;
+      c.bt = Object.assign({}, c.bt, { connected: false, bars: 0, warm: false });
+      c.wifi = Object.assign({}, c.wifi, { mode: 'off', connected: false, ssid: null, ip: null, bars: null });
+      s.cook = { active: false, paused: false, name: '', startedAtMs: null, pitBand: [225, 275], grateTargetF: null, items: [] };
+      s.alarms = []; s.marks = []; s.pendingSession = null;
+      M.DEVICE.available = null;
+      s.notice = 'Bridge erased and back in setup mode.';
+    } else if (kind === 'ota') {
+      M.DEVICE.version = M.DEVICE.available || M.DEVICE.version;
+      M.DEVICE.available = null;
+      M.DEVICE.lastCrash = null;
+      s.notice = 'Firmware updated to ' + M.DEVICE.version + '.';
+    }
+  }
+  function overlayVerb() {
+    const v = state.verb;
+    if (!v) return '';
+    const rows = v.steps.map(function (st, i) {
+      const done = v.done || i < v.step;
+      const active = !v.done && i === v.step;
+      return '<div class="verb-step' + (done ? ' done' : active ? ' on' : '') + '">' +
+        '<span class="vs-dot">' + (done ? icon('check', 12) : active ? '●' : '') + '</span>' +
+        '<span class="vs-label">' + esc(st) + '</span></div>';
+    }).join('');
+    const body = '<div class="verb-head">' + (v.done ? icon('check', 30) : '<span class="verb-spin">' + icon('refresh', 28) + '</span>') + '</div>' +
+      '<div class="center"><div class="card-title" style="font-size:18px">' + (v.done ? 'Done' : esc(v.title)) + '</div>' +
+      '<div class="body small mt2">' + esc(v.sub) + '</div></div>' +
+      '<div class="card mt3">' + rows + '</div>' +
+      (v.done ? '<div class="btn primary mt4" data-action="verb-close">' + icon('check') + 'Close</div>'
+        : '<div class="tiny muted center mt3">Keep the app open…</div>');
+    return sheetWrap(v.done ? 'Complete' : v.title, v.done ? 'All steps finished' : v.sub, body);
+  }
+
   // =============================================== §8 ACTIONS + DELEGATION ====
   let lastChart = null;
   let dragState = null;
@@ -1674,6 +1861,28 @@
       case 'open-probe': openOverlay('probe', { jack: Number(el.dataset.jack) }); break;
       case 'open-history': go('history'); break;
       case 'open-alarm-detail': openOverlay('alarmDetail', { id: el.dataset.id }); break;
+      case 'open-firmware': openOverlay('firmware'); break;
+      case 'open-firmware-update': openOverlay('firmwareUpdate'); break;
+      case 'open-diagnostics': openOverlay('diagnostics'); break;
+      case 'set-ota-channel': state.settings.otaChannel = el.dataset.channel; renderOverlays(); break;
+      case 'check-firmware':
+        M.DEVICE.available = M.FIRMWARE.latest;
+        renderOverlays(); toast('Update available: ' + M.FIRMWARE.latest); break;
+      case 'firmware-install': openVerb('ota'); break;
+      case 'verb-close': closeOverlay(); render(); toast('All set'); break;
+      case 'copy-diagnostics': toast('Diagnostics copied to clipboard'); break;
+      case 'field-report':
+        openConfirm({ title: 'Send a field report?', confirmLabel: 'Send report',
+          body: 'Bundles recent logs, device facts and the last ' + M.DEVICE.storage.days + ' days of session headers. No cook data leaves the phone without you seeing it first.' }); break;
+      case 'ask-restart':
+        openConfirm({ title: 'Restart the bridge?', confirmLabel: 'Restart', action: 'restart-device',
+          body: 'Recording pauses for about <b class="hi">30 seconds</b>. The bridge keeps its settings and the current cook is <b class="hi">not</b> lost.' }); break;
+      case 'ask-forget':
+        openConfirm({ title: 'Forget this bridge?', confirmLabel: 'Forget', danger: true, action: 'forget-device',
+          body: 'Removes the pairing and saved Wi-Fi from <b class="hi">this app</b>. The bridge keeps recording and keeps its own data. You will need its passkey to pair again.' }); break;
+      case 'ask-factory':
+        openConfirm({ title: 'Factory reset the bridge?', confirmLabel: 'Factory reset', danger: true, action: 'factory-reset',
+          body: '<b class="hi">Everything on the bridge is erased</b> — Wi-Fi, alarm rules and all recorded cook sessions. This cannot be undone. The bridge reboots into setup mode.' }); break;
       case 'open-wifi-settings': toast('Opening your phone’s Wi-Fi settings…'); break;
       case 'adopt': openOverlay('adopt'); break;
       case 'adopt-confirm': state.catalog.selectedId = state.catalog.selectedId || 'beef_brisket'; state.catalog.jack = 1; adoptCook(); break;
@@ -1687,7 +1896,8 @@
       }
       case 'pause-cook': s.cook.paused = !s.cook.paused; render(); toast(s.cook.paused ? 'Cook paused' : 'Cook resumed'); break;
       case 'setup-mode': state.setupMode = el.dataset.mode; renderOverlays(); break;
-      case 'catalog-cat': state.catalog.category = el.dataset.cat; state.catalog.selectedId = null; state.catalog.styleId = null; renderOverlays(); break;
+      case 'catalog-cat': state.catalog.category = el.dataset.cat; state.catalog.selectedId = null; state.catalog.styleId = null; state.catalog.query = ''; renderOverlays(); break;
+      case 'catalog-clear': state.catalog.query = ''; renderOverlays(); break;
       case 'catalog-pick': state.catalog.selectedId = el.dataset.id; state.catalog.doneness = null; state.catalog.styleId = null; renderOverlays(); break;
       case 'style-pick': state.catalog.styleId = el.dataset.id; renderOverlays(); break;
       case 'doneness-pick': {
@@ -1722,6 +1932,9 @@
         const cf = state.confirm; state.confirm = null;
         if (cf && cf.action === 'add-item') { closeOverlay(); addItemToCook(cf.data.presetId, cf.data.jack, cf.data.styleId); }
         else if (cf && cf.action === 'delete-cook') { closeOverlay(); toast('Deleted (mock)'); go('history'); }
+        else if (cf && cf.action === 'restart-device') { openVerb('restart'); }
+        else if (cf && cf.action === 'forget-device') { openVerb('forget'); }
+        else if (cf && cf.action === 'factory-reset') { openVerb('factory'); }
         else { closeOverlay(); renderOverlays(); }
         break;
       }
@@ -1837,6 +2050,18 @@
     }
   });
 
+  // Live catalog search. The overlay is re-rendered on each keystroke, so we
+  // restore focus and caret position after the rebuild.
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'catalogSearch') {
+      state.catalog.query = e.target.value;
+      const pos = e.target.selectionStart;
+      renderOverlays();
+      const el = document.getElementById('catalogSearch');
+      if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (err) { /* search is a nicety */ } }
+    }
+  });
+
   // ---- Chart crosshair + gestures ------------------------------------------
   function wireGraph() {
     ['chartHost', 'chartHostFull'].forEach(function (id) {
@@ -1896,7 +2121,7 @@
     const screens = ['live', 'temps', 'timeline', 'graph', 'settings', 'history'];
     $('#dpScreens').innerHTML = screens.map((sc) =>
       '<button class="dp-btn' + (state.screen === sc ? ' on' : '') + '" data-action="dev-screen" data-screen="' + sc + '">' + sc + '</button>').join('');
-    const overlays = [['onboarding', 'Onboarding'], ['setup', 'Cook setup'], ['connect', 'Connection'], ['modes', 'Modes'], ['modesRef', 'Modes reference'], ['provisionSta', 'Join Wi-Fi'], ['provisionAp', 'Hotspot'], ['alarms', 'Alerts'], ['mark', 'Add mark'], ['adopt', 'Adopt'], ['editStart', 'Edit start'], ['customFood', 'Custom food']];
+    const overlays = [['onboarding', 'Onboarding'], ['setup', 'Cook setup'], ['connect', 'Connection'], ['modes', 'Modes'], ['modesRef', 'Modes reference'], ['provisionSta', 'Join Wi-Fi'], ['provisionAp', 'Hotspot'], ['alarms', 'Alerts'], ['mark', 'Add mark'], ['adopt', 'Adopt'], ['editStart', 'Edit start'], ['customFood', 'Custom food'], ['firmware', 'Firmware'], ['firmwareUpdate', 'Update firmware'], ['diagnostics', 'Diagnostics']];
     $('#dpOverlays').innerHTML = overlays.map((o) =>
       '<button class="dp-btn" data-action="open-overlay" data-name="' + o[0] + '">' + o[1] + '</button>').join('');
     $('#dpEvents').innerHTML = M.EVENTS.map((e) =>

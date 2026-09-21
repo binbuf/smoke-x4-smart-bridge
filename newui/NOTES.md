@@ -58,7 +58,9 @@ Overlays (sheets/modals), all reachable from the dev panel:
 `connect` (dual-link) · `modes` · `modesRef` (the technical reference the `?`
 opens) · `provisionSta` · `provisionAp` · `alarms` · `alarmDetail` · `mark` ·
 `probe` · `adopt` · `editStart` · `confirm` (generic, used for the long-item
-warning) · `customFood`.
+warning and the device cost sheets) · `customFood` · `firmware` ·
+`firmwareUpdate` · `diagnostics` · `verb` (the restart / forget / factory / OTA
+progress sheet).
 
 **Why this shape.** The brief asks for timers front-and-centre *and* a graph
 *and* a timeline *and* a catalog. Those are four different mental modes, so they
@@ -82,14 +84,31 @@ In Flutter these are `ThemeMode` + a `ThemeExtension` for the contrast profile.
 
 ### 2.2 The cook-style packs (new)
 
-Selecting a cut is not enough — "Pork Shoulder" could be Texas pulled pork or
-Kālua pork. `MOCK.STYLES` keys cook variants to a preset id; each sets pit band,
-wrap, spritz, target, rest and timeline together. Every catalog entry has a
-synthesized timeline, so the Timeline tab works for all of them. A `Custom food`
-form adds user cuts with their own target + timeline (stored on the item as
-`timeline`, bypassing `MOCK.TIMELINES`).
+Selecting a cut is not enough — "Pork Shoulder" could be Texas pulled pork,
+Kālua pork, Carolina, Cuban mojo, pernil or cochinita pibil. `MOCK.STYLES` keys
+cook variants to a preset id; each sets pit band, wrap, spritz, target, rest and
+timeline together, and carries a `region` badge so the app teaches the taxonomy.
 
-### 2.3 The dual-link connection model (new)
+This is deliberately a **large content table**, not a handful of presets. The
+catalog now holds **139 foods across 10 categories** (a new `Desserts` category
+joins the original nine), and **every one of them has at least two preparation
+styles** — **318 named variants over 133 styled cuts** at last count. The same
+braise/dry-rub/glaze machinery covers beef offal (cheeks, oxtail, tongue,
+shank), whole-hog and hock, game birds and wild game, shellfish, 20+ vegetables,
+sides and desserts. A `Custom food` form adds user cuts with their own target +
+timeline (stored on the item as `timeline`, bypassing `MOCK.TIMELINES`).
+
+**In Flutter** this is the same class of reviewer-owned data as `presets.dart`:
+a preset+style record keyed by the preset id, with a named reviewer on the
+table. The `region` field is identity metadata, never a status channel.
+
+### 2.3 Catalog search
+
+The setup sheet searches all 139 foods at once (name, category or blurb). Results
+show a live count; each tile shows its variant count ("4 styles"). In Flutter
+this is a debounced filter over the preset library, not a new repository.
+
+### 2.4 The dual-link connection model (new)
 
 `connection.bt` and `connection.wifi` are independent links with their own
 health; `connection.primary` says which carries data; `connection.phase` is
@@ -166,6 +185,32 @@ Onboarding, the catalog and the empty reader may be warm and saturated (no cook
 exists, so nothing can lie). A running cook cools to ink-and-chrome. The
 prototype follows this: the setup sheet is vivid, the live probe board is
 disciplined.
+
+### 3.8 Firmware, diagnostics and device verbs (new)
+
+Settings → **Bridge** now has three live rows and a **Device actions** group.
+No row is a dead control (I5).
+
+- **Firmware** (`overlayFirmware`) — installed version, channel (stable/beta),
+  hardware, bootloader and the auto-rollback promise.
+- **Update firmware** (`overlayFirmwareUpdate`) — states the transport rule
+  first: an image is **Wi-Fi-only**. If the bridge is not on Wi-Fi the primary
+  action becomes *Join Wi-Fi*, not *Install*. If a cook is recording it warns
+  about the firmware's **409 `session_active`** guard and offers an explicit
+  **force** toggle before the button is enabled. Maps to `app_ota`.
+- **About & diagnostics** (`overlayDiagnostics`) — device id, hardware, uptime,
+  heap, battery, both radios, storage/retention, recent logs, copy-diagnostics
+  and field report. Maps to `device_facts.dart` + the field-report flow.
+- **Device actions** — *Restart*, *Forget this bridge*, *Factory reset*. Each
+  opens a **cost sheet** (`confirm`) that states the consequence, then a
+  **verb-progress sheet** (`verb`) that names every step as it completes:
+  `applyVerb()` mutates the scenario when the last step lands. This is the
+  restart/forget/factory-reset contract from the research notes, finally
+  reachable from Settings.
+
+`MOCK.DEVICE` and `MOCK.FIRMWARE` hold the identity + release data. The OTA
+rules (Wi-Fi-only, session guard, 120 s health-gate rollback) are real and must
+survive the port.
 
 ---
 
@@ -264,8 +309,12 @@ without losing anything.
 | Cooks history | `CookRepository.list/watch`, `CookDetailView`; now reached from **Settings → History** |
 | Onboarding | `SetupMachine` (§12), `BridgeIllustration`, `PasskeyDisplay` |
 | Theme mode (system/light/dark) | **new** — `ThemeMode` + a light token set; `SmokeTokens.daylight` becomes the high-contrast profile |
-| Cook-style packs | **new** — preset + style record; sets pit band/wrap/spritz/target/timeline |
+| Cook-style packs | **new** — preset + style record; sets pit band/wrap/spritz/target/timeline, plus a `region` badge |
 | Custom foods | **new** — user presets with their own timeline, stored with the preset library |
+| Catalog search | **new** — debounced filter over the preset library; no new repository |
+| Firmware / OTA | `app_ota`, `firmware_picker.dart`; Wi-Fi-only upload, session guard, health-gate rollback |
+| About & diagnostics | `device_facts.dart`, field-report flow, five-tap diagnostics gate |
+| Restart / Forget / Factory reset | `POST /restart`, `/pairing/unpair`, `/factory-reset`; cost sheet + verb-progress sheet |
 | Dual-link connection UI | `ConnectionSupervisor` capability/health for BLE **and** Wi-Fi, exposed as two independent links |
 | Wi-Fi provisioning (AP/STA) | `app_net` modes; the passphrase/SSID/QR flow + rollback timer |
 | Mock event bus | **new** — dev-only; maps to live bridge state in the real app |
