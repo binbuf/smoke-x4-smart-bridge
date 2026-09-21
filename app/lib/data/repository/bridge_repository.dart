@@ -68,6 +68,16 @@ abstract interface class BridgeRepository {
   /// Adopt the bridge's already-running session as a cook.
   Future<void> adoptSession();
 
+  /// Freeze/resume the **displayed** stopwatch. UI-only: the bridge keeps
+  /// recording either way (I2, NOTES §7.3).
+  Future<void> setCookPaused(bool paused);
+
+  /// Move the cook window without rewriting any recorded sample (I10).
+  Future<void> setCookStart(int startedAtMs);
+
+  /// Drop the bridge's unadopted session (the "Start fresh" action).
+  Future<void> discardSession();
+
   /// Begin a guided cook on [jack].
   Future<void> startCook({
     required String presetId,

@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/dev_panel.dart';
 import '../../design/design.dart';
+import '../live/live_overlays.dart';
 import 'app_bar.dart';
 
 /// A named overlay request plus its string props.
@@ -59,17 +60,28 @@ sealed class OverlayContent {
   final String title;
 }
 
+/// Builds an overlay body/actions with the host's dismiss callback, so a body
+/// can apply an action and close without importing the shell.
+typedef OverlayBodyBuilder = Widget Function(VoidCallback dismiss);
+
 /// A bottom-sheet overlay.
 class SheetOverlay extends OverlayContent {
   const SheetOverlay({
     required super.title,
     this.sub,
-    required this.body,
+    this.body,
+    this.bodyBuilder,
     this.foot,
   });
 
   final String? sub;
-  final Widget body;
+
+  /// A static body. Ignored when [bodyBuilder] is supplied.
+  final Widget? body;
+
+  /// A body that needs the host's dismiss callback (N5 mark sheet, …).
+  final OverlayBodyBuilder? bodyBuilder;
+
   final Widget? foot;
 }
 
@@ -77,14 +89,25 @@ class SheetOverlay extends OverlayContent {
 class ModalOverlay extends OverlayContent {
   const ModalOverlay({
     required super.title,
-    required this.body,
+    this.body,
+    this.bodyBuilder,
     this.confirmLabel = 'Confirm',
     this.danger = false,
+    this.actions,
+    this.actionsBuilder,
   });
 
-  final Widget body;
+  final Widget? body;
+  final OverlayBodyBuilder? bodyBuilder;
   final String confirmLabel;
   final bool danger;
+
+  /// Replaces the default Confirm/Cancel row. Ignored when [actionsBuilder]
+  /// is supplied.
+  final Widget? actions;
+
+  /// Builds the action row with the host's dismiss callback.
+  final OverlayBodyBuilder? actionsBuilder;
 }
 
 /// The prototype's §7 map, as a resolver over [DevOverlay].
@@ -145,7 +168,7 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     DevOverlay.mark => SheetOverlay(
       title: 'Add a mark',
       sub: 'A timestamped event on this cook',
-      body: body('Wrap / spritz / turn marks land in N5 and N8.'),
+      bodyBuilder: (dismiss) => MarkSheetBody(onDone: dismiss),
     ),
     DevOverlay.probe => SheetOverlay(
       title: 'Probe ${request.props['jack'] ?? ''}'.trim(),
@@ -155,14 +178,13 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     DevOverlay.adopt => ModalOverlay(
       title: 'Adopt session',
       confirmLabel: 'Adopt session',
-      body: modal(
-        'Backdating and pulling already-recorded samples lands in N5/N9.',
-      ),
+      bodyBuilder: (dismiss) => AdoptSessionBody(onDone: dismiss),
+      actionsBuilder: (dismiss) => AdoptSessionActions(onDone: dismiss),
     ),
     DevOverlay.editStart => ModalOverlay(
       title: 'Adjust start time',
-      confirmLabel: 'Save',
-      body: modal('Moving the cook window without moving samples lands in N5.'),
+      confirmLabel: 'Done',
+      bodyBuilder: (dismiss) => EditStartBody(onDone: dismiss),
     ),
     DevOverlay.confirm => ModalOverlay(
       title: request.props['title'] ?? 'Confirm',
@@ -355,6 +377,7 @@ class ShellModalCard extends StatelessWidget {
     required this.body,
     this.confirmLabel = 'Confirm',
     this.danger = false,
+    this.actions,
     this.onConfirm,
     this.onCancel,
   });
@@ -363,6 +386,10 @@ class ShellModalCard extends StatelessWidget {
   final Widget body;
   final String confirmLabel;
   final bool danger;
+
+  /// Replaces the default Confirm/Cancel row (N5 adopt).
+  final Widget? actions;
+
   final VoidCallback? onConfirm;
   final VoidCallback? onCancel;
 
@@ -392,33 +419,38 @@ class ShellModalCard extends StatelessWidget {
           const SizedBox(height: 8),
           body,
           const SizedBox(height: 16),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: danger
-                    ? SmokeButton(
-                        key: const ValueKey<String>('shell-overlay-confirm'),
-                        label: confirmLabel,
-                        variant: SmokeButtonVariant.danger,
-                        onPressed: onConfirm,
-                      )
-                    : PrimaryAction(
-                        key: const ValueKey<String>('shell-overlay-confirm'),
-                        label: confirmLabel,
-                        onPressed: onConfirm,
-                      ),
+          actions ??
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: danger
+                        ? SmokeButton(
+                            key: const ValueKey<String>(
+                              'shell-overlay-confirm',
+                            ),
+                            label: confirmLabel,
+                            variant: SmokeButtonVariant.danger,
+                            onPressed: onConfirm,
+                          )
+                        : PrimaryAction(
+                            key: const ValueKey<String>(
+                              'shell-overlay-confirm',
+                            ),
+                            label: confirmLabel,
+                            onPressed: onConfirm,
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SmokeButton(
+                      key: const ValueKey<String>('shell-overlay-cancel'),
+                      label: 'Cancel',
+                      variant: SmokeButtonVariant.ghost,
+                      onPressed: onCancel,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SmokeButton(
-                  key: const ValueKey<String>('shell-overlay-cancel'),
-                  label: 'Cancel',
-                  variant: SmokeButtonVariant.ghost,
-                  onPressed: onCancel,
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -469,7 +501,7 @@ class ShellOverlayHost extends StatelessWidget {
               child: ShellSheet(
                 title: content.title,
                 sub: content.sub,
-                body: content.body,
+                body: content.bodyBuilder?.call(onDismiss) ?? content.body!,
                 foot: content.foot,
                 scrollController: scrollController,
                 onClose: onDismiss,
@@ -479,9 +511,11 @@ class ShellOverlayHost extends StatelessWidget {
           ModalOverlay() => Center(
             child: ShellModalCard(
               title: content.title,
-              body: content.body,
+              body: content.bodyBuilder?.call(onDismiss) ?? content.body!,
               confirmLabel: content.confirmLabel,
               danger: content.danger,
+              actions:
+                  content.actionsBuilder?.call(onDismiss) ?? content.actions,
               onConfirm: onDismiss,
               onCancel: onDismiss,
             ),

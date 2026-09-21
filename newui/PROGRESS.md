@@ -189,3 +189,42 @@ Status: **done**. `make app.test` green (**229** tests; was 201); `flutter analy
 - N7: wire the fullscreen graph host body and consider making fullscreen state URL-driven (`?fullscreen=1`).
 - N11: `AlertsBell` count already comes from `snapshot.alarms` unacked; ack wiring is N11's.
 - N16: consider gating `/design` behind a debug flag.
+
+## T06 — N5 Live: alerts, cook header, stopwatch, instrument mode, adopt banner, probe rail
+
+Status: **done**. `flutter test` green (**256**; was 229); `flutter analyze` clean; `dart format` clean; `dart test test/domain test/data` green (**134**; was 131). Live is now a real screen.
+
+**Real paths**
+- `app/lib/features/live/` — the feature: `live_page.dart` (`LivePage`, `liveNowProvider`), `alarm_strips.dart` (`LiveAlarmStrips`, `orderedUnackedAlarms`), `cook_header.dart` (`CookHeaderCard`, `StopwatchCard`), `instrument_card.dart`, `summary_strip.dart`, `probe_rail.dart` (`LiveProbeRail`, `CompactProbeTile`), `mini_graph.dart`, `live_format.dart` (pure `fmtStopwatch`/`fmtClock`/`fmtDuration`/`fmtEta`/`tempParts`/`probeName`), `live_overlays.dart` (`MarkSheetBody`, `EditStartBody`, `AdoptSessionBody`, `AdoptSessionActions`, `kMarkKinds`), barrel `live.dart`.
+- Tests `app/test/features/live_test.dart` (widgets), `app/test/features/live_format_test.dart` (pure). Golden regenerated: `app/test/golden/goldens/app_shell.golden.txt` now describes the real Live page.
+
+**Commands that work (repo root / `app/`)**
+- `cd app && flutter test` — full suite incl. goldens (256 pass).
+- `cd app && flutter test test/features/live_test.dart test/features/live_format_test.dart` — the N5 gate (24 pass).
+- `cd app && dart test test/domain test/data` — data/domain gate (134 pass).
+- `make app.golden` — regenerates the shell golden (needs the deterministic overrides below).
+
+**Contract facts later tasks need**
+- **`ShellScope` gained `openScreen(ShellScreen)`.** Destinations navigate with it (`Live` → Graph/Temps). `AppShell` wires it to `_onNavSelect`.
+- **`ShellScrollHost` moved out of `AppShell` and into each destination.** `AppShell` now does `Expanded(child: widget.child)` so the go_router nested Navigator gets a bounded height. `LivePage` and `DestinationPlaceholder` wrap their own body in `ShellScrollHost`. Why: a Navigator inside a vertical `SingleChildScrollView` shrink-wraps during route transitions and overflows a tall destination (transient RenderFlex overflow on navigation). If a later destination forgets its `ShellScrollHost`, it will not scroll.
+- **Overlay framework**: `SheetOverlay`/`ModalOverlay` gained optional `bodyBuilder`/`actionsBuilder` (`Widget Function(VoidCallback dismiss)`); `ShellModalCard` gained `actions`. Use them so an overlay body can apply an action and close without importing the shell. `resolveOverlay` now returns real bodies for `mark` (sheet), `editStart` and `adopt` (modals). `adopt` uses `actionsBuilder` (keys `live-adopt-confirm`/`live-adopt-cancel`) instead of the default confirm row.
+- **`BridgeRepository` gained three methods**: `setCookPaused(bool)` (UI-only flag; never touches `startedAtMs`), `setCookStart(int)` (moves the window, keeps samples/marks), `discardSession()` (drops `pendingSession`). `MockBridgeRepository` implements them; **N15 must implement them on the real transport**.
+- **`MarkKind` gained `spritz` and `turn`** (app-originated user kinds; the wire `mark_rec.kind` has neither — it has `alarm`/`auto_detected` which the UI mark sheet omits). N15 must map or extend the wire.
+- `liveNowProvider` is the Live clock (overridable). No ticker is owned: the stopwatch reads it once per build (N4 status-clock precedent). Pause captures the elapsed at the tap and freezes the display.
+- **I14 on Live**: when the adopt banner and the instrument card are both present (`existing`), the banner's "Adopt session" is the only ember `PrimaryAction`; the instrument card's "Start a cook" demotes to a normal `SmokeButton` (`InstrumentModeCard(primary: false)`). The prototype had two primaries there.
+- Keys: `live-page`, `live-alarm-*`/`live-alarm-ack-all`, `live-notice`, `live-adopt-banner`/`live-adopt`/`live-discard-session`, `live-cook-header`/`live-cook-name`/`live-cook-settings`, `live-stopwatch`/`live-stopwatch-time`/`live-stopwatch-toggle`/`live-stopwatch-edit-start`, `live-instrument`/`live-instrument-start`/`live-instrument-graph`, `live-summary-*`, `live-probe-<jack>`/`live-probe-temp-<jack>`/`live-probe-sub-<jack>`, `live-mini-graph`/`live-mini-graph-label`, `live-probes-details`, `mark-kind-<name>`/`mark-note`/`mark-save`, `edit-start-<mins>`/`edit-start-current`.
+
+**Deviations / gotchas**
+- `shell_test.dart`'s `wrap()` now includes a `ProviderScope` because the overlay bodies read providers.
+- `app_shell_golden_test.dart` now overrides `bridgeRepositoryProvider` (`MockBridgeRepository(nowMs: fixed)`), `shellClockProvider` and `liveNowProvider` to one fixed instant; otherwise the elapsed readouts are non-deterministic. Any future golden that renders Live must do the same.
+- The mini graph is a `spark`-based preview (per-series min/max scaling, like the prototype's `miniChart`); N7 owns the real chart.
+- The `mark` sheet's 8 kinds map straight onto `MarkKind`; `lidOpen`/`probeMoved`/`phaseChange` are the wire spellings.
+- `_OverlayPlaceholder` still backs every other overlay (N6/N8/N9/N10/N11/N13/N14).
+
+**Follow-ups for later tasks**
+- N6: `DevOverlay.probe` body is still a placeholder; the Live probe tile opens it with `jack`.
+- N9: the setup sheet must honour the `context=edit` prop the Live cook-settings button passes (`openOverlay(DevOverlay.setup, {'context': 'edit'})`).
+- N7: replace the mini graph preview and the fullscreen host body.
+- N11: `DevOverlay.alarmDetail` body (Live opens it with `id`/`tier`); ack + ack-all already work against the repo.
+- N15: implement the three new repo methods and resolve `MarkKind.spritz`/`turn` against the wire.
+- N16: consider adding Live goldens for `idle`/`existing`/`offline` (only `running` is pinned today, via `app_shell`).

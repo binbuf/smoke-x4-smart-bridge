@@ -14,6 +14,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/dev_panel.dart';
 import '../../data/providers.dart';
 import '../../design/design.dart';
+import '../live/live_page.dart';
+import 'phone_frame.dart';
 import 'shell.dart';
 import 'shell_screen.dart';
 
@@ -31,90 +33,94 @@ class DestinationPlaceholder extends ConsumerWidget {
     final unacked = snapshot?.alarms.where((alarm) => !alarm.acked).length ?? 0;
     final phase = snapshot?.connection.phase.name ?? 'unknown';
 
-    return Column(
-      key: ValueKey<String>('destination-${screen.name}'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        SmokeCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+    return ShellScrollHost(
+      resetToken: screen,
+      child: Column(
+        key: ValueKey<String>('destination-${screen.name}'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SmokeCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  screen.title,
+                  style: SmokeText.title.copyWith(color: tokens.textHi),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  screen.subtitle ?? 'A placeholder destination.',
+                  style: SmokeText.body.copyWith(color: tokens.textBody),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Connection: $phase · unacked alarms: $unacked',
+                  key: const ValueKey<String>('destination-state'),
+                  style: SmokeText.monoSmall.copyWith(color: tokens.textMuted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
             children: <Widget>[
-              Text(
-                screen.title,
-                style: SmokeText.title.copyWith(color: tokens.textHi),
+              Expanded(
+                child: SmokeButton(
+                  key: const ValueKey<String>('destination-connect'),
+                  label: 'Connect',
+                  icon: SmokeGlyph.link,
+                  onPressed: () => scope?.openOverlay(DevOverlay.connect),
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                screen.subtitle ?? 'A placeholder destination.',
-                style: SmokeText.body.copyWith(color: tokens.textBody),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Connection: $phase · unacked alarms: $unacked',
-                key: const ValueKey<String>('destination-state'),
-                style: SmokeText.monoSmall.copyWith(color: tokens.textMuted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SmokeButton(
+                  key: const ValueKey<String>('destination-alerts'),
+                  label: 'Alerts',
+                  icon: SmokeGlyph.bell,
+                  onPressed: () => scope?.openOverlay(DevOverlay.alarms),
+                ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: SmokeButton(
-                key: const ValueKey<String>('destination-connect'),
-                label: 'Connect',
-                icon: SmokeGlyph.link,
-                onPressed: () => scope?.openOverlay(DevOverlay.connect),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: SmokeButton(
+                  key: const ValueKey<String>('destination-fullscreen'),
+                  label: 'Fullscreen',
+                  icon: SmokeGlyph.expand,
+                  onPressed: () => scope?.toggleFullGraph(),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SmokeButton(
-                key: const ValueKey<String>('destination-alerts'),
-                label: 'Alerts',
-                icon: SmokeGlyph.bell,
-                onPressed: () => scope?.openOverlay(DevOverlay.alarms),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SmokeButton(
+                  key: const ValueKey<String>('destination-toast'),
+                  label: 'Toast',
+                  icon: SmokeGlyph.info,
+                  onPressed: () =>
+                      scope?.showToast('Hello from ${screen.title}'),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: SmokeButton(
-                key: const ValueKey<String>('destination-fullscreen'),
-                label: 'Fullscreen',
-                icon: SmokeGlyph.expand,
-                onPressed: () => scope?.toggleFullGraph(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SmokeButton(
-                key: const ValueKey<String>('destination-toast'),
-                label: 'Toast',
-                icon: SmokeGlyph.info,
-                onPressed: () => scope?.showToast('Hello from ${screen.title}'),
-              ),
-            ),
-          ],
-        ),
-        if (screen == ShellScreen.settings) ...<Widget>[
-          const SizedBox(height: 12),
-          SmokeCard(
-            child: SettingsRow(
-              key: const ValueKey<String>('destination-open-history'),
-              icon: SmokeGlyph.history,
-              name: 'History',
-              sub: 'Past cooks',
-              onTap: () => scope?.showToast('History is N12'),
-            ),
+            ],
           ),
+          if (screen == ShellScreen.settings) ...<Widget>[
+            const SizedBox(height: 12),
+            SmokeCard(
+              child: SettingsRow(
+                key: const ValueKey<String>('destination-open-history'),
+                icon: SmokeGlyph.history,
+                name: 'History',
+                sub: 'Past cooks',
+                onTap: () => scope?.showToast('History is N12'),
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -124,8 +130,7 @@ class LiveDestination extends StatelessWidget {
   const LiveDestination({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const DestinationPlaceholder(screen: ShellScreen.live);
+  Widget build(BuildContext context) => const LivePage();
 }
 
 /// Temps destination (N6).

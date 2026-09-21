@@ -206,6 +206,35 @@ class MockBridgeRepository implements BridgeRepository {
   // ── cook lifecycle ────────────────────────────────────────────────────
 
   @override
+  Future<void> setCookPaused(bool paused) async {
+    // Display-only: `startedAtMs` is untouched, so recording is unaffected (I2).
+    _set(_snapshot.copyWith(cook: _snapshot.cook.copyWith(paused: paused)));
+  }
+
+  @override
+  Future<void> setCookStart(int startedAtMs) async {
+    // Moving the window never rewrites samples (I10): only the anchor moves.
+    _set(
+      _snapshot.copyWith(
+        cook: _snapshot.cook.copyWith(startedAtMs: startedAtMs),
+      ),
+    );
+  }
+
+  @override
+  Future<void> discardSession() async {
+    if (_snapshot.pendingSession == null) {
+      return;
+    }
+    _set(
+      _snapshot.copyWith(
+        pendingSession: null,
+        notice: 'Started fresh — the old recording stays on the bridge.',
+      ),
+    );
+  }
+
+  @override
   Future<void> startCook({
     required String presetId,
     required ProbeJack jack,

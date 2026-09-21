@@ -150,6 +150,43 @@ void main() {
       expect(s.probes[3].role, ProbeRole.pit);
     });
 
+    test('setCookPaused freezes only the flag, never the start (I2)', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      final before = await repo.snapshot().first;
+      await repo.setCookPaused(true);
+      var s = await repo.snapshot().first;
+      expect(s.cook.paused, isTrue);
+      expect(s.cook.startedAtMs, before.cook.startedAtMs);
+      await repo.setCookPaused(false);
+      s = await repo.snapshot().first;
+      expect(s.cook.paused, isFalse);
+    });
+
+    test(
+      'setCookStart moves the window and keeps every sample (I10)',
+      () async {
+        final repo = _repo();
+        addTearDown(repo.dispose);
+        final before = await repo.snapshot().first;
+        await repo.setCookStart(_now - 60 * 60 * 1000);
+        final s = await repo.snapshot().first;
+        expect(s.cook.startedAtMs, _now - 60 * 60 * 1000);
+        expect(s.probes, before.probes);
+        expect(s.marks, before.marks);
+      },
+    );
+
+    test('discardSession drops the pending session', () async {
+      final repo = _repo('existing');
+      addTearDown(repo.dispose);
+      await repo.discardSession();
+      final s = await repo.snapshot().first;
+      expect(s.pendingSession, isNull);
+      expect(s.cook.active, isFalse);
+      expect(s.notice, contains('Started fresh'));
+    });
+
     test('startCook sets a safe pull temperature', () async {
       final repo = _repo('idle');
       addTearDown(repo.dispose);

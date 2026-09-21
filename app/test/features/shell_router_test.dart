@@ -60,10 +60,7 @@ void main() {
   testWidgets('boots to Live inside the chrome', (tester) async {
     await pumpApp(tester);
 
-    expect(
-      find.byKey(const ValueKey<String>('destination-live')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey<String>('live-page')), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('shell-transport-chip')),
       findsOneWidget,
@@ -139,7 +136,9 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byKey(const ValueKey<String>('destination-connect')));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('shell-transport-chip')),
+    );
     await tester.pumpAndSettle();
 
     Finder sheetScrollable() => find.descendant(
@@ -161,7 +160,9 @@ void main() {
     await tester.tapAt(const Offset(195, 20));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey<String>('destination-connect')));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('shell-transport-chip')),
+    );
     await tester.pumpAndSettle();
     final reopened = tester
         .state<ScrollableState>(sheetScrollable())
@@ -175,6 +176,9 @@ void main() {
   ) async {
     await pumpApp(tester);
 
+    // Fullscreen is raised from the destination shells (Live owns no toggle).
+    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-temps')));
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey<String>('destination-fullscreen')),
     );
@@ -195,13 +199,15 @@ void main() {
   testWidgets('a destination can raise a toast', (tester) async {
     await pumpApp(tester);
 
+    await tester.tap(find.byKey(const ValueKey<String>('shell-nav-temps')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey<String>('destination-toast')));
     await tester.pump();
-    expect(find.text('Hello from Live'), findsOneWidget);
+    expect(find.text('Hello from Temperatures'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
-    expect(find.text('Hello from Live'), findsNothing);
+    expect(find.text('Hello from Temperatures'), findsNothing);
   });
 
   testWidgets('the dev panel drives screen and overlay', (tester) async {

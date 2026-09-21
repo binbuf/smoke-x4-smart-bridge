@@ -75,6 +75,7 @@ class ShellScope extends InheritedWidget {
     required this.closeOverlay,
     required this.showToast,
     required this.toggleFullGraph,
+    required this.openScreen,
     required super.child,
   });
 
@@ -83,6 +84,9 @@ class ShellScope extends InheritedWidget {
   final VoidCallback closeOverlay;
   final void Function(String message) showToast;
   final VoidCallback toggleFullGraph;
+
+  /// Navigates to a bottom-nav destination (Live → Graph, etc.).
+  final ValueChanged<ShellScreen> openScreen;
 
   static ShellScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ShellScope>();
@@ -270,6 +274,7 @@ class _AppShellState extends ConsumerState<AppShell>
       closeOverlay: _closeOverlay,
       showToast: _toast.show,
       toggleFullGraph: _toggleFullGraph,
+      openScreen: _onNavSelect,
       child: SmokePulseScope(
         pulse: _pulse,
         child: ShellPhoneFrame(
@@ -287,9 +292,7 @@ class _AppShellState extends ConsumerState<AppShell>
                 onStartCook: () => _openOverlay(DevOverlay.setup),
                 onConnection: () => _openOverlay(DevOverlay.connect),
               ),
-              Expanded(
-                child: ShellScrollHost(resetToken: screen, child: widget.child),
-              ),
+              Expanded(child: widget.child),
               ShellBottomNav(
                 current: screen,
                 unackedAlarms: unacked,

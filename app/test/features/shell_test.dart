@@ -6,9 +6,13 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/data/dev_panel.dart';
 import 'package:smoke_bridge/data/model/connection_state.dart' as bridge;
+import 'package:smoke_bridge/data/providers.dart';
+import 'package:smoke_bridge/data/repository/mock_bridge_repository.dart';
+import 'package:smoke_bridge/data/repository/prefs_repository.dart';
 import 'package:smoke_bridge/design/design.dart';
 import 'package:smoke_bridge/features/shell/alerts_bell.dart';
 import 'package:smoke_bridge/features/shell/app_bar.dart';
@@ -23,9 +27,24 @@ import 'package:smoke_bridge/features/shell/transport_status.dart';
 
 import '../support/load_fonts.dart';
 
-Widget wrap(Widget child) => MaterialApp(
-  theme: SmokeThemeData.dark(),
-  home: Scaffold(body: child),
+/// The overlay bodies (N5) read the repository, so every harness gets a scope.
+Widget wrap(Widget child) => ProviderScope(
+  overrides: [
+    bridgeRepositoryProvider.overrideWith((ref) {
+      final repo = MockBridgeRepository(nowMs: 1700000000000);
+      ref.onDispose(repo.dispose);
+      return repo;
+    }),
+    prefsProvider.overrideWith((ref) {
+      final prefs = MockPrefsRepository();
+      ref.onDispose(prefs.dispose);
+      return prefs;
+    }),
+  ],
+  child: MaterialApp(
+    theme: SmokeThemeData.dark(),
+    home: Scaffold(body: child),
+  ),
 );
 
 void main() {

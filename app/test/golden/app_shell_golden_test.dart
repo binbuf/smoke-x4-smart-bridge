@@ -10,9 +10,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/app/router.dart';
 import 'package:smoke_bridge/app/smoke_app.dart';
+import 'package:smoke_bridge/data/providers.dart';
+import 'package:smoke_bridge/data/repository/mock_bridge_repository.dart';
+import 'package:smoke_bridge/features/live/live_page.dart';
 import 'package:smoke_bridge/features/shell/shell.dart';
 
 import 'golden.dart';
+
+/// A fixed instant: the status clock, the scenario times and the stopwatch all
+/// agree, so the Live destination's elapsed readouts are deterministic.
+final DateTime _fixedNow = DateTime(2026, 9, 21, 9, 41);
 
 void main() {
   testWidgets('the app shell at 390x844 matches its committed golden', (
@@ -23,7 +30,15 @@ void main() {
       ProviderScope(
         overrides: [
           shellPulseEnabledProvider.overrideWithValue(false),
-          shellClockProvider.overrideWithValue(DateTime(2026, 9, 21, 9, 41)),
+          shellClockProvider.overrideWithValue(_fixedNow),
+          liveNowProvider.overrideWithValue(_fixedNow),
+          bridgeRepositoryProvider.overrideWith((ref) {
+            final repo = MockBridgeRepository(
+              nowMs: _fixedNow.millisecondsSinceEpoch,
+            );
+            ref.onDispose(repo.dispose);
+            return repo;
+          }),
         ],
         child: SmokeApp(router: createAppRouter()),
       ),

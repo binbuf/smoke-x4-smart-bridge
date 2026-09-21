@@ -20,7 +20,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 ## Wave 2 — Shell and feature destinations
 
 - [x] T05 — N4 Shell: phone chrome, bottom nav, overlay framework and fullscreen graph host → [tasks/N4-shell.md](tasks/N4-shell.md)
-- [ ] T06 — N5 Live: alerts, cook header, stopwatch, instrument mode, adopt banner, probe rail → [tasks/N5-live.md](tasks/N5-live.md)
+- [x] T06 — N5 Live: alerts, cook header, stopwatch, instrument mode, adopt banner, probe rail → [tasks/N5-live.md](tasks/N5-live.md)
 - [ ] T07 — N6 Temps: per-probe cards, probe sheet, roles/targets, detached handling → [tasks/N6-temps.md](tasks/N6-temps.md)
 - [ ] T08 — N7 Graph: chart, ranges, zoom/pan, fullscreen, legend isolate, targets/bands, stats → [tasks/N7-graph.md](tasks/N7-graph.md)
 - [ ] T09 — N8 Timeline: Gantt, upcoming interventions, event rail, timeline DB projection → [tasks/N8-timeline.md](tasks/N8-timeline.md)

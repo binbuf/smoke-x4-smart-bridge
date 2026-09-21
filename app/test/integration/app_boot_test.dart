@@ -25,10 +25,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const ValueKey<String>('destination-live')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey<String>('live-page')), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('shell-nav-live')),
       findsOneWidget,
