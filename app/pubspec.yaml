@@ -1,0 +1,77 @@
+# Smoke X4 Smart Bridge — new Flutter app (Android-first).
+#
+# N0.2 pins the package set this app is built on. BLE, drift, notifications,
+# foreground service, sharing, permissions and the OTA file picker are
+# deliberately absent until N15 (bridge integration); adding them earlier
+# would put platform plugins in the tree before any code needs them.
+#
+# `freezed` resolves to 3.2.6-dev.1 because the latest stable wants
+# analyzer <11 while riverpod_generator ^4.0.4 wants analyzer ^12. The dev
+# build is the only version compatible with the rest of the set. This mirrors
+# app.old/pubspec.yaml, which is the known-good combination.
+name: smoke_bridge
+description: "Companion app for the Smoke X4 smart bridge — live cook telemetry, history, and alarms."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  # Kept at ^3.12.2 so CI's pinned Flutter (3.44.7) and the local SDK (3.13.2)
+  # both satisfy it. See .github/workflows/app.yml.
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State
+  flutter_riverpod: ^3.3.2
+  riverpod_annotation: ^4.0.3
+  # Models
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+  # `@immutable` for `domain/`, which may not import Flutter (layering rule,
+  # components_research_notes.md §10) — `foundation.dart` would re-export it
+  # and break that rule.
+  meta: ^1.18.0
+  # Charts
+  fl_chart: ^1.2.0
+  # Prefs / logging / routing
+  shared_preferences: ^2.5.5
+  logger: ^2.7.0
+  go_router: ^17.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  # Codegen (N0.6)
+  build_runner: ^2.15.1
+  freezed: ^3.2.6-dev.1
+  json_serializable: ^6.14.0
+  riverpod_generator: ^4.0.4
+
+flutter:
+  uses-material-design: true
+
+  # N0.5 — the three variable fonts ship as assets, never fetched. The app has
+  # to render identically on a phone joined to the bridge's own AP with no
+  # internet, and a golden that depends on a font download is a golden that
+  # fails in CI. All three are SIL OFL 1.1; the licences sit beside them and
+  # are registered with LicenseRegistry in bootstrap.dart.
+  assets:
+    - assets/fonts/OFL-Archivo.txt
+    - assets/fonts/OFL-Inter.txt
+    - assets/fonts/OFL-JetBrainsMono.txt
+
+  fonts:
+    - family: Archivo
+      fonts:
+        - asset: "assets/fonts/Archivo[wdth,wght].ttf"
+    - family: Inter
+      fonts:
+        - asset: "assets/fonts/Inter[opsz,wght].ttf"
+    - family: JetBrainsMono
+      fonts:
+        - asset: "assets/fonts/JetBrainsMono[wght].ttf"

@@ -36,7 +36,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.7
+          # Matches the SDK that generated `app/android/` (AGP 9.1.0 /
+          # Gradle 9.3.1) and the version verified locally. Do not downgrade
+          # without regenerating the Android project.
+          flutter-version: 3.47.2
           cache: true
 
       - run: flutter pub get
@@ -50,7 +53,7 @@ jobs:
 
       - name: Generated code is fresh
         run: |
-          dart run build_runner build --delete-conflicting-outputs
+          dart run build_runner build
           git diff --exit-code -- lib
 
       - run: flutter analyze
@@ -58,7 +61,12 @@ jobs:
       - name: dart format
         run: dart format --output=none --set-exit-if-changed lib test
 
-      - run: flutter test
+      # Golden comparison is part of `flutter test`: test/golden fails on a
+      # changed tree rather than writing the snapshot, so a change shows up as
+      # a reviewable file diff. Fonts are bundled assets (N0.5), so this needs
+      # no network.
+      - name: Test (unit, widget, golden)
+        run: flutter test
 
       - name: Debug APK
         run: flutter build apk --debug
