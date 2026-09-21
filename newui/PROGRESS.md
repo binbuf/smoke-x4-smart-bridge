@@ -73,18 +73,19 @@ Status: done. `dart test test/domain` green (87 tests). `make app.test` green (1
 
 ## T03 — N2 Data and mocks: catalog/style/timeline tables, scenarios, mock repository
 
-Status: **continue** (N2.1–N2.30 done; N2.31/N2.32 core done, panel widget + boot wiring deferred to N4).
-`dart test test/domain test/data` green (**129**); `flutter test` green (**142**); `flutter analyze` and format check clean.
+Status: **done** (N2.1–N2.32 all landed; the dev panel widget and boot deep-link seam are in place — N4.10 mounts the panel and N4.3 routes it).
+`dart test test/domain test/data` green (**131**); `flutter test` green (**152**); `flutter analyze` and format check clean.
 
 **Real paths**
 - Content `app/lib/data/content/`: `catalog_data.dart`, `styles_data.dart`, `fixtures_data.dart` (**generated** by `node app/tool/gen_mock_content.mjs` from `newui/mock-data.js`); hand-written `timelines.dart`, `catalog.dart`, `scenarios.dart`.
 - Models `app/lib/data/model/`: `catalog_entry.dart`, `connection_state.dart`, `cook_state.dart`, `bridge_snapshot.dart` (freezed), `app_settings.dart` (freezed), `alarm.dart`, `alarm_rule.dart`, `connection_mode.dart`, `device_info.dart`, `history_entry.dart`, `mock_event.dart`.
 - Repo `app/lib/data/repository/`: `bridge_repository.dart`, `mock_bridge_repository.dart`, `mock_event_bus.dart`, `prefs_repository.dart`. Providers `app/lib/data/providers.dart`; barrel `app/lib/data/data.dart`; dev control `app/lib/data/dev_panel.dart`.
-- Tests `app/test/data/{content_validation,timeline,mock_repository,settings,dev_panel}_test.dart`.
+- Widgets `app/lib/features/dev/`: `dev_panel.dart` (`DevPanel`, N2.31, release-excluded) and `dev_boot.dart` (`applyDevDeepLink`, N2.32). `app/lib/app/bootstrap.dart` parses `Uri.base` and overrides `initialDevDeepLinkProvider`.
+- Tests `app/test/data/{content_validation,timeline,mock_repository,settings,dev_panel}_test.dart`; `app/test/features/{dev_panel_widget,dev_boot}_test.dart`.
 
 **Commands that work (repo root)**
-- `cd app && dart test test/domain test/data` — the N2 exit gate (129 pass).
-- `cd app && flutter test` — full suite incl. goldens (142 pass).
+- `cd app && dart test test/domain test/data` — the N2 exit gate (131 pass).
+- `cd app && flutter test` — full suite incl. goldens (152 pass).
 - `cd app && node tool/gen_mock_content.mjs` — regenerate the three content tables after editing `newui/mock-data.js`.
 - `make app.gen` — build_runner only (freezed); it does NOT regenerate content tables.
 
@@ -94,6 +95,8 @@ Status: **continue** (N2.1–N2.30 done; N2.31/N2.32 core done, panel widget + b
 - `MockBridgeRepository({int? nowMs, String initialScenario})`; 11 scenarios incl. `running/idle/existing/offline` + 7 connection-matrix. `snapshot()` replays `current` on each subscription, so `await repo.snapshot().first` reads state.
 - `ProbeState.reading` → N1 `ProbeReading` with the I4 gate; `MockPrefsRepository` backs `AppSettings.defaults`.
 - `DevPanelController.applyLocation('?scenario=offline&units=C&screen=timeline&overlay=probe&jack=3')` is tested; `DevDeepLink.parse` accepts query, fragment and app URIs.
+- `DevPanel` (N2.31) reads `bridgeRepositoryProvider` + `prefsProvider`, renders scenario/screen/overlay/event buttons + units/theme/profile + connect, and reports navigation through `onScreen`/`onOverlay`. `kDevOverlayLabels` is the 15 prop-free overlays. It is release-excluded via `kReleaseMode`.
+- `applyDevDeepLink(container, link)` (N2.32) applies `scenario`/`units`; `bootstrap.dart` stashes the parsed link in `initialDevDeepLinkProvider` (default/none in release) for N4.3.
 
 **Deviations / gotchas**
 - Counts in the task text are stale: it is **139/331/139**, not ~318/133. `game_antelope` and `game_squirrel` have only 1 style each.
@@ -101,3 +104,4 @@ Status: **continue** (N2.1–N2.30 done; N2.31/N2.32 core done, panel widget + b
 - **Follow-up (N9):** the catalog marks all vegetables/sides/desserts/cold items `unstated`, which N1 floors at 160 °F. The picker must not apply that floor to declared non-meat content (coleslaw 38 °F, cold-smoke cheese 90 °F, butter 80 °F would be refused otherwise).
 - **Follow-up (N4/N6):** `ProbeState` duplicates part of `ProbeReading`; consider collapsing to one projection when the shell wires the providers.
 - Generated files are committed; run `make app.gen` after any freezed-model change.
+- The dev panel does not mount itself: N4.10 places `DevPanel` beside the phone frame and supplies `onScreen`/`onOverlay`; N4.3 routes `screen`/`overlay` (incl. `initialDevDeepLinkProvider`). The panel's overlay buttons omit `probe`/`alarmDetail`/`confirm`/`verb` (they need props).

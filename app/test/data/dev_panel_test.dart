@@ -104,5 +104,44 @@ void main() {
       final s = await repo.snapshot().first;
       expect(s.alarms.single.ruleId, 'pit_crash');
     });
+
+    test(
+      'cycles theme in the prototype order and toggles the profile',
+      () async {
+        final repo = MockBridgeRepository(nowMs: 1700000000000);
+        addTearDown(repo.dispose);
+        final prefs = MockPrefsRepository();
+        addTearDown(prefs.dispose);
+        final panel = DevPanelController(repository: repo, prefs: prefs);
+
+        expect(prefs.current.themeMode, AppThemeMode.system);
+        await panel.cycleTheme();
+        expect(prefs.current.themeMode, AppThemeMode.light);
+        await panel.cycleTheme();
+        expect(prefs.current.themeMode, AppThemeMode.dark);
+        await panel.cycleTheme();
+        expect(prefs.current.themeMode, AppThemeMode.system);
+
+        expect(prefs.current.displayProfile, DisplayProfile.standard);
+        await panel.toggleProfile();
+        expect(prefs.current.displayProfile, DisplayProfile.daylight);
+      },
+    );
+
+    test('openConnect asks the shell for the connect overlay', () {
+      final repo = MockBridgeRepository(nowMs: 1700000000000);
+      addTearDown(repo.dispose);
+      final prefs = MockPrefsRepository();
+      addTearDown(prefs.dispose);
+
+      DevOverlay? seen;
+      final panel = DevPanelController(
+        repository: repo,
+        prefs: prefs,
+        onOverlay: (o, p) => seen = o,
+      );
+      panel.openConnect();
+      expect(seen, DevOverlay.connect);
+    });
   });
 }

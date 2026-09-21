@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'dev_panel.dart';
 import 'model/app_settings.dart';
 import 'model/bridge_snapshot.dart';
 import 'model/history_entry.dart';
@@ -42,4 +43,14 @@ final snapshotProvider = StreamProvider<BridgeSnapshot>(
 /// Past cooks, watched.
 final historyProvider = StreamProvider<List<HistoryEntry>>(
   (ref) => ref.watch(bridgeRepositoryProvider).watchHistory(),
+);
+
+/// N2.32 — the deep link parsed at boot (`?scenario=` / `?units=` are applied
+/// to the repositories; `?screen=` / `?overlay=` are left for the shell).
+///
+/// `bootstrap.dart` overrides this with the parsed [DevDeepLink], so N4's
+/// router can read it once it exists and clear it. It is [DevDeepLink.none] on
+/// a normal launch and always [DevDeepLink.none] in release.
+final initialDevDeepLinkProvider = Provider<DevDeepLink>(
+  (ref) => DevDeepLink.none,
 );

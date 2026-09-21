@@ -12,6 +12,7 @@
 library;
 
 import '../domain/domain.dart';
+import 'model/app_settings.dart';
 import 'model/bridge_snapshot.dart';
 import 'model/mock_event.dart';
 import 'repository/bridge_repository.dart';
@@ -184,6 +185,30 @@ class DevPanelController {
   /// Switch the display unit (storage stays canonical °F).
   Future<void> setUnits(TempUnit units) =>
       prefs.update((s) => s.copyWith(units: units));
+
+  /// Set the theme axis (`system` / `light` / `dark`).
+  Future<void> setThemeMode(AppThemeMode mode) =>
+      prefs.update((s) => s.copyWith(themeMode: mode));
+
+  /// Cycle the theme axis in the prototype's order: system → light → dark.
+  Future<void> cycleTheme() {
+    const order = AppThemeMode.values;
+    final next =
+        order[(order.indexOf(prefs.current.themeMode) + 1) % order.length];
+    return setThemeMode(next);
+  }
+
+  /// Flip the daylight contrast profile.
+  Future<void> toggleProfile() => prefs.update(
+    (s) => s.copyWith(
+      displayProfile: s.displayProfile == DisplayProfile.daylight
+          ? DisplayProfile.standard
+          : DisplayProfile.daylight,
+    ),
+  );
+
+  /// Open the connection sheet (the prototype's "simulate connection").
+  void openConnect() => onOverlay?.call(DevOverlay.connect, const {});
 
   /// Apply a parsed deep link: data first, then the requested surface.
   Future<void> apply(DevDeepLink link) async {

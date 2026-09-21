@@ -70,9 +70,10 @@ reproduce the exact prototype numbers so UI comparisons are valid.
 
 ## Hand-off
 
-**Status: continue.** N2.1–N2.30 landed and green; N2.31/N2.32 landed as a
-tested pure-Dart control layer, but their **widget + boot wiring** remain and
-need the N4 shell/screens (there are no destinations to route to yet).
+**Status: done.** N2.1–N2.32 all landed and green. The pure-Dart control layer
+is now backed by the `DevPanel` widget and the boot deep-link wiring; mounting
+the panel and routing `screen`/`overlay` are **N4.10 / N4.3** (T05), which
+consume this seam rather than reimplement it.
 
 ### What landed
 - `app/lib/data/content/` — `catalog_data.dart`, `styles_data.dart`,
@@ -90,14 +91,24 @@ need the N4 shell/screens (there are no destinations to route to yet).
   `mock_bridge_repository.dart`, `mock_event_bus.dart`, `prefs_repository.dart`
   (`MockPrefsRepository`).
 - `app/lib/data/providers.dart` (Riverpod: bridgeRepository, prefs, settings,
-  snapshot, history), `data.dart` (pure-Dart barrel), `dev_panel.dart`
-  (`DevScreen`, `DevOverlay`, `DevDeepLink.parse`, `DevPanelController`).
+  snapshot, history, `initialDevDeepLinkProvider`), `data.dart` (pure-Dart
+  barrel), `dev_panel.dart` (`DevScreen`, `DevOverlay`, `DevDeepLink.parse`,
+  `DevPanelController`).
+- `app/lib/features/dev/dev_panel.dart` — `DevPanel` (N2.31), the prototype's
+  right-hand panel: scenario / screen / overlay / event switches plus units /
+  theme / profile toggles and "simulate connection sheet". Release-excluded
+  (`kReleaseMode`), never navigates — reports through `onScreen` / `onOverlay`.
+- `app/lib/features/dev/dev_boot.dart` — `applyDevDeepLink` (N2.32) applies the
+  `scenario` / `units` half at boot. `bootstrap.dart` parses `Uri.base`, applies
+  it and stashes the parsed link in `initialDevDeepLinkProvider` for the N4
+  router.
 - Tests `app/test/data/`: `content_validation_test.dart`, `timeline_test.dart`,
-  `mock_repository_test.dart`, `settings_test.dart`, `dev_panel_test.dart`.
+  `mock_repository_test.dart`, `settings_test.dart`, `dev_panel_test.dart`;
+  `app/test/features/`: `dev_panel_widget_test.dart`, `dev_boot_test.dart`.
 
 ### Commands + real results
-- `cd app && dart test test/domain test/data` → **129 passed** (87 domain + 42 data).
-- `cd app && flutter test` → **142 passed** (includes the golden harness).
+- `cd app && dart test test/domain test/data` → **131 passed** (87 domain + 44 data).
+- `cd app && flutter test` → **152 passed** (includes the golden harness).
 - `cd app && flutter analyze` → No issues found.
 - `cd app && dart format --output=none --set-exit-if-changed lib test` → 0.
 - Regenerate content: `node app/tool/gen_mock_content.mjs` (from `app/`).
@@ -124,12 +135,16 @@ need the N4 shell/screens (there are no destinations to route to yet).
 - Deep-link `units` maps to `TempUnit` (`C`/`F`); unknown values are dropped.
 - Generated content files are committed. `make app.gen` (build_runner) only
   covers freezed; it does **not** regenerate the content tables.
+- The panel is a widget, not a route: `DevPanel` does **not** mount itself.
+  N4.10 places it beside the phone frame and passes `onScreen`/`onOverlay`;
+  N2.32's parsed link is exposed as `initialDevDeepLinkProvider` (`none` in
+  release) for N4.3 to route.
+- The panel's overlay buttons cover the prototype's 15 prop-free overlays
+  (`kDevOverlayLabels`); `probe`, `alarmDetail`, `confirm` and `verb` need props
+  and are opened by screens, not the panel.
 
-### Remaining (for the next session / N4)
-1. **N2.31 widget** — render the right-hand panel (scenarios / screens /
-   overlays / events) from `DevPanelController`, gated by `kReleaseMode`.
-2. **N2.32 boot wiring** — call `DevPanelController.applyLocation` from the
-   router/boot and route `DevScreen`/`DevOverlay` to the N4 destinations.
-   `DevDeepLink.parse` and `DevPanelController.apply` are already tested.
-3. The exit-gate sentence "every scenario loads its screen" can only be met once
-   N4's shell exists; the fixtures and the controller are ready for it.
+### Remaining (N4 / T05, not N2)
+1. **N4.10** — mount `DevPanel` in the shell and supply navigation callbacks.
+2. **N4.3** — route `screen` / `overlay`, consuming `initialDevDeepLinkProvider`.
+3. The exit-gate sentence "every scenario loads its screen" is then a shell
+   assertion; the fixtures, panel and boot seam are ready for it.
