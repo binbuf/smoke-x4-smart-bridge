@@ -36,7 +36,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 
 ## Wave 4 — Real bridge
 
-- [ ] T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA → [tasks/N15-bridge-integration.md](tasks/N15-bridge-integration.md)
+- [~] T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA → [tasks/N15-bridge-integration.md](tasks/N15-bridge-integration.md) ⟵ running
 
 ## Wave 5 — Verification and release
 
