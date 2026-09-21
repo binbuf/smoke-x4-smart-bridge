@@ -23,6 +23,15 @@ enum Density { compact, comfortable }
 /// The OTA release channel.
 enum OtaChannel { stable, beta }
 
+/// Whether the first-run onboarding wizard still has to run (N14.12).
+///
+/// * [fresh] — no bridge is known yet; the wizard owns the screen (N14.12).
+/// * [skipped] — the user skipped; the shell shows the "connect a bridge"
+///   empty state so it is never a dead end (N14.13).
+/// * [paired] — onboarding finished (or this build already has a bridge); the
+///   shell launches straight to Live.
+enum OnboardStatus { fresh, skipped, paired }
+
 /// A user-defined food: identity, target and its own expected timeline.
 ///
 /// N9.17 adds the identity fields the custom-food form collects ([glyph],
@@ -95,6 +104,14 @@ abstract class AppSettings with _$AppSettings {
 
     /// Allow an OTA while a session is recording (the 409 override).
     @Default(false) bool forceOta,
+
+    /// The friendly bridge name the wizard collects (N14.9).
+    @Default('Backyard Bridge') String bridgeName,
+
+    /// First-run gating (N14.12/N14.13). `paired` on the mock build because
+    /// every N2 scenario already carries a bridge; a factory-fresh install is
+    /// `fresh` and the wizard walks it to a live shell.
+    @Default(OnboardStatus.paired) OnboardStatus onboardStatus,
 
     /// User-defined foods, persisted with the preset library.
     @Default(<CustomFood>[]) List<CustomFood> customCatalog,

@@ -21,7 +21,11 @@ mixin _$AppSettings {
  bool get monitoring;/// Keep BLE warm while on Wi-Fi for fast failover.
  bool get holdBle;/// The Timeline tab sends wrap/spritz reminders.
  bool get autoWrapReminder; OtaChannel get otaChannel;/// Allow an OTA while a session is recording (the 409 override).
- bool get forceOta;/// User-defined foods, persisted with the preset library.
+ bool get forceOta;/// The friendly bridge name the wizard collects (N14.9).
+ String get bridgeName;/// First-run gating (N14.12/N14.13). `paired` on the mock build because
+/// every N2 scenario already carries a bridge; a factory-fresh install is
+/// `fresh` and the wizard walks it to a live shell.
+ OnboardStatus get onboardStatus;/// User-defined foods, persisted with the preset library.
  List<CustomFood> get customCatalog;
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
@@ -33,16 +37,16 @@ $AppSettingsCopyWith<AppSettings> get copyWith => _$AppSettingsCopyWithImpl<AppS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.units, units) || other.units == units)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.displayProfile, displayProfile) || other.displayProfile == displayProfile)&&(identical(other.density, density) || other.density == density)&&(identical(other.reducedMotion, reducedMotion) || other.reducedMotion == reducedMotion)&&(identical(other.preferManualAlarm, preferManualAlarm) || other.preferManualAlarm == preferManualAlarm)&&(identical(other.quietHours, quietHours) || other.quietHours == quietHours)&&(identical(other.monitoring, monitoring) || other.monitoring == monitoring)&&(identical(other.holdBle, holdBle) || other.holdBle == holdBle)&&(identical(other.autoWrapReminder, autoWrapReminder) || other.autoWrapReminder == autoWrapReminder)&&(identical(other.otaChannel, otaChannel) || other.otaChannel == otaChannel)&&(identical(other.forceOta, forceOta) || other.forceOta == forceOta)&&const DeepCollectionEquality().equals(other.customCatalog, customCatalog));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.units, units) || other.units == units)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.displayProfile, displayProfile) || other.displayProfile == displayProfile)&&(identical(other.density, density) || other.density == density)&&(identical(other.reducedMotion, reducedMotion) || other.reducedMotion == reducedMotion)&&(identical(other.preferManualAlarm, preferManualAlarm) || other.preferManualAlarm == preferManualAlarm)&&(identical(other.quietHours, quietHours) || other.quietHours == quietHours)&&(identical(other.monitoring, monitoring) || other.monitoring == monitoring)&&(identical(other.holdBle, holdBle) || other.holdBle == holdBle)&&(identical(other.autoWrapReminder, autoWrapReminder) || other.autoWrapReminder == autoWrapReminder)&&(identical(other.otaChannel, otaChannel) || other.otaChannel == otaChannel)&&(identical(other.forceOta, forceOta) || other.forceOta == forceOta)&&(identical(other.bridgeName, bridgeName) || other.bridgeName == bridgeName)&&(identical(other.onboardStatus, onboardStatus) || other.onboardStatus == onboardStatus)&&const DeepCollectionEquality().equals(other.customCatalog, customCatalog));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,units,themeMode,displayProfile,density,reducedMotion,preferManualAlarm,quietHours,monitoring,holdBle,autoWrapReminder,otaChannel,forceOta,const DeepCollectionEquality().hash(customCatalog));
+int get hashCode => Object.hash(runtimeType,units,themeMode,displayProfile,density,reducedMotion,preferManualAlarm,quietHours,monitoring,holdBle,autoWrapReminder,otaChannel,forceOta,bridgeName,onboardStatus,const DeepCollectionEquality().hash(customCatalog));
 
 @override
 String toString() {
-  return 'AppSettings(units: $units, themeMode: $themeMode, displayProfile: $displayProfile, density: $density, reducedMotion: $reducedMotion, preferManualAlarm: $preferManualAlarm, quietHours: $quietHours, monitoring: $monitoring, holdBle: $holdBle, autoWrapReminder: $autoWrapReminder, otaChannel: $otaChannel, forceOta: $forceOta, customCatalog: $customCatalog)';
+  return 'AppSettings(units: $units, themeMode: $themeMode, displayProfile: $displayProfile, density: $density, reducedMotion: $reducedMotion, preferManualAlarm: $preferManualAlarm, quietHours: $quietHours, monitoring: $monitoring, holdBle: $holdBle, autoWrapReminder: $autoWrapReminder, otaChannel: $otaChannel, forceOta: $forceOta, bridgeName: $bridgeName, onboardStatus: $onboardStatus, customCatalog: $customCatalog)';
 }
 
 
@@ -53,7 +57,7 @@ abstract mixin class $AppSettingsCopyWith<$Res>  {
   factory $AppSettingsCopyWith(AppSettings value, $Res Function(AppSettings) _then) = _$AppSettingsCopyWithImpl;
 @useResult
 $Res call({
- TempUnit units, AppThemeMode themeMode, DisplayProfile displayProfile, Density density, bool reducedMotion, bool preferManualAlarm, bool quietHours, bool monitoring, bool holdBle, bool autoWrapReminder, OtaChannel otaChannel, bool forceOta, List<CustomFood> customCatalog
+ TempUnit units, AppThemeMode themeMode, DisplayProfile displayProfile, Density density, bool reducedMotion, bool preferManualAlarm, bool quietHours, bool monitoring, bool holdBle, bool autoWrapReminder, OtaChannel otaChannel, bool forceOta, String bridgeName, OnboardStatus onboardStatus, List<CustomFood> customCatalog
 });
 
 
@@ -70,7 +74,7 @@ class _$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? units = null,Object? themeMode = null,Object? displayProfile = null,Object? density = null,Object? reducedMotion = null,Object? preferManualAlarm = null,Object? quietHours = null,Object? monitoring = null,Object? holdBle = null,Object? autoWrapReminder = null,Object? otaChannel = null,Object? forceOta = null,Object? customCatalog = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? units = null,Object? themeMode = null,Object? displayProfile = null,Object? density = null,Object? reducedMotion = null,Object? preferManualAlarm = null,Object? quietHours = null,Object? monitoring = null,Object? holdBle = null,Object? autoWrapReminder = null,Object? otaChannel = null,Object? forceOta = null,Object? bridgeName = null,Object? onboardStatus = null,Object? customCatalog = null,}) {
   return _then(_self.copyWith(
 units: null == units ? _self.units : units // ignore: cast_nullable_to_non_nullable
 as TempUnit,themeMode: null == themeMode ? _self.themeMode : themeMode // ignore: cast_nullable_to_non_nullable
@@ -84,7 +88,9 @@ as bool,holdBle: null == holdBle ? _self.holdBle : holdBle // ignore: cast_nulla
 as bool,autoWrapReminder: null == autoWrapReminder ? _self.autoWrapReminder : autoWrapReminder // ignore: cast_nullable_to_non_nullable
 as bool,otaChannel: null == otaChannel ? _self.otaChannel : otaChannel // ignore: cast_nullable_to_non_nullable
 as OtaChannel,forceOta: null == forceOta ? _self.forceOta : forceOta // ignore: cast_nullable_to_non_nullable
-as bool,customCatalog: null == customCatalog ? _self.customCatalog : customCatalog // ignore: cast_nullable_to_non_nullable
+as bool,bridgeName: null == bridgeName ? _self.bridgeName : bridgeName // ignore: cast_nullable_to_non_nullable
+as String,onboardStatus: null == onboardStatus ? _self.onboardStatus : onboardStatus // ignore: cast_nullable_to_non_nullable
+as OnboardStatus,customCatalog: null == customCatalog ? _self.customCatalog : customCatalog // ignore: cast_nullable_to_non_nullable
 as List<CustomFood>,
   ));
 }
@@ -170,10 +176,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( TempUnit units,  AppThemeMode themeMode,  DisplayProfile displayProfile,  Density density,  bool reducedMotion,  bool preferManualAlarm,  bool quietHours,  bool monitoring,  bool holdBle,  bool autoWrapReminder,  OtaChannel otaChannel,  bool forceOta,  List<CustomFood> customCatalog)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( TempUnit units,  AppThemeMode themeMode,  DisplayProfile displayProfile,  Density density,  bool reducedMotion,  bool preferManualAlarm,  bool quietHours,  bool monitoring,  bool holdBle,  bool autoWrapReminder,  OtaChannel otaChannel,  bool forceOta,  String bridgeName,  OnboardStatus onboardStatus,  List<CustomFood> customCatalog)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_that.reducedMotion,_that.preferManualAlarm,_that.quietHours,_that.monitoring,_that.holdBle,_that.autoWrapReminder,_that.otaChannel,_that.forceOta,_that.customCatalog);case _:
+return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_that.reducedMotion,_that.preferManualAlarm,_that.quietHours,_that.monitoring,_that.holdBle,_that.autoWrapReminder,_that.otaChannel,_that.forceOta,_that.bridgeName,_that.onboardStatus,_that.customCatalog);case _:
   return orElse();
 
 }
@@ -191,10 +197,10 @@ return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( TempUnit units,  AppThemeMode themeMode,  DisplayProfile displayProfile,  Density density,  bool reducedMotion,  bool preferManualAlarm,  bool quietHours,  bool monitoring,  bool holdBle,  bool autoWrapReminder,  OtaChannel otaChannel,  bool forceOta,  List<CustomFood> customCatalog)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( TempUnit units,  AppThemeMode themeMode,  DisplayProfile displayProfile,  Density density,  bool reducedMotion,  bool preferManualAlarm,  bool quietHours,  bool monitoring,  bool holdBle,  bool autoWrapReminder,  OtaChannel otaChannel,  bool forceOta,  String bridgeName,  OnboardStatus onboardStatus,  List<CustomFood> customCatalog)  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings():
-return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_that.reducedMotion,_that.preferManualAlarm,_that.quietHours,_that.monitoring,_that.holdBle,_that.autoWrapReminder,_that.otaChannel,_that.forceOta,_that.customCatalog);case _:
+return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_that.reducedMotion,_that.preferManualAlarm,_that.quietHours,_that.monitoring,_that.holdBle,_that.autoWrapReminder,_that.otaChannel,_that.forceOta,_that.bridgeName,_that.onboardStatus,_that.customCatalog);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -211,10 +217,10 @@ return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( TempUnit units,  AppThemeMode themeMode,  DisplayProfile displayProfile,  Density density,  bool reducedMotion,  bool preferManualAlarm,  bool quietHours,  bool monitoring,  bool holdBle,  bool autoWrapReminder,  OtaChannel otaChannel,  bool forceOta,  List<CustomFood> customCatalog)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( TempUnit units,  AppThemeMode themeMode,  DisplayProfile displayProfile,  Density density,  bool reducedMotion,  bool preferManualAlarm,  bool quietHours,  bool monitoring,  bool holdBle,  bool autoWrapReminder,  OtaChannel otaChannel,  bool forceOta,  String bridgeName,  OnboardStatus onboardStatus,  List<CustomFood> customCatalog)?  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_that.reducedMotion,_that.preferManualAlarm,_that.quietHours,_that.monitoring,_that.holdBle,_that.autoWrapReminder,_that.otaChannel,_that.forceOta,_that.customCatalog);case _:
+return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_that.reducedMotion,_that.preferManualAlarm,_that.quietHours,_that.monitoring,_that.holdBle,_that.autoWrapReminder,_that.otaChannel,_that.forceOta,_that.bridgeName,_that.onboardStatus,_that.customCatalog);case _:
   return null;
 
 }
@@ -226,7 +232,7 @@ return $default(_that.units,_that.themeMode,_that.displayProfile,_that.density,_
 
 
 class _AppSettings implements AppSettings {
-  const _AppSettings({this.units = TempUnit.fahrenheit, this.themeMode = AppThemeMode.system, this.displayProfile = DisplayProfile.standard, this.density = Density.compact, this.reducedMotion = false, this.preferManualAlarm = false, this.quietHours = true, this.monitoring = true, this.holdBle = true, this.autoWrapReminder = true, this.otaChannel = OtaChannel.stable, this.forceOta = false, final  List<CustomFood> customCatalog = const <CustomFood>[]}): _customCatalog = customCatalog;
+  const _AppSettings({this.units = TempUnit.fahrenheit, this.themeMode = AppThemeMode.system, this.displayProfile = DisplayProfile.standard, this.density = Density.compact, this.reducedMotion = false, this.preferManualAlarm = false, this.quietHours = true, this.monitoring = true, this.holdBle = true, this.autoWrapReminder = true, this.otaChannel = OtaChannel.stable, this.forceOta = false, this.bridgeName = 'Backyard Bridge', this.onboardStatus = OnboardStatus.paired, final  List<CustomFood> customCatalog = const <CustomFood>[]}): _customCatalog = customCatalog;
   
 
 /// Display only; data stays canonical tenths-°F.
@@ -248,6 +254,12 @@ class _AppSettings implements AppSettings {
 @override@JsonKey() final  OtaChannel otaChannel;
 /// Allow an OTA while a session is recording (the 409 override).
 @override@JsonKey() final  bool forceOta;
+/// The friendly bridge name the wizard collects (N14.9).
+@override@JsonKey() final  String bridgeName;
+/// First-run gating (N14.12/N14.13). `paired` on the mock build because
+/// every N2 scenario already carries a bridge; a factory-fresh install is
+/// `fresh` and the wizard walks it to a live shell.
+@override@JsonKey() final  OnboardStatus onboardStatus;
 /// User-defined foods, persisted with the preset library.
  final  List<CustomFood> _customCatalog;
 /// User-defined foods, persisted with the preset library.
@@ -268,16 +280,16 @@ _$AppSettingsCopyWith<_AppSettings> get copyWith => __$AppSettingsCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.units, units) || other.units == units)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.displayProfile, displayProfile) || other.displayProfile == displayProfile)&&(identical(other.density, density) || other.density == density)&&(identical(other.reducedMotion, reducedMotion) || other.reducedMotion == reducedMotion)&&(identical(other.preferManualAlarm, preferManualAlarm) || other.preferManualAlarm == preferManualAlarm)&&(identical(other.quietHours, quietHours) || other.quietHours == quietHours)&&(identical(other.monitoring, monitoring) || other.monitoring == monitoring)&&(identical(other.holdBle, holdBle) || other.holdBle == holdBle)&&(identical(other.autoWrapReminder, autoWrapReminder) || other.autoWrapReminder == autoWrapReminder)&&(identical(other.otaChannel, otaChannel) || other.otaChannel == otaChannel)&&(identical(other.forceOta, forceOta) || other.forceOta == forceOta)&&const DeepCollectionEquality().equals(other._customCatalog, _customCatalog));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.units, units) || other.units == units)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.displayProfile, displayProfile) || other.displayProfile == displayProfile)&&(identical(other.density, density) || other.density == density)&&(identical(other.reducedMotion, reducedMotion) || other.reducedMotion == reducedMotion)&&(identical(other.preferManualAlarm, preferManualAlarm) || other.preferManualAlarm == preferManualAlarm)&&(identical(other.quietHours, quietHours) || other.quietHours == quietHours)&&(identical(other.monitoring, monitoring) || other.monitoring == monitoring)&&(identical(other.holdBle, holdBle) || other.holdBle == holdBle)&&(identical(other.autoWrapReminder, autoWrapReminder) || other.autoWrapReminder == autoWrapReminder)&&(identical(other.otaChannel, otaChannel) || other.otaChannel == otaChannel)&&(identical(other.forceOta, forceOta) || other.forceOta == forceOta)&&(identical(other.bridgeName, bridgeName) || other.bridgeName == bridgeName)&&(identical(other.onboardStatus, onboardStatus) || other.onboardStatus == onboardStatus)&&const DeepCollectionEquality().equals(other._customCatalog, _customCatalog));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,units,themeMode,displayProfile,density,reducedMotion,preferManualAlarm,quietHours,monitoring,holdBle,autoWrapReminder,otaChannel,forceOta,const DeepCollectionEquality().hash(_customCatalog));
+int get hashCode => Object.hash(runtimeType,units,themeMode,displayProfile,density,reducedMotion,preferManualAlarm,quietHours,monitoring,holdBle,autoWrapReminder,otaChannel,forceOta,bridgeName,onboardStatus,const DeepCollectionEquality().hash(_customCatalog));
 
 @override
 String toString() {
-  return 'AppSettings(units: $units, themeMode: $themeMode, displayProfile: $displayProfile, density: $density, reducedMotion: $reducedMotion, preferManualAlarm: $preferManualAlarm, quietHours: $quietHours, monitoring: $monitoring, holdBle: $holdBle, autoWrapReminder: $autoWrapReminder, otaChannel: $otaChannel, forceOta: $forceOta, customCatalog: $customCatalog)';
+  return 'AppSettings(units: $units, themeMode: $themeMode, displayProfile: $displayProfile, density: $density, reducedMotion: $reducedMotion, preferManualAlarm: $preferManualAlarm, quietHours: $quietHours, monitoring: $monitoring, holdBle: $holdBle, autoWrapReminder: $autoWrapReminder, otaChannel: $otaChannel, forceOta: $forceOta, bridgeName: $bridgeName, onboardStatus: $onboardStatus, customCatalog: $customCatalog)';
 }
 
 
@@ -288,7 +300,7 @@ abstract mixin class _$AppSettingsCopyWith<$Res> implements $AppSettingsCopyWith
   factory _$AppSettingsCopyWith(_AppSettings value, $Res Function(_AppSettings) _then) = __$AppSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- TempUnit units, AppThemeMode themeMode, DisplayProfile displayProfile, Density density, bool reducedMotion, bool preferManualAlarm, bool quietHours, bool monitoring, bool holdBle, bool autoWrapReminder, OtaChannel otaChannel, bool forceOta, List<CustomFood> customCatalog
+ TempUnit units, AppThemeMode themeMode, DisplayProfile displayProfile, Density density, bool reducedMotion, bool preferManualAlarm, bool quietHours, bool monitoring, bool holdBle, bool autoWrapReminder, OtaChannel otaChannel, bool forceOta, String bridgeName, OnboardStatus onboardStatus, List<CustomFood> customCatalog
 });
 
 
@@ -305,7 +317,7 @@ class __$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? units = null,Object? themeMode = null,Object? displayProfile = null,Object? density = null,Object? reducedMotion = null,Object? preferManualAlarm = null,Object? quietHours = null,Object? monitoring = null,Object? holdBle = null,Object? autoWrapReminder = null,Object? otaChannel = null,Object? forceOta = null,Object? customCatalog = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? units = null,Object? themeMode = null,Object? displayProfile = null,Object? density = null,Object? reducedMotion = null,Object? preferManualAlarm = null,Object? quietHours = null,Object? monitoring = null,Object? holdBle = null,Object? autoWrapReminder = null,Object? otaChannel = null,Object? forceOta = null,Object? bridgeName = null,Object? onboardStatus = null,Object? customCatalog = null,}) {
   return _then(_AppSettings(
 units: null == units ? _self.units : units // ignore: cast_nullable_to_non_nullable
 as TempUnit,themeMode: null == themeMode ? _self.themeMode : themeMode // ignore: cast_nullable_to_non_nullable
@@ -319,7 +331,9 @@ as bool,holdBle: null == holdBle ? _self.holdBle : holdBle // ignore: cast_nulla
 as bool,autoWrapReminder: null == autoWrapReminder ? _self.autoWrapReminder : autoWrapReminder // ignore: cast_nullable_to_non_nullable
 as bool,otaChannel: null == otaChannel ? _self.otaChannel : otaChannel // ignore: cast_nullable_to_non_nullable
 as OtaChannel,forceOta: null == forceOta ? _self.forceOta : forceOta // ignore: cast_nullable_to_non_nullable
-as bool,customCatalog: null == customCatalog ? _self._customCatalog : customCatalog // ignore: cast_nullable_to_non_nullable
+as bool,bridgeName: null == bridgeName ? _self.bridgeName : bridgeName // ignore: cast_nullable_to_non_nullable
+as String,onboardStatus: null == onboardStatus ? _self.onboardStatus : onboardStatus // ignore: cast_nullable_to_non_nullable
+as OnboardStatus,customCatalog: null == customCatalog ? _self._customCatalog : customCatalog // ignore: cast_nullable_to_non_nullable
 as List<CustomFood>,
   ));
 }

@@ -20,6 +20,8 @@ void main() {
     expect(s.autoWrapReminder, isTrue);
     expect(s.otaChannel, OtaChannel.stable);
     expect(s.forceOta, isFalse);
+    expect(s.bridgeName, 'Backyard Bridge');
+    expect(s.onboardStatus, OnboardStatus.paired);
     expect(s.customCatalog, isEmpty);
   });
 

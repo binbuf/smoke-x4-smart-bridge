@@ -27,6 +27,7 @@ import '../connection/connect_sheet.dart';
 import '../connection/mode_cards.dart';
 import '../connection/provision_sheets.dart';
 import '../live/live_overlays.dart';
+import '../onboarding/onboarding_sheet.dart';
 import '../settings/diagnostics_sheet.dart';
 import '../settings/firmware_sheet.dart';
 import '../settings/settings_format.dart';
@@ -85,6 +86,7 @@ class SheetOverlay extends OverlayContent {
     this.body,
     this.bodyBuilder,
     this.foot,
+    this.footBuilder,
   });
 
   final String? sub;
@@ -96,6 +98,9 @@ class SheetOverlay extends OverlayContent {
   final OverlayBodyBuilder? bodyBuilder;
 
   final Widget? foot;
+
+  /// A foot that needs the host's dismiss callback (N14 wizard).
+  final OverlayBodyBuilder? footBuilder;
 }
 
 /// A centred modal-card overlay.
@@ -125,15 +130,12 @@ class ModalOverlay extends OverlayContent {
 
 /// The prototype's §7 map, as a resolver over [DevOverlay].
 OverlayContent resolveOverlay(OverlayRequest request) {
-  final props = _propLine(request.props);
-  Widget body(String copy) =>
-      _OverlayPlaceholder(copy: copy, props: props, tall: true);
-
   return switch (request.name) {
     DevOverlay.onboarding => SheetOverlay(
-      title: 'Welcome to Smoke',
-      sub: 'Pair your bridge',
-      body: body('The 8-step onboarding wizard lands in N14.'),
+      title: kOnboardingOverlayTitle,
+      sub: kOnboardingOverlaySub,
+      bodyBuilder: onboardingOverlayBody,
+      footBuilder: onboardingOverlayFoot,
     ),
     DevOverlay.setup => SheetOverlay(
       title: 'Cook setup',
@@ -266,54 +268,6 @@ List<String> _propList(String? value) {
     return const <String>[];
   }
   return value.split('|').where((s) => s.isNotEmpty).toList();
-}
-
-String? _propLine(Map<String, String> props) {
-  if (props.isEmpty) {
-    return null;
-  }
-  final entries = props.entries.map((e) => '${e.key}=${e.value}').toList()
-    ..sort();
-  return entries.join(' · ');
-}
-
-class _OverlayPlaceholder extends StatelessWidget {
-  const _OverlayPlaceholder({
-    required this.copy,
-    this.props,
-    this.tall = false,
-  });
-
-  final String copy;
-  final String? props;
-  final bool tall;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = SmokeTokens.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          copy,
-          key: const ValueKey<String>('shell-overlay-copy'),
-          style: SmokeText.body.copyWith(color: tokens.textBody),
-        ),
-        if (props != null) ...<Widget>[
-          const SizedBox(height: 8),
-          Text(
-            props!,
-            key: const ValueKey<String>('shell-overlay-props'),
-            style: SmokeText.monoSmall.copyWith(color: tokens.textMuted),
-          ),
-        ],
-        // A long body makes the sheet genuinely scrollable (N4.6), which is
-        // also what N4.11's per-overlay scroll preservation is about.
-        if (tall) const SizedBox(height: 900),
-      ],
-    );
-  }
 }
 
 /// The shared sheet surface: grabber, head, scrollable body, optional foot.
@@ -550,7 +504,7 @@ class ShellOverlayHost extends StatelessWidget {
                 title: content.title,
                 sub: content.sub,
                 body: content.bodyBuilder?.call(onDismiss) ?? content.body!,
-                foot: content.foot,
+                foot: content.footBuilder?.call(onDismiss) ?? content.foot,
                 scrollController: scrollController,
                 onClose: onDismiss,
               ),

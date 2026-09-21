@@ -24,6 +24,7 @@ import '../../data/model/cook_state.dart';
 import '../../data/providers.dart';
 import '../../design/design.dart';
 import '../../domain/domain.dart';
+import '../onboarding/onboarding_model.dart';
 import '../shell/phone_frame.dart';
 import '../shell/shell.dart';
 import '../shell/shell_screen.dart';
@@ -89,6 +90,24 @@ class _LiveBody extends ConsumerWidget {
       Map<String, String> props = const {},
     ]) {
       scope?.openOverlay(overlay, props);
+    }
+
+    // N14.13 — a skipped onboarding must never be a dead end: the shell offers
+    // a way to connect instead of pretending there is a cook to show.
+    if (ref.watch(onboardingSkippedProvider)) {
+      return ShellScrollHost(
+        resetToken: ShellScreen.live,
+        child: EmptyState(
+          key: const ValueKey<String>('live-connect-bridge'),
+          icon: SmokeGlyph.bluetooth,
+          title: 'Connect a bridge',
+          copy:
+              'No bridge is set up yet. Pair one to start reading '
+              'temperatures — the bridge records on its own once it is.',
+          actionLabel: 'Set up your bridge',
+          onAction: () => openOverlay(DevOverlay.onboarding),
+        ),
+      );
     }
 
     return ShellScrollHost(

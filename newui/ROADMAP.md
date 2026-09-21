@@ -32,7 +32,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 
 ## Wave 3 — Guidance
 
-- [ ] T15 — N14 Onboarding: 8-step wizard, preflight, passkey coaching, troubleshoot → [tasks/N14-onboarding.md](tasks/N14-onboarding.md)
+- [x] T15 — N14 Onboarding: 8-step wizard, preflight, passkey coaching, troubleshoot → [tasks/N14-onboarding.md](tasks/N14-onboarding.md)
 
 ## Wave 4 — Real bridge
 
@@ -43,11 +43,11 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 - [ ] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md)
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-09-21T22:21:33Z · 14/17 done
+**Pipeline status** — updated 2026-09-21T23:22:37Z · 15/17 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15
 - Blocked: none
 - Failed: none
-- Remaining: T15, T16, T17
-- Last finished: T14 — done · N13 settings tree, firmware/OTA (Wi-Fi-only, 409 force guard, rollback), diagnostics, five-tap gate and cost→verb device flows landed; make app.test green (583) and data/domain gate 184.
+- Remaining: T16, T17
+- Last finished: T15 — done · N14 onboarding landed — pure 8-step SetupMachine (generation guard, named faults), gate + resume, preflight/troubleshoot/passkey-coaching/sync/network/name/done surfaces, skip→connect empty state; make app.test 609 and data/domain gate 202 green.
 <!-- /symphony:status -->

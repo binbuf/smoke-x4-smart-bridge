@@ -614,3 +614,41 @@ Status: **done**. `make app.test` green (**583**; N13 adds 42 — 13 pure + 16 s
 - N15: real device discovery signal, OTA (stream/slots/120 s health gate), restart/forget/factory endpoints, real field report + clipboard/share, persist `forceOta`/`otaChannel` on the real transport.
 - N16: no goldens for the Settings tree, firmware, update, diagnostics or verb sheets; consider one Settings golden (fixed repo + prefs + `shellPulseEnabledProvider:false`).
 - N11: the Settings behaviour toggles and the alarms sheet both write the same `AppSettings` fields — keep them a single source if the alarms sheet gains its own editor.
+
+## T15 — N14 Onboarding: 8-step wizard, preflight, passkey coaching, troubleshoot
+
+Status: **done**. `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 widget + 0 repo/golden); `flutter analyze` and format check clean; `dart test test/domain test/data` green (**202**, was 184). No golden changed.
+
+**Real paths (all under `app/lib/features/onboarding/`; barrel `onboarding.dart`)**
+- `setup_format.dart` — pure: `OnboardStep` (8), `kOnboardSteps`, `OnboardPermission`/`PermissionState`/`kOnboardPermissions`, `SetupHop`/`HopStatus`, `SetupFault`, `SetupState`, `SetupToken`, `SetupHopRow`, `kPasskeyPlaceholder`.
+- `onboarding_model.dart` — `SetupMachine` (`Notifier<SetupState>`) + `setupStateProvider`, `onboardingRequiredProvider`, `onboardingSkippedProvider`.
+- `onboarding_sheet.dart` — `OnboardingBody`, `OnboardingFoot`, `OnboardingSurface` (gate), `finishOnboarding`, `skipOnboarding`.
+- Wired: `shell/overlay.dart` `DevOverlay.onboarding` -> real body/foot; `shell/shell.dart` mounts `OnboardingSurface` above everything while required; `features/live/live_page.dart` `live-connect-bridge` empty state when skipped.
+- Tests `app/test/data/onboarding_setup_test.dart` (18, `package:test`, in the `dart test` gate) and `app/test/features/onboarding_test.dart` (8 widget).
+
+**Commands that work**
+- `make app.test` — the N14 gate (analyze + format + `flutter test`, 609 pass).
+- `cd app && flutter test test/features/onboarding_test.dart` — 8.
+- `cd app && dart test test/data/onboarding_setup_test.dart` — 18.
+- `cd app && dart test test/domain test/data` — data/domain gate (202).
+- Re-run `dart run build_runner build` after any further `AppSettings` change (the freezed file was regenerated).
+
+**Contract facts later tasks need**
+- **`AppSettings` gained `bridgeName` (`String`, default `'Backyard Bridge'`) and `onboardStatus` (`OnboardStatus { fresh, skipped, paired }`, default `paired`).** Freezed regenerated.
+- **Default `paired` is deliberate on the mock build** (every scenario carries a bridge; keeps the 583 pre-N14 tests green). Factory-fresh = `fresh`. N15 seeds `fresh` on a real first install and returns to it on factory reset.
+- **The wizard is a pure machine in the `dart test` gate.** `canAdvance` = I6 next-step; `blockedReason` = I5 copy; `beginAsync()`/`resolve(token, fn)` = monotonic generation guard. Faults are named (`SetupFault` title/body/recoverLabel, I15).
+- **`setupStateProvider` lives above the overlay** (resume on reopen); finish/skip call `reset()`. Finish persists units + `bridgeName` + `paired` and calls `BridgeRepository.connect()`; skip persists `skipped`.
+- **`SheetOverlay` gained `footBuilder`**; the host prefers it over `foot`. `_OverlayPlaceholder`/`_propLine` and the `shell-overlay-copy`/`-props` keys were removed (onboarding was the last placeholder).
+- **Passkey is structural-only**: no code field/parameter; `kPasskeyPlaceholder = '••••••'`. A test asserts no `Text` renders a 6-digit code. N15 owns the real platform passkey flow.
+- Keys: `onboarding-surface`/`-body`/`-foot`/`-step-rail`/`-step-dot-<i>`/`-next`/`-back`/`-skip`/`-welcome`/`-welcome-copy`/`-preflight`/`-perm-<Name>`/`-perm-allow-<Name>`/`-scan`/`-scan-ring`/`-found-bridge`/`-found-sub`/`-troubleshoot-link`/`-troubleshoot`/`-ts-<i>`/`-passkey`/`-passkey-note`/`-sync`/`-listener-notice`/`-skip-base`/`-network`/`-mode-<id>`/`-name`/`-name-field`/`-units`/`-done`/`-done-copy`/`-hop-<Hop>`/`-hop-status-<Hop>`/`-fault`/`-fault-title`/`-fault-body`/`-fault-recover`; Live `live-connect-bridge`. Permission keys use the display name (`-perm-allow-Bluetooth`).
+
+**Deviations / gotchas**
+- Default `onboardStatus: paired` means the mock never auto-opens the wizard; tests set `fresh` explicitly.
+- The named `?overlay=onboarding` dev path is dismissible; the gate is not (its X = Skip). Both share `OnboardingBody`/`OnboardingFoot`.
+- The gate sheet head shows the current step title/sub; the named-overlay head is static (`Welcome to Smoke`).
+- The network step selects locally (no `applyMode`); the prototype's troubleshoot `permRow(...,false)` Allow rows became plain checklist rows.
+- Denial is a platform-only state in the real app; the widget renders the named denied state + resumable Allow (pinned by a seeded `setupStateProvider` test). `SetupMachine.fault(...)` is the test/dev seam.
+
+**Follow-ups**
+- N15: seed `fresh` on first install, reset to `fresh` on factory reset; real BLE scan/pair + platform permission requests + real passkey entry; `shared_preferences` persistence of `bridgeName`/`onboardStatus`.
+- N16: no golden renders the wizard; consider one for the gate.

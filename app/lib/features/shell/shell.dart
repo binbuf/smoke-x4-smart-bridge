@@ -24,6 +24,8 @@ import '../../data/providers.dart';
 import '../../design/design.dart';
 import '../dev/dev_panel.dart';
 import '../graph/graph_fullscreen.dart';
+import '../onboarding/onboarding_model.dart';
+import '../onboarding/onboarding_sheet.dart';
 import 'app_bar.dart';
 import 'bottom_nav.dart';
 import 'graph_host.dart';
@@ -277,6 +279,7 @@ class _AppShellState extends ConsumerState<AppShell>
         ? TransportStatus.unknown
         : TransportStatus.from(snapshot.connection);
     final overlay = overlayRequestFromLocation(_location);
+    final onboardingRequired = ref.watch(onboardingRequiredProvider);
 
     final chrome = ShellScope(
       openOverlay: _openOverlay,
@@ -289,7 +292,7 @@ class _AppShellState extends ConsumerState<AppShell>
         pulse: _pulse,
         child: ShellPhoneFrame(
           now: _now,
-          overlay: _overlayStack(overlay),
+          overlay: _overlayStack(overlay, onboardingRequired),
           toast: ShellToastHost(controller: _toast),
           child: Column(
             children: <Widget>[
@@ -359,8 +362,8 @@ class _AppShellState extends ConsumerState<AppShell>
     );
   }
 
-  Widget? _overlayStack(OverlayRequest? overlay) {
-    if (overlay == null && !_fullGraph) {
+  Widget? _overlayStack(OverlayRequest? overlay, bool onboardingRequired) {
+    if (overlay == null && !_fullGraph && !onboardingRequired) {
       return null;
     }
     return Stack(
@@ -380,9 +383,17 @@ class _AppShellState extends ConsumerState<AppShell>
               child: GraphFullscreenBody(onDismiss: _toggleFullGraph),
             ),
           ),
+        // N14.12 — while no bridge is known the wizard owns the screen. It is
+        // mounted last so it sits above any deep-linked overlay too.
+        if (onboardingRequired)
+          Positioned.fill(
+            child: OnboardingSurface(onDone: _onboardingDone, onSkip: () {}),
+          ),
       ],
     );
   }
+
+  void _onboardingDone() => _go(ShellScreen.live.path);
 
   Future<void> _openDevPanel(BuildContext context) {
     final tokens = SmokeTokens.of(context);
