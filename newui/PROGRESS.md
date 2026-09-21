@@ -70,3 +70,34 @@ Status: done. `dart test test/domain` green (87 tests). `make app.test` green (1
 - Generated files are committed and CI freshness-checks `git diff --exit-code -- lib`; always run `make app.gen` before committing model changes.
 - `app/lib/domain/` must stay free of `package:flutter` and `dart:ui` (`domain_purity_test.dart` + CI grep). `package:meta` is allowed.
 - `app.js` §4 approximates carryover/pull; N1 uses the real `SafetyFloor`-clamped values per NOTES §3.4, so prototype numbers may differ by a degree at the floor.
+
+## T03 — N2 Data and mocks: catalog/style/timeline tables, scenarios, mock repository
+
+Status: **continue** (N2.1–N2.30 done; N2.31/N2.32 core done, panel widget + boot wiring deferred to N4).
+`dart test test/domain test/data` green (**129**); `flutter test` green (**142**); `flutter analyze` and format check clean.
+
+**Real paths**
+- Content `app/lib/data/content/`: `catalog_data.dart`, `styles_data.dart`, `fixtures_data.dart` (**generated** by `node app/tool/gen_mock_content.mjs` from `newui/mock-data.js`); hand-written `timelines.dart`, `catalog.dart`, `scenarios.dart`.
+- Models `app/lib/data/model/`: `catalog_entry.dart`, `connection_state.dart`, `cook_state.dart`, `bridge_snapshot.dart` (freezed), `app_settings.dart` (freezed), `alarm.dart`, `alarm_rule.dart`, `connection_mode.dart`, `device_info.dart`, `history_entry.dart`, `mock_event.dart`.
+- Repo `app/lib/data/repository/`: `bridge_repository.dart`, `mock_bridge_repository.dart`, `mock_event_bus.dart`, `prefs_repository.dart`. Providers `app/lib/data/providers.dart`; barrel `app/lib/data/data.dart`; dev control `app/lib/data/dev_panel.dart`.
+- Tests `app/test/data/{content_validation,timeline,mock_repository,settings,dev_panel}_test.dart`.
+
+**Commands that work (repo root)**
+- `cd app && dart test test/domain test/data` — the N2 exit gate (129 pass).
+- `cd app && flutter test` — full suite incl. goldens (142 pass).
+- `cd app && node tool/gen_mock_content.mjs` — regenerate the three content tables after editing `newui/mock-data.js`.
+- `make app.gen` — build_runner only (freezed); it does NOT regenerate content tables.
+
+**Contract facts later tasks need**
+- `kCatalogTable` (139 cuts, 10 categories, 331 styles over 139 styled cuts, `timelines` one per cut). Reviewers: `kCatalogReviewer`, `kStylesReviewer`, `kTimelineReviewer`.
+- `BridgeRepository` is the only screen source: `snapshot()` stream, `resync/connect/disconnect/adoptSession/startCook/addItem/markPulled/mark/ackAlarm/probeRole/setTarget/applyMode/performVerb/checkForUpdates/setFavourite`, dev `selectScenario/fireEvent`, plus `catalog/connectionModes/alarmRules/mockEvents/device/firmware/history/scenarios`.
+- `MockBridgeRepository({int? nowMs, String initialScenario})`; 11 scenarios incl. `running/idle/existing/offline` + 7 connection-matrix. `snapshot()` replays `current` on each subscription, so `await repo.snapshot().first` reads state.
+- `ProbeState.reading` → N1 `ProbeReading` with the I4 gate; `MockPrefsRepository` backs `AppSettings.defaults`.
+- `DevPanelController.applyLocation('?scenario=offline&units=C&screen=timeline&overlay=probe&jack=3')` is tested; `DevDeepLink.parse` accepts query, fragment and app URIs.
+
+**Deviations / gotchas**
+- Counts in the task text are stale: it is **139/331/139**, not ~318/133. `game_antelope` and `game_squirrel` have only 1 style each.
+- Content validation pins the prototype's below-floor rungs (raw tuna, rosé duck, warm ham, 140 °F lobster/crab, 160 °F rabbit, cold sides) as exact exception sets; `unstated` (non-meat) entries are not floor-checked.
+- **Follow-up (N9):** the catalog marks all vegetables/sides/desserts/cold items `unstated`, which N1 floors at 160 °F. The picker must not apply that floor to declared non-meat content (coleslaw 38 °F, cold-smoke cheese 90 °F, butter 80 °F would be refused otherwise).
+- **Follow-up (N4/N6):** `ProbeState` duplicates part of `ProbeReading`; consider collapsing to one projection when the shell wires the providers.
+- Generated files are committed; run `make app.gen` after any freezed-model change.
