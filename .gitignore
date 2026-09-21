@@ -67,3 +67,7 @@ firmware/build-test/
 *~
 *.tmp
 .claude/
+
+# symphony harness (local tool, not tracked)
+.symphony/
+.stop
