@@ -1,138 +1,18 @@
-/// N4.3/exit gate — placeholder destination screens.
+/// N4.3 / feature wiring — the destination screens.
 ///
 /// The real Live / Temps / Timeline / Graph / Settings / History / Cook detail
-/// screens arrive in N5–N13. Until then each route renders a placeholder that
-/// still lives inside the real chrome and reads its state from the N2
-/// providers, never from the shell. The demo actions exist so the shell's
-/// overlay, fullscreen-graph and toast seams are reachable and testable from
-/// every surface.
+/// screens. N5–N13 replaced the original placeholder stack one task at a time;
+/// N13's [SettingsPage] was the last, so the placeholder is gone.
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/dev_panel.dart';
-import '../../data/providers.dart';
-import '../../design/design.dart';
-import '../connection/bridge_card.dart';
 import '../graph/graph.dart';
 import '../history/history.dart';
 import '../live/live_page.dart';
+import '../settings/settings_page.dart';
 import '../temps/temps_page.dart';
 import '../timeline/timeline.dart';
-import 'phone_frame.dart';
-import 'shell.dart';
-import 'shell_screen.dart';
-
-/// The shared destination body.
-class DestinationPlaceholder extends ConsumerWidget {
-  const DestinationPlaceholder({super.key, required this.screen});
-
-  final ShellScreen screen;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = SmokeTokens.of(context);
-    final scope = ShellScope.maybeOf(context);
-    final snapshot = ref.watch(snapshotProvider).value;
-    final unacked = snapshot?.alarms.where((alarm) => !alarm.acked).length ?? 0;
-    final phase = snapshot?.connection.phase.name ?? 'unknown';
-
-    return ShellScrollHost(
-      resetToken: screen,
-      child: Column(
-        key: ValueKey<String>('destination-${screen.name}'),
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          SmokeCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  screen.title,
-                  style: SmokeText.title.copyWith(color: tokens.textHi),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  screen.subtitle ?? 'A placeholder destination.',
-                  style: SmokeText.body.copyWith(color: tokens.textBody),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Connection: $phase · unacked alarms: $unacked',
-                  key: const ValueKey<String>('destination-state'),
-                  style: SmokeText.monoSmall.copyWith(color: tokens.textMuted),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: SmokeButton(
-                  key: const ValueKey<String>('destination-connect'),
-                  label: 'Connect',
-                  icon: SmokeGlyph.link,
-                  onPressed: () => scope?.openOverlay(DevOverlay.connect),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SmokeButton(
-                  key: const ValueKey<String>('destination-alerts'),
-                  label: 'Alerts',
-                  icon: SmokeGlyph.bell,
-                  onPressed: () => scope?.openOverlay(DevOverlay.alarms),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: SmokeButton(
-                  key: const ValueKey<String>('destination-fullscreen'),
-                  label: 'Fullscreen',
-                  icon: SmokeGlyph.expand,
-                  onPressed: () => scope?.toggleFullGraph(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SmokeButton(
-                  key: const ValueKey<String>('destination-toast'),
-                  label: 'Toast',
-                  icon: SmokeGlyph.info,
-                  onPressed: () =>
-                      scope?.showToast('Hello from ${screen.title}'),
-                ),
-              ),
-            ],
-          ),
-          if (screen == ShellScreen.settings) ...<Widget>[
-            const SizedBox(height: 12),
-            // N10.12 — the connection/device card. N13 replaces the rest of
-            // this placeholder with the real settings tree.
-            const BridgeCard(),
-            const SizedBox(height: 12),
-            SmokeCard(
-              child: SettingsRow(
-                key: const ValueKey<String>('destination-open-history'),
-                icon: SmokeGlyph.history,
-                name: 'History',
-                sub: 'Past cooks',
-                onTap: () => scope?.openScreen(ShellScreen.history),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
 
 /// Live destination (N5).
 class LiveDestination extends StatelessWidget {
@@ -171,8 +51,7 @@ class SettingsDestination extends StatelessWidget {
   const SettingsDestination({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const DestinationPlaceholder(screen: ShellScreen.settings);
+  Widget build(BuildContext context) => const SettingsPage();
 }
 
 /// History destination (N12).

@@ -68,25 +68,7 @@ class CostSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(message, style: SmokeText.sub.copyWith(color: tokens.textBody)),
-          if (keeps.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 16),
-            _Group(
-              label: 'Keeps',
-              glyph: SmokeGlyph.check,
-              hue: tokens.positive,
-              items: keeps,
-            ),
-          ],
-          if (loses.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 12),
-            _Group(
-              label: 'Loses',
-              glyph: SmokeGlyph.alertTriangle,
-              hue: tokens.critical,
-              items: loses,
-            ),
-          ],
+          CostSheetBody(message: message, keeps: keeps, loses: loses),
           const SizedBox(height: 20),
           PrimaryAction(
             label: confirmLabel,
@@ -102,6 +84,57 @@ class CostSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The content half of a [CostSheet]: the message plus the keeps/loses split.
+///
+/// Split out so the generic `confirm` overlay (N13.22) can render the same
+/// cost language under the shell's modal chrome (title + Confirm/Cancel row).
+class CostSheetBody extends StatelessWidget {
+  const CostSheetBody({
+    super.key,
+    required this.message,
+    this.keeps = const <String>[],
+    this.loses = const <String>[],
+  });
+
+  final String message;
+
+  /// What survives the action.
+  final List<String> keeps;
+
+  /// What the action destroys.
+  final List<String> loses;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = SmokeTokens.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(message, style: SmokeText.sub.copyWith(color: tokens.textBody)),
+        if (keeps.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 16),
+          _Group(
+            label: 'Keeps',
+            glyph: SmokeGlyph.check,
+            hue: tokens.positive,
+            items: keeps,
+          ),
+        ],
+        if (loses.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 12),
+          _Group(
+            label: 'Loses',
+            glyph: SmokeGlyph.alertTriangle,
+            hue: tokens.critical,
+            items: loses,
+          ),
+        ],
+      ],
     );
   }
 }

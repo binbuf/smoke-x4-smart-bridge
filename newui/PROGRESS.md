@@ -571,3 +571,46 @@ and format check clean; `dart test test/domain test/data` green (**182**, was
 - N15: implement the six repo methods on the real transport; stream the CSV from
   drift (N15.14); wire `share_plus` (N15.21).
 - N16: consider History list + cook-detail goldens (none exist).
+
+## T14 — N13 Settings and device: settings tree, firmware/OTA, diagnostics, restart/forget/factory
+
+Status: **done**. `make app.test` green (**583**; N13 adds 42 — 13 pure + 16 settings widget + 10 device widget + 2 repo + 1 generic-confirm shell); `flutter analyze` and format check clean; `dart test test/domain test/data` green (**184**, was 182). No golden changed.
+
+**Real paths (all under `app/lib/features/settings/`; barrel `settings.dart`)**
+- `settings_format.dart` — pure: `VerbSpec`/`kVerbSpecs`/`verbSpec`/`verbFromId`/`verbId`, `OtaGuard`/`otaGuard`, `firmwareRowSub`/`updateFirmwareRowSub`, `channelWord`/`otaChannelWord`, `DiagnosticFact`/`diagnosticFacts`, `storageUsedFraction`/`sessionsKept`/`flashUsed`/`retention`, `LogLevel`/`logLevelOf`, `kDiagnosticsTapCount`/`diagnosticsGateSub`, `appearanceSub`/`unitsSub`/`monitoringSub`.
+- `settings_page.dart` — `SettingsPage` (N13.1–N13.8) + the private `_DiagnosticsGateRow`.
+- `firmware_sheet.dart` — `FirmwareSheetBody` (N13.9), `FirmwareUpdateSheetBody` (N13.10–N13.12).
+- `diagnostics_sheet.dart` — `DiagnosticsSheetBody` (N13.15–N13.17) + `diagnosticsText`.
+- `verb_sheet.dart` — `VerbSheetBody` (N13.13/N13.20).
+- `settings_widgets.dart` — `FactRow`, `StorageBar`.
+- `design/cost_sheet.dart` gained `CostSheetBody` (message + keeps/loses, no title/buttons); `CostSheet` now uses it.
+- Wired: `shell/destinations.dart` `SettingsDestination` → `const SettingsPage()` (**`DestinationPlaceholder` deleted**); `shell/overlay.dart` resolves `firmware`/`firmwareUpdate`/`diagnostics`/`verb` to real bodies and `confirm` to `CostSheetBody`.
+- `MockBridgeRepository.checkForUpdates()` now also `_set(_snapshot.copyWith())` so device discovery rebuilds watchers (mock-only; see gotchas).
+- Tests `app/test/features/settings_format_test.dart` (13), `settings_test.dart` (16), `settings_device_test.dart` (10), `app/test/support/settings_harness.dart` (harness, not a test); 2 repo tests in `app/test/data/mock_repository_test.dart`; 1 generic-confirm test in `app/test/features/shell_test.dart`.
+
+**Commands that work (repo root)**
+- `make app.test` — the N13 gate (analyze + format + `flutter test`, 583 pass).
+- `cd app && flutter test test/features/settings_test.dart test/features/settings_device_test.dart test/features/settings_format_test.dart` — 39 fast N13 tests.
+- `cd app && dart test test/domain test/data` — data/domain gate (184).
+- No golden regeneration needed.
+
+**Contract facts later tasks need**
+- **`DevOverlay.verb` takes a `kind` prop** (`restart`/`forget`/`factory`/`ota`); its sheet title/sub come from `verbSpec`. A missing/unknown kind renders a **passive** body (`verb-passive`) with no timer and no mutation, so the N4 resolver test can mount it safely. Settings opens it via `scope.openOverlay(DevOverlay.verb, {'kind': spec.id})`.
+- **`DevOverlay.confirm` is now real**: its body is `CostSheetBody` built from `title`/`confirm`/`danger` props and `message`, plus `keeps`/`loses` as `|`-separated prop strings. It still cannot run an action (the shell's confirm row only dismisses); the real device flows use imperative `showCostSheet`.
+- **`CostSheetBody`** is the shared I8 keeps/loses content; `CostSheet` = `CostSheetBody` + title + primary/ghost buttons. `showCostSheet` is unchanged.
+- **`MockBridgeRepository.checkForUpdates()` emits a snapshot nudge** in addition to setting `device.available`. Because `_snapshot.copyWith()` is freezed-*equal*, that nudge alone may not rebuild Riverpod watchers; the firmware sheets therefore also call `ref.invalidate(snapshotProvider)` after a check. N15 should expose device/firmware as a real signal instead.
+- Keys: Settings `settings-page`/`-wifi-card`/`-join-wifi`/`-use-hotspot`/`-forget-network`/`-cooks-card`/`-history`/`-prefs-card`/`-units`/`-appearance`/`-profile`/`-density`/`-motion`/`-monitoring`/`-prefer-manual`/`-quiet-hours`/`-hold-ble`/`-wrap-reminders`/`-bridge-card`/`-firmware`/`-update-firmware`/`-about`/`-about-row`/`-about-taps`/`-actions-card`/`-verb-<id>`/`-honesty`/`-honesty-text`; firmware `firmware-sheet`/`-version`/`-channel`/`-rollback`/`-check`/`-install`/`-update-sheet`/`-available`/`-transport-notice`/`-wifi-ok`/`-session-notice`/`-force-row`/`-force`; diagnostics `diagnostics-sheet`/`-identity`/`-id`/`-signal`/`-bt`/`-wifi`/`-storage`/`-storage-bar`/`-logs`/`-log-<i>`; verb `verb-sheet`/`-passive`/`-title`/`-step-<i>`/`-readback`/`-close`/`-keep-open`.
+
+**Deviations / gotchas**
+- **Verb steps are paced by `Timer(const SmokeMotion().value)` (600 ms).** `pumpAndSettle` does **not** advance pending timers, so tests must `pump(Duration(milliseconds: 700))` per step (see `runVerb` in `settings_test.dart`). The mock's `performVerb` mutates synchronously, so the last step's read-back is available immediately after it runs.
+- **N13.18 five-tap gate** is on the About row: taps 1–4 show `N/5` + a "N more taps" toast, the 5th opens diagnostics and resets. The sub states the requirement, so it is not a dead control (I5). A tap counter left mid-way when the user leaves is not persisted (not tested).
+- **N13.22 shared generic confirm**: device cost sheets use `CostSheet` via `showCostSheet`; the named `confirm` overlay renders `CostSheetBody`. The N9 long-item warning still uses `showModalCard` because the named overlay cannot execute a per-item action — both are shared components, but they are not the same widget.
+- The OTA verb calls `performVerb(DeviceVerb.ota, force: prefs.forceOta)`. The mock ignores `force`; the **force toggle itself is the gate** on the Install button (`otaGuard`).
+- Diagnostics "Copy diagnostics" fires the toast first and copies via an unawaited, error-swallowed `Clipboard.setData` (the test binding has no clipboard plugin); N15 should wire the real clipboard/share.
+- Field report reuses `showCostSheet` (Send report / Cancel) and toasts on confirm; no network (N15).
+- `shell_router_test.dart` updated: Settings→History now taps `settings-history`; the toast test taps `bridge-resync`.
+
+**Follow-ups**
+- N15: real device discovery signal, OTA (stream/slots/120 s health gate), restart/forget/factory endpoints, real field report + clipboard/share, persist `forceOta`/`otaChannel` on the real transport.
+- N16: no goldens for the Settings tree, firmware, update, diagnostics or verb sheets; consider one Settings golden (fixed repo + prefs + `shellPulseEnabledProvider:false`).
+- N11: the Settings behaviour toggles and the alarms sheet both write the same `AppSettings` fields — keep them a single source if the alarms sheet gains its own editor.

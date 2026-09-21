@@ -778,6 +778,10 @@ class MockBridgeRepository implements BridgeRepository {
   @override
   Future<void> checkForUpdates() async {
     _deviceFixture = _deviceFixture.copyWith(available: kFirmware.latest);
+    // Nudge the snapshot stream so a watcher (the Settings Firmware row, the
+    // firmware sheet) re-reads `device` — discovery is a read-back, not a
+    // return value (I7).
+    _set(_snapshot.copyWith());
   }
 
   @override

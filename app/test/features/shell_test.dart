@@ -364,6 +364,34 @@ void main() {
       await tester.tapAt(const Offset(20, 20));
       expect(dismissed, 1);
     });
+
+    testWidgets(
+      'the generic confirm renders the shared cost language (N13.22)',
+      (tester) async {
+        await tester.pumpWidget(
+          wrap(
+            ShellOverlayHost(
+              request:
+                  const OverlayRequest(DevOverlay.confirm, <String, String>{
+                    'title': 'Forget this bridge?',
+                    'confirm': 'Forget',
+                    'danger': '1',
+                    'message': 'Removes the pairing from this app.',
+                    'keeps': 'Settings',
+                    'loses': 'Saved Wi-Fi in this app',
+                  }),
+              onDismiss: () {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Removes the pairing from this app.'), findsOneWidget);
+        expect(find.text('KEEPS'), findsOneWidget);
+        expect(find.text('LOSES'), findsOneWidget);
+        expect(find.text('Forget'), findsOneWidget);
+      },
+    );
   });
 
   group('imperative framework (N4.6)', () {

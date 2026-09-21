@@ -623,4 +623,33 @@ void main() {
       expect(await repo.exportCookCsv('nope'), isEmpty);
     });
   });
+
+  group('N13 firmware discovery (I7)', () {
+    test('checkForUpdates reads back through the snapshot stream', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      expect(repo.device.available, isNull);
+
+      final seen = <BridgeSnapshot>[];
+      final sub = repo.snapshot().listen(seen.add);
+      await Future<void>.delayed(Duration.zero);
+      await repo.checkForUpdates();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repo.device.available, 'v1.5.0');
+      // One replay on subscribe, then one emission for the discovery.
+      expect(seen, hasLength(2));
+      await sub.cancel();
+    });
+
+    test('an OTA verb moves to the available image and clears it', () async {
+      final repo = _repo();
+      addTearDown(repo.dispose);
+      await repo.checkForUpdates();
+      await repo.performVerb(DeviceVerb.ota);
+      expect(repo.device.version, 'v1.5.0');
+      expect(repo.device.available, isNull);
+      expect(repo.current.notice, 'Firmware updated to v1.5.0.');
+    });
+  });
 }

@@ -27,6 +27,10 @@ import '../connection/connect_sheet.dart';
 import '../connection/mode_cards.dart';
 import '../connection/provision_sheets.dart';
 import '../live/live_overlays.dart';
+import '../settings/diagnostics_sheet.dart';
+import '../settings/firmware_sheet.dart';
+import '../settings/settings_format.dart';
+import '../settings/verb_sheet.dart';
 import '../setup/custom_food_sheet.dart';
 import '../setup/setup_sheet.dart';
 import '../temps/probe_sheet.dart';
@@ -124,7 +128,6 @@ OverlayContent resolveOverlay(OverlayRequest request) {
   final props = _propLine(request.props);
   Widget body(String copy) =>
       _OverlayPlaceholder(copy: copy, props: props, tall: true);
-  Widget modal(String copy) => _OverlayPlaceholder(copy: copy);
 
   return switch (request.name) {
     DevOverlay.onboarding => SheetOverlay(
@@ -214,7 +217,13 @@ OverlayContent resolveOverlay(OverlayRequest request) {
       title: request.props['title'] ?? 'Confirm',
       confirmLabel: request.props['confirm'] ?? 'Confirm',
       danger: request.props['danger'] == '1',
-      body: modal('The generic cost / warning sheet lands in N3/N9.'),
+      body: CostSheetBody(
+        message:
+            request.props['message'] ??
+            'This action has a cost. Read it before you continue.',
+        keeps: _propList(request.props['keeps']),
+        loses: _propList(request.props['loses']),
+      ),
     ),
     DevOverlay.customFood => SheetOverlay(
       title: 'Custom food',
@@ -224,24 +233,39 @@ OverlayContent resolveOverlay(OverlayRequest request) {
     DevOverlay.firmware => SheetOverlay(
       title: 'Firmware',
       sub: 'Version and channel',
-      body: body('Firmware status lands in N13.'),
+      bodyBuilder: (dismiss) => FirmwareSheetBody(onDone: dismiss),
     ),
     DevOverlay.firmwareUpdate => SheetOverlay(
       title: 'Update firmware',
       sub: 'Over Wi-Fi only',
-      body: body('The OTA flow, session guard and rollback land in N13.'),
+      bodyBuilder: (dismiss) => FirmwareUpdateSheetBody(onDone: dismiss),
     ),
     DevOverlay.diagnostics => SheetOverlay(
       title: 'About & diagnostics',
       sub: 'Device facts and logs',
-      body: body('Diagnostics and the field report land in N13.'),
+      bodyBuilder: (dismiss) => DiagnosticsSheetBody(onDone: dismiss),
     ),
     DevOverlay.verb => SheetOverlay(
-      title: 'Working…',
-      sub: 'Restart / forget / factory',
-      body: body('The device verb progress sheet lands in N13.'),
+      title: switch (verbFromId(request.props['kind'])) {
+        final verb? => verbSpec(verb).title,
+        null => 'Working…',
+      },
+      sub: switch (verbFromId(request.props['kind'])) {
+        final verb? => verbSpec(verb).sub,
+        null => 'Restart / forget / factory',
+      },
+      bodyBuilder: (dismiss) =>
+          VerbSheetBody(onDone: dismiss, kind: request.props['kind']),
     ),
   };
+}
+
+/// Splits a `|`-separated prop into a list (empty → no items).
+List<String> _propList(String? value) {
+  if (value == null || value.isEmpty) {
+    return const <String>[];
+  }
+  return value.split('|').where((s) => s.isNotEmpty).toList();
 }
 
 String? _propLine(Map<String, String> props) {

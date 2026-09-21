@@ -28,7 +28,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 - [x] T11 — N10 Connection and provisioning: transport chip, connect sheet, AP/STA flows, rollback UX → [tasks/N10-connection-and-provisioning.md](tasks/N10-connection-and-provisioning.md)
 - [x] T12 — N11 Alarms and monitoring: strip/sheet/detail, two tiers, rules, delivery, quiet hours → [tasks/N11-alarms-and-monitoring.md](tasks/N11-alarms-and-monitoring.md)
 - [x] T13 — N12 History: history groups, cook detail, favourite/repeat/export/delete → [tasks/N12-history.md](tasks/N12-history.md)
-- [ ] T14 — N13 Settings and device: settings tree, firmware/OTA, diagnostics, restart/forget/factory → [tasks/N13-settings-and-device.md](tasks/N13-settings-and-device.md)
+- [x] T14 — N13 Settings and device: settings tree, firmware/OTA, diagnostics, restart/forget/factory → [tasks/N13-settings-and-device.md](tasks/N13-settings-and-device.md)
 
 ## Wave 3 — Guidance
 
@@ -43,11 +43,11 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 - [ ] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md)
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-09-21T21:05:43Z · 13/17 done
+**Pipeline status** — updated 2026-09-21T22:21:33Z · 14/17 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14
 - Blocked: none
 - Failed: none
-- Remaining: T14, T15, T16, T17
-- Last finished: T13 — done · N12 History landed — grouped list, cook detail (chart/recap/notes/marks/gaps), favourite/repeat/export/delete and the six annotation repo verbs; 541 flutter + 182 data/domain tests pass, analyze/format clean.
+- Remaining: T15, T16, T17
+- Last finished: T14 — done · N13 settings tree, firmware/OTA (Wi-Fi-only, 409 force guard, rollback), diagnostics, five-tap gate and cost→verb device flows landed; make app.test green (583) and data/domain gate 184.
 <!-- /symphony:status -->

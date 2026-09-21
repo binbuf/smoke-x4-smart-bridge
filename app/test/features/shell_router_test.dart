@@ -207,9 +207,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey<String>('shell-nav-settings')));
     await tester.pumpAndSettle();
-    final historyRow = find.byKey(
-      const ValueKey<String>('destination-open-history'),
-    );
+    final historyRow = find.byKey(const ValueKey<String>('settings-history'));
     await tester.ensureVisible(historyRow);
     await tester.pumpAndSettle();
     await tester.tap(historyRow);
@@ -243,13 +241,15 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey<String>('shell-nav-settings')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey<String>('destination-toast')));
+    // Settings is real now (N13): its Re-sync action is the toast seam.
+    await tester.tap(find.byKey(const ValueKey<String>('bridge-resync')));
     await tester.pump();
-    expect(find.text('Hello from Settings'), findsOneWidget);
+    await tester.pump();
+    expect(find.text('Re-synced · up to date'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
-    expect(find.text('Hello from Settings'), findsNothing);
+    expect(find.text('Re-synced · up to date'), findsNothing);
   });
 
   testWidgets('the dev panel drives screen and overlay', (tester) async {
