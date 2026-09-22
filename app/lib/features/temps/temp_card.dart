@@ -112,6 +112,8 @@ class TempCard extends StatelessWidget {
                   ),
                   key: ValueKey<String>('temps-temp-${probe.jack.n}'),
                   maxLines: 1,
+                  // N16.3 — a detached probe is "No reading", never "zero".
+                  semanticsLabel: spokenTemp(live ? temp : null, unit),
                   style: SmokeText.tempXl.copyWith(color: tokens.textHi),
                 ),
               ),

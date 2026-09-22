@@ -131,6 +131,11 @@ class ProbeSheetBody extends ConsumerWidget {
                     ),
                     key: const ValueKey<String>('probe-sheet-temp'),
                     maxLines: 1,
+                    // N16.3 — the spoken form; absent says "No reading".
+                    semanticsLabel: spokenTemp(
+                      live ? probe.tempF10 : null,
+                      unit,
+                    ),
                     style: SmokeText.tempXl.copyWith(color: tokens.textHi),
                   ),
                   const SizedBox(height: 8),

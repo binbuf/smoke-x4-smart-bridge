@@ -40,7 +40,7 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 
 ## Wave 5 — Verification and release
 
-- [ ] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md)
+- [~] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md) ⟵ running
 
 <!-- symphony:status -->
 **Pipeline status** — updated 2026-09-22T02:33:36Z · 16/17 done

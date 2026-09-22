@@ -33,6 +33,7 @@ class _VerbSheetBodyState extends ConsumerState<VerbSheetBody> {
   Timer? _timer;
   int _step = 0;
   bool _done = false;
+  bool _started = false;
 
   DeviceVerb? get _verb => verbFromId(widget.kind);
 
@@ -41,11 +42,15 @@ class _VerbSheetBodyState extends ConsumerState<VerbSheetBody> {
     return verb == null ? null : verbSpec(verb);
   }
 
+  /// N16.4 — the step pace is a motion token, so reduced motion zeroes it.
+  Duration get _stepDelay => SmokeMotion.of(context).valueEffective;
+
   @override
-  void initState() {
-    super.initState();
-    if (_spec != null) {
-      _timer = Timer(const SmokeMotion().value, _advance);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_started && _spec != null) {
+      _started = true;
+      _timer = Timer(_stepDelay, _advance);
     }
   }
 
@@ -64,7 +69,7 @@ class _VerbSheetBodyState extends ConsumerState<VerbSheetBody> {
     if (_step >= spec.steps.length) {
       unawaited(_apply(spec));
     } else {
-      _timer = Timer(const SmokeMotion().value, _advance);
+      _timer = Timer(_stepDelay, _advance);
     }
   }
 

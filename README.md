@@ -203,6 +203,11 @@ results are in [`docs/hardware-verified.md`](docs/hardware-verified.md), the exe
 [`docs/tasks/`](docs/tasks/README.md), and contributor setup in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+The rebuilt app (the `newui/` design language) is at [`app/`](app/): see
+[`docs/new-app.md`](docs/new-app.md) for the entry point and
+[`docs/RELEASE.md`](docs/RELEASE.md) for the release checklist. The legacy app is archived
+(git-ignored) at `app.old/`.
+
 ## Provenance and attribution
 
 Protocol decoding, the SX1262 driver integration, and the pairing handshake derive from

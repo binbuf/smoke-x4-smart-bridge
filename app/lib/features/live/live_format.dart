@@ -72,6 +72,19 @@ String unitLabel(TempUnit unit) => unit.suffix;
   return (num: s.substring(0, dot), dec: s.substring(dot), unit: unit.suffix);
 }
 
+/// A screen-reader phrase for a temperature (N16.3).
+///
+/// The visual readout stays compact (`164.2° F`); a screen reader gets the
+/// words. Absent is **"No reading"**, never "zero" (I3/I14).
+String spokenTemp(int? f10, TempUnit unit) {
+  if (f10 == null) {
+    return 'No reading';
+  }
+  final value = TempValue.ofF10(f10).toDisplay(unit);
+  final scale = unit == TempUnit.fahrenheit ? 'Fahrenheit' : 'Celsius';
+  return '${value!.toStringAsFixed(1)} degrees $scale';
+}
+
 /// A whole-degree temperature, or `—` (I3). Used by the summary strip.
 String fmtTemp0(int? f10, TempUnit unit) {
   final value = f10 == null ? null : TempValue.ofF10(f10).toDisplay(unit);

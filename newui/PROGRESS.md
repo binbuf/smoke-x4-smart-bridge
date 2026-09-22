@@ -830,3 +830,73 @@ pinned in `pubspec.yaml`.
 - The `shareSheetProvider` is wired but no screen calls it (export still names
   its path); `deviceFacts()` is collected but not yet attached to a field report.
 - N16: no goldens for any bridge surface.
+
+## T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist
+
+Status: **continue**. The host-testable verification slice landed; the
+bench/board half of N16 is not runnable here. `make app.test` green (**774**,
+was 731; +43 verification tests); `dart test test/domain test/data` green
+(**304**); `flutter analyze` and format check clean. One golden changed:
+`app/test/golden/goldens/temps.golden.txt` (it now records the spoken
+temperature semantics labels — reviewed, intentional).
+
+**Real paths (all new)**
+- `app/test/verification/invariants_test.dart` — **N16.2**: one named test per
+  I2–I15 (16 tests). I1 is firmware, not app-testable.
+- `app/test/verification/copy_audit_test.dart` — **N16.1**: source scans over
+  `lib/features` + `lib/design` (no exception interpolation, no `Object error`
+  param, no `print`/`debugPrint`) plus pure copy assertions (absent `—`,
+  "expected" wording, named connection-error copy).
+- `app/test/verification/accessibility_test.dart` — **N16.3**: spoken temp
+  labels, WCAG contrast in dark/light/daylight, 200 % text-scale reflow.
+- `app/test/verification/reduced_motion_test.dart` — **N16.4**: token contract,
+  a source guard against raw `const SmokeMotion().<token>`, and a widget test
+  that the verb sheet runs instantly under reduced motion.
+- `app/test/verification/empty_states_test.dart` — **N16.7**: Timeline /
+  History / Cook-detail / Live-skipped / Temps / Graph empty states each offer a
+  wired way forward; a capability notice is copy, not a control.
+- `app/test/verification/field_report_test.dart` — **N16.11**: the diagnostics
+  payload carries no secret; the field report asks for review and Cancel sends
+  nothing.
+- `app/test/verification/release_build_test.dart` — **N16.10**: `kReleaseMode`
+  gates the dev panel; semver version; changelog present.
+- `app/CHANGELOG.md`, `docs/RELEASE.md`, `docs/new-app.md` — **N16.10/N16.12**.
+- `docs/current-app.md` got an "archived" banner; `README.md` + `app/README.md`
+  now point at `docs/new-app.md` and the verification suite.
+
+**Code fixes this task forced (N16.3/N16.4)**
+- `app/lib/features/live/live_format.dart` gained `spokenTemp(f10, unit)`;
+  `temp_card.dart` + `probe_sheet.dart` set `semanticsLabel` on the temperature
+  readouts. Absent reads "No reading", never "0".
+- `app/lib/features/settings/verb_sheet.dart`: the step pace was
+  `Timer(const SmokeMotion().value)` (reduced motion ignored). It now starts in
+  `didChangeDependencies` with `SmokeMotion.of(context).valueEffective`.
+
+**Commands that work**
+- `make app.test` — the N16 gate (analyze + format + `flutter test`, **774**).
+- `cd app && flutter test test/verification` — the 43 N16 tests.
+- `cd app && dart test test/domain test/data` — data/domain gate (**304**).
+- `cd app && flutter test --update-goldens test/golden/temps_golden_test.dart` —
+  only needed when the spoken labels change.
+
+**What remains for N16 (bench/board, not host-testable)**
+- **N16.5 goldens**: no per-destination golden matrix (destination × 3 themes ×
+  2 densities) and no overlay goldens. The design gallery golden is the system
+  pin. This is the biggest remaining chunk and is straightforward but large.
+- **N16.6 performance**: 15-hour chart scroll / LTTB / frame budget — mid device.
+- **N16.8 soak**: repeated Wi-Fi/BLE kill/restore against `tools/sim` or a board.
+  Host-side, `test/data/real_bridge_http_test.dart` covers a single kill.
+- **N16.9 adaptive layout**: width classes / bottom bar → rail; fold postures
+  deferred (optional for v1).
+- **N16.10 bench**: signed APK (needs the release keystore) and the on-device
+  install/sign-off in `docs/RELEASE.md` §2–§3.
+- **Goldens approved / checklist signed** are human approvals.
+
+**Gotchas**
+- `AlarmTier` exists in both `data/model/alarm.dart` and `design/atoms.dart`;
+  verification files import design with `hide AlarmTier` and use
+  `design/atoms.dart as atoms` when they need the tag enum.
+- The golden harness serializes `Text.semanticsLabel`, so adding a spoken label
+  changes a golden — expected and reviewed here.
+- `docs/current-app.md` / `docs/newapp.md` describe the legacy/pre-rebuild app;
+  `docs/new-app.md` is the entry point for the shipping app.

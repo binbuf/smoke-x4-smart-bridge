@@ -1,5 +1,11 @@
 # The current app — a complete feature inventory
 
+> **Archived — describes the legacy app (`app.old/`), not the shipping app.**
+> The app was rebuilt from the `newui/` prototype and now lives at [`app/`](../app/);
+> see [`new-app.md`](new-app.md) for the rebuilt app. The file references below
+> point at the legacy layout and no longer match the shipping tree. This page is
+> kept as history.
+
 **Purpose.** This document describes what the companion app *does today*, in enough detail that
 someone who has never opened the repo can critique its UI/UX and the communication and business
 logic underneath it. It is descriptive, not aspirational: everything below was read out of the

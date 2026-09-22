@@ -34,3 +34,86 @@ code in the release build, and the release checklist signed.
 
 Every invariant named across N1–N15, plus the copy discipline (the app's strongest
 asset) and "a temperature is never scaled to fit".
+
+---
+
+## Hand-off
+
+**Status: continue.** The host-testable verification slice of N16 landed and the
+tree is green; the bench/board half of the epic is not runnable in a session.
+
+### Landed
+
+- **N16.2 invariant suite** — `app/test/verification/invariants_test.dart`: one
+  named test per I2–I15 (16 tests; I1 is firmware). Anchored to the real seams
+  (`planNotifications`, freshness, `SetupState`, `CostSheet`, `ConnectionSupervisor`,
+  `InMemorySampleCache`, `CookPlan`, `CapabilityNotice`, `ProblemState`).
+- **N16.1 copy audit** — `app/test/verification/copy_audit_test.dart`: source
+  scans over `lib/features` + `lib/design` (no exception interpolation, no
+  `Object error` parameter, no `print`/`debugPrint`) plus pure copy assertions
+  (absent is `—`/`No reading`; a predicted rail node says `· expected`; a wire
+  error maps to named copy).
+- **N16.3 accessibility** — `app/test/verification/accessibility_test.dart`:
+  spoken temperature labels, WCAG contrast in dark/light/daylight, 200 % text
+  scale. Forced two real fixes:
+  - `live_format.dart` `spokenTemp()`; `temp_card.dart` and `probe_sheet.dart`
+    now carry `semanticsLabel` (absent reads "No reading").
+- **N16.4 reduced motion** — `app/test/verification/reduced_motion_test.dart`:
+  the token contract, a source guard against raw `const SmokeMotion().<token>`,
+  and a widget test. Forced one real fix:
+  - `verb_sheet.dart` paced its steps with `const SmokeMotion().value`, ignoring
+    reduced motion; it now uses `SmokeMotion.of(context).valueEffective`.
+- **N16.7 empty/problem/capability walkthrough** —
+  `app/test/verification/empty_states_test.dart`: Timeline, History,
+  Cook-detail (missing), Live (skipped onboarding), Temps and Graph each offer a
+  wired way forward; a capability notice carries no control.
+- **N16.11 field-report dry-run** — `app/test/verification/field_report_test.dart`:
+  the diagnostics payload carries no secret; the field report asks for review and
+  Cancel sends nothing.
+- **N16.10 release-build checks** — `app/test/verification/release_build_test.dart`
+  (`kReleaseMode` gates the dev panel; semver; changelog), plus `app/CHANGELOG.md`
+  and `docs/RELEASE.md` (the checklist; the signed-APK and bench rows are for a
+  human).
+- **N16.12 repo hygiene** — `docs/new-app.md` (the rebuilt app's entry point),
+  an "archived" banner on `docs/current-app.md`, and `README.md` + `app/README.md`
+  updated to point at the new app, the verification suite and the release gate.
+
+### Evidence
+
+```
+make app.test                                  # analyze + format + flutter test
+  -> 774 tests pass (was 731; +43 verification)
+cd app && dart test test/domain test/data      # -> 304 pass
+cd app && flutter test test/verification       # -> 43 pass
+```
+
+One golden changed: `app/test/golden/goldens/temps.golden.txt`. The golden
+harness serializes `Text.semanticsLabel`, so the new spoken labels appear in it.
+Reviewed and regenerated with
+`flutter test --update-goldens test/golden/temps_golden_test.dart`.
+
+### Deviated / not done (next session)
+
+- **N16.5 goldens** (the biggest remaining chunk): no destination ×
+  {dark, light, daylight} × {compact, comfortable} matrix and no overlay
+  goldens. The design gallery golden still pins the system across themes and
+  densities. This is mechanical but large; generate with
+  `make app.golden` and review the diff.
+- **N16.6 performance** (15-hour chart scroll, LTTB, frame budget) needs a mid
+  device.
+- **N16.8 soak** (repeated Wi-Fi/BLE kill/restore against `tools/sim` or a board)
+  needs the sim/board; `test/data/real_bridge_http_test.dart` covers a single
+  host-side kill.
+- **N16.9 adaptive layout** (width classes, bottom bar → rail) is optional for v1
+  and was not attempted.
+- **N16.10 bench rows** (signed APK, on-device install) and the human sign-off
+  in `docs/RELEASE.md` §2–§3 remain.
+- Goldens approved and the release checklist signed are human approvals.
+
+### For the next session
+
+Continue at N16.5: add a parameterized text-golden test for the destinations
+using `pumpForGolden` + the `shellPulseEnabledProvider`/`shellClockProvider`
+overrides the existing goldens use, then `make app.golden` and review. The
+verification suite (`app/test/verification/`) is the regression net; keep it
+green.
