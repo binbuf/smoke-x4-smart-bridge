@@ -36,18 +36,18 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 
 ## Wave 4 — Real bridge
 
-- [~] T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA → [tasks/N15-bridge-integration.md](tasks/N15-bridge-integration.md) ⟵ running
+- [x] T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA → [tasks/N15-bridge-integration.md](tasks/N15-bridge-integration.md)
 
 ## Wave 5 — Verification and release
 
 - [ ] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md)
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-09-21T23:22:37Z · 15/17 done
+**Pipeline status** — updated 2026-09-22T02:33:36Z · 16/17 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16
 - Blocked: none
 - Failed: none
-- Remaining: T16, T17
-- Last finished: T15 — done · N14 onboarding landed — pure 8-step SetupMachine (generation guard, named faults), gate + resume, preflight/troubleshoot/passkey-coaching/sync/network/name/done surfaces, skip→connect empty state; make app.test 609 and data/domain gate 202 green.
+- Remaining: T17
+- Last finished: T16 — done · Landed N15.17 CookMonitor, composition root + Android/Kotlin, OTA seam, alarm read-back, and a real-HTTP smoke; make app.test green at 731.
 <!-- /symphony:status -->
