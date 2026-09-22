@@ -833,12 +833,14 @@ pinned in `pubspec.yaml`.
 
 ## T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist
 
-Status: **continue**. The host-testable verification slice landed; the
-bench/board half of N16 is not runnable here. `make app.test` green (**774**,
-was 731; +43 verification tests); `dart test test/domain test/data` green
-(**304**); `flutter analyze` and format check clean. One golden changed:
-`app/test/golden/goldens/temps.golden.txt` (it now records the spoken
-temperature semantics labels — reviewed, intentional).
+Status: **done** (host scope; N16.5 landed this session). The whole host-testable
+slice of N16 is green; the bench/board and human-sign-off half cannot run in a
+session. `make app.test` green (**836**, was 774; +62 golden); `dart test
+test/domain test/data` green (**304**); `flutter test test/verification` green
+(**43**); `flutter test test/golden` green (**77**); `flutter analyze` and format
+check clean. One golden changed in the earlier session:
+`app/test/golden/goldens/temps.golden.txt` (it records the spoken temperature
+semantics labels — reviewed, intentional).
 
 **Real paths (all new)**
 - `app/test/verification/invariants_test.dart` — **N16.2**: one named test per
@@ -860,6 +862,11 @@ temperature semantics labels — reviewed, intentional).
   nothing.
 - `app/test/verification/release_build_test.dart` — **N16.10**: `kReleaseMode`
   gates the dev panel; semver version; changelog present.
+- `app/test/golden/destination_matrix_golden_test.dart` — **N16.5**: all seven
+  destinations × {dark, light, daylight} × {compact, comfortable}, 42 text
+  goldens `test/golden/goldens/destination_*.golden.txt`.
+- `app/test/golden/overlay_golden_test.dart` — **N16.5**: the twenty named
+  overlays via the real `ShellOverlayHost`, `test/golden/goldens/overlay_*.golden.txt`.
 - `app/CHANGELOG.md`, `docs/RELEASE.md`, `docs/new-app.md` — **N16.10/N16.12**.
 - `docs/current-app.md` got an "archived" banner; `README.md` + `app/README.md`
   now point at `docs/new-app.md` and the verification suite.
@@ -873,26 +880,34 @@ temperature semantics labels — reviewed, intentional).
   `didChangeDependencies` with `SmokeMotion.of(context).valueEffective`.
 
 **Commands that work**
-- `make app.test` — the N16 gate (analyze + format + `flutter test`, **774**).
+- `make app.test` — the N16 gate (analyze + format + `flutter test`, **836**).
 - `cd app && flutter test test/verification` — the 43 N16 tests.
+- `cd app && flutter test test/golden` — the 77 golden tests (62 N16.5).
 - `cd app && dart test test/domain test/data` — data/domain gate (**304**).
-- `cd app && flutter test --update-goldens test/golden/temps_golden_test.dart` —
-  only needed when the spoken labels change.
+- `cd app && flutter test --update-goldens test/golden` — regenerate after a
+  reviewed change (`make app.golden` is the same). Never in CI.
 
-**What remains for N16 (bench/board, not host-testable)**
-- **N16.5 goldens**: no per-destination golden matrix (destination × 3 themes ×
-  2 densities) and no overlay goldens. The design gallery golden is the system
-  pin. This is the biggest remaining chunk and is straightforward but large.
-- **N16.6 performance**: 15-hour chart scroll / LTTB / frame budget — mid device.
+**What remains for N16 (bench/board/human, not host-testable)**
+- **N16.6 performance**: the on-device 15-hour frame budget. Host-side, the
+  mechanism is already pinned by `test/features/graph_format_test.dart`
+  (`graphCadenceS` caps the grid at `graphMaxSamples`; LTTB decimates and keeps
+  the envelope).
 - **N16.8 soak**: repeated Wi-Fi/BLE kill/restore against `tools/sim` or a board.
   Host-side, `test/data/real_bridge_http_test.dart` covers a single kill.
-- **N16.9 adaptive layout**: width classes / bottom bar → rail; fold postures
-  deferred (optional for v1).
+- **N16.9 adaptive layout**: width classes / bottom bar → rail; optional for v1,
+  deferred.
 - **N16.10 bench**: signed APK (needs the release keystore) and the on-device
   install/sign-off in `docs/RELEASE.md` §2–§3.
 - **Goldens approved / checklist signed** are human approvals.
 
 **Gotchas**
+- The N16.5 destination matrix files are byte-identical across the three themes
+  and both densities (the harness describes text/icons/keys, not pixels), exactly
+  like the six design-gallery files. The appearance values are pinned by
+  `tokens_test.dart`; the matrix guards the copy/structure per destination.
+- Both new golden tests call `setUpAll(loadAppFonts)`. Without the bundled fonts
+  the wider test font reports false overflows (setup / alarms sheets overflowed
+  by 68/179 px until fonts were loaded).
 - `AlarmTier` exists in both `data/model/alarm.dart` and `design/atoms.dart`;
   verification files import design with `hide AlarmTier` and use
   `design/atoms.dart as atoms` when they need the tag enum.

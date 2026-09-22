@@ -1,0 +1,178 @@
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-appbar-title]
+text "Timeline"
+[shell-appbar-sub]
+text "Expected & actual"
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [timeline-page]
+    [timeline-header]
+      icon 58040
+      text "Expected schedule"
+      text "Everything off by"
+      [timeline-off-by]
+      text "5:29 PM"
+      text "Served by"
+      [timeline-served-by]
+      text "5:59 PM"
+      text "Items"
+      [timeline-item-count]
+      text "3"
+      [timeline-estimate-note]
+      text "Expected times are estimates."
+    [timeline-gantt]
+      [timeline-axis]
+        text "5:29 AM"
+        text "11:51 AM"
+        text "6:14 PM"
+      [timeline-row-1]
+        text "🥩"
+        [timeline-row-name-1]
+        text "Texas Brisket"
+        [timeline-bar-1]
+          [timeline-row-end-1]
+          text "5:29 PM"
+        [timeline-stall-1]
+        [timeline-wrap-1]
+        [timeline-now-1]
+        [timeline-now-label]
+        text "NOW"
+      [timeline-row-2]
+        text "🍖"
+        [timeline-row-name-2]
+        text "Spare Ribs"
+        [timeline-bar-2]
+          [timeline-row-end-2]
+          text "11:21 AM"
+        [timeline-wrap-2]
+        [timeline-now-2]
+      [timeline-row-3]
+        text "🍔"
+        [timeline-row-name-3]
+        text "Sausages & Brats"
+        [timeline-bar-3]
+          [timeline-row-end-3]
+          text "9:53 AM"
+        [timeline-now-3]
+    text "UPCOMING"
+    [timeline-upcoming-note]
+    text "Estimates from the timeline database — they move as the cook does."
+    [timeline-upcoming]
+      [timeline-upcoming-0]
+        icon 984725
+        text "SPRITZ"
+        [timeline-upcoming-time-0]
+        text "10:01 AM"
+        text "Every 45 min to keep the bark moist."
+      [timeline-upcoming-1]
+        icon 61748
+        text "WRAP IN BUTCHER PAPER"
+        [timeline-upcoming-time-1]
+        text "12:05 PM"
+        text "The Texas crutch — speeds the stall and protects the bark."
+    text "REMINDERS"
+    [timeline-reminders]
+      [timeline-reminder-1]
+        [timeline-wrap-toggle-1]
+          text "Wrap reminder"
+        [timeline-spritz-toggle-1]
+          text "Spritz every 45 min"
+      [timeline-reminder-2]
+        [timeline-wrap-toggle-2]
+          text "Wrap reminder"
+        [timeline-spritz-toggle-2]
+          text "Spritz every 45 min"
+    text "THE COOK, IN ORDER"
+    [timeline-rail]
+      [timeline-rail-0]
+        [timeline-rail-dot-0]
+        [timeline-rail-time-0]
+        text "5:29 AM"
+        text "Cook started"
+        text "phase change"
+      [timeline-rail-1]
+        [timeline-rail-dot-1]
+        [timeline-rail-time-1]
+        text "6:24 AM"
+        text "Added sausages"
+        text "note"
+      [timeline-rail-2]
+        [timeline-rail-dot-2]
+        [timeline-rail-time-2]
+        text "7:29 AM"
+        text "Spritzed ribs"
+        text "note"
+      [timeline-rail-3]
+        [timeline-rail-dot-3]
+        [timeline-rail-time-3]
+        text "8:24 AM"
+        text "Wrapped brisket in butcher paper"
+        text "wrapped"
+      [timeline-rail-4]
+        [timeline-rail-dot-4]
+        [timeline-rail-time-4]
+        text "8:49 AM"
+        text "Added ribs"
+        text "note"
+      [timeline-rail-5]
+        [timeline-rail-dot-5]
+        [timeline-rail-time-5]
+        text "9:53 AM · expected"
+        [timeline-rail-now]
+        text "NOW"
+        text "Sausages & Brats · Rest"
+        text "Let carryover finish it."
+      [timeline-rail-6]
+        [timeline-rail-dot-6]
+        [timeline-rail-time-6]
+        text "11:21 AM · expected"
+        text "Spare Ribs · Rest"
+        text "Let carryover finish it."
+      [timeline-rail-7]
+        [timeline-rail-dot-7]
+        [timeline-rail-time-7]
+        text "11:29 AM · expected"
+        text "Texas Brisket · Wrap in butcher paper"
+        text "The Texas crutch — speeds the stall and protects the bark."
+      [timeline-rail-8]
+        [timeline-rail-dot-8]
+        [timeline-rail-time-8]
+        text "2:29 PM · expected"
+        text "Texas Brisket · Pull"
+        text "Butter-smooth in the flat."
+      [timeline-rail-9]
+        [timeline-rail-dot-9]
+        [timeline-rail-time-9]
+        text "5:29 PM · expected"
+        text "Texas Brisket · Rest"
+        text "Let carryover finish it."
+    [timeline-add]
+      icon 57415
+      text "Add something"
+    [timeline-log-event]
+      icon 57588
+      text "Log event"
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

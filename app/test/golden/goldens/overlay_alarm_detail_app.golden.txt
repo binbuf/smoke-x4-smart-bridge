@@ -1,0 +1,44 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Alert"
+  [shell-overlay-sub]
+  text "Insight from the app"
+  [shell-overlay-close]
+    icon 57706
+  [alarm-detail]
+    [alarm-detail-severity]
+      icon 58173
+      [alarm-detail-rule]
+      text "Sausages almost ready"
+      [alarm-detail-fired]
+      text "9:40 AM · 1 min ago"
+      [alarm-detail-tier]
+        text "Insight"
+      [alarm-detail-copy]
+      text "ETA about 11 minutes to 160°F."
+    [alarm-detail-why]
+      text "Why this fired"
+      [alarm-detail-why-rule]
+        text "Rule"
+        text "eta_soon"
+      [alarm-detail-why-trigger]
+        text "Trigger"
+        text "Within 15 min of target"
+      [alarm-detail-why-reading]
+        text "Reading"
+        text "141.8°F"
+      [alarm-detail-why-suggestion]
+        text "Suggestion"
+        text "Get the buns and mustard ready."
+    [alarm-detail-ack]
+      icon 57686
+      text "Acknowledge"
+    [alarm-detail-snooze]
+      icon 58710
+      text "Snooze 10m"
+    [alarm-detail-graph]
+      icon 57548
+      text "View on graph"
+    [alarm-detail-note]
+    text "This is an app insight. It is advisory and never overrides the bridge."

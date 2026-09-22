@@ -1,0 +1,75 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "About & diagnostics"
+  [shell-overlay-sub]
+  text "Device facts and logs"
+  [shell-overlay-close]
+    icon 57706
+  [diagnostics-sheet]
+    [diagnostics-identity]
+      icon 58331
+      text "SmokeBridge-A4F2"
+      [diagnostics-id]
+      text "A4F2-9C71"
+      text "Firmware"
+      text "v1.4.2 · stable"
+      text "Hardware"
+      text "rev C · ESP32-S3"
+      text "Bootloader"
+      text "2.1.0"
+      text "Uptime"
+      text "73h 7m"
+      text "Free heap"
+      text "128 KB"
+      text "Battery"
+      text "71%"
+      text "Recording"
+      text "Yes — on the bridge"
+      text "Last crash"
+      text "None"
+    text "SIGNAL"
+    [diagnostics-signal]
+      [diagnostics-bt]
+        icon 57572
+        text "Bluetooth"
+        text "good · -62 dBm"
+      [diagnostics-wifi]
+        icon 58690
+        text "Wi-Fi"
+        text "HomeNet-5G · 192.168.1.42 · strong"
+    text "STORAGE"
+    [diagnostics-storage]
+      text "Sessions kept"
+      text "12 of 64"
+      text "Flash used"
+      text "36 of 512 KB"
+      text "Retention"
+      text "~54 days of recording"
+      [diagnostics-storage-bar]
+    text "RECENT LOGS"
+    [diagnostics-logs]
+      [diagnostics-log-0]
+        text "09:12:04"
+        text "info"
+        text "LoRa sync acquired — base station paired"
+      [diagnostics-log-1]
+        text "09:12:09"
+        text "info"
+        text "Session SMK-4482 opened, 4 probes attached"
+      [diagnostics-log-2]
+        text "09:41:22"
+        text "warn"
+        text "Probe 3 detached briefly — reconnect 4 s"
+      [diagnostics-log-3]
+        text "09:58:01"
+        text "info"
+        text "Wi-Fi STA connected — 192.168.1.42"
+      [diagnostics-log-4]
+        text "10:02:47"
+        text "info"
+        text "Alarm rule pit_crash fired (device tier)"
+    icon 57857
+    text "Copy diagnostics"
+    icon 58189
+    text "Field report"

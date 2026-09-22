@@ -1,0 +1,27 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Welcome to Smoke"
+  [shell-overlay-sub]
+  text "Pair your bridge"
+  [shell-overlay-close]
+    icon 57706
+  [onboarding-body]
+    [onboarding-step-rail]
+      [onboarding-step-dot-0]
+      [onboarding-step-dot-1]
+      [onboarding-step-dot-2]
+      [onboarding-step-dot-3]
+      [onboarding-step-dot-4]
+      [onboarding-step-dot-5]
+      [onboarding-step-dot-6]
+      [onboarding-step-dot-7]
+    [onboarding-welcome]
+      icon 58331
+      [onboarding-welcome-copy]
+      text "Records with or without your phone."
+  [onboarding-foot]
+    [onboarding-skip]
+      text "Skip"
+    [onboarding-next]
+      text "Continue"

@@ -1,0 +1,39 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Add a mark"
+  [shell-overlay-sub]
+  text "A timestamped event on this cook"
+  [shell-overlay-close]
+    icon 57706
+  text "Log what just happened. Marks appear on the graph and the timeline."
+  [mark-kind-note]
+    icon 57588
+    text "Note"
+  [mark-kind-wrapped]
+    icon 61748
+    text "Wrapped"
+  [mark-kind-spritz]
+    icon 984725
+    text "Spritzed"
+  [mark-kind-turn]
+    icon 58688
+    text "Turned"
+  [mark-kind-lidOpen]
+    icon 61748
+    text "Lid open"
+  [mark-kind-fuel]
+    icon 58258
+    text "Added fuel"
+  [mark-kind-probeMoved]
+    icon 58966
+    text "Probe moved"
+  [mark-kind-phaseChange]
+    icon 58783
+    text "Phase change"
+  text "Add a note (optional)"
+  [mark-note]
+    text "Wrapped the brisket in butcher paper…"
+  [mark-save]
+    icon 57686
+    text "Save mark"

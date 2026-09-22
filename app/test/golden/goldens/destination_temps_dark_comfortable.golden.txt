@@ -1,0 +1,145 @@
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-appbar-title]
+text "Temperatures"
+[shell-appbar-sub]
+text "Every probe, up close"
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [temps-page]
+    [temps-header]
+      [temps-attached-count]
+      text "4 attached · updated live"
+      [temps-unit-toggle]
+        text "°F"
+        text "°C"
+    [temps-card-1]
+      text "1"
+      text "Texas Brisket"
+      text "STALL"
+      [temps-temp-1]
+      text "" semantics "164.2 degrees Fahrenheit"
+      icon 58646
+      text "~0° F/hr"
+      [temps-fresh-1]
+      text "Live"
+      [temps-progress-1]
+      [temps-meta-1]
+        text "TARGET"
+        [temps-meta-target-1]
+        text "201° F"
+        text "PULL AT"
+        [temps-meta-pull-at-1]
+        text "193° F"
+        text "ETA"
+        [temps-meta-eta-1]
+        text "Stalled"
+        text "HIGH"
+        [temps-meta-high-1]
+        text "164° F"
+        text "AVG"
+        [temps-meta-avg-1]
+        text "128° F"
+    [temps-card-2]
+      text "2"
+      text "Spare Ribs"
+      [temps-temp-2]
+      text "" semantics "172.4 degrees Fahrenheit"
+      icon 57504
+      text "6.2° F/hr"
+      [temps-fresh-2]
+      text "Live"
+      [temps-progress-2]
+      [temps-meta-2]
+        text "TARGET"
+        [temps-meta-target-2]
+        text "195° F"
+        text "PULL AT"
+        [temps-meta-pull-at-2]
+        text "195° F"
+        text "ETA"
+        [temps-meta-eta-2]
+        text "38 min"
+        text "HIGH"
+        [temps-meta-high-2]
+        text "172° F"
+        text "AVG"
+        [temps-meta-avg-2]
+        text "119° F"
+    [temps-card-3]
+      text "3"
+      text "Sausages & Brats"
+      [temps-temp-3]
+      text "" semantics "141.8 degrees Fahrenheit"
+      icon 57504
+      text "18.0° F/hr"
+      [temps-fresh-3]
+      text "Live"
+      [temps-progress-3]
+      [temps-meta-3]
+        text "TARGET"
+        [temps-meta-target-3]
+        text "160° F"
+        text "PULL AT"
+        [temps-meta-pull-at-3]
+        text "160° F"
+        text "ETA"
+        [temps-meta-eta-3]
+        text "11 min"
+        text "HIGH"
+        [temps-meta-high-3]
+        text "142° F"
+        text "AVG"
+        [temps-meta-avg-3]
+        text "96° F"
+    [temps-card-4]
+      text "4"
+      text "Grate · jack 4"
+      text "GRATE"
+      [temps-temp-4]
+      text "" semantics "248.6 degrees Fahrenheit"
+      icon 57495
+      text "4.1° F/hr"
+      [temps-fresh-4]
+      text "Live"
+      [temps-progress-4]
+      [temps-meta-4]
+        text "PIT BAND"
+        [temps-meta-pit-band-4]
+        text "225–275°"
+        text "STATUS"
+        [temps-meta-status-4]
+        text "In band"
+        text "HIGH"
+        [temps-meta-high-4]
+        text "261° F"
+        text "AVG"
+        [temps-meta-avg-4]
+        text "249° F"
+    icon 57588
+    text "Mark"
+    icon 57415
+    text "Add food"
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

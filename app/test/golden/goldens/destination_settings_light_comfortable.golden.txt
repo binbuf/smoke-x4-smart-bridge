@@ -1,0 +1,165 @@
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-appbar-title]
+text "Settings"
+[shell-appbar-sub]
+text "Connection & preferences"
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [settings-page]
+    [bridge-card]
+      icon 58240
+      text "SmokeBridge-A4F2"
+      [bridge-bt]
+        icon 57572
+        text "Bluetooth"
+        text "Phone → bridge · good · -62 dBm · 4s ago"
+        [bridge-bt-warm]
+          text "WARM"
+      [bridge-wifi]
+        icon 58690
+        text "Wi-Fi"
+        text "Bridge → router · HomeNet-5G · 192.168.1.42 · strong · 4s ago"
+        [bridge-wifi-data]
+          text "DATA"
+      [bridge-battery]
+        text "Battery"
+        text "71%"
+      [bridge-recording]
+        text "Recording"
+        text "Yes — on the bridge"
+      [bridge-resync]
+        icon 58644
+        text "Re-sync"
+      [bridge-change-mode]
+        icon 59011
+        text "Change mode"
+      [bridge-disconnect]
+        icon 58241
+        text "Disconnect"
+      [bridge-forget-network]
+        icon 58241
+        text "Forget network"
+        text "HomeNet-5G"
+    text "SET UP WI-FI"
+    [settings-wifi-card]
+      [settings-join-wifi]
+        icon 58690
+        text "Join your home network"
+        text "Keeps your phone on the internet; reach the bridge anywhere"
+      [settings-use-hotspot]
+        icon 59111
+        text "Use the bridge hotspot"
+        text "No home network needed — join the bridge directly"
+      [settings-forget-network]
+        icon 58241
+        text "Forget network"
+        text "HomeNet-5G"
+    text "COOKS"
+    [settings-cooks-card]
+      [settings-history]
+        icon 58132
+        text "History"
+        text "Past cooks, notes, ratings and exports"
+    text "PREFERENCES"
+    [settings-prefs-card]
+      [settings-units]
+        icon 58966
+        text "Units"
+        text "Temperatures in Fahrenheit"
+        text "°F"
+        text "°C"
+      [settings-appearance]
+        icon 61362
+        text "Appearance"
+        text "Follows your phone"
+        text "Auto"
+        text "Light"
+        text "Dark"
+      [settings-profile]
+        icon 62652
+        text "High-contrast profile"
+        text "Off"
+      [settings-density]
+        icon 59011
+        text "Density"
+        text "Compact — more at a glance"
+      [settings-motion]
+        icon 62625
+        text "Reduce motion"
+        text "Full motion"
+      [settings-monitoring]
+        icon 58449
+        text "Alarms & monitoring"
+        text "Watching in the background"
+      [settings-prefer-manual]
+        icon 984363
+        text "Prefer my own alarms"
+        text "Manual alarms win over device rules"
+      [settings-quiet-hours]
+        icon 61343
+        text "Quiet hours"
+        text "Silences warning & info 10pm–6am. Critical always sounds"
+      [settings-hold-ble]
+        icon 58240
+        text "Keep Bluetooth warm"
+        text "Faster failover while on Wi-Fi"
+      [settings-wrap-reminders]
+        icon 57634
+        text "Wrap / spritz reminders"
+        text "Use the expected timeline for nudges"
+    text "BRIDGE"
+    [settings-bridge-card]
+      [settings-firmware]
+        icon 58331
+        text "Firmware"
+        text "v1.4.2 · up to date"
+      [settings-update-firmware]
+        icon 59029
+        text "Update firmware"
+        text "Over Wi-Fi only"
+      [settings-about]
+        [settings-about-row]
+          icon 58173
+          text "About & diagnostics"
+          text "A4F2-9C71 · signal, storage, logs"
+    text "DEVICE ACTIONS"
+    [settings-actions-card]
+      [settings-verb-restart]
+        icon 58644
+        text "Restart the bridge"
+        text "Recovers a hung bridge · recording pauses ~30 s"
+      [settings-verb-forget]
+        icon 58241
+        text "Forget this bridge"
+        text "Remove pairing and Wi-Fi from this app"
+      [settings-verb-factory]
+        icon 59084
+        text "Factory reset"
+        text "Erase all settings, Wi-Fi and recorded sessions"
+    [settings-honesty]
+      [settings-honesty-text]
+      text "A bridge with no clock stores no timestamp — never a made-up one. A detached probe is absent, never 0."
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

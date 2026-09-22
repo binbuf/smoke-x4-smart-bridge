@@ -1,0 +1,140 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Connection modes"
+  [shell-overlay-sub]
+  text "Technical reference"
+  [shell-overlay-close]
+    icon 57706
+  [connection-modes-ref]
+    [connection-ref-notice]
+      icon 58173
+      text "Note"
+      text "The bridge is a pure listener: it never transmits except for one tiny LoRa acknowledgement. All three modes share that rule."
+    [connection-ref-card-ble]
+      icon 57572
+      text "Bluetooth"
+      text "Direct to the bridge"
+      text "The simplest link. Works anywhere near the bridge, needs no network, and uses the least bridge power."
+      [connection-ref-good-ble-Works with no Wi-Fi at all]
+        icon 57686
+        text "Works with no Wi-Fi at all"
+      [connection-ref-good-ble-Lowest bridge power draw]
+        icon 57686
+        text "Lowest bridge power draw"
+      [connection-ref-good-ble-Setup and mode changes always work here]
+        icon 57686
+        text "Setup and mode changes always work here"
+      [connection-ref-limited-ble-No full history download]
+        icon 58646
+        text "No full history download"
+      [connection-ref-limited-ble-No probe naming or alarm-rule editing]
+        icon 58646
+        text "No probe naming or alarm-rule editing"
+      [connection-ref-limited-ble-Shorter range than Wi-Fi]
+        icon 58646
+        text "Shorter range than Wi-Fi"
+      text "CAPABILITIES"
+      [connection-ref-cap-live-ble]
+        text "Live readings"
+        icon 57686
+      [connection-ref-cap-preview-ble]
+        text "2-hour preview"
+        icon 57686
+      [connection-ref-cap-fullHistory-ble]
+        text "Full history download"
+        text "—"
+      [connection-ref-reason-fullHistory-ble]
+      text "Full history needs Wi-Fi."
+      [connection-ref-cap-config-ble]
+        text "Setup & mode changes"
+        icon 57686
+      [connection-ref-cap-rules-ble]
+        text "Alarm-rule editing"
+        text "—"
+      [connection-ref-reason-rules-ble]
+      text "Alarm-rule editing needs Wi-Fi."
+      [connection-ref-cap-ota-ble]
+        text "Firmware update"
+        text "—"
+      [connection-ref-reason-ota-ble]
+      text "Firmware updates need Wi-Fi."
+    [connection-ref-card-ap]
+      icon 59111
+      text "Bridge Wi-Fi (its own hotspot)"
+      text "The bridge hosts the network"
+      text "The bridge broadcasts its own Wi-Fi. Your phone joins it directly. Full features, no home network needed."
+      [connection-ref-good-ap-Every feature, including full history]
+        icon 57686
+        text "Every feature, including full history"
+      [connection-ref-good-ap-No router or home network required]
+        icon 57686
+        text "No router or home network required"
+      [connection-ref-good-ap-Strong, dedicated link]
+        icon 57686
+        text "Strong, dedicated link"
+      [connection-ref-limited-ap-Your phone leaves your normal Wi-Fi while connected]
+        icon 58646
+        text "Your phone leaves your normal Wi-Fi while connected"
+      [connection-ref-limited-ap-Some phones warn about “no internet”]
+        icon 58646
+        text "Some phones warn about “no internet”"
+      text "CAPABILITIES"
+      [connection-ref-cap-live-ap]
+        text "Live readings"
+        icon 57686
+      [connection-ref-cap-preview-ap]
+        text "2-hour preview"
+        icon 57686
+      [connection-ref-cap-fullHistory-ap]
+        text "Full history download"
+        icon 57686
+      [connection-ref-cap-config-ap]
+        text "Setup & mode changes"
+        icon 57686
+      [connection-ref-cap-rules-ap]
+        text "Alarm-rule editing"
+        icon 57686
+      [connection-ref-cap-ota-ap]
+        text "Firmware update"
+        icon 57686
+    [connection-ref-card-sta]
+      icon 58690
+      text "Your Wi-Fi"
+      text "ACTIVE"
+      text "The bridge joins your network"
+      text "The bridge joins your home Wi-Fi. Your phone stays on its normal network and reaches the bridge from anywhere in range."
+      [connection-ref-good-sta-Phone keeps internet and other apps]
+        icon 57686
+        text "Phone keeps internet and other apps"
+      [connection-ref-good-sta-Reach the bridge anywhere on your network]
+        icon 57686
+        text "Reach the bridge anywhere on your network"
+      [connection-ref-good-sta-Lowest power draw over time]
+        icon 57686
+        text "Lowest power draw over time"
+      [connection-ref-limited-sta-Needs your Wi-Fi name and password]
+        icon 58646
+        text "Needs your Wi-Fi name and password"
+      [connection-ref-limited-sta-Depends on your router’s range and reliability]
+        icon 58646
+        text "Depends on your router’s range and reliability"
+      text "CAPABILITIES"
+      [connection-ref-cap-live-sta]
+        text "Live readings"
+        icon 57686
+      [connection-ref-cap-preview-sta]
+        text "2-hour preview"
+        icon 57686
+      [connection-ref-cap-fullHistory-sta]
+        text "Full history download"
+        icon 57686
+      [connection-ref-cap-config-sta]
+        text "Setup & mode changes"
+        icon 57686
+      [connection-ref-cap-rules-sta]
+        text "Alarm-rule editing"
+        icon 57686
+      [connection-ref-cap-ota-sta]
+        text "Firmware update"
+        icon 57686

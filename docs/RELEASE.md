@@ -17,7 +17,7 @@ the archived legacy app and is git-ignored; see [`new-app.md`](new-app.md).
 | A2 | Pure Dart data/domain suite (drift cache, transports, policy) | `cd app && dart test test/domain test/data` | green |
 | A3 | The invariant suite (I2–I15) | `cd app && flutter test test/verification` | green |
 | A4 | Copy audit, accessibility, reduced motion, empty states, release build | included in A3 | green |
-| A5 | Goldens compared, never regenerated in CI | part of A1 | green |
+| A5 | Goldens compared, never regenerated in CI (gallery, destinations × themes × densities, key overlays) | part of A1 | green |
 | A6 | Firmware host tests (unchanged by the app) | `make test-host` | green |
 | A7 | Generated code is fresh | `make app.gen` then `git diff --exit-code` | no diff |
 
@@ -25,6 +25,12 @@ The invariant suite is `app/test/verification/`: `invariants_test.dart` (one
 named test per I2–I15), `copy_audit_test.dart`, `accessibility_test.dart`,
 `reduced_motion_test.dart`, `empty_states_test.dart`, `field_report_test.dart`
 and `release_build_test.dart`.
+
+The golden set is `app/test/golden/`: the design gallery pins the primitives
+across the three themes × both densities; `destination_matrix_golden_test.dart`
+renders all seven destinations in the same matrix and `overlay_golden_test.dart`
+renders the twenty named overlays. Regenerate with
+`flutter test --update-goldens test/golden` and review the diff; never in CI.
 
 ## 2 · Release build (desk)
 
@@ -66,7 +72,6 @@ and `release_build_test.dart`.
 
 - Adaptive layout beyond width classes (N16.9) — bottom bar → rail; fold
   postures are deferred until scoped.
-- The full destination × theme × density golden matrix (N16.5) — the design
-  gallery is the golden that pins the system in all three themes × both
-  densities; per-destination goldens remain a follow-up.
 - Performance (N16.6) and the soak (N16.8) are bench checks, not host tests.
+- The signed release APK (B5) and the bench sign-off (C1–C7) need a human with
+  the signing key and a phone/board.

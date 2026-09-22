@@ -1,0 +1,17 @@
+[shell-overlay-scrim]
+[shell-overlay-modal]
+  [shell-overlay-title]
+  text "Adopt session"
+  [adopt-session-body]
+    text ""
+    text "Recording continues"
+    text "Yes"
+    text "Existing samples"
+    text "Kept"
+    text "Start time"
+    text "7:36 AM"
+  [live-adopt-confirm]
+    icon 57857
+    text "Adopt"
+  [live-adopt-cancel]
+    text "Cancel"

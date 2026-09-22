@@ -1,0 +1,134 @@
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-appbar-back]
+  icon 57694
+[shell-appbar-title]
+text "Cook detail"
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [cook-detail-page]
+    [cook-detail-header]
+      text "🍖"
+      [cook-detail-name]
+      text "Labor Day Pulled Pork"
+      [cook-detail-line]
+      text "Sep 15 · 9:41 AM · 10h 12m · Texas Pulled Pork"
+      [cook-detail-stars]
+        icon 58873
+        icon 58873
+        icon 58873
+        icon 58873
+        icon 58873
+      [cook-detail-fav]
+        icon 58873
+    text "RECAP"
+    [cook-detail-recap]
+      [cook-detail-recap-cook-time]
+        text "Cook time"
+        text ""
+      [cook-detail-recap-peak-temp]
+        text "Peak temp"
+        text ""
+      [cook-detail-recap-longest-stall]
+        text "Longest stall"
+        text ""
+      [cook-detail-recap-wrapped-at]
+        text "Wrapped at"
+        text ""
+    text "RESULT"
+    [cook-detail-result]
+      text "PEAK"
+      text "203° F"
+      text "TARGET"
+      text "201° F"
+      text "MARKS"
+      text "5"
+    text "CHART"
+    [cook-detail-chart]
+      text "12:14 PM"
+      text "2:47 PM"
+      text "5:20 PM"
+      text "88"
+      text "131"
+      text "175"
+      text "219"
+    text "NOTES"
+    [cook-detail-notes]
+      [cook-detail-notes-text]
+      text "Wrapped at 165°F. Best bark yet."
+      [cook-detail-notes-edit]
+        icon 57882
+        text "Edit notes"
+    text "MARKS"
+    [cook-detail-marks]
+      [cook-detail-mark-0]
+        [cook-detail-mark-time-0]
+        text "9:41 AM"
+        [cook-detail-mark-title-0]
+        text "Cook started"
+        [cook-detail-mark-delete-0]
+          icon 57706
+      [cook-detail-mark-1]
+        [cook-detail-mark-time-1]
+        text "2:47 PM"
+        [cook-detail-mark-title-1]
+        text "Wrapped"
+        [cook-detail-mark-delete-1]
+          icon 57706
+      [cook-detail-mark-2]
+        [cook-detail-mark-time-2]
+        text "6:21 PM"
+        [cook-detail-mark-title-2]
+        text "Probe-tender"
+        [cook-detail-mark-delete-2]
+          icon 57706
+      [cook-detail-mark-3]
+        [cook-detail-mark-time-3]
+        text "7:53 PM"
+        [cook-detail-mark-title-3]
+        text "Pulled"
+        [cook-detail-mark-delete-3]
+          icon 57706
+      [cook-detail-add-mark]
+        icon 57588
+        text "Add mark"
+      [cook-detail-pull]
+        icon 57686
+        text "Pull"
+    [cook-detail-repeat]
+      icon 58644
+      text "Cook again"
+    [cook-detail-share]
+      icon 58189
+      text "Share"
+    [cook-detail-end]
+      icon 58644
+      text "Reopen this cook"
+    [cook-detail-delete]
+      icon 57787
+      text "Delete cook"
+    [cook-detail-delete-note]
+    text "Deleting removes the annotation and its marks. The bridge keeps recording — the sample rows are never touched."
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

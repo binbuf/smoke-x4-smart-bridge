@@ -1,0 +1,115 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Custom food"
+  [shell-overlay-sub]
+  text "Add your own cut to the catalog"
+  [shell-overlay-close]
+    icon 57706
+  [custom-food-sheet]
+    icon 58173
+    text "Note"
+    text "Custom foods live alongside the built-in catalog. Give it a target and an expected timeline and the app will plan around it."
+    text "Name"
+    [custom-food-name]
+      text "e.g. Smoked Lamb Ribs"
+    text "Category"
+    [custom-food-category]
+      text "Beef"
+      text "Pork"
+      text "Poultry"
+      text "Seafood"
+      text "Lamb"
+      text "Game"
+      text "Veggies"
+      text "Sides"
+      text "Misc"
+      text "Desserts"
+    text "Icon"
+    [custom-food-glyph]
+      [custom-food-glyph-beef]
+        text "🥩"
+        text "beef"
+      [custom-food-glyph-steak]
+        text "🥩"
+        text "steak"
+      [custom-food-glyph-pork]
+        text "🍖"
+        text "pork"
+      [custom-food-glyph-ribs]
+        text "🍖"
+        text "ribs"
+      [custom-food-glyph-poultry]
+        text "🍗"
+        text "poultry"
+      [custom-food-glyph-wholeBird]
+        text "🦃"
+        text "wholeBird"
+      [custom-food-glyph-fish]
+        text "🐟"
+        text "fish"
+      [custom-food-glyph-shellfish]
+        text "🦐"
+        text "shellfish"
+      [custom-food-glyph-game]
+        text "🦌"
+        text "game"
+      [custom-food-glyph-ground]
+        text "🍔"
+        text "ground"
+      [custom-food-glyph-egg]
+        text "🥚"
+        text "egg"
+      [custom-food-glyph-veg]
+        text "🥦"
+        text "veg"
+      [custom-food-glyph-potato]
+        text "🥔"
+        text "potato"
+      [custom-food-glyph-cheese]
+        text "🧀"
+        text "cheese"
+      [custom-food-glyph-bread]
+        text "🍞"
+        text "bread"
+      [custom-food-glyph-fruit]
+        text "🍑"
+        text "fruit"
+      [custom-food-glyph-side]
+        text "🍲"
+        text "side"
+    text "Hazard class"
+    [custom-food-hazard]
+      text "Beef, lamb or game"
+      text "Pork"
+      text "Poultry"
+      text "Ground meat"
+      text "Fish or seafood"
+      text "Egg dish"
+      text "Not stated"
+    text "Thickness"
+    [custom-food-thickness]
+      text "Thin"
+      text "Medium"
+      text "Thick"
+    [custom-food-pit-lo]
+      text "Pit band low (°F)"
+    [custom-food-pit-hi]
+      text "Pit band high (°F)"
+    [custom-food-target]
+      text "Target final (°F)"
+    [custom-food-rest]
+      text "Rest (min)"
+    [custom-food-total-lo]
+      text "Cook time low (min)"
+    [custom-food-total-hi]
+      text "Cook time high (min)"
+    [custom-food-wrap]
+      text "Wrap at (°F, 0 = never)"
+    [custom-food-spritz]
+      text "Spritz every (min, 0 = never)"
+    [custom-food-save]
+      icon 57686
+      text "Add to catalog"
+    [custom-food-cancel]
+      text "Cancel"

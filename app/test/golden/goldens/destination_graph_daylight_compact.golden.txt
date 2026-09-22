@@ -1,0 +1,106 @@
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-appbar-title]
+text "Graph"
+[shell-appbar-sub]
+text "All probes"
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [graph-page]
+    [graph-range]
+      text "15m"
+      text "1h"
+      text "6h"
+      text "all"
+    [graph-zoom-out]
+      icon 59134
+    [graph-zoom-in]
+      icon 59133
+    [graph-fullscreen]
+      icon 58459
+    [graph-chart]
+      text "6:32 AM"
+      text "7:35 AM"
+      text "8:38 AM"
+      text "56"
+      text "113"
+      text "169"
+      text "225"
+    [graph-legend]
+      text "Texas Brisket"
+      text "164.2° F"
+      text "Spare Ribs"
+      text "172.4° F"
+      text "Sausages & Brats"
+      text "141.8° F"
+      text "Grate · jack 4"
+      text "248.6° F"
+    [graph-zoom-hint]
+    text "Pinch or scroll to zoom · drag to pan"
+    text "WINDOW STATISTICS"
+    [graph-stats]
+      [graph-stat-1]
+        text "1"
+        text "Texas Brisket"
+        text "HIGH"
+        text "164° F"
+        text "AVG"
+        text "143° F"
+        text "LOW"
+        text "70° F"
+      [graph-stat-2]
+        text "2"
+        text "Spare Ribs"
+        text "HIGH"
+        text "172° F"
+        text "AVG"
+        text "141° F"
+        text "LOW"
+        text "60° F"
+      [graph-stat-3]
+        text "3"
+        text "Sausages & Brats"
+        text "HIGH"
+        text "142° F"
+        text "AVG"
+        text "120° F"
+        text "LOW"
+        text "72° F"
+      [graph-stat-4]
+        text "4"
+        text "Grate · jack 4"
+        text "HIGH"
+        text "261° F"
+        text "AVG"
+        text "254° F"
+        text "LOW"
+        text "249° F"
+    [graph-add-mark]
+      icon 57588
+      text "Add mark"
+    [graph-share]
+      icon 58189
+      text "Share"
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

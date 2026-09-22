@@ -1,0 +1,44 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Alert"
+  [shell-overlay-sub]
+  text "From the bridge"
+  [shell-overlay-close]
+    icon 57706
+  [alarm-detail]
+    [alarm-detail-severity]
+      icon 57912
+      [alarm-detail-rule]
+      text "Pit temperature falling fast"
+      [alarm-detail-fired]
+      text "9:38 AM · 3 min ago"
+      [alarm-detail-tier]
+        text "Device"
+      [alarm-detail-copy]
+      text "Down 18°F in 12 min. Check fuel and vents."
+    [alarm-detail-why]
+      text "Why this fired"
+      [alarm-detail-why-rule]
+        text "Rule"
+        text "pit_crash"
+      [alarm-detail-why-trigger]
+        text "Trigger"
+        text "Fell 18°F in 12 min"
+      [alarm-detail-why-reading]
+        text "Reading"
+        text "248.6°F"
+      [alarm-detail-why-suggestion]
+        text "Suggestion"
+        text "Open a vent or add a lit chimney."
+    [alarm-detail-ack]
+      icon 57686
+      text "Acknowledge"
+    [alarm-detail-snooze]
+      icon 58710
+      text "Snooze 10m"
+    [alarm-detail-graph]
+      icon 57548
+      text "View on graph"
+    [alarm-detail-note]
+    text "The bridge raised this. Acknowledging silences it — it does not resolve it, and the bridge keeps recording either way."

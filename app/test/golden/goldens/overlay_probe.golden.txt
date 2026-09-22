@@ -1,0 +1,53 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Probe 3"
+  [shell-overlay-sub]
+  text "Jack details"
+  [shell-overlay-close]
+    icon 57706
+  [probe-sheet-body]
+    [probe-sheet-header]
+      text "3"
+      text "🍔"
+      [probe-sheet-name]
+      text "Sausages & Brats"
+      [probe-sheet-sub]
+      text "Live · jack 3"
+    [probe-sheet-temp]
+    text "" semantics "141.8 degrees Fahrenheit"
+    icon 57504
+    text "18.0° F/hr"
+    [probe-sheet-spark]
+    [probe-sheet-phase-card]
+      [probe-sheet-phase]
+        text "Approaching"
+        text "Pull now"
+        text "Resting"
+        text "Ready"
+    [probe-sheet-stats]
+      text "HIGH"
+      text "142° F"
+      text "AVG"
+      text "96° F"
+      text "LOW"
+      text "71° F"
+    text "ROLE"
+    [probe-sheet-roles]
+      text "Food"
+      text "Grate (pit)"
+      text "Unused"
+    text "TARGET"
+    [probe-sheet-doneness]
+      text "Done (160°F) · 160° F"
+    [probe-sheet-pull-notice]
+      icon 58173
+      text "Note"
+      text "Pull at 160° F — it coasts up to target while it rests."
+    icon 57686
+    text "Mark pulled"
+    icon 57582
+    text "Test alarm"
+    [probe-share]
+      icon 58189
+      text "Share this probe"

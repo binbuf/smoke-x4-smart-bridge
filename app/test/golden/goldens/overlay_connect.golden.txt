@@ -1,0 +1,62 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Connection"
+  [shell-overlay-sub]
+  text "Bluetooth and Wi-Fi"
+  [shell-overlay-close]
+    icon 57706
+  [connection-sheet]
+    [connection-device]
+      icon 58240
+      text "SmokeBridge-A4F2"
+    [connection-link-bt]
+      icon 57572
+      text "Bluetooth"
+      text "good · 4s ago"
+    [connection-link-wifi]
+      icon 58690
+      text "Wi-Fi"
+      text "HomeNet-5G · strong · 4s ago"
+      [connection-link-wifi-data]
+        text "DATA"
+    [connection-battery]
+      text "Battery"
+      text "71%"
+    [connection-recording]
+      text "Recording"
+      text "Yes — on the bridge"
+    [connection-switch-label]
+    text "SWITCH MODE — ALWAYS AVAILABLE OVER BLUETOOTH"
+    [connection-mode-ble]
+      icon 57572
+      text "Bluetooth"
+      [connection-mode-state-ble]
+      text "Direct to the bridge · Available"
+      [connection-mode-info-ble]
+        icon 58123
+    [connection-mode-ap]
+      icon 59111
+      text "Bridge Wi-Fi (its own hotspot)"
+      [connection-mode-state-ap]
+      text "The bridge hosts the network · Available"
+      [connection-mode-info-ap]
+        icon 58123
+    [connection-mode-sta]
+      icon 58690
+      text "Your Wi-Fi"
+      text "ACTIVE"
+      [connection-mode-state-sta]
+      text "The bridge joins your network · Active"
+      [connection-mode-info-sta]
+        icon 58123
+    [connection-rollback-notice]
+      icon 58173
+      text "Note"
+      text "Switching to Wi-Fi happens over Bluetooth, so it works even when the bridge is not on a network. If the new mode fails, the bridge keeps its old network and Bluetooth stays as your escape hatch."
+    [connection-resync]
+      icon 58644
+      text "Re-sync now"
+    [connection-disconnect]
+      icon 58241
+      text "Disconnect"

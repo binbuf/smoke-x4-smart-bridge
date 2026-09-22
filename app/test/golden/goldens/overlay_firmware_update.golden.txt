@@ -1,0 +1,15 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Update firmware"
+  [shell-overlay-sub]
+  text "Over Wi-Fi only"
+  [shell-overlay-close]
+    icon 57706
+  [firmware-update-sheet]
+    icon 57686
+    text "Note"
+    text "You are on the latest stable release, v1.4.2."
+    [firmware-check]
+      icon 58644
+      text "Check again"

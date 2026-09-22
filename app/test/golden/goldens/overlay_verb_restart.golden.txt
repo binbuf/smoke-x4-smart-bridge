@@ -1,0 +1,30 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Restarting the bridge"
+  [shell-overlay-sub]
+  text "Settings and the recording are kept."
+  [shell-overlay-close]
+    icon 57706
+  [verb-sheet]
+    icon 58644
+    [verb-title]
+    text "Restarting the bridge"
+    text "Settings and the recording are kept."
+    [verb-step-0]
+      text "●"
+      text "Stopping recording cleanly"
+    [verb-step-1]
+      text ""
+      text "Draining the sample buffer"
+    [verb-step-2]
+      text ""
+      text "Rebooting"
+    [verb-step-3]
+      text ""
+      text "LoRa re-sync"
+    [verb-step-4]
+      text ""
+      text "Reconnecting"
+    [verb-keep-open]
+    text "Keep the app open…"

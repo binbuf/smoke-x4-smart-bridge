@@ -1,0 +1,152 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Alerts"
+  [shell-overlay-sub]
+  text "From the bridge and insights from the app, kept separate"
+  [shell-overlay-close]
+    icon 57706
+  [alarms-sheet]
+    [alarms-active]
+      text "ACTIVE NOW"
+      [alarms-active-count]
+      text "2 active alerts"
+      [alarms-ack-all]
+      button enabled
+        text "Acknowledge all"
+      [alarms-active-pit_crash]
+        icon 57912
+        text "Pit temperature falling fast"
+        text "Device"
+        text "Down 18°F in 12 min. Check fuel and vents."
+        [alarms-ack-pit_crash]
+          icon 57686
+      [alarms-active-eta_soon]
+        icon 58173
+        text "Sausages almost ready"
+        text "Insight"
+        text "ETA about 11 minutes to 160°F."
+        [alarms-ack-eta_soon]
+          icon 57686
+      [alarms-finding-stallStarted]
+        icon 58173
+        text "The stall has started"
+        text "Insight"
+        text "This is normal. Your cook is fine — do not raise the pit temperature."
+    text "DELIVERY"
+    [alarms-delivery]
+      icon 58449
+      [alarms-delivery-verdict]
+      text "This phone will wake you"
+      text "Quiet hours 10pm–6am silence warning & info · critical alarms always sound."
+      [alarms-test]
+        icon 57582
+        text "Send a test alarm"
+    text "FROM THE BRIDGE"
+    [alarms-device-authoritative]
+    text "authoritative"
+    [alarms-device-rules]
+      [alarms-device-rule-target_reached]
+        icon 57912
+        text "Target reached"
+        text "Food crosses its target going up. · per probe"
+        [alarms-device-toggle-target_reached]
+      [alarms-device-rule-smoke_x_alarm]
+        icon 57912
+        text "Base station alarm"
+        text "Mirrors the Smoke X4’s own alarm. · per probe"
+        [alarms-device-toggle-smoke_x_alarm]
+      [alarms-device-rule-pit_out_of_band]
+        icon 59084
+        text "Pit out of band"
+        text "Grate temp leaves your pit band. · pit"
+        [alarms-device-toggle-pit_out_of_band]
+      [alarms-device-rule-pit_crash]
+        icon 57912
+        text "Pit crash"
+        text "Pit falls fast below target. · pit"
+        [alarms-device-toggle-pit_crash]
+      [alarms-device-rule-probe_detached]
+        icon 59084
+        text "Probe detached"
+        text "A probe is unplugged or out of range. · per probe"
+        [alarms-device-toggle-probe_detached]
+      [alarms-device-rule-base_lost]
+        icon 59084
+        text "Base station lost"
+        text "No packet from the Smoke X4. · cook"
+        [alarms-device-toggle-base_lost]
+      [alarms-device-rule-battery_low]
+        icon 59084
+        text "Battery low"
+        text "Bridge battery warning then critical. · device"
+        [alarms-device-toggle-battery_low]
+      [alarms-device-rule-storage_low]
+        icon 59084
+        text "Storage low"
+        text "Little flash left for recording. · device"
+        [alarms-device-toggle-storage_low]
+      [alarms-device-rule-system_fault]
+        icon 59084
+        text "System fault"
+        text "Crash dump or failed update. · device"
+        [alarms-device-toggle-system_fault]
+    text "INSIGHTS FROM THE APP"
+    [alarms-app-never-overrides]
+    text "never overrides the bridge"
+    [alarms-app-rules]
+      [alarms-app-rule-eta_soon]
+        icon 58173
+        text "ETA soon"
+        text "Insight: a probe is close to target."
+        [alarms-app-edit-eta_soon]
+          button enabled
+            icon 57882
+        [alarms-app-delete-eta_soon]
+          button enabled
+            icon 57787
+        [alarms-app-toggle-eta_soon]
+      [alarms-app-rule-stall]
+        icon 58173
+        text "Stall detected"
+        text "Insight: the meat has plateaued."
+        [alarms-app-edit-stall]
+          button enabled
+            icon 57882
+        [alarms-app-delete-stall]
+          button enabled
+            icon 57787
+        [alarms-app-toggle-stall]
+      [alarms-app-rule-bridge_unreachable]
+        icon 58173
+        text "Bridge unreachable"
+        text "Insight: the app lost the link."
+        [alarms-app-edit-bridge_unreachable]
+          button enabled
+            icon 57882
+        [alarms-app-delete-bridge_unreachable]
+          button enabled
+            icon 57787
+        [alarms-app-toggle-bridge_unreachable]
+      [alarms-app-add]
+        icon 57415
+        text "Add an insight"
+    text "PREFERENCES"
+    [alarms-preferences]
+      icon 984363
+      text "Prefer my own alarms"
+      text "Your insights win the sound; device rules stay authoritative in the list"
+      [alarms-pref-prefer]
+      icon 61343
+      text "Quiet hours"
+      text "Silence warning & info 10pm–6am · critical always sounds"
+      [alarms-pref-quiet]
+      icon 58449
+      text "Background monitoring"
+      text "Check on the bridge and bubble up alarms"
+      [alarms-pref-monitoring]
+    text "BACKGROUND MONITORING"
+    [alarms-monitoring]
+      icon 58783
+      [alarms-monitoring-copy]
+      text "This phone watches for alarms while the app is backgrounded. The bridge keeps recording and sounding its own alarms either way."

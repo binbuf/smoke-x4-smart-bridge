@@ -1,0 +1,16 @@
+[shell-overlay-scrim]
+[shell-overlay-modal]
+  [shell-overlay-title]
+  text "Restart the bridge"
+  text "The bridge restarts and the cook keeps recording."
+  icon 57686
+  text "KEEPS"
+  text "The recording"
+  text "The current cook"
+  icon 59084
+  text "LOSES"
+  text "The live link for about a minute"
+  [shell-overlay-confirm]
+    text "Restart"
+  [shell-overlay-cancel]
+    text "Cancel"

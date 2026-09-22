@@ -1,0 +1,131 @@
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-transport-chip]
+  text "Home Wi-Fi"
+  icon 57572
+  icon 58690
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [live-page]
+    [live-alarms]
+      [live-alarm-count]
+      text "2 active alerts"
+      [live-alarm-ack-all]
+      button enabled
+        text "Acknowledge all"
+      [live-alarm-pit_crash]
+        icon 57912
+        text "Pit temperature falling fast"
+        text "Device"
+        text "Down 18°F in 12 min. Check fuel and vents. · 249° F"
+        icon 57686
+      [live-alarm-eta_soon]
+        icon 58173
+        text "Sausages almost ready"
+        text "Insight"
+        text "ETA about 11 minutes to 160°F. · 142° F"
+        icon 57686
+    [live-cook-header]
+      text "🥩"
+      [live-cook-name]
+      text "Sunday Brisket & Ribs"
+      icon 58289
+      [live-cook-line]
+      text "Recording on the bridge — safe even if this phone drops"
+      [live-cook-settings]
+        icon 59011
+      [live-stopwatch]
+        text "Cook time"
+        [live-stopwatch-time]
+        text "04:12:00"
+        [live-stopwatch-started]
+        text "Started 5:29 AM"
+        [live-stopwatch-toggle]
+          icon 58492
+        [live-stopwatch-edit-start]
+          icon 57882
+    text "AT A GLANCE"
+    [live-summary]
+      [live-summary-grate]
+        text "GRATE"
+        text "249"
+        text "° F"
+        text "Pit band 225–275°"
+      [live-summary-hottest]
+        text "HOTTEST FOOD"
+        text "172"
+        text "° F"
+        text "Spare Ribs"
+      [live-summary-to-target]
+        text "TO TARGET"
+        text "3"
+        text "none ready yet"
+    text "PROBES"
+    [live-probes-details]
+    button enabled
+      text "Details"
+    [live-probe-rail]
+      [live-probe-1]
+        text "STALL"
+        text "1"
+        text "Texas Brisket"
+        [live-probe-temp-1]
+        text ""
+        [live-probe-sub-1]
+        text "Target 201°"
+      [live-probe-2]
+        text "2"
+        text "Spare Ribs"
+        [live-probe-temp-2]
+        text ""
+        [live-probe-sub-2]
+        text "38 min to pull"
+      [live-probe-3]
+        text "3"
+        text "Sausages & Brats"
+        [live-probe-temp-3]
+        text ""
+        [live-probe-sub-3]
+        text "11 min to pull"
+      [live-probe-4]
+        text "GRATE"
+        text "4"
+        text "Grate · jack 4"
+        [live-probe-temp-4]
+        text ""
+        [live-probe-sub-4]
+        text "Pit band 225–275°"
+    [live-mini-graph]
+      icon 57548
+      text "Live graph"
+      [live-mini-graph-label]
+      text "° F · last 252m"
+      icon 57695
+    text "QUICK ACTIONS"
+    icon 57588
+    text "Mark"
+    icon 57415
+    text "Add food"
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

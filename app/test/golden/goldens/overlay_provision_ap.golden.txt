@@ -1,0 +1,36 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Use the bridge hotspot"
+  [shell-overlay-sub]
+  text "Direct link, no router needed"
+  [shell-overlay-close]
+    icon 57706
+  [provision-ap-body]
+    [provision-ap-notice]
+      icon 58173
+      text "Note"
+      text "No home network? The bridge can broadcast its own. Your phone joins it directly — some phones will warn there is “no internet”, which is normal."
+    [provision-ap-hotspot]
+      icon 59111
+      text "HomeNet-5G"
+      text "Bridge hotspot"
+      icon 58613
+      text "Network password"
+      [provision-ap-passkey]
+        text "smoke-4471"
+    [provision-ap-steps]
+      text "1"
+      text "Open your phone’s Wi-Fi settings."
+      text "2"
+      text "Join HomeNet-5G."
+      text "3"
+      text "Come back — the app finds the bridge automatically."
+    [provision-ap-open]
+      icon 59111
+      text "Open Wi-Fi settings"
+    [provision-ap-joined]
+      icon 57686
+      text "I have joined"
+    [provision-ap-note]
+    text "The bridge stays on Bluetooth until you confirm."

@@ -1,0 +1,38 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Join home Wi-Fi"
+  [shell-overlay-sub]
+  text "Sent over Bluetooth"
+  [shell-overlay-close]
+    icon 57706
+  [provision-sta-body]
+    [provision-sta-notice]
+      icon 58173
+      text "Note"
+      text "The bridge joins your home Wi-Fi so your phone keeps its internet and you can reach the bridge anywhere in range. The password is sent over Bluetooth and is not stored in the app."
+    text "CHOOSE A NETWORK"
+    [provision-sta-net-HomeNet-5G]
+      icon 59111
+      text "HomeNet-5G"
+      text "strong"
+      icon 57686
+    [provision-sta-net-HomeNet-2.4G]
+      icon 59111
+      text "HomeNet-2.4G"
+      text "good"
+      icon 57695
+    [provision-sta-net-Backyard-AP]
+      icon 59111
+      text "Backyard-AP"
+      text "fair"
+      icon 57695
+    [provision-sta-password]
+      text "Password"
+      text "••••••••"
+      icon 58289
+    [provision-sta-connect]
+      icon 58240
+      text "Connect bridge"
+    [provision-sta-cancel]
+      text "Cancel"

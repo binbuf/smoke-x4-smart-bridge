@@ -1,0 +1,25 @@
+[shell-overlay-scrim]
+[shell-overlay-modal]
+  [shell-overlay-title]
+  text "Adjust start time"
+  text "When did the cook actually start?"
+  [edit-start-0]
+    text "Just now"
+  [edit-start-30]
+    text "30 min ago"
+  [edit-start-60]
+    text "1 hour ago"
+  [edit-start-120]
+    text "2 hours ago"
+  [edit-start-240]
+    text "4 hours ago"
+  text "Current start"
+  [edit-start-current]
+  text "5:29 AM"
+  icon 58173
+  text "Note"
+  text "Changing the start only moves the cook window. The recorded samples are never rewritten."
+  [shell-overlay-confirm]
+    text "Done"
+  [shell-overlay-cancel]
+    text "Cancel"

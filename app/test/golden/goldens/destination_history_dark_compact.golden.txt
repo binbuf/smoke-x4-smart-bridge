@@ -1,0 +1,124 @@
+[shell-clock]
+text "9:41"
+icon 58791
+icon 59111
+[shell-appbar-back]
+  icon 57694
+[shell-appbar-title]
+text "History"
+[shell-appbar-sub]
+text "Past cooks"
+[shell-appbar-plus]
+  icon 57415
+[shell-alerts-bell]
+  icon 58449
+  [shell-alert-badge]
+    text "2"
+[shell-scroll]
+  [history-page]
+    [history-start]
+      icon 57415
+      text "Start a new cook"
+    [history-notice]
+      icon 58173
+      text "Note"
+      text "Every cook is an annotation over one continuous recording. The bridge records even when this app is closed — you never lose the gap."
+    text "THIS WEEK"
+    [history-group-count-thisWeek]
+    text "4"
+    [history-group-thisWeek]
+      [history-card-c1]
+        text "🍖"
+        [history-card-name-c1]
+        text "Labor Day Pulled Pork"
+        icon 58873
+        [history-card-sub-c1]
+        text "Sep 15 · 10h 12m · 5 marks · 2 photos"
+        [history-card-peak-c1]
+        text "203° F"
+        text "PEAK"
+        icon 57695
+      [history-card-c2]
+        text "🥩"
+        [history-card-name-c2]
+        text "Weeknight Ribeyes"
+        [history-card-sub-c2]
+        text "Sep 17 · 18m · 2 marks"
+        [history-card-peak-c2]
+        text "137° F"
+        text "PEAK"
+        icon 57695
+      [history-card-c3]
+        text "🦃"
+        [history-card-name-c3]
+        text "Whole Turkey Trial"
+        [history-card-sub-c3]
+        text "Sep 18 · 3h 34m · 3 marks · 1 photos"
+        [history-card-peak-c3]
+        text "165° F"
+        text "PEAK"
+        icon 57695
+      [history-card-c4]
+        text "🥩"
+        [history-card-name-c4]
+        text "Sunday Brisket & Ribs"
+        icon 58873
+        [history-card-sub-c4]
+        text "Sep 20 · 8h 18m · 7 marks · 3 photos"
+        [history-card-peak-c4]
+        text "203° F"
+        text "PEAK"
+        icon 57695
+    text "EARLIER"
+    [history-group-count-earlier]
+    text "3"
+    [history-group-earlier]
+      [history-card-c5]
+        text "🐟"
+        [history-card-name-c5]
+        text "Salmon on a Plank"
+        [history-card-sub-c5]
+        text "Sep 12 · 41m · 2 marks · 1 photos"
+        [history-card-peak-c5]
+        text "145° F"
+        text "PEAK"
+        icon 57695
+      [history-card-c6]
+        text "🥩"
+        [history-card-name-c6]
+        text "Memorial Day Brisket"
+        icon 58873
+        [history-card-sub-c6]
+        text "Aug 12 · 12h 11m · 9 marks · 4 photos"
+        [history-card-peak-c6]
+        text "204° F"
+        text "PEAK"
+        icon 57695
+      [history-card-c7]
+        text "🍖"
+        [history-card-name-c7]
+        text "Kālua Pork Night"
+        [history-card-sub-c7]
+        text "Aug 30 · 9h 0m · 4 marks · 2 photos"
+        [history-card-peak-c7]
+        text "202° F"
+        text "PEAK"
+        icon 57695
+[shell-nav-live]
+  icon 58783
+  [shell-nav-live-dot]
+  text "Live"
+[shell-nav-temps]
+  icon 58966
+  text "Temps"
+[shell-nav-timeline]
+  icon 58040
+  text "Timeline"
+[shell-nav-graph]
+  icon 57548
+  text "Graph"
+[shell-nav-settings]
+  icon 59011
+  text "Settings"
+[shell-dev-panel-button]
+  icon 59011

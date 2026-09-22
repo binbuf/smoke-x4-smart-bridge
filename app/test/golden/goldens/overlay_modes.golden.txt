@@ -1,0 +1,35 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Connection modes"
+  [shell-overlay-sub]
+  text "Switch any time — the app stays reachable"
+  [shell-overlay-close]
+    icon 57706
+  [connection-modes]
+    [connection-modes-notice]
+      icon 61495
+      text "Note"
+      text "Three ways to talk to the bridge. Tap ? on any one for the full technical detail."
+    [connection-mode-ble]
+      icon 57572
+      text "Bluetooth"
+      [connection-mode-state-ble]
+      text "Direct to the bridge · Available"
+      [connection-mode-info-ble]
+        icon 58123
+    [connection-mode-ap]
+      icon 59111
+      text "Bridge Wi-Fi (its own hotspot)"
+      [connection-mode-state-ap]
+      text "The bridge hosts the network · Available"
+      [connection-mode-info-ap]
+        icon 58123
+    [connection-mode-sta]
+      icon 58690
+      text "Your Wi-Fi"
+      text "ACTIVE"
+      [connection-mode-state-sta]
+      text "The bridge joins your network · Active"
+      [connection-mode-info-sta]
+        icon 58123

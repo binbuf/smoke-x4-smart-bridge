@@ -1,0 +1,153 @@
+[shell-overlay-scrim]
+[shell-overlay-sheet]
+  [shell-overlay-title]
+  text "Cook setup"
+  [shell-overlay-sub]
+  text "Set up before, during, or after you light the fire"
+  [shell-overlay-close]
+    icon 57706
+  [setup-sheet]
+    [setup-modes]
+      text "Start a cook"
+      text "Already started"
+      text "Just watch"
+    [setup-mode-sub]
+    text "Set up before, during, or after you light the fire"
+    text "WHAT ARE YOU COOKING?"
+    [setup-custom-food]
+      icon 57415
+      text "Custom food"
+    [setup-catalog-search]
+      text "Search all foods — brisket, kalua, jerk, elote…"
+      icon 58727
+    [setup-categories]
+      text "Beef"
+      text "Pork"
+      text "Poultry"
+      text "Seafood"
+      text "Lamb"
+      text "Game"
+      text "Veggies"
+      text "Sides"
+      text "Misc"
+      text "Desserts"
+    [setup-catalog-count]
+    text "19 foods in Beef"
+    [setup-food-beef_brisket]
+      text "🥩"
+      text "Texas Brisket"
+      text "Low and slow until the collagen gives."
+      [setup-food-meta-beef_brisket]
+      text "201° F · pit 225–275° · 5 styles"
+    [setup-food-beef_ribeye]
+      text "🥩"
+      text "Ribeye Steak"
+      text "A whole-muscle cut — cook it to the doneness you like."
+      [setup-food-meta-beef_ribeye]
+      text "135° F · pit 200–250° · 4 styles"
+    [setup-food-beef_prime_rib]
+      text "🥩"
+      text "Prime Rib Roast"
+      text "Thick roast — it keeps climbing off the heat."
+      [setup-food-meta-beef_prime_rib]
+      text "135° F · pit 225–275° · 3 styles"
+    [setup-food-beef_chuck]
+      text "🥩"
+      text "Chuck Roast"
+      text "Braise-tender — treat it like a small brisket."
+      [setup-food-meta-beef_chuck]
+      text "205° F · pit 250–275° · 3 styles"
+    [setup-food-beef_burger]
+      text "🍔"
+      text "Burgers"
+      text "Ground beef finishes at 160°F — grinding mixes bacteria through."
+      [setup-food-meta-beef_burger]
+      text "160° F · pit 325–375° · 3 styles"
+    [setup-food-beef_shortribs]
+      text "🍖"
+      text "Beef Short Ribs"
+      text "Braise-tender, rich and beefy."
+      [setup-food-meta-beef_shortribs]
+      text "200° F · pit 250–275° · 3 styles"
+    [setup-food-beef_tritip]
+      text "🥩"
+      text "Tri-Tip"
+      text "Reverse-sear, then slice across the grain."
+      [setup-food-meta-beef_tritip]
+      text "135° F · pit 225–275° · 2 styles"
+    [setup-food-beef_flank]
+      text "🥩"
+      text "Flank Steak"
+      text "Lean and flat — quick cook, slice thin across the grain."
+      [setup-food-meta-beef_flank]
+      text "135° F · pit 225–275° · 2 styles"
+    [setup-food-beef_skirt]
+      text "🥩"
+      text "Skirt Steak"
+      text "For fajitas — char hard and rest briefly."
+      [setup-food-meta-beef_skirt]
+      text "135° F · pit 250–300° · 2 styles"
+    [setup-food-beef_picanha]
+      text "🥩"
+      text "Picanha"
+      text "Fat cap up, skewered or roasted, sliced like steak."
+      [setup-food-meta-beef_picanha]
+      text "135° F · pit 225–275° · 2 styles"
+    [setup-food-beef_denver]
+      text "🥩"
+      text "Denver Steak"
+      text "Well-marbled, quick sear."
+      [setup-food-meta-beef_denver]
+      text "135° F · pit 300–350° · 2 styles"
+    [setup-food-beef_backribs]
+      text "🍖"
+      text "Beef Back Ribs"
+      text "Less meat than short ribs — smoke and wrap."
+      [setup-food-meta-beef_backribs]
+      text "200° F · pit 250–275° · 2 styles"
+    [setup-food-beef_pastrami]
+      text "🥩"
+      text "Smoked Pastrami"
+      text "Cured brisket flat, smoked then steamed."
+      [setup-food-meta-beef_pastrami]
+      text "203° F · pit 225–275° · 2 styles"
+    [setup-food-beef_meatloaf]
+      text "🍔"
+      text "Smoked Meatloaf"
+      text "Ground beef floor applies — 160°F."
+      [setup-food-meta-beef_meatloaf]
+      text "160° F · pit 250–300° · 2 styles"
+    [setup-food-beef_tenderloin]
+      text "🥩"
+      text "Beef Tenderloin"
+      text "Lean and luxurious — do not overshoot."
+      [setup-food-meta-beef_tenderloin]
+      text "135° F · pit 225–275° · 2 styles"
+    [setup-food-beef_cheeks]
+      text "🥩"
+      text "Beef Cheeks"
+      text "Marrow-rich and gelatinous — built for a long braise."
+      [setup-food-meta-beef_cheeks]
+      text "205° F · pit 250–300° · 2 styles"
+    [setup-food-beef_oxtail]
+      text "🥩"
+      text "Beef Oxtail"
+      text "Sticky, rich and falling off the bone."
+      [setup-food-meta-beef_oxtail]
+      text "205° F · pit 250–300° · 2 styles"
+    [setup-food-beef_tongue]
+      text "🥩"
+      text "Beef Tongue"
+      text "Braise, peel, then slice or chop."
+      [setup-food-meta-beef_tongue]
+      text "205° F · pit 250–300° · 2 styles"
+    [setup-food-beef_shank]
+      text "🥩"
+      text "Beef Shank"
+      text "Cross-cut and braised until it gives."
+      [setup-food-meta-beef_shank]
+      text "205° F · pit 250–300° · 2 styles"
+    [setup-start]
+      icon 58571
+      text "Start cook"
+      text "Pick a food above to continue"
