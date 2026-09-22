@@ -1,9 +1,12 @@
-# Smoke Bridge — new Flutter app
+# Smoke Bridge — the app
 
-The rebuilt companion app for the Smoke X4 smart bridge, in `newui/`'s design
-language. This is the N0 foundation (skeleton, packages, lint, golden harness);
-screens land in later tasks. The legacy app is archived at `../app.old/` and is
-**reference only**.
+The companion app for the Smoke X4 smart bridge, in `newui/`'s design language.
+It is complete through the `newui/ROADMAP.md` build (N0–N16): the live/temps/
+timeline/graph/history/settings destinations, the two-tier alarm system, the
+onboarding wizard, and the real bridge integration (HTTP + BLE transports, drift
+cache, foreground service, OTA). The legacy app is archived at `../app.old/` and
+is **reference only**; the entry point for the rebuilt app is
+[`../docs/new-app.md`](../docs/new-app.md).
 
 ## Commands
 
@@ -16,7 +19,18 @@ From the repo root (`make` targets use the Windows-safe `.bat` wrappers):
 | `make app.golden` | regenerate the goldens (`flutter test --update-goldens test/golden`) |
 | `make app.gen` | `dart run build_runner build` |
 
-Or from `app/` directly: `flutter run`, `flutter test`, `flutter analyze`.
+Or from `app/` directly: `flutter run`, `flutter test`, `flutter analyze`,
+`dart test test/domain test/data`.
+
+The real bridge is opt-in: `flutter run --dart-define=REAL_BRIDGE=true
+--dart-define=BRIDGE_HOST=…`. Without it the app runs the mock repository.
+
+## Verification and release
+
+`test/verification/` is the N16 invariant and audit suite: one named test per
+invariant I2–I15, plus copy, accessibility, reduced-motion, empty-state,
+field-report and release-build checks. The release gate is
+[`../docs/RELEASE.md`](../docs/RELEASE.md).
 
 ## Layout
 
@@ -30,6 +44,7 @@ lib/
   platform/   Android seams (N15)
 test/
   domain/ design/ features/ integration/   unit, widget and contract tests
+  verification/                            N16 invariant + audit suite
   golden/                                  text goldens (see golden.dart)
   support/                                 shared test helpers
 ```
