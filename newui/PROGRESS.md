@@ -655,7 +655,7 @@ Status: **done**. `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 wi
 
 ## T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA
 
-Status: **continue** (attempts 1–4). Attempt 1 landed the **transport +
+Status: **done** (attempts 1–5). Attempt 1 landed the **transport +
 connection + sync core** (N15.1, 15.2, 15.4–15.7, 15.10, 15.11, 15.12, 15.14).
 Attempt 2 landed the **exit-gate-critical drop-in N15.8** and the **persistence
 half of N15.13**. Attempt 3 landed the **real drift cache (N15.9)**, the
@@ -663,9 +663,12 @@ half of N15.13**. Attempt 3 landed the **real drift cache (N15.9)**, the
 `bridge_unreachable` insight**. Attempt 4 landed **N15.3 `BleTransport`** and
 the **host-testable halves of N15.15–N15.22** (notification channels /
 foreground service / permissions / network binder / firmware picker / share /
-device facts). Tree green: `make app.test` **715** (was 672; +43),
-`dart test test/domain test/data` **295** (was 262; +33). No screen or existing
-test changed; the N15 plugin set is pinned in `pubspec.yaml`.
+device facts). Attempt 5 landed **N15.17 `CookMonitor`**, the **composition root
++ Android manifest/Kotlin**, the **OTA upload seam (N15.20)**, **device
+alarm-config read-back** and a **real-HTTP end-to-end smoke**. Tree green:
+`make app.test` **731** (was 715; +16), `dart test test/domain test/data`
+**304** (was 295; +9). No screen or existing test changed; the N15 plugin set is
+pinned in `pubspec.yaml`.
 
 **Real paths (pure Dart)**
 - Transport (attempt 1, under `app/lib/data/transport/`; barrel `transport.dart`):
@@ -742,17 +745,49 @@ test changed; the N15 plugin set is pinned in `pubspec.yaml`.
 - **Attempt 4 wiring** — `httpSupervisor` gained `bleOpener`; `providers.dart`
   passes `openBleTransport` so `auto` can lead on BLE in a `REAL_BRIDGE=true`
   build; `transport.dart` re-exports the BLE files.
+- **Attempt 5 `app/lib/features/monitor/cook_monitor.dart` — N15.17**: watches
+  `BridgeRepository.snapshot()`, feeds the pure `planNotifications` (owns
+  `alreadyPosted` + the escalation map), drives `NotificationSink` /
+  `ForegroundServiceHost`, and owns the §9.5 ongoing readout + §9.6 lifecycle
+  (start on cook, battery opt-in once, stop after 10 min idle, withdraw when
+  monitoring off). Adds the advisory findings the repo does not raise as
+  alarms (`bridge_unreachable` after 3 min, `stallStarted`/`stallEnded`,
+  `etaSoon`). The policy windows live in `data/alarms/notification_policy.dart`
+  (the design layering test bans `Duration` literals in `lib/features`).
+- **Attempt 5 composition root** — `providers.dart` gained the platform-seam
+  providers (fakes by default); `bootstrap.dart` installs
+  `PluginNotificationSink` / `PluginForegroundServiceHost` (real builds only),
+  `AppPermissions.production`, `SystemSettings`, `ChannelNetworkBinder`,
+  `PluginShareSheet`, and starts the `CookMonitor` from the settings tree.
+- **Attempt 5 Android** — manifest declares the N15 permissions + the
+  `connectedDevice` foreground service; new `res/xml/network_security_config.xml`
+  (cleartext to `smokebridge.local` / `192.168.4.1`); ported `NetworkBinder.kt`
+  and the `smokebridge/system_settings` intents into `MainActivity.kt`.
+- **Attempt 5 N15.20 OTA** — `FirmwareImage`/`FirmwarePicker` on the
+  `BridgeRepository` contract; `uploadFirmware` streams to `transport.uploadOta`
+  (HTTP only; BLE/no-link refuse with a notice, I15). `performVerb(DeviceVerb.ota)`
+  opens the picker when one is wired.
+- **Attempt 5 alarm read-back** — `RealBridgeRepository` reads
+  `GET /config/alarms` on attach and folds the wire rules onto `_rules` by id
+  (unknown ids left alone); edits still push back via `setAlarmRuleEnabled`.
+- **Attempt 5 real-HTTP smoke** — `test/data/real_bridge_http_test.dart` drives
+  the drop-in over a real `HttpTransport` + `FakeBridgeServer`. It also fixed a
+  real bug: `HttpTransport.events()` was `async*`, so cancelling it did not reach
+  the WebSocket and `BridgeSession.stop()` hung; it is now a controller whose
+  `onCancel` closes the socket.
 
 **Commands that work**
-- `make app.test` — full gate (analyze + format + `flutter test`, **715**).
+- `make app.test` — full gate (analyze + format + `flutter test`, **731**).
 - `cd app && dart test test/data/drift_sample_cache_test.dart` — 10.
-- `cd app && flutter test test/data/real_bridge_repository_test.dart` — 12.
+- `cd app && flutter test test/data/real_bridge_repository_test.dart` — 17.
+- `cd app && dart test test/data/real_bridge_http_test.dart` — 4 (real HTTP).
 - `cd app && flutter test test/app/prefs_store_test.dart` — 3.
 - `cd app && flutter test test/data/real_prefs_repository_test.dart` — 7.
 - `cd app && dart test test/data/ble_transport_test.dart` — the 26 BLE tests.
 - `cd app && dart test test/data/platform_test.dart` — 7 platform-seam tests.
 - `cd app && flutter test test/features/platform_permissions_test.dart` — 10.
-- `cd app && dart test test/domain test/data` — data/domain gate (**295**).
+- `cd app && flutter test test/features/cook_monitor_test.dart` — 7.
+- `cd app && dart test test/domain test/data` — data/domain gate (**304**).
 - Helper: `app/test/support/fake_bridge_server.dart` (HTTP) and
   `app/test/support/fake_peripheral.dart` (BLE) (do not add `tools/sim`).
 
@@ -765,40 +800,33 @@ test changed; the N15 plugin set is pinned in `pubspec.yaml`.
   poll. `SampleCache`/`SyncEngine` are the drift seam.
 - `RealBridgeRepository` exposes `transport` and `cache` for dev/inspection;
   `snapshot()` replays `current` before the controller (same as the mock).
+- `BridgeRepository` now carries `uploadFirmware(FirmwareImage, {force})` (HTTP
+  only); `RealBridgeRepository` takes an optional `FirmwarePicker` so
+  `performVerb(DeviceVerb.ota)` can stream a picked `.bin`.
 
 **Deviations / gotchas**
 - HTTP is `dart:io`, not Dio; lanes are sequential by priority (same observable
   contract).
-- Alarms/device read-back have **no wire endpoint yet**: the real repo keeps
-  alarms/rules app-side and `checkForUpdates` uses the firmware fixture. Real
-  device alarms land with the platform work.
+- Alarm **instances** come from `/status`; the rule **config** is read back from
+  `/config/alarms` and edits push to `/config/alarms` (HTTP). `checkForUpdates`
+  still uses the firmware fixture — there is no update-discovery endpoint.
 - `_addItem` marks the jack attached app-side; the live feed still owns readings.
 - App-only `MarkKind.spritz`/`turn` are written as wire `note`.
 - Keep `InMemorySampleCache.clearConnectivityGapsBetween` and the drift version
   identical.
+- `HttpTransport.events()` is a controller (not `async*`) so cancelling the
+  subscription closes the `/stream` WebSocket; `close()` fires the socket close
+  without awaiting the handshake, or a dead peer stalls failover.
 - `RealBridgeRepository.dispose()` disposes the supervisor but not the
-  `ConnectionManager`.
+  `ConnectionManager`; the monitor's `Duration` windows live in
+  `notification_policy.dart` because `lib/features` bans `Duration` literals.
 
 **Follow-ups**
-- **N15.17 `CookMonitor`** — the background loop must be adapted to the new
-  model: watch `BridgeRepository.snapshot()`, feed `planNotifications()` (the
-  caller owns `alreadyPosted` + the escalation map), drive `NotificationSink`
-  and `ForegroundServiceHost`, start on cook / stop after idle. Sample
-  persistence already happens in `BridgeSession`/`SampleCache`, so the loop is
-  notifications + service lifecycle + findings (unreachable / stall / ETA).
-- **Composition root + Android**: build `PluginNotificationSink` /
-  `PluginForegroundServiceHost` / `AppPermissions` / `SystemSettings` /
-  `NetworkBinder` in `bootstrap.dart`; add the manifest service
-  (`connectedDevice`), notification permission, full-screen-intent /
-  exact-alarm declarations, and the Kotlin handlers for
-  `smokebridge/network_binder` (`bindProcessToNetwork`) and
-  `smokebridge/system_settings` (intents).
-- **OTA upload plumbing**: thread `pickFirmwareImage()`'s stream to
-  `BridgeTransport.uploadOta` (HTTP only) behind a repo-level seam.
-- Map `alarmConfig()` `AlarmRule`s onto `_rules` and push rule edits back to the
-  device where the protocol allows (HTTP).
-- Smoke the real repository against `make sim`
-  (`--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`);
-  the `ConnectionManager` owner is still open, and
-  `RealBridgeRepository.dispose()` does not dispose it.
+- **Bench smoke**: run the real repository against `make sim`
+  (`--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`)
+  on a device. The host-side equivalent is `test/data/real_bridge_http_test.dart`.
+- The `ConnectionManager` has no owner yet, so its attempt stream is not
+  disposed; `RealBridgeRepository.dispose()` does not dispose it.
+- The `shareSheetProvider` is wired but no screen calls it (export still names
+  its path); `deviceFacts()` is collected but not yet attached to a field report.
 - N16: no goldens for any bridge surface.

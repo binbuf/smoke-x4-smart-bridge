@@ -18,6 +18,29 @@ import '../model/mock_event.dart';
 /// A device action with a cost sheet and a progress sheet.
 enum DeviceVerb { restart, forget, factoryReset, ota }
 
+/// A streamed firmware image, ready to hand to the OTA upload (N15.20).
+///
+/// Deliberately transport-neutral: the picker (a platform seam) produces one
+/// and the repository streams it to `BridgeTransport.uploadOta`. The image is
+/// never buffered by the app.
+class FirmwareImage {
+  const FirmwareImage({
+    required this.name,
+    required this.bytes,
+    this.lengthBytes,
+  });
+
+  final String name;
+  final Stream<List<int>> bytes;
+
+  /// The picked file's length when known, for a progress read-out.
+  final int? lengthBytes;
+}
+
+/// How the composition root produces a firmware image (N15.20). Null picker =
+/// the build has no file picker and OTA stays a named notice.
+typedef FirmwarePicker = Future<FirmwareImage?> Function();
+
 /// The contract every screen codes against.
 abstract interface class BridgeRepository {
   /// The current snapshot, then every subsequent change.
@@ -183,6 +206,13 @@ abstract interface class BridgeRepository {
 
   /// Run a device verb. [force] is the OTA session-active override.
   Future<void> performVerb(DeviceVerb verb, {bool force = false});
+
+  /// N15.20 — stream a picked firmware image to the bridge.
+  ///
+  /// **HTTP only**: an image is too big for Bluetooth, so a BLE-only link
+  /// refuses with a named notice rather than attempting it. Returns `true`
+  /// when the bridge accepted the upload. Never throws (I15).
+  Future<bool> uploadFirmware(FirmwareImage image, {bool force = false});
 
   /// Look for a firmware update.
   Future<void> checkForUpdates();

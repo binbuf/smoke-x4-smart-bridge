@@ -30,17 +30,23 @@ class MockBridgeDevice {
     List<SessionInfo>? sessions,
     Map<int, List<Sample>>? samples,
     Map<int, List<Mark>>? marks,
+    List<Map<String, Object?>>? alarmRules,
   }) : statusJson = status ?? defaultStatusJson(),
        liveValue = live ?? defaultLive,
        sessionsValue = sessions ?? [defaultSession],
        samplesValue = samples ?? {defaultSession.id: const <Sample>[]},
-       marksValue = marks ?? {defaultSession.id: const <Mark>[]};
+       marksValue = marks ?? {defaultSession.id: const <Mark>[]},
+       alarmRules = alarmRules ?? const [];
 
   Map<String, Object?> statusJson;
   LiveStatus liveValue;
   List<SessionInfo> sessionsValue;
   final Map<int, List<Sample>> samplesValue;
   final Map<int, List<Mark>> marksValue;
+
+  /// The wire `AlarmRule` array `GET /config/alarms` reports, so a test can
+  /// drive the repository's device-rule read-back (N15.8).
+  List<Map<String, Object?>> alarmRules;
 
   /// Named method-level failures: `status`, `live`, `samples`, …
   final Map<String, TransportException> failWith = {};
@@ -360,7 +366,7 @@ class MockTransport implements BridgeTransport {
   @override
   Future<Map<String, Object?>> alarmConfig() async {
     _record('alarmConfig');
-    return {'rules': <Object?>[]};
+    return {'rules': device.alarmRules};
   }
 
   @override

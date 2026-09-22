@@ -776,6 +776,15 @@ class MockBridgeRepository implements BridgeRepository {
   }
 
   @override
+  Future<bool> uploadFirmware(FirmwareImage image, {bool force = false}) async {
+    // Drain the streamed image so the mock observes the same back-pressure the
+    // real upload does, then apply the fixture mutation the verb always did.
+    await image.bytes.drain<void>();
+    await performVerb(DeviceVerb.ota, force: force);
+    return true;
+  }
+
+  @override
   Future<void> checkForUpdates() async {
     _deviceFixture = _deviceFixture.copyWith(available: kFirmware.latest);
     // Nudge the snapshot stream so a watcher (the Settings Firmware row, the

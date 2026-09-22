@@ -213,6 +213,18 @@ String findingKey(AppFinding f) => 'finding:${f.name}';
 // is an app nobody leaves notifications on for, which costs the critical rung
 // too.
 
+/// N15.17 — §9.6: "`bridge_unreachable` warning after 3 min". Lives here (not
+/// in `features/monitor/`) because the presentation layer bans `Duration`
+/// literals: motion comes from `SmokeMotion`, but policy windows are data.
+const Duration kUnreachableAfter = Duration(minutes: 3);
+
+/// §9.5: "The ongoing notification is a live readout, updated every 30 s".
+const Duration kOngoingUpdateEvery = Duration(seconds: 30);
+
+/// §9.6: "stops … 10 min after the last successful connection when no session
+/// is active".
+const Duration kIdleStopAfter = Duration(minutes: 10);
+
 /// Repeat the sound once the alarm has gone unacknowledged this long.
 const Duration kEscalateToRepeat = Duration(minutes: 5);
 

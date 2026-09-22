@@ -67,15 +67,18 @@ service — they read `BridgeRepository` only.
 
 ## Hand-off
 
-**Status: continue.** Attempt 1 landed the **transport + connection + sync core**
-(N15.1, 15.2, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 15.14). Attempt 2
-landed the **exit-gate-critical drop-in** (N15.8) plus the persistence half of
-N15.13. Attempt 3 landed the **real drift cache (N15.9), the persistent-prefs
-plugin adapter (N15.13) and device alarms + the unreachable insight**. Attempt 4
-landed **N15.3 `BleTransport`** and the **host-testable halves of N15.15–N15.22**.
-The tree is green: `make app.test` is **715** (was 672; +43) and
-`dart test test/domain test/data` is **295** (was 262; +33). No screen or
-existing test was changed; the plugin set N15 needs is in `pubspec.yaml`
+**Status: done** (attempts 1–5). Attempt 1 landed the **transport + connection +
+sync core** (N15.1, 15.2, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 15.14).
+Attempt 2 landed the **exit-gate-critical drop-in** (N15.8) plus the persistence
+half of N15.13. Attempt 3 landed the **real drift cache (N15.9), the persistent-
+prefs plugin adapter (N15.13) and device alarms + the unreachable insight**.
+Attempt 4 landed **N15.3 `BleTransport`** and the **host-testable halves of
+N15.15–N15.22**. Attempt 5 landed **N15.17 `CookMonitor`**, the **composition
+root + Android manifest/Kotlin** for N15.15–N15.22, the **OTA upload seam
+(N15.20)**, **device alarm-config read-back**, and a **real-HTTP end-to-end
+smoke** of the drop-in. The tree is green: `make app.test` is **731** (was 715;
++16) and `dart test test/domain test/data` is **304** (was 295; +9). No screen
+or existing test was changed; the plugin set N15 needs is in `pubspec.yaml`
 (pinned to `app.old`'s versions).
 
 ### What attempt 2 landed (pure Dart, `app/lib/data/repository/`)
@@ -225,29 +228,69 @@ Tests: `app/test/data/transport_test.dart` (loopback HTTP+WS via
   `test/support/fake_peripheral.dart`), `test/data/platform_test.dart` (7, pure),
   `test/features/platform_permissions_test.dart` (10, fakes).
 
-### What remains (next session)
+### What attempt 5 landed
 
-1. **N15.17 `CookMonitor`** — the background reconciliation loop (persist
-   samples, mirror device alarms, post notifications, start/stop the foreground
-   service) adapted to the **new** model: watch `BridgeRepository.snapshot()`,
-   feed `planNotifications()` (the escalation map is caller state), drive
-   `NotificationSink` + `ForegroundServiceHost`. Persistence already happens in
-   `BridgeSession`/`SampleCache`, so the loop's job is notifications + service
-   lifecycle and the unreachable/stall/ETA findings.
-2. **Composition-root wiring + Android manifest/Kotlin**: construct
-   `PluginNotificationSink` / `PluginForegroundServiceHost` / `AppPermissions`
-   / `SystemSettings` / `NetworkBinder` at `bootstrap.dart`; declare the
-   foreground service (`connectedDevice`), notification permission, the
-   `smokebridge/network_binder` and `smokebridge/system_settings` channels +
-   their Kotlin handlers (`bindProcessToNetwork`, intents), and the full-screen
-   intent / exact-alarm declarations.
-3. **OTA upload plumbing**: `firmware_picker` exists; thread the picked stream
-   to `BridgeTransport.uploadOta` (HTTP only) behind a repo-level seam, so
-   `performVerb(DeviceVerb.ota)` can do more than set a notice. BLE already
-   refuses with `TransportUnsupported`.
-4. **Device alarm read-back**: map `alarmConfig()`'s `AlarmRule` array onto
-   `_rules` and push rule edits back where the protocol allows, over HTTP.
-5. Smoke the drop-in against `make sim` with
-   `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`.
-   Note `RealBridgeRepository.dispose()` still does not dispose the manager, and
-   the `ConnectionManager` has no owner yet.
+- **N15.17 `app/lib/features/monitor/cook_monitor.dart`** — the background
+  reconciliation loop, adapted to the new model. It watches
+  `BridgeRepository.snapshot()`, feeds the **unchanged pure** `planNotifications`
+  (it owns `alreadyPosted` + the escalation map, exactly as the function's
+  contract requires), drives `NotificationSink` + `ForegroundServiceHost`, and
+  owns the §9.5 ongoing readout and the §9.6 lifecycle (start on an active cook,
+  battery-exemption opt-in once, stop 10 min after the last connection when idle,
+  everything withdrawn when monitoring is off). It adds the **advisory findings
+  the repository does not raise as alarms**: `bridge_unreachable` (after 3 min,
+  only when the repo has not already raised the app alarm), `stallStarted` /
+  `stallEnded`, and `etaSoon`. Persistence is still `BridgeSession` +
+  `SampleCache`; the loop never writes samples. The policy windows
+  (`kUnreachableAfter` / `kOngoingUpdateEvery` / `kIdleStopAfter`) live in
+  `data/alarms/notification_policy.dart`, not the feature, because the design
+  layering test bans `Duration` literals in `lib/features`.
+- **Composition root (`bootstrap.dart` + `providers.dart`)** — the plugin
+  implementations are constructed once and installed as provider overrides:
+  `PluginNotificationSink` / `PluginForegroundServiceHost` (real builds only;
+  the mock/UX-lab build keeps the pure fakes),
+  `AppPermissions.production(androidSdkInt: …)`, `SystemSettings`,
+  `ChannelNetworkBinder`, `PluginShareSheet`. A `REAL_BRIDGE=true` build starts
+  the `CookMonitor` over the container's repository with the settings tree
+  (`monitoring` / `quietHours` / `preferManualAlarm`).
+- **Android (`app/android/…`)** — the manifest now declares the full N15 set:
+  BLE scan/connect (`neverForLocation`), nearby-Wi-Fi, legacy location gated to
+  ≤32, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE(_CONNECTED_DEVICE)`,
+  `USE_FULL_SCREEN_INTENT`, exact-alarm, wake-lock, and the
+  `connectedDevice` `ForegroundService` (the Android-15 6-hour cap is why it is
+  not `dataSync`). Added `res/xml/network_security_config.xml` (cleartext to
+  `smokebridge.local` / `192.168.4.1`; the bridge serves plain HTTP) and ported
+  `NetworkBinder.kt` + the `smokebridge/system_settings` intents into
+  `MainActivity.kt` (`smokebridge/network_binder` = `bindProcessToNetwork`).
+- **N15.20 OTA seam** — `FirmwareImage` + `FirmwarePicker` on the
+  `BridgeRepository` contract, `uploadFirmware(image, {force})` implemented by
+  the real repo (HTTP only; a BLE link or no link refuses with a named notice,
+  I15) and the mock. `RealBridgeRepository` takes an optional picker, so
+  `performVerb(DeviceVerb.ota)` now opens the picker and streams the chosen
+  `.bin` to `transport.uploadOta`; with no picker it keeps the old notice.
+  `providers.dart` adapts `pickFirmwareImage()` to the seam.
+- **Device alarm read-back** — `RealBridgeRepository` reads
+  `GET /config/alarms` on attach (HTTP only) and folds the wire `AlarmRule`
+  array onto `_rules` by id; ids the catalogue does not know are left alone.
+  `setAlarmRuleEnabled` already pushes the edit back.
+- **Real-HTTP end-to-end smoke (`test/data/real_bridge_http_test.dart`)** — the
+  real repository over a real `HttpTransport` against `FakeBridgeServer`:
+  connect → status/sync/live/cache/subscribe, the history list, a CSV export
+  read back from the cache, a mark over the wire, and killing the server
+  mid-cook raising the unreachable insight. This also surfaced and fixed a real
+  bug: `HttpTransport.events()` was an `async*` whose cancellation did not reach
+  the WebSocket, so `BridgeSession.stop()` hung on dispose. It is now a
+  controller whose `onCancel` closes the socket.
+
+### What remains (bench, not code)
+
+- Smoke on a device against `make sim` with
+  `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`
+  (the host-side equivalent is covered by
+  `test/data/real_bridge_http_test.dart`).
+- `RealBridgeRepository.dispose()` still does not dispose the `ConnectionManager`
+  (no owner yet); the `ConnectionManager` attempt stream is therefore not
+  released on teardown.
+- The share sheet seam is constructed but no screen calls it yet (the export
+  still names its path); `device_facts` is collected but not yet attached to a
+  field report.

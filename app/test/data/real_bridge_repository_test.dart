@@ -264,6 +264,108 @@ void main() {
     );
   });
 
+  test(
+    'reads the device alarm rules back from /config/alarms (N15.8)',
+    () async {
+      final device = _deviceTransport();
+      device.device.alarmRules = [
+        {'id': 1, 'rule': 'pit_crash', 'probe': 0, 'enabled': false},
+        {'id': 2, 'rule': 'target_reached', 'probe': 1, 'enabled': true},
+        {'id': 3, 'rule': 'unknown_wire_rule', 'probe': 0, 'enabled': false},
+      ];
+      final (repo, _) = await _connected(transport: device);
+      addTearDown(repo.dispose);
+
+      expect(device.calls.any((c) => c.method == 'alarmConfig'), isTrue);
+      expect(
+        repo.alarmRules.firstWhere((r) => r.id == 'pit_crash').enabled,
+        isFalse,
+      );
+      expect(
+        repo.alarmRules.firstWhere((r) => r.id == 'target_reached').enabled,
+        isTrue,
+      );
+      // An id the catalogue does not know is left alone, never invented.
+      expect(repo.alarmRules.any((r) => r.id == 'unknown_wire_rule'), isFalse);
+    },
+  );
+
+  test('setAlarmRuleEnabled pushes the edit back to the device', () async {
+    final (repo, device) = await _connected();
+    addTearDown(repo.dispose);
+
+    await repo.setAlarmRuleEnabled('pit_crash', false);
+    expect(
+      repo.alarmRules.firstWhere((r) => r.id == 'pit_crash').enabled,
+      isFalse,
+    );
+    final patch = device.calls.firstWhere((c) => c.method == 'setAlarmConfig');
+    expect(patch.arg, {'rule_id': 'pit_crash', 'enabled': false});
+  });
+
+  test(
+    'uploadFirmware streams the image to an HTTP transport (N15.20)',
+    () async {
+      final (repo, device) = await _connected();
+      addTearDown(repo.dispose);
+
+      final ok = await repo.uploadFirmware(
+        FirmwareImage(
+          name: 'fw.bin',
+          lengthBytes: 4,
+          bytes: Stream<List<int>>.fromIterable([
+            [1, 2, 3],
+            [4],
+          ]),
+        ),
+      );
+      expect(ok, isTrue);
+      expect(device.calls.any((c) => c.method == 'uploadOta'), isTrue);
+      expect(repo.current.notice, contains('uploaded'));
+    },
+  );
+
+  test('performVerb(ota) picks an image and uploads it when wired', () async {
+    final device = _deviceTransport();
+    final factory = _WifiFactory(() => device);
+    final supervisor = ConnectionSupervisor(
+      manager: ConnectionManager(factory: factory),
+      factory: factory,
+      preferred: TransportPreference.wifi,
+    );
+    final repo = RealBridgeRepository(
+      supervisor: supervisor,
+      bridgeId: 'X4-480001',
+      nowMs: () => 1700000100000,
+      statusPollInterval: const Duration(hours: 1),
+      firmwarePicker: () async => FirmwareImage(
+        name: 'picked.bin',
+        bytes: Stream<List<int>>.value([9, 9, 9]),
+      ),
+    );
+    addTearDown(repo.dispose);
+    await repo.connect();
+
+    await repo.performVerb(DeviceVerb.ota);
+    expect(device.calls.any((c) => c.method == 'uploadOta'), isTrue);
+    expect(repo.current.notice, contains('uploaded'));
+  });
+
+  test(
+    'uploadFirmware refuses without a link rather than throwing (I15)',
+    () async {
+      final (repo, _) = await _connected();
+      addTearDown(repo.dispose);
+      await repo.disconnect();
+
+      final ok = await repo.uploadFirmware(
+        FirmwareImage(name: 'fw.bin', bytes: Stream<List<int>>.empty()),
+      );
+      expect(ok, isFalse);
+      expect(repo.current.notice, isNotNull);
+    },
+  );
+
   test('a link loss mid-cook raises the bridge_unreachable insight', () async {
     final device = _deviceTransport();
     final factory = _WifiFactory(() => device);

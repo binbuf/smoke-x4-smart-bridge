@@ -41,6 +41,10 @@ class HttpTransport implements BridgeTransport {
 
   bool _closed = false;
 
+  /// The live `/stream` socket, closed on cancel and on [close] so a detach
+  /// never leaves a reader parked on a dead connection.
+  WebSocket? _streamSocket;
+
   @override
   TransportKind get kind => TransportKind.http;
 
@@ -67,6 +71,12 @@ class HttpTransport implements BridgeTransport {
       return;
     }
     _closed = true;
+    final socket = _streamSocket;
+    _streamSocket = null;
+    // Fire-and-forget: a close handshake against a socket the peer already
+    // dropped never completes, and blocking the supervisor's failover on it
+    // would stall exactly when the link is already gone.
+    unawaited(socket?.close());
     if (_ownsClient) {
       _client.close(force: true);
     }
@@ -394,31 +404,84 @@ class HttpTransport implements BridgeTransport {
   // ── stream ───────────────────────────────────────────────────────────
 
   @override
-  Stream<TransportEvent> events() async* {
-    try {
-      final socket = await WebSocket.connect(
-        streamUri.toString(),
-        headers: token == null
-            ? null
-            : {HttpHeaders.authorizationHeader: 'Bearer $token'},
-      ).timeout(timeout);
-      await for (final frame in socket.timeout(const Duration(minutes: 5))) {
-        if (frame is! String) {
-          continue;
+  Stream<TransportEvent> events() {
+    // A controller rather than `async*`: cancelling an `async*` subscription
+    // that is parked on an `await for` does not reach the WebSocket, so
+    // `BridgeSession.stop()` would wait forever for a socket nobody reads.
+    // `onCancel` closes it explicitly.
+    final controller = StreamController<TransportEvent>();
+    StreamSubscription<dynamic>? sub;
+    var cancelled = false;
+
+    controller.onListen = () async {
+      try {
+        final socket = await WebSocket.connect(
+          streamUri.toString(),
+          headers: token == null
+              ? null
+              : {HttpHeaders.authorizationHeader: 'Bearer $token'},
+        ).timeout(timeout);
+        if (cancelled) {
+          await socket.close();
+          return;
         }
-        try {
-          yield TransportEvent.fromJson(jsonDecode(frame));
-        } on FormatException {
-          continue; // a malformed frame is skipped, not fatal
+        _streamSocket = socket;
+        sub = socket
+            .timeout(const Duration(minutes: 5))
+            .listen(
+              (frame) {
+                if (frame is! String || controller.isClosed) {
+                  return;
+                }
+                try {
+                  controller.add(TransportEvent.fromJson(jsonDecode(frame)));
+                } on FormatException {
+                  // A malformed frame is skipped, not fatal.
+                }
+              },
+              onError: (Object e) {
+                if (!controller.isClosed) {
+                  controller.addError(_streamError(e));
+                }
+              },
+              onDone: () {
+                if (!controller.isClosed) {
+                  controller.close();
+                }
+              },
+              cancelOnError: false,
+            );
+      } on Object catch (e) {
+        if (!controller.isClosed) {
+          controller.addError(_streamError(e));
+          await controller.close();
         }
       }
-    } on TimeoutException {
-      throw const TransportException('timeout', 'the stream did not answer');
-    } on SocketException catch (e) {
-      throw TransportException('network', e.message);
-    } on WebSocketException catch (e) {
-      throw TransportException('network', e.message);
+    };
+
+    controller.onCancel = () async {
+      cancelled = true;
+      await sub?.cancel();
+      final socket = _streamSocket;
+      _streamSocket = null;
+      // The listener is gone; do not block the cancel on a close handshake.
+      unawaited(socket?.close());
+    };
+
+    return controller.stream;
+  }
+
+  Object _streamError(Object e) {
+    if (e is TimeoutException) {
+      return const TransportException('timeout', 'the stream did not answer');
     }
+    if (e is SocketException) {
+      return TransportException('network', e.message);
+    }
+    if (e is WebSocketException) {
+      return TransportException('network', e.message);
+    }
+    return e;
   }
 
   // ── parse helpers ────────────────────────────────────────────────────

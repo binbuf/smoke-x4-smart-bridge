@@ -9,6 +9,12 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../platform/ble_gatt_fbp.dart' show openBleTransport;
+import '../platform/firmware_picker.dart';
+import '../platform/network_binder.dart';
+import '../platform/notifications.dart';
+import '../platform/permissions.dart';
+import '../platform/share.dart';
+import '../platform/system_settings.dart';
 import 'dev_panel.dart';
 import 'model/app_settings.dart';
 import 'model/bridge_snapshot.dart';
@@ -43,6 +49,8 @@ final bridgeRepositoryProvider = Provider<BridgeRepository>((ref) {
         bleOpener: openBleTransport,
       ),
       cache: ref.watch(sampleCacheProvider),
+      // N15.20 — the real build threads a picked `.bin` into the OTA verb.
+      firmwarePicker: _pickFirmware,
     );
     ref.onDispose(repo.dispose);
     return repo;
@@ -67,10 +75,54 @@ final prefsProvider = Provider<PrefsRepository>((ref) {
   return prefs;
 });
 
+/// N15.20 — adapt the platform picker's [PickedFirmware] to the repository's
+/// transport-neutral [FirmwareImage]. A cancel is null, not an error.
+Future<FirmwareImage?> _pickFirmware() async {
+  final picked = await pickFirmwareImage();
+  if (picked == null) {
+    return null;
+  }
+  return FirmwareImage(
+    name: picked.name,
+    lengthBytes: picked.lengthBytes,
+    bytes: picked.bytes,
+  );
+}
+
 /// The settings tree, watched.
 final settingsProvider = StreamProvider<AppSettings>(
   (ref) => ref.watch(prefsProvider).watch(),
 );
+
+// ── N15.15–N15.22 platform seams ─────────────────────────────────────────
+//
+// Defaults are the pure fakes so `flutter test` and the UX lab never touch a
+// platform channel. `bootstrap.dart` overrides them with the plugin
+// implementations on a real device.
+
+/// N15.15/N15.17 — where the cook monitor posts.
+final notificationSinkProvider = Provider<NotificationSink>(
+  (ref) => RecordingNotificationSink(),
+);
+
+/// N15.16/N15.17 — the foreground-service lifecycle.
+final foregroundServiceProvider = Provider<ForegroundServiceHost>(
+  (ref) => FakeForegroundServiceHost(),
+);
+
+/// N15.18 — runtime BLE/notification permissions. Null until the composition
+/// root installs the production backend (the gates then degrade to in-app
+/// copy rather than throwing).
+final permissionsProvider = Provider<AppPermissions?>((ref) => null);
+
+/// N15.18 — OS-settings deep links.
+final systemSettingsProvider = Provider<SystemSettings?>((ref) => null);
+
+/// N15.19 — the hosted-AP network binder.
+final networkBinderProvider = Provider<NetworkBinder?>((ref) => null);
+
+/// N15.21 — the share sheet.
+final shareSheetProvider = Provider<ShareSheet>((ref) => RecordingShareSheet());
 
 /// The live snapshot, watched. Every screen reads this.
 final snapshotProvider = StreamProvider<BridgeSnapshot>(

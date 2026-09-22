@@ -47,6 +47,7 @@ class RealBridgeRepository implements BridgeRepository {
     int Function()? nowMs,
     SyncEngine? syncEngine,
     this.statusPollInterval = const Duration(seconds: 10),
+    this.firmwarePicker,
   }) : _cache = cache ?? InMemorySampleCache(),
        _nowMs = nowMs ?? _wallClock,
        _syncEngine = syncEngine ?? SyncEngine(nowMs: nowMs) {
@@ -59,6 +60,10 @@ class RealBridgeRepository implements BridgeRepository {
   final int Function() _nowMs;
   final SyncEngine _syncEngine;
   final Duration statusPollInterval;
+
+  /// N15.20 — how `performVerb(DeviceVerb.ota)` gets an image. Null on a build
+  /// with no picker: the verb states what it did instead of uploading.
+  final FirmwarePicker? firmwarePicker;
 
   // ── session state ─────────────────────────────────────────────────────
 
@@ -183,8 +188,47 @@ class RealBridgeRepository implements BridgeRepository {
     _subs.add(session.samples.listen((sample) => _trackSpark(sample)));
     _subs.add(session.linkLost.listen((_) => unawaited(_onLinkLost())));
     await session.start();
+    // N15.8/N15.16 — read the device's own rule table back (HTTP only) so the
+    // alarm screen mirrors the bridge rather than the fixture default.
+    await _loadAlarmConfig(active);
     await _reloadHistory(session);
     _emit();
+  }
+
+  /// Pull the device's alarm-rule configuration and fold it onto the app's
+  /// catalogue. The device is authoritative (I2): a rule the bridge reports as
+  /// disabled renders disabled. Ids the app catalogue does not know are left
+  /// alone rather than invented — the wire grows rules faster than the UI.
+  Future<void> _loadAlarmConfig(BridgeTransport transport) async {
+    if (!transport.capabilities.alarmRules) {
+      return;
+    }
+    final config = await _attempt(() => transport.alarmConfig());
+    final raw = config?['rules'];
+    if (raw is! List) {
+      return;
+    }
+    final byId = <String, AlarmRule>{for (final r in _rules) r.id: r};
+    var changed = false;
+    for (final entry in raw) {
+      if (entry is! Map) {
+        continue;
+      }
+      final m = entry.cast<String, Object?>();
+      final id = (m['rule'] ?? m['id'])?.toString();
+      final enabled = m['enabled'];
+      if (id == null || enabled is! bool) {
+        continue;
+      }
+      final rule = byId[id];
+      if (rule != null && rule.enabled != enabled) {
+        byId[id] = rule.copyWith(enabled: enabled);
+        changed = true;
+      }
+    }
+    if (changed) {
+      _rules = [for (final r in _rules) byId[r.id] ?? r];
+    }
   }
 
   Future<void> _onLinkLost() async {
@@ -702,11 +746,47 @@ class RealBridgeRepository implements BridgeRepository {
         _startedAtMs = null;
         _notice = 'Bridge erased and back in setup mode.';
       case DeviceVerb.ota:
-        // The OTA *upload* is a streamed HTTP-only operation (N15.20); the
-        // install verb itself is a device action with a real health gate.
-        _notice = 'Firmware install requested.';
+        // The OTA *upload* is a streamed HTTP-only operation (N15.20). With a
+        // picker wired, the verb opens it and uploads the chosen image; with no
+        // picker it stays the named notice it was before.
+        final picker = firmwarePicker;
+        if (picker == null) {
+          _notice = 'Firmware install requested.';
+          break;
+        }
+        final image = await _attempt(picker);
+        if (image == null) {
+          _notice = 'Firmware install cancelled.';
+          break;
+        }
+        await uploadFirmware(image, force: force);
+        return; // uploadFirmware emitted its own notice
     }
     _emit();
+  }
+
+  @override
+  Future<bool> uploadFirmware(FirmwareImage image, {bool force = false}) async {
+    final transport = _transport;
+    if (transport == null) {
+      _notice = 'Connect to the bridge before installing firmware.';
+      _emit();
+      return false;
+    }
+    if (!transport.capabilities.ota) {
+      // N13.11's transport rule, enforced at the seam and not just in copy.
+      _notice = 'Firmware needs Wi-Fi — Bluetooth cannot carry an image.';
+      _emit();
+      return false;
+    }
+    final result = await _attempt(
+      () => transport.uploadOta(image.bytes, force: force),
+    );
+    _notice = result == null
+        ? 'Firmware upload failed — the bridge stayed as it was.'
+        : 'Firmware uploaded — the bridge will reboot to install it.';
+    _emit();
+    return result != null;
   }
 
   @override
