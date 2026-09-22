@@ -40,14 +40,14 @@ Source of truth: `newui/NOTES.md` (translation map), `newui/components_research_
 
 ## Wave 5 — Verification and release
 
-- [~] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md) ⟵ running
+- [x] T17 — N16 Verification and release: accessibility, copy audit, goldens, perf, release checklist → [tasks/N16-verification-and-release.md](tasks/N16-verification-and-release.md)
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-09-22T02:33:36Z · 16/17 done
+**Pipeline status** — updated 2026-09-22T03:17:44Z · 17/17 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17
 - Blocked: none
 - Failed: none
-- Remaining: T17
-- Last finished: T16 — done · Landed N15.17 CookMonitor, composition root + Android/Kotlin, OTA seam, alarm read-back, and a real-HTTP smoke; make app.test green at 731.
+- Remaining: none
+- Last finished: T17 — done · N16.5 destination-matrix (42) and key-overlay (20) goldens landed, tree green at 836 tests, docs updated.
 <!-- /symphony:status -->
