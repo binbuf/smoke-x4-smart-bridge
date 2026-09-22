@@ -73,6 +73,12 @@ class RealBridgeRepository implements BridgeRepository {
   List<HistoryEntry> _history = const [];
   List<Alarm> _alarms = const [];
   List<AlarmRule> _rules = List<AlarmRule>.of(kAlarmRules);
+
+  /// App-side acknowledgements/snoozes of *device* alarms, keyed by the
+  /// namespaced id (`device_<id>`). The wire carries `acked`; these overlay the
+  /// phone-only snooze the device knows nothing about (I2, N11.8).
+  final Set<String> _deviceAcked = {};
+  final Map<String, int> _deviceSnoozedUntil = {};
   List<CookItem> _items = const [];
   final Set<ProbeJack> _attachedJacks = {};
   final Map<ProbeJack, ProbeRole> _roles = {};
@@ -190,10 +196,41 @@ class RealBridgeRepository implements BridgeRepository {
     final next = await _attempt(() => supervisor.failover());
     if (next == null) {
       _notice = 'Bridge unreachable — it keeps recording; sync when back.';
+      _raiseUnreachableInsight();
       _emit();
       return;
     }
     await _attach(next);
+  }
+
+  /// N11.15 — an advisory, app-tier `bridge_unreachable` insight raised when
+  /// the link drops mid-cook. It never touches a device alarm (I2) and is
+  /// raised at most once while the link is down.
+  void _raiseUnreachableInsight() {
+    if (_snapshot.cook.active != true) {
+      return;
+    }
+    if (_alarms.any((a) => a.ruleId == 'bridge_unreachable' && !a.acked)) {
+      return;
+    }
+    final now = _nowMs();
+    _alarms = [
+      ..._alarms,
+      Alarm(
+        id: 'bridge_unreachable_$now',
+        tier: AlarmTier.app,
+        severity: AlarmSeverity.warning,
+        rule: 'Bridge unreachable',
+        detail:
+            'No data from the bridge. It is still recording — the gap fills '
+            'in when it reconnects.',
+        atMs: now,
+        sessionScoped: false,
+        ruleId: 'bridge_unreachable',
+        trigger: 'Link dropped during a cook',
+        suggestion: 'Move closer, or re-sync when you can.',
+      ),
+    ];
   }
 
   @override
@@ -510,6 +547,9 @@ class RealBridgeRepository implements BridgeRepository {
 
   @override
   Future<void> ackAlarm(String alarmId) async {
+    if (alarmId.startsWith('device_')) {
+      _deviceAcked.add(alarmId);
+    }
     _alarms = [
       for (final a in _alarms)
         if (a.id == alarmId) a.copyWith(acked: true) else a,
@@ -520,6 +560,9 @@ class RealBridgeRepository implements BridgeRepository {
   @override
   Future<void> snoozeAlarm(String alarmId, {int minutes = 10}) async {
     final until = snoozeUntilMs(nowMs: _nowMs(), minutes: minutes);
+    if (alarmId.startsWith('device_')) {
+      _deviceSnoozedUntil[alarmId] = until;
+    }
     _alarms = [
       for (final a in _alarms)
         if (a.id == alarmId) a.copyWith(snoozedUntilMs: until) else a,
@@ -923,12 +966,49 @@ class RealBridgeRepository implements BridgeRepository {
       connection: connection,
       cook: cook,
       probes: probes,
-      alarms: _alarms,
+      alarms: [..._deviceAlarms(status), ..._alarms],
       marks: [...s.marks, ..._localMarks],
       pendingSession: pending,
       notice: _notice,
     );
   }
+
+  /// Map the device's currently-active alarms (`status.alarms`) onto the app
+  /// model. Device alarms are authoritative (I2); `acked` comes from the wire,
+  /// with the phone's optimistic ack and its snooze laid over the top.
+  List<Alarm> _deviceAlarms(BridgeStatus status) => [
+    for (final a in status.alarms)
+      Alarm(
+        id: 'device_${a.id}',
+        tier: AlarmTier.device,
+        severity: _severityForRule(a.rule),
+        rule: _labelForRule(a.rule),
+        detail: a.probe == 0
+            ? 'Active on the bridge.'
+            : 'Active on probe ${a.probe}.',
+        atMs: a.sinceUnixMs,
+        acked: a.acked || _deviceAcked.contains('device_${a.id}'),
+        ruleId: a.rule,
+        trigger: a.probe == 0 ? 'Whole cook' : 'Probe ${a.probe}',
+        snoozedUntilMs: _deviceSnoozedUntil['device_${a.id}'],
+      ),
+  ];
+
+  static AlarmSeverity _severityForRule(String rule) => switch (rule) {
+    'base_lost' || 'pit_crash' => AlarmSeverity.critical,
+    'band_low' || 'band_high' || 'stall' => AlarmSeverity.warning,
+    _ => AlarmSeverity.info,
+  };
+
+  static String _labelForRule(String rule) => switch (rule) {
+    'target_reached' => 'Target reached',
+    'band_low' => 'Below the band',
+    'band_high' => 'Above the band',
+    'pit_crash' => 'Pit is falling',
+    'base_lost' => 'Base station lost',
+    'stall' => 'Temperature stalled',
+    _ => rule.isEmpty ? 'Bridge alarm' : rule,
+  };
 
   List<ProbeState> _buildProbes(LiveStatus live) {
     final byJack = {for (final p in live.probes) p.n: p};

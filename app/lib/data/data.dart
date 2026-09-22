@@ -13,6 +13,8 @@ export 'content/styles_data.dart';
 export 'content/timelines.dart';
 export 'dev_panel.dart';
 export 'export/cook_export.dart';
+export 'local/app_database.dart';
+export 'local/drift_sample_cache.dart';
 export 'model/alarm.dart';
 export 'model/alarm_rule.dart';
 export 'model/app_settings.dart';

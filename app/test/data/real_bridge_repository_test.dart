@@ -233,4 +233,71 @@ void main() {
       expect(repo.current, isNotNull);
     },
   );
+
+  test('device alarms from /status become device-tier alarms (I2)', () async {
+    final device = _deviceTransport();
+    device.device.statusJson['alarms'] = [
+      {
+        'id': 3,
+        'rule': 'band_high',
+        'probe': 2,
+        'since_unix_ms': 1700000050000,
+        'acked': false,
+      },
+    ];
+    final (repo, _) = await _connected(transport: device);
+    addTearDown(repo.dispose);
+
+    final alarm = repo.current.alarms.firstWhere(
+      (a) => a.tier == AlarmTier.device,
+    );
+    expect(alarm.ruleId, 'band_high');
+    expect(alarm.rule, 'Above the band');
+    expect(alarm.severity, AlarmSeverity.warning);
+    expect(alarm.atMs, 1700000050000);
+    expect(alarm.sessionScoped, isTrue);
+
+    await repo.ackAlarm(alarm.id);
+    expect(
+      repo.current.alarms.firstWhere((a) => a.id == alarm.id).acked,
+      isTrue,
+    );
+  });
+
+  test('a link loss mid-cook raises the bridge_unreachable insight', () async {
+    final device = _deviceTransport();
+    final factory = _WifiFactory(() => device);
+    final supervisor = ConnectionSupervisor(
+      manager: ConnectionManager(
+        factory: factory,
+        backoff: const [],
+        sleep: (_) async {},
+      ),
+      factory: factory,
+      preferred: TransportPreference.wifi,
+    );
+    final repo = RealBridgeRepository(
+      supervisor: supervisor,
+      bridgeId: 'X4-480001',
+      nowMs: () => 1700000100000,
+      statusPollInterval: const Duration(milliseconds: 15),
+    );
+    addTearDown(repo.dispose);
+    await repo.connect();
+    expect(repo.current.cook.active, isTrue);
+
+    // The bridge drops. The next backstop poll fails, the supervisor finds no
+    // other lane, and the app raises its own advisory insight (I2).
+    device.device.failWith['status'] = const TransportException(
+      'network',
+      'gone',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+
+    expect(
+      repo.current.alarms.any((a) => a.ruleId == 'bridge_unreachable'),
+      isTrue,
+    );
+    expect(repo.current.notice, contains('unreachable'));
+  });
 }

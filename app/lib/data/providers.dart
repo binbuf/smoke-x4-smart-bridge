@@ -17,6 +17,7 @@ import 'repository/mock_bridge_repository.dart';
 import 'repository/prefs_repository.dart';
 import 'repository/real_bridge_repository.dart';
 import 'transport/connection_supervisor.dart';
+import 'transport/sample_cache.dart';
 
 /// N15.8 — opt in to the real bridge transport at build time:
 /// `flutter run --dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=…`.
@@ -36,6 +37,7 @@ final bridgeRepositoryProvider = Provider<BridgeRepository>((ref) {
   if (kRealBridgeEnabled) {
     final repo = RealBridgeRepository(
       supervisor: httpSupervisor(host: kBridgeHost),
+      cache: ref.watch(sampleCacheProvider),
     );
     ref.onDispose(repo.dispose);
     return repo;
@@ -45,7 +47,15 @@ final bridgeRepositoryProvider = Provider<BridgeRepository>((ref) {
   return repo;
 });
 
-/// Preferences storage. In-memory until N15.
+/// N15.9 — the persistent sample cache. In-memory by default so tests and the
+/// UX lab stay hermetic; `bootstrap.dart` overrides this with the drift cache
+/// backed by a real on-device database.
+final sampleCacheProvider = Provider<SampleCache>(
+  (ref) => InMemorySampleCache(),
+);
+
+/// Preferences storage. In-memory by default (tests, dev panel); the app build
+/// overrides this in `bootstrap.dart` with the persistent repository (N15.13).
 final prefsProvider = Provider<PrefsRepository>((ref) {
   final prefs = MockPrefsRepository();
   ref.onDispose(prefs.dispose);

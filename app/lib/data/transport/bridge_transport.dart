@@ -378,6 +378,38 @@ class OtaStatus {
   );
 }
 
+/// One device alarm currently active (`status.alarms`, `ActiveAlarm` in the
+/// OpenAPI contract).
+class ActiveAlarm {
+  const ActiveAlarm({
+    required this.id,
+    required this.rule,
+    required this.probe,
+    required this.sinceUnixMs,
+    required this.acked,
+  });
+
+  /// Device-local alarm id (small integer; the phone namespaces it).
+  final int id;
+
+  /// Rule identifier: `target_reached`, `band_low`, `band_high`, `pit_crash`,
+  /// `base_lost`, `stall`, …
+  final String rule;
+
+  /// 0 = whole cook, 1..4 = one probe.
+  final int probe;
+  final int sinceUnixMs;
+  final bool acked;
+
+  factory ActiveAlarm.fromJson(Map<String, Object?> j) => ActiveAlarm(
+    id: _int(j['id']) ?? 0,
+    rule: _str(j['rule']) ?? '',
+    probe: _int(j['probe']) ?? 0,
+    sinceUnixMs: _int(j['since_unix_ms']) ?? 0,
+    acked: j['acked'] == true,
+  );
+}
+
 /// The parsed `GET /api/v1/status` payload.
 class BridgeStatus {
   const BridgeStatus({
@@ -392,6 +424,7 @@ class BridgeStatus {
     required this.session,
     required this.cookClock,
     required this.ota,
+    this.alarms = const <ActiveAlarm>[],
   });
 
   final DeviceStatus device;
@@ -406,6 +439,9 @@ class BridgeStatus {
   final CookClockStatus cookClock;
   final OtaStatus ota;
 
+  /// Device alarms active right now; empty when none (the wire default).
+  final List<ActiveAlarm> alarms;
+
   factory BridgeStatus.fromJson(Map<String, Object?> j) => BridgeStatus(
     device: DeviceStatus.fromJson(_map(j['device'])),
     time: TimeStatus.fromJson(_map(j['time'])),
@@ -418,6 +454,10 @@ class BridgeStatus {
     session: SessionStatus.fromJson(_map(j['session'])),
     cookClock: CookClockStatus.fromJson(_map(j['cook_clock'])),
     ota: OtaStatus.fromJson(_map(j['ota'])),
+    alarms: [
+      for (final a in j['alarms'] is List ? j['alarms']! as List : const [])
+        ActiveAlarm.fromJson(_map(a)),
+    ],
   );
 }
 

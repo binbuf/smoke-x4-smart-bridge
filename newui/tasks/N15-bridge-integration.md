@@ -70,9 +70,12 @@ service — they read `BridgeRepository` only.
 **Status: continue.** Attempt 1 landed the **transport + connection + sync core**
 (N15.1, 15.2, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 15.14). Attempt 2
 landed the **exit-gate-critical drop-in** (N15.8) plus the persistence half of
-N15.13. The tree is green: `make app.test` is **657** (was 640; +17) and
-`dart test test/domain test/data` is **250** (was 233; +17). No screen or
-existing test was changed; `providers.dart` gained a flag-guarded real branch.
+N15.13. Attempt 3 landed the **real drift cache (N15.9), the persistent-prefs
+plugin adapter (N15.13) and device alarms + the unreachable insight**. The tree
+is green: `make app.test` is **672** (was 657; +15) and
+`dart test test/domain test/data` is **262** (was 250; +12). No screen or
+existing test was changed; the plugin set N15 needs is now in `pubspec.yaml`
+(pinned to `app.old`'s versions).
 
 ### What attempt 2 landed (pure Dart, `app/lib/data/repository/`)
 
@@ -136,27 +139,61 @@ Tests: `app/test/data/transport_test.dart` (loopback HTTP+WS via
 - `RealBridgeRepository.dispose()` disposes the supervisor but not the
   `ConnectionManager` (no owner yet).
 
+### What attempt 3 landed
+
+- **N15.9 `app/lib/data/local/app_database.dart`** — a fresh drift schema
+  (schemaVersion 1, **not** legacy v2): `Bridges`, `Sessions`, `Samples`
+  (nullable `unixMs`), `Marks`, `Cooks`, `CookProbeRoles`, `AlarmRules`,
+  `Gaps`, `SyncStates`. `Samples` is keyed `(bridgeId, sessionId, t)`;
+  `Gaps` keys `(bridgeId, sessionId, fromT, toT, reason)`. Pure Dart, so it is
+  in the `dart test test/data` gate.
+- **`app/lib/data/local/drift_sample_cache.dart`** — `DriftSampleCache implements
+  SampleCache`: `insertOrIgnore` on the sample key (I10, first value wins, never
+  rewritten), null `unixMs` preserved (I11), range reads, gap record/read, and
+  `clearConnectivityGapsBetween` clearing **only** connectivity holes fully
+  inside the filled range (the permanent-rollover rule). Also upsert-only
+  `upsertSessions` and `replaceMarks` for the cache's other half.
+- **`app/lib/data/local/open_database.dart`** — the on-device file via
+  `path_provider` + `NativeDatabase.createInBackground`; split out so the schema
+  stays plugin-free for host tests.
+- **`providers.dart`** — new `sampleCacheProvider` (in-memory by default);
+  `bridgeRepositoryProvider` passes it to `RealBridgeRepository`.
+  **`bootstrap.dart`** opens the real database and overrides the provider, and
+  is now `Future<void>` (`main.dart` awaits it).
+- **N15.13 `app/lib/data/repository/shared_prefs_store.dart`** —
+  `SharedPrefsKeyValueStore implements KeyValueStore` over `shared_preferences`.
+  `bootstrap.dart` loads `JsonPrefsRepository` once from it and overrides
+  `prefsProvider`, seeding `OnboardStatus.fresh` only when nothing is stored.
+  Settings now persist across launches.
+- **Device alarms + insight (RealBridgeRepository)** — `BridgeStatus` gained an
+  `ActiveAlarm` list parsed from `status.alarms` (OpenAPI `ActiveAlarm`); the
+  real repo maps it to device-tier `Alarm`s, overlays the app's ack/snooze, and
+  raises the `bridge_unreachable` insight once when a mid-cook link loss leaves
+  no lane.
+- **`pubspec.yaml`** — the N15 plugin set (flutter_blue_plus, drift,
+  sqlite3_flutter_libs, path_provider, path, flutter_local_notifications,
+  flutter_foreground_task, permission_handler, connectivity_plus, share_plus,
+  file_selector; dev: drift_dev, sqlite3), pinned to `app.old`'s versions.
+
 ### What remains (next session)
 
-1. **N15.3 `BleTransport`** (flutter_blue_plus): 11 GATT characteristics,
-   chunked history notify, LE Secure passkey. `TransportFactory.openBle()` is
-   the seam; `HttpTransportFactory.bleOpener` is the hook. Wire it into
-   `httpSupervisor` so `auto` can lead on BLE.
-2. **N15.9 real drift schema** implementing `SampleCache` (Bridges/Sessions/
-   Samples/Marks/Cooks/CookProbeRoles/AlarmRules/Gaps/SyncStates) + codegen;
-   swap `InMemorySampleCache` for it in the provider.
-3. **N15.13 plugin adapter**: a `KeyValueStore` over `shared_preferences`,
-   loaded once in `bootstrap.dart`; then wire `prefsProvider` to
-   `JsonPrefsRepository`. Everything else is done and tested.
-4. **Real device alarms / read-back**: parse the `alarms` array from `/status`
-   (or the stream) into `Alarm`, raise `bridge_unreachable` on link loss, map
-   `alarmConfig` to `AlarmRule`; then `snooze`/`ack` can reach the device where
-   the protocol allows.
-5. **N15.15–N15.22 platform services**: notification channels + foreground
-   service + `CookMonitor`, permissions/system-settings, `network_binder`,
-   `firmware_picker` (OTA) + `share_plus`, diagnostics read-back. These need
-   plugins; do not add them before their code.
-6. Check the `BridgeSnapshot` mapping against `tools/sim` with `make sim` and a
-   `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`
-   build; `MockTransport` can be driven from the sim shapes if a live run is
-   easier.
+1. **N15.3 `BleTransport`** (flutter_blue_plus): decode the binary records from
+   `protocol/records.yaml` (vendor `protocol/gen/records.g.dart` as
+   `app/lib/data/dto/records.g.dart`, as `app.old` does), the 11 GATT
+   characteristics, chunked `history_data` notify reassembly, and LE Secure
+   passkey. `BleGattClient` is the test seam; `HttpTransportFactory.bleOpener`
+   is the hook; wire it into `httpSupervisor` so `auto` can lead on BLE.
+2. **N15.15–N15.22 platform services** under `app/lib/platform/`:
+   notification channels + permission + full-screen intent, `ForegroundServiceHost`
+   (`connectedDevice`) + battery exemption, `CookMonitor`, permission/settings
+   seams, `network_binder` (hosted-AP join), `firmware_picker` (OTA over HTTP
+   only) + `share_plus`, diagnostics read-back. Plugins are now pinned; add the
+   code before importing them into a screen.
+3. **Device alarm read-back**: map `alarmConfig()`'s `AlarmRule` array onto
+   `_rules` and persist `setAlarmRuleEnabled`/rule edits back where the protocol
+   allows, so ack/snooze can reach the device.
+4. Smoke the drop-in against `make sim` with
+   `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`;
+   `MockTransport` can be driven from the sim shapes if a live run is easier.
+   Note `RealBridgeRepository.dispose()` still does not dispose the manager, and
+   the `ConnectionManager` has no owner yet.

@@ -36,6 +36,23 @@ dependencies:
   meta: ^1.18.0
   # Charts
   fl_chart: ^1.2.0
+  # N15.3 — BLE GATT client (hides behind `BleGattClient`; see transport/).
+  flutter_blue_plus: ^2.3.10
+  # N15.9 — the persistent sample cache (fresh schema, not legacy v2).
+  drift: ^2.34.2
+  sqlite3_flutter_libs: ^0.6.0+eol
+  # N15.9 — drift's on-device file lives in the documents directory.
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  # N15.15/N15.16/N15.17 — notifications + the background cook monitor.
+  flutter_local_notifications: ^22.1.0
+  flutter_foreground_task: ^10.0.0
+  # N15.18/N15.19/N15.20/N15.21 — permissions, network binding, OTA picker,
+  # share sheet. (connectivity_plus backs the network-status binder seam.)
+  permission_handler: ^11.3.1
+  connectivity_plus: ^6.0.5
+  share_plus: ^10.0.0
+  file_selector: ^1.0.3
   # Prefs / logging / routing
   shared_preferences: ^2.5.5
   logger: ^2.7.0
@@ -56,6 +73,9 @@ dev_dependencies:
   freezed: ^3.2.6-dev.1
   json_serializable: ^6.14.0
   riverpod_generator: ^4.0.4
+  # N15.9 — drift codegen + a raw handle for the host-test harness.
+  drift_dev: ^2.34.0
+  sqlite3: ^3.5.0
 
 flutter:
   uses-material-design: true

@@ -655,12 +655,14 @@ Status: **done**. `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 wi
 
 ## T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA
 
-Status: **continue** (attempts 1–2). Attempt 1 landed the **transport +
+Status: **continue** (attempts 1–3). Attempt 1 landed the **transport +
 connection + sync core** (N15.1, 15.2, 15.4–15.7, 15.10, 15.11, 15.12, 15.14).
 Attempt 2 landed the **exit-gate-critical drop-in N15.8** and the **persistence
-half of N15.13**. Tree green: `make app.test` **657** (was 640; +17),
-`dart test test/domain test/data` **250** (was 233; +17). No screen or existing
-test changed; `providers.dart` gained a flag-guarded real branch.
+half of N15.13**. Attempt 3 landed the **real drift cache (N15.9)**, the
+**`shared_preferences` plugin adapter (N15.13)** and **device alarms + the
+`bridge_unreachable` insight**. Tree green: `make app.test` **672** (was 657;
++15), `dart test test/domain test/data` **262** (was 250; +12). No screen or
+existing test changed; the N15 plugin set is now pinned in `pubspec.yaml`.
 
 **Real paths (pure Dart)**
 - Transport (attempt 1, under `app/lib/data/transport/`; barrel `transport.dart`):
@@ -694,13 +696,33 @@ test changed; `providers.dart` gained a flag-guarded real branch.
 - `providers.dart` — real repository opt-in via
   `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=…`; default remains
   `MockBridgeRepository` (dev panel + all widget tests unaffected).
-  `prefsProvider` still mock until the `shared_preferences` adapter.
+- **Attempt 3 `app/lib/data/local/` — N15.9**: `app_database.dart` (fresh drift
+  schema v1: Bridges/Sessions/Samples/Marks/Cooks/CookProbeRoles/AlarmRules/
+  Gaps/SyncStates; `Samples` keyed `(bridgeId, sessionId, t)`, nullable
+  `unixMs`) + `drift_sample_cache.dart` (`DriftSampleCache implements
+  SampleCache`: `insertOrIgnore` so the first value wins and no row is ever
+  rewritten (I10), null wall clock preserved (I11), only connectivity gaps
+  fully inside a filled range cleared) + `open_database.dart` (path_provider +
+  `createInBackground`, kept out of the pure-Dart import graph). Codegen is
+  `app_database.g.dart`. `sampleCacheProvider` selects it; `bootstrap.dart`
+  opens the file and overrides.
+- **Attempt 3 `shared_prefs_store.dart` — N15.13**: `SharedPrefsKeyValueStore`
+  over `shared_preferences`; `bootstrap.dart` loads `JsonPrefsRepository` once
+  and overrides `prefsProvider`, seeding `OnboardStatus.fresh` only on a truly
+  empty first install. Settings now persist.
+- **Attempt 3 device alarms**: `BridgeStatus.alarms` (`ActiveAlarm` from
+  `status.alarms`) maps to device-tier `Alarm`s in `RealBridgeRepository`, with
+  app-side ack/snooze over the top; a mid-cook link loss with no lane raises the
+  app-tier `bridge_unreachable` insight once.
+- `bootstrap.dart` is now `Future<void>`; `main.dart` `unawaited(bootstrap())`.
 
 **Commands that work**
-- `make app.test` — full gate (analyze + format + `flutter test`, **657**).
-- `cd app && flutter test test/data/real_bridge_repository_test.dart` — 10.
+- `make app.test` — full gate (analyze + format + `flutter test`, **672**).
+- `cd app && dart test test/data/drift_sample_cache_test.dart` — 10.
+- `cd app && flutter test test/data/real_bridge_repository_test.dart` — 12.
+- `cd app && flutter test test/app/prefs_store_test.dart` — 3.
 - `cd app && flutter test test/data/real_prefs_repository_test.dart` — 7.
-- `cd app && dart test test/domain test/data` — data/domain gate (**250**).
+- `cd app && dart test test/domain test/data` — data/domain gate (**262**).
 - Helper: `app/test/support/fake_bridge_server.dart` (do not add `tools/sim`).
 
 **Contract facts later tasks need**
@@ -728,13 +750,15 @@ test changed; `providers.dart` gained a flag-guarded real branch.
 
 **Follow-ups**
 - N15.3 `BleTransport` (flutter_blue_plus) behind `TransportFactory.openBle()`;
-  wire into `httpSupervisor` so `auto` can lead on BLE.
-- N15.9 real drift schema implementing `SampleCache` + codegen; swap the in-memory
-  cache in the provider.
-- N15.13 plugin adapter: `KeyValueStore` over `shared_preferences`, loaded once
-  in `bootstrap.dart`, then wire `prefsProvider` to `JsonPrefsRepository`.
-- Real `alarms` parsing + `bridge_unreachable` insight + `alarmConfig` mapping.
-- N15.15–N15.22 platform services (notifications, foreground service,
-  `CookMonitor`, permissions, `network_binder`, `firmware_picker`+`share_plus`,
-  diagnostics read-back) — plugins.
+  vendor `protocol/gen/records.g.dart` as `app/lib/data/dto/records.g.dart` for
+  the binary codec (as `app.old` does), reassemble chunked `history_data`, and
+  wire BLE into `httpSupervisor` so `auto` can lead on it.
+- N15.15–N15.22 platform services under `app/lib/platform/` (notification
+  channels/permission/full-screen intent, `ForegroundServiceHost` +
+  battery exemption, `CookMonitor`, permission/settings seams, `network_binder`,
+  `firmware_picker` + `share_plus`, diagnostics read-back). Plugins are pinned.
+- Map `alarmConfig()` `AlarmRule`s onto `_rules` and push rule edits back to the
+  device where the protocol allows.
+- Smoke the real repository against `make sim`; real device alarms/alarm-config
+  and the `ConnectionManager` owner are still open.
 - N16: no goldens for any bridge surface.
