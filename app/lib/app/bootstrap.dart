@@ -51,20 +51,20 @@ Future<void> bootstrap() async {
   final cache = DriftSampleCache(database);
 
   // N15.15–N15.22 — the composition root owns the plugin implementations. The
-  // default (mock / UX-lab) build keeps the pure fakes so no channel is touched;
-  // a `REAL_BRIDGE=true` build installs the platform plumbing and starts the
-  // background cook monitor.
+  // default (real bridge) build installs the platform plumbing and starts the
+  // background cook monitor; `MOCK_BRIDGE=true` keeps the pure fakes so the UX
+  // lab build touches no channel.
   final systemSettings = SystemSettings();
   final permissions = AppPermissions.production(
     androidSdkInt: await systemSettings.androidSdkInt(),
   );
   final networkBinder = ChannelNetworkBinder();
-  final notificationSink = kRealBridgeEnabled
-      ? PluginNotificationSink()
-      : RecordingNotificationSink();
-  final foregroundService = kRealBridgeEnabled
-      ? PluginForegroundServiceHost()
-      : FakeForegroundServiceHost();
+  final notificationSink = kMockBridgeEnabled
+      ? RecordingNotificationSink()
+      : PluginNotificationSink();
+  final foregroundService = kMockBridgeEnabled
+      ? FakeForegroundServiceHost()
+      : PluginForegroundServiceHost();
 
   final DevDeepLink link = DevDeepLink.parse(
     kReleaseMode ? '' : Uri.base.toString(),
@@ -91,8 +91,9 @@ Future<void> bootstrap() async {
   unawaited(applyDevDeepLink(container, link));
 
   // N15.17 — the monitor watches the repository the container already built.
-  // Started only for a real bridge: over the mock it would post fixture alarms.
-  if (kRealBridgeEnabled) {
+  // Started for every real build; the `MOCK_BRIDGE=true` UX lab skips it
+  // because over the mock it would post fixture alarms.
+  if (!kMockBridgeEnabled) {
     final monitor = CookMonitor(
       repository: container.read(bridgeRepositoryProvider),
       sink: notificationSink,
