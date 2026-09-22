@@ -1,8 +1,51 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- N15.2 — the network rows of the 05 §5.8.3 matrix. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
+    <!-- Without this, mDNS silently finds nothing — multicast receive is
+         filtered at the Wi-Fi driver. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <!-- API 33+: nearby-device discovery without a location prompt.
+         neverForLocation is load-bearing. -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"/>
+    <!-- API <= 32 needed location for Wi-Fi scans (and API <= 30 for BLE). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="32"/>
+    <!-- N15.3/N15.18 — the BLE rows. API 31+ (Android 12): the modern split,
+         with neverForLocation on the scan half so onboarding never triggers a
+         location prompt. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <!-- API <= 30: the legacy pair. -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30"/>
+    <!-- N15.16 — the foreground-service rows (09 §9.6). The TYPE is required
+         from Android 14 and omitting it is a CRASH; ours is connectedDevice. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+    <!-- API 33+. Requested when the FIRST cook starts, not at launch. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- The §9.6 opt-in; declining degrades to "reconnects and catches up". -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- newapp §G.4 — the mechanism that lights the screen at 3 a.m. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- §G.4 — time-based rules must fire ON TIME in Doze. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32"/>
+    <!-- The wake lock the monitor holds between 30 s ticks. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="smoke_bridge"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -25,6 +68,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- newapp §G.4 / N15.16 — the background monitor, and the ONE attribute
+             that decides whether a fourteen-hour cook survives.
+             `flutter_foreground_task` does not declare this service in its own
+             manifest; the app must, and the type declared here is the type the
+             OS enforces whatever Dart asks for.
+
+             It is `connectedDevice`, deliberately and not `dataSync`: Android
+             15 caps dataSync/mediaProcessing at 6 hours in 24, which is a third
+             of a brisket. `connectedDevice` carries no such cap.
+
+             Warning: do not change the service name — the plugin binds it. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
