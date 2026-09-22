@@ -28,4 +28,6 @@ export 'repository/bridge_repository.dart';
 export 'repository/mock_bridge_repository.dart';
 export 'repository/mock_event_bus.dart';
 export 'repository/prefs_repository.dart';
+export 'repository/real_bridge_repository.dart';
+export 'repository/real_prefs_repository.dart';
 export 'transport/transport.dart';

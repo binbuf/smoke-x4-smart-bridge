@@ -655,90 +655,86 @@ Status: **done**. `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 wi
 
 ## T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA
 
-Status: **continue** (attempt 1). Landed the **transport + connection + sync
-core** (N15.1, 15.2, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 15.14). Tree
-green: `make app.test` **640** (was 609; +31), `dart test test/domain test/data`
-**233** (was 202; +31). No existing file changed except one export line in
-`lib/data/data.dart`; no screen/provider touched.
+Status: **continue** (attempts 1–2). Attempt 1 landed the **transport +
+connection + sync core** (N15.1, 15.2, 15.4–15.7, 15.10, 15.11, 15.12, 15.14).
+Attempt 2 landed the **exit-gate-critical drop-in N15.8** and the **persistence
+half of N15.13**. Tree green: `make app.test` **657** (was 640; +17),
+`dart test test/domain test/data` **250** (was 233; +17). No screen or existing
+test changed; `providers.dart` gained a flag-guarded real branch.
 
-**Real paths (all pure Dart, under `app/lib/data/transport/`; barrel `transport.dart`)**
-- `bridge_transport.dart` — `BridgeTransport` contract + `TransportCapabilities`
-  (http/ble/mock) + `TransportException`/`TransportUnsupported` + typed DTOs
-  (`BridgeStatus`, `DeviceStatus`, `TimeStatus`, `NetStatus`, `BleStatus`,
-  `PairingStatus`, `RadioStatus`, `StorageStatus`, `PowerStatus`,
-  `SessionStatus`, `CookClockStatus`, `OtaStatus`, `LiveStatus`, `LiveProbe`,
-  `SessionInfo`, `SessionProbe`, `TransportEvent`).
-- `http_transport.dart` — real HTTP over **`dart:io` (not Dio)**: Bearer, JSON
-  error envelope, streamed `format=ndjson` samples (batched), `/api/v1/stream`
-  WebSocket, streamed `/ota` upload, `_markKindToWire`/`_markKindFromWire`.
-- `mock_transport.dart` — `MockTransport`+`MockBridgeDevice`: `failWith`,
-  `statusPlan`, `calls`, `emitSample`, `closed`, `connectCount`, `statusCount`.
-- `connection_manager.dart` — `ConnectionLaneKind` (manual/cachedIp/mdns/
-  mdnsName/apDefault/ble), `ConnectionLane`, `ConnectionAttempt(Outcome)`,
-  `TransportFactory`, `HttpTransportFactory`, `ConnectionManager.raceOnce()/
-  connect()`, `kConnectionBackoff` (1/2/4/8/15/30 s), injectable `sleep`.
-- `connection_supervisor.dart` — `TransportPreference`, `SupervisorState`,
-  `ConnectionSupervisor` (`start`, `upgradeToWifi`, `verifyActive`, `failover`,
-  `disconnect`), `httpSupervisor(...)` helper.
-- `bridge_session.dart` — `BridgeSession` start order status→sync→live→cache→
-  subscribe, 10 s backstop `pollStatus`, `linkLost`, `updates`/`samples`/
-  `events` streams, `lastSyncResults`.
-- `sample_cache.dart` — `SampleCache` interface + `SyncState` +
-  `InMemorySampleCache` (drift stands in). `upsertSamples` idempotent on
-  `(bridgeId, sessionId, t)`, never rewrites (I10).
-- `sync_engine.dart` — `SyncEngine.syncSession` (skip closed+fully-cached,
-  rollover→permanent gap recorded **before** upsert, fromT = cachedMax+1,
-  connectivity gaps recorded/cleared), `samplesInWindow` (cook membership by
-  wall clock), `exportCookCsvFromCache` (reuses `buildCookCsv`).
-- Exported via `lib/data/data.dart` → `transport/transport.dart`. **Screens must
-  not import it**; they still read `BridgeRepository`.
+**Real paths (pure Dart)**
+- Transport (attempt 1, under `app/lib/data/transport/`; barrel `transport.dart`):
+  `bridge_transport.dart` (contract + DTOs + capabilities),
+  `http_transport.dart` (`dart:io`, Bearer, error envelope, streamed NDJSON
+  samples, WS `/api/v1/stream`, streamed `/ota`), `mock_transport.dart`
+  (`MockBridgeDevice`, `failWith`, `statusPlan`, `calls`),
+  `connection_manager.dart` (six lanes, `kConnectionBackoff`),
+  `connection_supervisor.dart` (BLE-lead → Wi-Fi-upgrade → warm → failover),
+  `bridge_session.dart` (status→sync→live→cache→subscribe, 10 s poll,
+  `linkLost`), `sample_cache.dart` (`SampleCache`/`SyncState`/
+  `InMemorySampleCache`; idempotent, never rewrites, I10), `sync_engine.dart`
+  (high-water rollover gap before upsert, `samplesInWindow`,
+  `exportCookCsvFromCache`).
+- **Attempt 2 `app/lib/data/repository/real_bridge_repository.dart` — N15.8**:
+  `RealBridgeRepository implements BridgeRepository` composing
+  `ConnectionSupervisor` + `BridgeSession` + `SampleCache`. Maps
+  `BridgeStatus`/`NetStatus`/`PowerStatus` → `ConnectionState` (+ `LinkState`,
+  RSSI→bars), `LiveProbe` → `ProbeState` (4 jacks, absent null I3), `SessionInfo`
+  + cache → `HistoryEntry` (peak from cached samples, marks from
+  `transport.marks`, gaps from the cache), `DeviceStatus`/`StorageStatus` →
+  `DeviceInfo`. Unadopted active session → `PendingSession`. Cook lifecycle
+  maps onto `setCookClock` (`started_unix_ms`) and `postMark`; mutations swallow
+  wire errors (I15); `linkLost` → `supervisor.failover()` then re-attach;
+  `exportCookCsv` streams the cache. Screens still see only `BridgeRepository`.
+- **Attempt 2 `app/lib/data/repository/real_prefs_repository.dart` — N15.13**:
+  `KeyValueStore` + `InMemoryKeyValueStore` + `JsonPrefsRepository.load(store)`
+  (load once for synchronous `current`, persist on write). Full `AppSettings`
+  round-trip incl. `CustomFood` + its `CookTimeline`; corrupt blob → defaults
+  (I15); no Wi-Fi secret stored.
+- `providers.dart` — real repository opt-in via
+  `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=…`; default remains
+  `MockBridgeRepository` (dev panel + all widget tests unaffected).
+  `prefsProvider` still mock until the `shared_preferences` adapter.
 
 **Commands that work**
-- `make app.test` — full gate (analyze + format + `flutter test`, **640**).
-- `cd app && flutter test test/data/transport_test.dart` — 31 new tests.
-- `cd app && dart test test/data/transport_test.dart` — same 31, fast/isolated.
-- `cd app && dart test test/domain test/data` — data/domain gate (**233**).
-- Helper: `app/test/support/fake_bridge_server.dart` (real loopback HTTP+WS; do
-  not add the `tools/sim` package to the app — it is a separate workspace).
+- `make app.test` — full gate (analyze + format + `flutter test`, **657**).
+- `cd app && flutter test test/data/real_bridge_repository_test.dart` — 10.
+- `cd app && flutter test test/data/real_prefs_repository_test.dart` — 7.
+- `cd app && dart test test/domain test/data` — data/domain gate (**250**).
+- Helper: `app/test/support/fake_bridge_server.dart` (do not add `tools/sim`).
 
 **Contract facts later tasks need**
-- `BridgeTransport` methods cover: `status`, `live`, `sessions`, `session`,
-  `samples(sessionId,{fromT,toT,stride})`, `marks`, `postMark`, `wifiConfig`,
-  `applyNetwork`, `commitNetwork`, `deviceConfig`/`setDeviceConfig`,
-  `alarmConfig`/`setAlarmConfig`, `setTime`, `cookClock`/`setCookClock`/
-  `clearCookClock`, `pairSync`/`unpair`, `restart`/`factoryReset`/`powerOff`,
-  `stopSession`/`deleteSession`, `uploadOta`, `events()`.
-- `ConnectionManager.raceOnce()` returns the winning `BridgeTransport` (null if
-  all miss); `connect()` adds backoff retries. Losers are closed.
+- `BridgeTransport` covers status/live/sessions/session/samples/marks/config/
+  network/time/cook-clock/pairing/verbs/OTA/events.
 - `ConnectionSupervisor.active` is the only transport carrying data; a warm BLE
-  is open but idle. `verifyActive()` is a real `status()` read.
-- `BridgeSession` caches the backfill and pushed samples into its `SampleCache`;
-  `linkLost` fires when `pollStatus()` cannot read `status()`.
-- `SampleCache` is the drift seam; `SyncEngine` is the only writer of
-  connectivity gaps and high-water.
+  is open but idle; `verifyActive()` is a real `status()` read.
+- `BridgeSession` caches backfill + pushed samples; `linkLost` fires on a failed
+  poll. `SampleCache`/`SyncEngine` are the drift seam.
+- `RealBridgeRepository` exposes `transport` and `cache` for dev/inspection;
+  `snapshot()` replays `current` before the controller (same as the mock).
 
 **Deviations / gotchas**
-- HTTP is `dart:io`, not Dio (task names Dio). Keeps the layer plugin-free and
-  in the `dart test test/data` gate; swap Dio in behind `HttpTransport` later.
-- Lanes are tried in priority order rather than concurrently (same observable
-  contract, deterministic).
+- HTTP is `dart:io`, not Dio; lanes are sequential by priority (same observable
+  contract).
+- Alarms/device read-back have **no wire endpoint yet**: the real repo keeps
+  alarms/rules app-side and `checkForUpdates` uses the firmware fixture. Real
+  device alarms land with the platform work.
+- `_addItem` marks the jack attached app-side; the live feed still owns readings.
 - App-only `MarkKind.spritz`/`turn` are written as wire `note`.
-- N15.13 `AppSettings`/`CustomFood`/`CookItem` serialisation is **not** done;
-  the mock `PrefsRepository` is still in use.
-- `InMemorySampleCache.clearConnectivityGapsBetween` clears connectivity gaps
-  fully inside `[fromT,toT]`; keep drift equivalent.
-- The full drop-in (`providers.dart`) was **not** swapped: `bridgeRepository`
-  is still `MockBridgeRepository` and `prefs` still `MockPrefsRepository`.
+- Keep `InMemorySampleCache.clearConnectivityGapsBetween` and the drift version
+  identical.
+- `RealBridgeRepository.dispose()` disposes the supervisor but not the
+  `ConnectionManager`.
 
 **Follow-ups**
-- N15.8: real `BridgeRepository` over supervisor+session+cache; map DTOs to
-  `BridgeSnapshot`/`HistoryEntry`/`DeviceInfo`/alarms; swap `providers.dart`.
-  This is the exit-gate-critical piece.
-- N15.3: `BleTransport` (flutter_blue_plus) behind `TransportFactory.openBle()`.
-- N15.9: real drift schema implementing `SampleCache` + codegen.
-- N15.13: real `PrefsRepository` (`shared_preferences`) incl. all `AppSettings`
-  fields and `CustomFood.timeline`; never persist Wi-Fi passwords.
-- N15.15–N15.22: notification channels, `ForegroundServiceHost`, `CookMonitor`,
-  permissions/system-settings, `network_binder`, `firmware_picker`+`share_plus`,
-  diagnostics read-back (plugins).
+- N15.3 `BleTransport` (flutter_blue_plus) behind `TransportFactory.openBle()`;
+  wire into `httpSupervisor` so `auto` can lead on BLE.
+- N15.9 real drift schema implementing `SampleCache` + codegen; swap the in-memory
+  cache in the provider.
+- N15.13 plugin adapter: `KeyValueStore` over `shared_preferences`, loaded once
+  in `bootstrap.dart`, then wire `prefsProvider` to `JsonPrefsRepository`.
+- Real `alarms` parsing + `bridge_unreachable` insight + `alarmConfig` mapping.
+- N15.15–N15.22 platform services (notifications, foreground service,
+  `CookMonitor`, permissions, `network_binder`, `firmware_picker`+`share_plus`,
+  diagnostics read-back) — plugins.
 - N16: no goldens for any bridge surface.
