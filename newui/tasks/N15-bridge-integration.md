@@ -71,10 +71,11 @@ service — they read `BridgeRepository` only.
 (N15.1, 15.2, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 15.14). Attempt 2
 landed the **exit-gate-critical drop-in** (N15.8) plus the persistence half of
 N15.13. Attempt 3 landed the **real drift cache (N15.9), the persistent-prefs
-plugin adapter (N15.13) and device alarms + the unreachable insight**. The tree
-is green: `make app.test` is **672** (was 657; +15) and
-`dart test test/domain test/data` is **262** (was 250; +12). No screen or
-existing test was changed; the plugin set N15 needs is now in `pubspec.yaml`
+plugin adapter (N15.13) and device alarms + the unreachable insight**. Attempt 4
+landed **N15.3 `BleTransport`** and the **host-testable halves of N15.15–N15.22**.
+The tree is green: `make app.test` is **715** (was 672; +43) and
+`dart test test/domain test/data` is **295** (was 262; +33). No screen or
+existing test was changed; the plugin set N15 needs is in `pubspec.yaml`
 (pinned to `app.old`'s versions).
 
 ### What attempt 2 landed (pure Dart, `app/lib/data/repository/`)
@@ -175,25 +176,78 @@ Tests: `app/test/data/transport_test.dart` (loopback HTTP+WS via
   flutter_foreground_task, permission_handler, connectivity_plus, share_plus,
   file_selector; dev: drift_dev, sqlite3), pinned to `app.old`'s versions.
 
+### What attempt 4 landed
+
+- **N15.3 `BleTransport` (pure Dart, `app/lib/data/transport/ble_transport.dart`)**:
+  the third `BridgeTransport` implementation, on the binary `protocol/records.yaml`
+  contract. Decodes through the generated codec vendored as
+  `app/lib/data/dto/records.g.dart` (+ `dto.dart` barrel). It implements the
+  11-characteristic GATT hub via the unchanged `BleGattClient` seam
+  (`ble_gatt.dart`): `device_info`/`live_state`/`net_status` reads, `result`
+  correlation by `op_echo`, chunked `history_data` reassembly, and the full
+  history stream (`sessions`/`samples`/`marks`) with `(seq, kind=end)` framing.
+  Capabilities derive `fullHistory` from `device_info.caps` b6
+  (`TransportCapabilities.withFullHistory`, added to `bridge_transport.dart`).
+  Control ops cover marks, time, cook-clock, pairing, restart/factory/power,
+  stop-session; Wi-Fi config goes through the `wifi_config` char and returns the
+  AP PSK. Wi-Fi-only surfaces (OTA, delete, device/alarm config, commit) throw
+  `TransportUnsupported`. App-only `spritz`/`turn` still write wire `note`.
+- **`app/lib/platform/ble_gatt_fbp.dart`** — `FlutterBlueGattClient` over
+  `flutter_blue_plus` (ported from `app.old`, plugin APIs identical at the
+  pinned version) plus `openBleTransport()`: scan → connect → bond → MTU →
+  started `BleTransport`, returning null on any miss.
+- **Wiring** — `httpSupervisor` gained a `bleOpener`; `providers.dart` passes
+  `openBleTransport` so `auto` can lead on BLE in a `REAL_BRIDGE=true` build.
+  `transport.dart` re-exports `ble_gatt.dart` + `ble_transport.dart`.
+- **N15.15/N15.16 `app/lib/platform/notifications.dart` + `notifications_plugin.dart`**:
+  the four-channel table (importance can never change after creation), the
+  `NotificationSink` seam + `RecordingNotificationSink`, `requestPermission` /
+  `hasPermission` / full-screen-intent capability, the `PluginNotificationSink`
+  (flutter_local_notifications 22), and the `ForegroundServiceHost` seam +
+  `FakeForegroundServiceHost` + `PluginForegroundServiceHost`
+  (`connectedDevice` type, battery-exemption opt-in).
+- **N15.18 `permissions.dart` + `system_settings.dart`**: the runtime BLE/
+  notification permission seam (version-gated scan+connect+optional location,
+  granted/denied/permanentlyDenied reduction) over `permission_handler`, and the
+  OS-settings deep-link MethodChannel (`smokebridge/system_settings`).
+- **N15.19 `network_binder.dart`**: the `NetworkBinder` seam +
+  `ChannelNetworkBinder` (`smokebridge/network_binder`, onBound/onLost) +
+  `FakeNetworkBinder`, with the strict bind/unbind lifecycle.
+- **N15.20 `firmware_picker.dart`**: `pickFirmwareImage()` over `file_selector`
+  returning a streamed `PickedFirmware` (null on cancel).
+- **N15.21 `share.dart` + `share_plugin.dart`**: the `ShareSheet` seam +
+  `RecordingShareSheet` + `PluginShareSheet` (`share_plus`).
+- **N15.22 `device_facts.dart`**: the field-report host facts map.
+- `platform.dart` exports only the pure seams; the `*_plugin.dart` / `*_fbp.dart`
+  files are imported directly by the composition root so `flutter test` never
+  loads a platform channel it does not need.
+- Tests: `test/data/ble_transport_test.dart` (26, against a ported
+  `test/support/fake_peripheral.dart`), `test/data/platform_test.dart` (7, pure),
+  `test/features/platform_permissions_test.dart` (10, fakes).
+
 ### What remains (next session)
 
-1. **N15.3 `BleTransport`** (flutter_blue_plus): decode the binary records from
-   `protocol/records.yaml` (vendor `protocol/gen/records.g.dart` as
-   `app/lib/data/dto/records.g.dart`, as `app.old` does), the 11 GATT
-   characteristics, chunked `history_data` notify reassembly, and LE Secure
-   passkey. `BleGattClient` is the test seam; `HttpTransportFactory.bleOpener`
-   is the hook; wire it into `httpSupervisor` so `auto` can lead on BLE.
-2. **N15.15–N15.22 platform services** under `app/lib/platform/`:
-   notification channels + permission + full-screen intent, `ForegroundServiceHost`
-   (`connectedDevice`) + battery exemption, `CookMonitor`, permission/settings
-   seams, `network_binder` (hosted-AP join), `firmware_picker` (OTA over HTTP
-   only) + `share_plus`, diagnostics read-back. Plugins are now pinned; add the
-   code before importing them into a screen.
-3. **Device alarm read-back**: map `alarmConfig()`'s `AlarmRule` array onto
-   `_rules` and persist `setAlarmRuleEnabled`/rule edits back where the protocol
-   allows, so ack/snooze can reach the device.
-4. Smoke the drop-in against `make sim` with
-   `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`;
-   `MockTransport` can be driven from the sim shapes if a live run is easier.
+1. **N15.17 `CookMonitor`** — the background reconciliation loop (persist
+   samples, mirror device alarms, post notifications, start/stop the foreground
+   service) adapted to the **new** model: watch `BridgeRepository.snapshot()`,
+   feed `planNotifications()` (the escalation map is caller state), drive
+   `NotificationSink` + `ForegroundServiceHost`. Persistence already happens in
+   `BridgeSession`/`SampleCache`, so the loop's job is notifications + service
+   lifecycle and the unreachable/stall/ETA findings.
+2. **Composition-root wiring + Android manifest/Kotlin**: construct
+   `PluginNotificationSink` / `PluginForegroundServiceHost` / `AppPermissions`
+   / `SystemSettings` / `NetworkBinder` at `bootstrap.dart`; declare the
+   foreground service (`connectedDevice`), notification permission, the
+   `smokebridge/network_binder` and `smokebridge/system_settings` channels +
+   their Kotlin handlers (`bindProcessToNetwork`, intents), and the full-screen
+   intent / exact-alarm declarations.
+3. **OTA upload plumbing**: `firmware_picker` exists; thread the picked stream
+   to `BridgeTransport.uploadOta` (HTTP only) behind a repo-level seam, so
+   `performVerb(DeviceVerb.ota)` can do more than set a notice. BLE already
+   refuses with `TransportUnsupported`.
+4. **Device alarm read-back**: map `alarmConfig()`'s `AlarmRule` array onto
+   `_rules` and push rule edits back where the protocol allows, over HTTP.
+5. Smoke the drop-in against `make sim` with
+   `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`.
    Note `RealBridgeRepository.dispose()` still does not dispose the manager, and
    the `ConnectionManager` has no owner yet.

@@ -237,13 +237,22 @@ class ConnectionSupervisor {
 }
 
 /// Convenience: build the default HTTP-only supervisor for a host.
+///
+/// [bleOpener] is the N15.3 seam: when the platform build supplies an opener,
+/// `auto` leads on BLE and upgrades to Wi-Fi in the background. Without one the
+/// BLE lane is simply a miss.
 ConnectionSupervisor httpSupervisor({
   required String host,
   int? port,
   String? token,
+  Future<BridgeTransport?> Function()? bleOpener,
   TransportPreference preferred = TransportPreference.auto,
 }) {
-  final factory = HttpTransportFactory(port: port, token: token);
+  final factory = HttpTransportFactory(
+    port: port,
+    token: token,
+    bleOpener: bleOpener,
+  );
   final manager = ConnectionManager(factory: factory, manualBaseUrl: host);
   return ConnectionSupervisor(
     manager: manager,

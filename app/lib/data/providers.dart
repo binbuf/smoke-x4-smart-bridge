@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../platform/ble_gatt_fbp.dart' show openBleTransport;
 import 'dev_panel.dart';
 import 'model/app_settings.dart';
 import 'model/bridge_snapshot.dart';
@@ -36,7 +37,11 @@ const String kBridgeHost = String.fromEnvironment(
 final bridgeRepositoryProvider = Provider<BridgeRepository>((ref) {
   if (kRealBridgeEnabled) {
     final repo = RealBridgeRepository(
-      supervisor: httpSupervisor(host: kBridgeHost),
+      supervisor: httpSupervisor(
+        host: kBridgeHost,
+        // N15.3 — let `auto` lead on BLE when the platform radio is available.
+        bleOpener: openBleTransport,
+      ),
       cache: ref.watch(sampleCacheProvider),
     );
     ref.onDispose(repo.dispose);

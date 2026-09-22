@@ -79,6 +79,20 @@ class TransportCapabilities {
 
   /// The UX lab / tests: everything, like HTTP.
   static const TransportCapabilities mock = http;
+
+  /// A copy with [fullHistory] toggled. BLE derives that flag from the device
+  /// (`device_info.caps` b6) rather than declaring it (N15.3).
+  TransportCapabilities withFullHistory(bool value) => TransportCapabilities(
+    live: live,
+    historyPreview: historyPreview,
+    fullHistory: value,
+    config: config,
+    probeConfig: probeConfig,
+    deviceReadBack: deviceReadBack,
+    alarmRules: alarmRules,
+    mqtt: mqtt,
+    ota: ota,
+  );
 }
 
 /// A wire-level failure with a protocol error `code`, or one of the

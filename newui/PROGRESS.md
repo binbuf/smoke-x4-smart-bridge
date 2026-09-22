@@ -655,14 +655,17 @@ Status: **done**. `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 wi
 
 ## T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA
 
-Status: **continue** (attempts 1–3). Attempt 1 landed the **transport +
+Status: **continue** (attempts 1–4). Attempt 1 landed the **transport +
 connection + sync core** (N15.1, 15.2, 15.4–15.7, 15.10, 15.11, 15.12, 15.14).
 Attempt 2 landed the **exit-gate-critical drop-in N15.8** and the **persistence
 half of N15.13**. Attempt 3 landed the **real drift cache (N15.9)**, the
 **`shared_preferences` plugin adapter (N15.13)** and **device alarms + the
-`bridge_unreachable` insight**. Tree green: `make app.test` **672** (was 657;
-+15), `dart test test/domain test/data` **262** (was 250; +12). No screen or
-existing test changed; the N15 plugin set is now pinned in `pubspec.yaml`.
+`bridge_unreachable` insight**. Attempt 4 landed **N15.3 `BleTransport`** and
+the **host-testable halves of N15.15–N15.22** (notification channels /
+foreground service / permissions / network binder / firmware picker / share /
+device facts). Tree green: `make app.test` **715** (was 672; +43),
+`dart test test/domain test/data` **295** (was 262; +33). No screen or existing
+test changed; the N15 plugin set is pinned in `pubspec.yaml`.
 
 **Real paths (pure Dart)**
 - Transport (attempt 1, under `app/lib/data/transport/`; barrel `transport.dart`):
@@ -715,15 +718,43 @@ existing test changed; the N15 plugin set is now pinned in `pubspec.yaml`.
   app-side ack/snooze over the top; a mid-cook link loss with no lane raises the
   app-tier `bridge_unreachable` insight once.
 - `bootstrap.dart` is now `Future<void>`; `main.dart` `unawaited(bootstrap())`.
+- **Attempt 4 `app/lib/data/transport/ble_transport.dart` — N15.3**:
+  `BleTransport implements BridgeTransport` on the binary
+  `protocol/records.yaml` codec, vendored as `app/lib/data/dto/records.g.dart`
+  (+ `dto.dart`). Uses the unchanged `BleGattClient` seam (`ble_gatt.dart`):
+  `device_info`/`live_state`/`net_status` reads, `result` correlation by
+  `op_echo`, chunked `history_data` reassembly, full history
+  (`sessions`/`samples`/`marks`) with the `(seq, end)` chain. `fullHistory` is
+  derived from `device_info.caps` b6 via the new
+  `TransportCapabilities.withFullHistory`. Control ops map marks/time/cook-clock/
+  pairing/restart/factory/power/stop; `wifi_config` returns the AP PSK.
+  Wi-Fi-only surfaces (OTA, delete, device/alarm config, commit) throw
+  `TransportUnsupported`; a v1.0 bridge's `sessions()`/`marks()` return empty
+  rather than tearing down the live link, while `samples()` still throws the
+  typed refusal.
+- **Attempt 4 `app/lib/platform/`** — the seams + plugin impls:
+  `ble_gatt_fbp.dart` (`FlutterBlueGattClient`, `openBleTransport()`),
+  `notifications.dart` + `notifications_plugin.dart` (N15.15/N15.16),
+  `permissions.dart` + `system_settings.dart` (N15.18), `network_binder.dart`
+  (N15.19), `firmware_picker.dart` (N15.20), `share.dart` +
+  `share_plugin.dart` (N15.21), `device_facts.dart` (N15.22). `platform.dart`
+  exports only the pure seams.
+- **Attempt 4 wiring** — `httpSupervisor` gained `bleOpener`; `providers.dart`
+  passes `openBleTransport` so `auto` can lead on BLE in a `REAL_BRIDGE=true`
+  build; `transport.dart` re-exports the BLE files.
 
 **Commands that work**
-- `make app.test` — full gate (analyze + format + `flutter test`, **672**).
+- `make app.test` — full gate (analyze + format + `flutter test`, **715**).
 - `cd app && dart test test/data/drift_sample_cache_test.dart` — 10.
 - `cd app && flutter test test/data/real_bridge_repository_test.dart` — 12.
 - `cd app && flutter test test/app/prefs_store_test.dart` — 3.
 - `cd app && flutter test test/data/real_prefs_repository_test.dart` — 7.
-- `cd app && dart test test/domain test/data` — data/domain gate (**262**).
-- Helper: `app/test/support/fake_bridge_server.dart` (do not add `tools/sim`).
+- `cd app && dart test test/data/ble_transport_test.dart` — the 26 BLE tests.
+- `cd app && dart test test/data/platform_test.dart` — 7 platform-seam tests.
+- `cd app && flutter test test/features/platform_permissions_test.dart` — 10.
+- `cd app && dart test test/domain test/data` — data/domain gate (**295**).
+- Helper: `app/test/support/fake_bridge_server.dart` (HTTP) and
+  `app/test/support/fake_peripheral.dart` (BLE) (do not add `tools/sim`).
 
 **Contract facts later tasks need**
 - `BridgeTransport` covers status/live/sessions/session/samples/marks/config/
@@ -749,16 +780,25 @@ existing test changed; the N15 plugin set is now pinned in `pubspec.yaml`.
   `ConnectionManager`.
 
 **Follow-ups**
-- N15.3 `BleTransport` (flutter_blue_plus) behind `TransportFactory.openBle()`;
-  vendor `protocol/gen/records.g.dart` as `app/lib/data/dto/records.g.dart` for
-  the binary codec (as `app.old` does), reassemble chunked `history_data`, and
-  wire BLE into `httpSupervisor` so `auto` can lead on it.
-- N15.15–N15.22 platform services under `app/lib/platform/` (notification
-  channels/permission/full-screen intent, `ForegroundServiceHost` +
-  battery exemption, `CookMonitor`, permission/settings seams, `network_binder`,
-  `firmware_picker` + `share_plus`, diagnostics read-back). Plugins are pinned.
+- **N15.17 `CookMonitor`** — the background loop must be adapted to the new
+  model: watch `BridgeRepository.snapshot()`, feed `planNotifications()` (the
+  caller owns `alreadyPosted` + the escalation map), drive `NotificationSink`
+  and `ForegroundServiceHost`, start on cook / stop after idle. Sample
+  persistence already happens in `BridgeSession`/`SampleCache`, so the loop is
+  notifications + service lifecycle + findings (unreachable / stall / ETA).
+- **Composition root + Android**: build `PluginNotificationSink` /
+  `PluginForegroundServiceHost` / `AppPermissions` / `SystemSettings` /
+  `NetworkBinder` in `bootstrap.dart`; add the manifest service
+  (`connectedDevice`), notification permission, full-screen-intent /
+  exact-alarm declarations, and the Kotlin handlers for
+  `smokebridge/network_binder` (`bindProcessToNetwork`) and
+  `smokebridge/system_settings` (intents).
+- **OTA upload plumbing**: thread `pickFirmwareImage()`'s stream to
+  `BridgeTransport.uploadOta` (HTTP only) behind a repo-level seam.
 - Map `alarmConfig()` `AlarmRule`s onto `_rules` and push rule edits back to the
-  device where the protocol allows.
-- Smoke the real repository against `make sim`; real device alarms/alarm-config
-  and the `ConnectionManager` owner are still open.
+  device where the protocol allows (HTTP).
+- Smoke the real repository against `make sim`
+  (`--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=127.0.0.1:8080`);
+  the `ConnectionManager` owner is still open, and
+  `RealBridgeRepository.dispose()` does not dispose it.
 - N16: no goldens for any bridge surface.

@@ -5,6 +5,8 @@
 /// they read `BridgeRepository` (the N2 seam).
 library;
 
+export 'ble_gatt.dart';
+export 'ble_transport.dart';
 export 'bridge_session.dart';
 export 'bridge_transport.dart';
 export 'connection_manager.dart';
