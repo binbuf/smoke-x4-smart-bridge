@@ -46,12 +46,14 @@ dependencies:
   path: ^1.9.1
   # N15.15/N15.16/N15.17 — notifications + the background cook monitor.
   flutter_local_notifications: ^22.1.0
-  flutter_foreground_task: ^10.0.0
+  # ^11 migrates to Built-in Kotlin; the KGP warning is a build failure soon.
+  flutter_foreground_task: ^11.0.3
   # N15.18/N15.19/N15.20/N15.21 — permissions, network binding, OTA picker,
   # share sheet. (connectivity_plus backs the network-status binder seam.)
   permission_handler: ^11.3.1
   connectivity_plus: ^6.0.5
-  share_plus: ^10.0.0
+  # ^13 adds Built-in Kotlin support (13.2.0) and the SharePlus API in use.
+  share_plus: ^13.3.0
   file_selector: ^1.0.3
   # Prefs / logging / routing
   shared_preferences: ^2.5.5

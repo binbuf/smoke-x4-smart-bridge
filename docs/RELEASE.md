@@ -42,6 +42,7 @@ renders the twenty named overlays. Regenerate with
 | B4 | No dev panel in release | `release_build_test.dart` proves `kReleaseMode` gates; spot-check the release build has no panel button | absent |
 | B5 | Release APK is signed | `flutter build apk --release --split-per-abi` with the release keystore configured (`android/key.properties`, not committed) | `apksigner verify` passes |
 | B6 | No secrets in the tree | `git status` clean of `*.jks`, `key.properties`, `*.keystore` | none |
+| B7 | The build talks to a real bridge | `lib/data/providers.dart` defaults to `RealBridgeRepository`; the mock requires an explicit `--dart-define=MOCK_BRIDGE=true` and is pinned by `release_build_test.dart` | no fixture data |
 
 > **B5 needs a human with the signing key.** The keystore and `key.properties`
 > are intentionally untracked (`.gitignore`); a debug-signed APK is not a

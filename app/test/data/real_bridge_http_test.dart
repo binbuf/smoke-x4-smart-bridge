@@ -9,7 +9,7 @@
 ///
 /// Pure Dart (`package:test`), so it runs in both `flutter test` and
 /// `dart test test/data`. The manual entry point the bench uses is
-/// `make sim` + `--dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=…`.
+/// `make sim` + `--dart-define=BRIDGE_HOST=…`.
 library;
 
 import 'package:smoke_bridge/data/data.dart';

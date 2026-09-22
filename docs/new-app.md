@@ -44,9 +44,11 @@ From the repo root:
 From `app/` directly: `flutter test`, `flutter analyze`,
 `dart test test/domain test/data`, `flutter build apk --release`.
 
-The real bridge is opt-in at build time:
-`flutter run --dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=…`.
-Without it the app runs the mock repository and the dev panel.
+The real bridge is the default. A `flutter run` (or any release build) talks to
+the bridge over HTTP/BLE; set `--dart-define=BRIDGE_HOST=…` when mDNS
+(`smokebridge.local`) is not the right address. The mock repository is opt-in
+for fixture-driven dev runs and the UX lab:
+`flutter run --dart-define=MOCK_BRIDGE=true`.
 
 ## Verification and release
 

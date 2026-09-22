@@ -42,11 +42,15 @@ class InstrumentModeCard extends StatelessWidget {
                 color: tokens.textBody,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Instrument mode',
-                style: SmokeText.cardTitle.copyWith(color: tokens.textHi),
+              Expanded(
+                child: Text(
+                  'Instrument mode',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SmokeText.cardTitle.copyWith(color: tokens.textHi),
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 'no targets',
                 style: SmokeText.labelSm.copyWith(

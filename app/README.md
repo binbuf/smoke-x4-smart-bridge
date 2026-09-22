@@ -22,8 +22,10 @@ From the repo root (`make` targets use the Windows-safe `.bat` wrappers):
 Or from `app/` directly: `flutter run`, `flutter test`, `flutter analyze`,
 `dart test test/domain test/data`.
 
-The real bridge is opt-in: `flutter run --dart-define=REAL_BRIDGE=true
---dart-define=BRIDGE_HOST=…`. Without it the app runs the mock repository.
+The real bridge is the default: `flutter run` talks to `smokebridge.local`
+over HTTP/BLE (override with `--dart-define=BRIDGE_HOST=…`). The mock
+repository is opt-in for fixture-driven dev runs:
+`flutter run --dart-define=MOCK_BRIDGE=true`.
 
 ## Verification and release
 

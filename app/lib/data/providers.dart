@@ -26,12 +26,14 @@ import 'repository/real_bridge_repository.dart';
 import 'transport/connection_supervisor.dart';
 import 'transport/sample_cache.dart';
 
-/// N15.8 — opt in to the real bridge transport at build time:
-/// `flutter run --dart-define=REAL_BRIDGE=true --dart-define=BRIDGE_HOST=…`.
+/// N15.8 — the real bridge transport is the default. The mock is opt-in for
+/// the UX lab and fixture-driven dev runs:
+/// `flutter run --dart-define=MOCK_BRIDGE=true`.
 ///
-/// The default stays [MockBridgeRepository] so the dev panel, the UX lab and
-/// every existing test keep working; a real build flips one flag.
-const bool kRealBridgeEnabled = bool.fromEnvironment('REAL_BRIDGE');
+/// A normal debug, profile or release build talks to the bridge; only an
+/// explicit `MOCK_BRIDGE=true` installs [MockBridgeRepository]. Tests override
+/// the provider directly and never depend on this flag.
+const bool kMockBridgeEnabled = bool.fromEnvironment('MOCK_BRIDGE');
 
 /// The bridge host the real repository races first (mDNS name by default).
 const String kBridgeHost = String.fromEnvironment(
@@ -39,9 +41,9 @@ const String kBridgeHost = String.fromEnvironment(
   defaultValue: 'smokebridge.local',
 );
 
-/// The live repository. Mock unless `REAL_BRIDGE=true` (N15.8).
+/// The live repository. Real unless `MOCK_BRIDGE=true` (N15.8).
 final bridgeRepositoryProvider = Provider<BridgeRepository>((ref) {
-  if (kRealBridgeEnabled) {
+  if (!kMockBridgeEnabled) {
     final repo = RealBridgeRepository(
       supervisor: httpSupervisor(
         host: kBridgeHost,

@@ -14,8 +14,11 @@ class PluginShareSheet implements ShareSheet {
 
   @override
   Future<void> shareFile(String path, {String subject = ''}) async {
-    await Share.shareXFiles([
-      XFile(path, mimeType: 'text/csv'),
-    ], subject: subject);
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path, mimeType: 'text/csv')],
+        subject: subject,
+      ),
+    );
   }
 }
