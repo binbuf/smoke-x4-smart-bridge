@@ -52,6 +52,65 @@ flow cannot drag the user backwards.
 
 ## Hand-off
 
+**Status: done.** Implemented and re-verified in this session (re-run/attempt 1).
+N14.1–N14.13 all landed; every "Done when" gate below runs green.
+
+**What landed (all under `app/lib/features/onboarding/`; barrel `onboarding.dart`)**
+- `setup_format.dart` — pure: `OnboardStep` (8), `kOnboardSteps`,
+  `OnboardPermission`/`PermissionState`/`kOnboardPermissions`, `SetupHop`/
+  `HopStatus`, `SetupFault` (named title/body/recoverLabel, I15), `SetupState`
+  (`canAdvance` = I6, `blockedReason` = I5, `beginAsync`/`resolve`/`token` =
+  monotonic generation guard), `SetupToken`, `SetupHopRow`, `kPasskeyPlaceholder`.
+- `onboarding_model.dart` — `SetupMachine` (`Notifier<SetupState>`) +
+  `setupStateProvider`, `onboardingRequiredProvider`, `onboardingSkippedProvider`.
+- `onboarding_sheet.dart` — `OnboardingBody` (rail + per-step content),
+  `OnboardingFoot` (Back/Skip + one ember primary), `OnboardingSurface` (the
+  gate), `finishOnboarding`, `skipOnboarding`, `onboardingOverlayBody`/`Foot`.
+- Wired: `shell/overlay.dart` resolves `DevOverlay.onboarding` to the real
+  body/foot (`SheetOverlay.footBuilder`); `shell/shell.dart` mounts
+  `OnboardingSurface` above everything while `onboardingRequiredProvider`;
+  `features/live/live_page.dart` shows the `live-connect-bridge` empty state when
+  skipped (N14.13); dev panel lists the `onboarding` overlay.
+- `AppSettings` gained `bridgeName` and `onboardStatus`
+  (`OnboardStatus { fresh, skipped, paired }`, default `paired`).
+
+**Evidence (commands + results, run in this session)**
+- `make app.test` → analyze clean, format clean, **837 tests pass**.
+- `dart test test/domain test/data` (from `app/`) → **304 pass**.
+- `flutter test test/features/onboarding_test.dart` → **8 pass**.
+- `dart test test/data/onboarding_setup_test.dart` → **18 pass**.
+- N14 adds 26 checks total (18 pure + 8 widget).
+
+**Deviations / judgment calls (unchanged from the prior landing)**
+- Mock default `onboardStatus: paired` keeps every non-fresh launch on the shell;
+  factory-fresh is `fresh`. Tests override prefs to `fresh` for the gate.
+- **The passkey is structural only**: no code field/parameter;
+  `kPasskeyPlaceholder = '••••••'`; a widget test asserts no `Text` renders a
+  6-digit code. The real platform flow is N15's.
+- Permission *denial* is a platform-only state in the real app; the widget
+  renders the named denied state + resumable Allow, pinned via a seeded
+  `setupStateProvider`. The prototype's troubleshoot `permRow(..., false)` Allow
+  buttons became plain checklist rows.
+- The network step selects locally (no `applyMode` call yet).
+- The gate is not dismissible by scrim tap (X = Skip); the named
+  `?overlay=onboarding` dev path is dismissible. Both share the same body/foot.
+- The gate head shows the current step title/sub; the named-overlay head is the
+  static `Welcome to Smoke`.
+
+**For the next task**
+- N15: seed `onboardStatus: fresh` on a truly empty first install, return to
+  `fresh` on factory reset, and implement the real BLE scan/pair + platform
+  permission requests + real passkey entry. `bridgeName`/`onboardStatus` already
+  persist through `prefsProvider` / `real_prefs_repository.dart`.
+- N16: no golden renders the wizard; consider one for the gate.
+- This session made **no source changes** — it found N14 already at commit
+  `02d06d5`, independently re-ran every gate above, and added this Hand-off plus a
+  re-verification note in `newui/PROGRESS.md`.
+
+---
+
+## Hand-off
+
 **Status: done.** `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 widget);
 `flutter analyze` and format check clean; `dart test test/domain test/data` green
 (**202**, was 184). No golden changed.

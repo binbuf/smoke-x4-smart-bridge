@@ -653,6 +653,16 @@ Status: **done**. `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 wi
 - N15: seed `fresh` on first install, reset to `fresh` on factory reset; real BLE scan/pair + platform permission requests + real passkey entry; `shared_preferences` persistence of `bridgeName`/`onboardStatus`.
 - N16: no golden renders the wizard; consider one for the gate.
 
+**Re-verification (T15 re-run, 2026-09-22)**
+- The T15 work was already committed (`02d06d5`), followed by T16/T17 and the
+  `app fixes` commit `71a1214`; the harness's ROADMAP/PROGRESS snapshot was stale
+  (it still listed T15 as running and remaining). This session made **no source
+  changes**: it independently re-ran every N14 gate against the current tree.
+- `make app.test` → **837 pass** (analyze + format clean); `dart test test/domain
+  test/data` → **304 pass**; `flutter test test/features/onboarding_test.dart` →
+  **8**; `dart test test/data/onboarding_setup_test.dart` → **18**.
+- No code path needed touching. The facts in the section above remain accurate.
+
 ## T16 — N15 Bridge integration: real HTTP + BLE transports, sync engine, drift cache, background service, OTA
 
 Status: **done** (attempts 1–5). Attempt 1 landed the **transport +
