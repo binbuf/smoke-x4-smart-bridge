@@ -1,12 +1,16 @@
-/* boot_seq.h — the sixteen-step boot sequence of design 03 §3.4, as a pure,
+/* boot_seq.h — the boot sequence of the BLE-only slim build, as a pure,
  * host-testable step runner. main.c supplies the real step implementations;
  * host tests supply fakes.
  *
  * Two properties are structural, not stylistic:
- *   1. LoRa (smoke_x) comes up before Wi-Fi and BLE — data capture is the
- *      product; a later subsystem failing must not cost the cook.
+ *   1. LoRa (smoke_x) comes up before BLE — data capture is the product; a
+ *      BLE failure must not cost the cook.
  *   2. Only NVS (step 1) and the event loop (step 4) are fatal. Every step
  *      after cook_store is individually failure-tolerant and logged.
+ *
+ * The Wi-Fi/HTTP/OTA/MQTT steps of the full image are gone: there is no
+ * network stack on this build. The recovery window is owned by app_ui (it
+ * has the button and the panel), so it is not a boot step here.
  */
 #ifndef BOOT_SEQ_H
 #define BOOT_SEQ_H
@@ -18,28 +22,21 @@
 extern "C" {
 #endif
 
-#define BRIDGE_BOOT_STEP_COUNT 17
+#define BRIDGE_BOOT_STEP_COUNT 11
 
-/* Step numbers per 03 §3.4 (1-based). */
+/* Step numbers (1-based). */
 typedef enum {
     BRIDGE_BOOT_NVS = 1,
     BRIDGE_BOOT_BOOT_REASON = 2,
     BRIDGE_BOOT_CONFIG = 3,
     BRIDGE_BOOT_EVENT_LOOP = 4,
     BRIDGE_BOOT_POWER = 5,
-    BRIDGE_BOOT_UI = 6,
-    BRIDGE_BOOT_RECOVERY_WINDOW = 7, /* 3 s PRG hold — stub until F11 */
-    BRIDGE_BOOT_COOK_STORE = 8,
-    BRIDGE_BOOT_SMOKE_X_INIT = 9,
-    BRIDGE_BOOT_SMOKE_X_START = 10, /* LoRa RX begins — before net/BLE */
-    BRIDGE_BOOT_TIME = 11,
-    BRIDGE_BOOT_NET = 12,
-    BRIDGE_BOOT_API = 13,
-    BRIDGE_BOOT_BLE = 14,
-    BRIDGE_BOOT_ALARM = 15,
-    BRIDGE_BOOT_OTA_HEALTH_GATE = 16, /* stub until F14 */
-    BRIDGE_BOOT_MQTT = 17, /* MQTT / Home Assistant publisher (05 §5.7) —
-                            * non-fatal, Wi-Fi-only, opt-in */
+    BRIDGE_BOOT_UI = 6, /* display + button + the recovery window */
+    BRIDGE_BOOT_COOK_STORE = 7,
+    BRIDGE_BOOT_SMOKE_X_INIT = 8,
+    BRIDGE_BOOT_SMOKE_X_START = 9, /* LoRa RX begins — before BLE */
+    BRIDGE_BOOT_TIME = 10,
+    BRIDGE_BOOT_BLE = 11,
 } bridge_boot_step_t;
 
 /* A step returns 0 on success, nonzero on failure. NULL steps are skipped
@@ -59,9 +56,9 @@ typedef struct {
     int fatal_step;
 } bridge_boot_result_t;
 
-/* Runs steps 1..16 in order. Returns true if the device booted (no fatal
- * failure); non-fatal failures are recorded in result->failed_mask and the
- * sequence continues. */
+/* Runs steps 1..BRIDGE_BOOT_STEP_COUNT in order. Returns true if the device
+ * booted (no fatal failure); non-fatal failures are recorded in
+ * result->failed_mask and the sequence continues. */
 bool bridge_boot_run(const bridge_boot_ops_t *ops, void *ctx,
                      bridge_boot_result_t *result);
 

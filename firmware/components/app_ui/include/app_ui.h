@@ -18,6 +18,19 @@ extern "C" {
  * fatal to the boot: a bridge with a dead panel still cooks (03 §3.4). */
 int app_ui_init(void);
 
+/* Open the on-device factory-reset flow now. Called by main after a double
+ * reset (< 10 s) and by the task itself when PRG is held through the boot
+ * splash. The flow is hold-to-confirm: hold ~3 s, release to wipe, release
+ * early to cancel. */
+void app_ui_request_recovery(void);
+
+/* What the recovery flow runs when the user confirms. main registers this so
+ * app_ui does not have to depend on app_ble/app_config/cook_store (which
+ * would be a component cycle). It must not return — it wipes bonds + config
+ * + recorded cooks and reboots. If none is set, app_ui just reboots. */
+typedef void (*app_ui_recovery_fn)(void);
+void app_ui_set_recovery_hook(app_ui_recovery_fn fn);
+
 #ifdef __cplusplus
 }
 #endif

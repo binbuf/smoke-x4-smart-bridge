@@ -8,7 +8,6 @@
 
 #include <string.h>
 
-#include "app_alarm_svc.h"
 #include "app_power_svc.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
@@ -25,21 +24,7 @@ static uint32_t s_passkey;
 static const app_ble_char_def_t k_chars[APP_BLE_CH_COUNT] = {
     [APP_BLE_CH_DEVICE_INFO] = {0x0001, APP_BLE_PROP_READ, APP_BLE_SEC_OPEN,
                                 BRIDGE_DEVICE_INFO_SIZE, "device_info"},
-    [APP_BLE_CH_NET_STATUS] = {0x0002, APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY,
-                               APP_BLE_SEC_ENCRYPTED,
-                               BRIDGE_NET_STATUS_MAX_SIZE, "net_status"},
-    [APP_BLE_CH_WIFI_SCAN_CTRL] = {0x0003, APP_BLE_PROP_WRITE,
-                                   APP_BLE_SEC_ENCRYPTED,
-                                   BRIDGE_WIFI_SCAN_CTRL_SIZE,
-                                   "wifi_scan_ctrl"},
-    [APP_BLE_CH_WIFI_SCAN_RESULT] = {0x0004, APP_BLE_PROP_NOTIFY,
-                                     APP_BLE_SEC_ENCRYPTED,
-                                     BRIDGE_WIFI_SCAN_RESULT_MAX_SIZE,
-                                     "wifi_scan_result"},
-    /* The two that can change network config or wipe the device. */
-    [APP_BLE_CH_WIFI_CONFIG] = {0x0005, APP_BLE_PROP_WRITE,
-                                APP_BLE_SEC_AUTHENTICATED,
-                                BRIDGE_WIFI_CONFIG_MAX_SIZE, "wifi_config"},
+    /* The one that can wipe the device. */
     [APP_BLE_CH_DEVICE_CONTROL] = {0x0006, APP_BLE_PROP_WRITE,
                                    APP_BLE_SEC_AUTHENTICATED,
                                    BRIDGE_DEVICE_CONTROL_MAX_SIZE,
@@ -54,9 +39,8 @@ static const app_ble_char_def_t k_chars[APP_BLE_CH_COUNT] = {
     [APP_BLE_CH_RESULT] = {0x0009, APP_BLE_PROP_NOTIFY, APP_BLE_SEC_ENCRYPTED,
                            BRIDGE_RESULT_MAX_SIZE, "result"},
     /* v1.1 — full history over BLE. `encrypted`, not `authenticated`: these
-     * two read stored cooks and change nothing, so they sit with live_state
-     * rather than with the pair that can reconfigure or wipe the device
-     * (§3). A bond is still required — a cook is not public. */
+     * two read stored cooks and change nothing. A bond is still required — a
+     * cook is not public. */
     [APP_BLE_CH_HISTORY_CTRL] = {0x000A, APP_BLE_PROP_WRITE,
                                  APP_BLE_SEC_ENCRYPTED,
                                  BRIDGE_HISTORY_CTRL_SIZE, "history_ctrl"},
@@ -205,36 +189,6 @@ int app_ble_build_device_info(uint8_t *out, size_t cap) {
     return (int)BRIDGE_DEVICE_INFO_SIZE;
 }
 
-int app_ble_build_net_status(uint8_t *out, size_t cap) {
-    if (g_ble_ops == NULL) {
-        return -1;
-    }
-    app_ble_net_snapshot_t n;
-    memset(&n, 0, sizeof n);
-    g_ble_ops->net_status(&n);
-
-    bridge_net_status_t s;
-    memset(&s, 0, sizeof s);
-    s.ver = 1;
-    s.mode = n.mode;
-    s.state = n.state;
-    s.wifi_rssi = n.rssi;
-    memcpy(s.ip, n.ip, 4);
-    size_t ssid_len = strnlen(n.ssid, sizeof n.ssid - 1);
-    if (ssid_len > sizeof s.ssid) {
-        ssid_len = sizeof s.ssid;
-    }
-    s.ssid_len = (uint8_t)ssid_len;
-    memcpy(s.ssid, n.ssid, ssid_len);
-    size_t host_len = strnlen(n.host, sizeof n.host - 1);
-    if (host_len > sizeof s.host) {
-        host_len = sizeof s.host;
-    }
-    s.host_len = (uint8_t)host_len;
-    memcpy(s.host, n.host, host_len);
-    return bridge_net_status_pack(&s, out, cap);
-}
-
 /* The live snapshot both live_state and the advertising blob are built
  * from, so the two can never disagree about what the pit is doing. */
 void app_ble_live_snapshot(app_ble_live_t *out) {
@@ -265,11 +219,9 @@ void app_ble_live_snapshot(app_ble_live_t *out) {
             out->session_t = newest->t;
         }
     }
-    /* F13 (M5) owns alarm state, and here it is: true only while an alarm
-     * is raised and NOT acknowledged. Acknowledging silences — it does not
-     * resolve — so an acked alarm leaves this false while still appearing
-     * in /status (09 §9.2). */
-    out->alarm_active = app_alarm_svc_unacked();
+    /* The device-tier alarm engine is not built on this image; the flag is
+     * carried on the wire for contract stability and is always false. */
+    out->alarm_active = false;
 }
 
 int app_ble_build_live_state(uint8_t *out, size_t cap) {
@@ -350,8 +302,6 @@ int app_ble_core_read(app_ble_char_t ch, uint8_t *out, size_t cap) {
     switch (ch) {
     case APP_BLE_CH_DEVICE_INFO:
         return app_ble_build_device_info(out, cap);
-    case APP_BLE_CH_NET_STATUS:
-        return app_ble_build_net_status(out, cap);
     case APP_BLE_CH_LIVE_STATE:
         return app_ble_build_live_state(out, cap);
     case APP_BLE_CH_HISTORY_PREVIEW:
@@ -362,15 +312,6 @@ int app_ble_core_read(app_ble_char_t ch, uint8_t *out, size_t cap) {
 }
 
 /* ── Push paths (F10.6, F10.9) ────────────────────────────────────── */
-
-int app_ble_notify_net_status(void) {
-    uint8_t buf[BRIDGE_NET_STATUS_MAX_SIZE];
-    const int len = app_ble_build_net_status(buf, sizeof buf);
-    if (len < 0) {
-        return APP_BLE_ERR_FAILED;
-    }
-    return app_ble_notify_chunked(APP_BLE_CH_NET_STATUS, buf, (size_t)len);
-}
 
 int app_ble_notify_live_state(void) {
     uint8_t buf[BRIDGE_LIVE_STATE_SIZE];

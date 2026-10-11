@@ -17,9 +17,6 @@ class Sample {
     required this.t,
     required this.tempsF10,
     this.unixMs,
-    this.billows = false,
-    this.newAlarm = false,
-    this.sourceCelsius = false,
     this.rssi = 0,
   });
 
@@ -31,12 +28,6 @@ class Sample {
 
   /// Wall clock when the session header knows one; **null when it does not**.
   final int? unixMs;
-
-  final bool billows;
-  final bool newAlarm;
-
-  /// Provenance only — the values are already canonical °F.
-  final bool sourceCelsius;
 
   final int rssi;
 

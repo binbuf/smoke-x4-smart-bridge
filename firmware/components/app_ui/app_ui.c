@@ -25,14 +25,13 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "app_alarm.h"
 #include "app_config_store.h"
-#include "app_net.h"
 #include "app_power.h"
 #include "app_power_svc.h"
 #include "app_ui_cook.h"
@@ -77,6 +76,88 @@ static app_ui_led_input_t s_led;
 static SemaphoreHandle_t s_lock;
 static TaskHandle_t s_task;
 static uint32_t s_boot_ms;
+
+/* ── on-device recovery (factory reset) ───────────────────────────────
+ * Two ways in, one flow out:
+ *   - double RST within 10 s (main.c calls app_ui_request_recovery), or
+ *   - holding PRG through the post-boot splash window.
+ * The flow is hold-to-confirm: hold ~3 s, release to reset, release early
+ * to cancel. Committing wipes bonds + config + recorded cooks, then
+ * reboots. This is the recovery the full image routed through Wi-Fi AP
+ * mode; with no network, it lives entirely on the device. */
+#define APP_UI_RECOVERY_WINDOW_MS 5000u /* splash window a hold can arm in */
+#define APP_UI_RECOVERY_HOLD_MS 3000u   /* the boot-hold that opens it */
+#define APP_UI_RECOVERY_CONFIRM_MS 3000u /* the hold that commits the wipe */
+
+static volatile bool s_recovery_requested;
+static bool s_recovering;
+static bool s_boot_pressed;
+static uint32_t s_boot_press_ms;
+static bool s_rec_pressed;
+static uint32_t s_rec_press_ms;
+static app_ui_recovery_fn s_recovery_hook;
+
+void app_ui_request_recovery(void) {
+    s_recovery_requested = true;
+    if (s_task != NULL) {
+        xTaskNotifyGive(s_task);
+    }
+}
+
+void app_ui_set_recovery_hook(app_ui_recovery_fn fn) { s_recovery_hook = fn; }
+
+static void enter_recovery(uint32_t now) {
+    s_recovering = true;
+    /* The boot-hold that got us here is still held: continue it into the
+     * confirm rather than requiring a fresh press. */
+    s_rec_pressed = true;
+    s_rec_press_ms = now;
+    s_state.overlay = APP_UI_OVERLAY_CONFIRM;
+    snprintf(s_state.confirm_text, sizeof s_state.confirm_text,
+             "FACTORY RESET?");
+    s_state.confirm_count = 3;
+    app_ui_model_wake(&s_model, now);
+}
+
+static void commit_factory_reset(void) {
+    ESP_LOGW(TAG, "factory reset confirmed");
+    if (s_recovery_hook != NULL) {
+        s_recovery_hook(); /* wipes and reboots; does not return */
+    }
+    esp_restart(); /* no hook registered: reboot rather than hang */
+}
+
+/* Returns true while the recovery flow owns the button. */
+static bool handle_recovery(bool pressed, uint32_t now) {
+    if (!s_recovering) {
+        return false;
+    }
+    if (pressed && !s_rec_pressed) {
+        s_rec_pressed = true;
+        s_rec_press_ms = now;
+    } else if (!pressed && s_rec_pressed) {
+        s_rec_pressed = false;
+        const uint32_t held = now - s_rec_press_ms;
+        s_recovering = false;
+        s_state.overlay = APP_UI_OVERLAY_NONE;
+        if (held >= APP_UI_RECOVERY_CONFIRM_MS) {
+            commit_factory_reset(); /* does not return */
+        }
+        return true;
+    }
+    const uint32_t held = s_rec_pressed ? now - s_rec_press_ms : 0u;
+    if (held >= APP_UI_RECOVERY_CONFIRM_MS) {
+        snprintf(s_state.confirm_text, sizeof s_state.confirm_text,
+                 "release to reset");
+        s_state.confirm_count = 1;
+    } else {
+        const uint32_t remain = APP_UI_RECOVERY_CONFIRM_MS - held;
+        snprintf(s_state.confirm_text, sizeof s_state.confirm_text,
+                 "FACTORY RESET?");
+        s_state.confirm_count = (uint8_t)((remain + 999u) / 1000u);
+    }
+    return true;
+}
 
 /* ── the panel seam ───────────────────────────────────────────────── */
 
@@ -275,25 +356,25 @@ static void fill_snapshot(app_ui_state_t *st, const ui_cfg_read_t *cfg) {
     st->charging = app_power_svc_charging();
     st->saver = app_power_svc_saver();
     st->mv = app_power_svc_mv();
-    st->alarm_unacked = app_alarm_unacked();
+    /* No device-tier alarm engine and no network on this build. The wire
+     * flags stay false so the strip never claims a state that cannot occur. */
+    st->alarm_unacked = false;
+    st->net_mode = APP_UI_NET_OFF;
+    st->net_state = APP_UI_NET_IDLE;
+    st->ssid[0] = '\0';
+    st->ip[0] = '\0';
+    st->host[0] = '\0';
+    st->psk[0] = '\0';
+    st->wifi_rssi = 0;
+    st->ap_clients = 0;
+    st->ap_client = false;
 
-    app_net_status_t net;
-    app_net_get_status(&net);
-    st->net_mode = strcmp(net.mode, "ap") == 0    ? APP_UI_NET_AP
-                   : strcmp(net.mode, "sta") == 0 ? APP_UI_NET_STA
-                                                  : APP_UI_NET_OFF;
-    st->net_state = strcmp(net.state, "up") == 0           ? APP_UI_NET_UP
-                    : strcmp(net.state, "connecting") == 0 ? APP_UI_NET_CONNECTING
-                    : strcmp(net.state, "failed") == 0     ? APP_UI_NET_FAILED
-                                                           : APP_UI_NET_IDLE;
-    snprintf(st->ssid, sizeof st->ssid, "%s", net.ssid);
-    snprintf(st->ip, sizeof st->ip, "%s", net.ip);
-    snprintf(st->host, sizeof st->host, "%s", net.host);
-    st->wifi_rssi = net.rssi;
-    st->ap_clients = (uint8_t)(net.ap_clients < 0 ? 0 : net.ap_clients);
-    st->ap_client = st->ap_clients > 0;
-    (void)app_config_store_get_str(APP_CONFIG_NET_AP_PSK, st->psk,
-                                   sizeof st->psk);
+    /* The bridge's own advertised BLE name, from the eFuse MAC — the same
+     * name the app's scan list shows and device_info carries. */
+    uint8_t mac[6] = {0};
+    (void)esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    snprintf(st->bt_name, sizeof st->bt_name, "SmokeBridge-%02X%02X", mac[4],
+             mac[5]);
 
     /* trends page — and note what is NOT here any more.
      *
@@ -399,30 +480,6 @@ static void on_ble_event(void *arg, esp_event_base_t base, int32_t id,
     }
 }
 
-static void on_alarm_event(void *arg, esp_event_base_t base, int32_t id,
-                           void *data) {
-    (void)arg;
-    (void)base;
-    (void)id;
-    const bridge_evt_alarm_t *e = data;
-    if (e == NULL) {
-        return;
-    }
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    if (e->action == BRIDGE_ALARM_RAISED) {
-        s_state.alarm_rule = e->rule;
-        s_state.alarm_probe = e->probe;
-        s_state.alarm_value_f10 = e->value_f10;
-        app_ui_model_on_alarm(&s_model, &s_state, now_ms());
-    } else {
-        app_ui_model_clear_alarm(&s_model, &s_state);
-    }
-    xSemaphoreGive(s_lock);
-    if (s_task != NULL) {
-        xTaskNotifyGive(s_task);
-    }
-}
-
 static void on_wake_event(void *arg, esp_event_base_t base, int32_t id,
                           void *data) {
     (void)arg;
@@ -477,18 +534,41 @@ static void ui_task(void *arg) {
 
         app_ui_state_t snapshot;
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        /* The boot splash owns the glass for the 3 s recovery window
-         * (03 §3.4.1) and then gets out of the way. */
-        if (s_state.overlay == APP_UI_OVERLAY_SPLASH) {
+
+        /* A recovery request from main (double reset) opens the flow. */
+        if (s_recovery_requested) {
+            s_recovery_requested = false;
+            enter_recovery(t);
+        }
+
+        /* Boot splash with the recovery window: holding PRG through it
+         * opens the factory-reset flow (03 §3.4.1, now on-device). */
+        if (!s_recovering && s_state.overlay == APP_UI_OVERLAY_SPLASH) {
             const uint32_t age = t - s_boot_ms;
-            if (age >= 3000u) {
+            if (pressed && !s_boot_pressed) {
+                s_boot_pressed = true;
+                s_boot_press_ms = t;
+            } else if (!pressed) {
+                s_boot_pressed = false;
+            }
+            if (s_boot_pressed &&
+                (t - s_boot_press_ms) >= APP_UI_RECOVERY_HOLD_MS) {
+                enter_recovery(t);
+            } else if (age >= APP_UI_RECOVERY_WINDOW_MS) {
                 s_state.overlay = APP_UI_OVERLAY_NONE;
             } else {
-                s_state.confirm_count = (uint8_t)(3u - age / 1000u);
+                const uint32_t remain = APP_UI_RECOVERY_WINDOW_MS - age;
+                s_state.confirm_count = (uint8_t)((remain + 999u) / 1000u);
             }
         }
+
         fill_snapshot(&s_state, &cfg);
-        app_ui_model_tick(&s_model, &s_state, pressed, t, timeout_s);
+        if (s_recovering) {
+            /* The recovery flow owns the button; the page model is idle. */
+            (void)handle_recovery(pressed, t);
+        } else {
+            app_ui_model_tick(&s_model, &s_state, pressed, t, timeout_s);
+        }
         snapshot = s_state;
 
         s_led.alarm_unacked = snapshot.alarm_unacked;
@@ -560,11 +640,7 @@ int app_ui_init(void) {
     app_ui_model_init(&s_model, &k_model_ops);
 
     if (bridge_event_handler_register(BRIDGE_EVT_BLE, on_ble_event, NULL,
-                                      "app_ui.ble") != ESP_OK ||
-        bridge_event_handler_register(BRIDGE_EVT_ALARM, on_alarm_event, NULL,
-                                      "app_ui.alarm") != ESP_OK ||
-        bridge_event_handler_register(BRIDGE_EVT_NET, on_wake_event, NULL,
-                                      "app_ui.net") != ESP_OK) {
+                                      "app_ui.ble") != ESP_OK) {
         return -1;
     }
 

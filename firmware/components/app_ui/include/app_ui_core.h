@@ -125,11 +125,12 @@ extern const uint8_t app_ui_font12x24[APP_UI_LARGE_GLYPHS][APP_UI_LARGE_BYTES];
 #define APP_UI_PASSKEY_DIGITS 6
 #define APP_UI_NAME_LEN 16
 #define APP_UI_SPARK_MAX 64
+#define APP_UI_BT_NAME_LEN 20
 
 typedef enum {
     APP_UI_PAGE_PROBES = 0, /* the default (07 §7.2) */
     APP_UI_PAGE_TRENDS,
-    APP_UI_PAGE_NETWORK,
+    APP_UI_PAGE_BLUETOOTH, /* was NETWORK; no Wi-Fi on the slim build */
     APP_UI_PAGE_RADIO,
     APP_UI_PAGE_SYSTEM,
     APP_UI_PAGE_COUNT,
@@ -218,6 +219,11 @@ typedef struct {
     uint8_t ble_conns;
     uint8_t ble_bonds;
 
+    /* ── page 3: bluetooth (replaces the Wi-Fi Network page) ── */
+    /* The bridge's own advertised name ("SmokeBridge-XXXX"), shown so the
+     * phone's scan list and the glass agree. */
+    char bt_name[APP_UI_BT_NAME_LEN + 1];
+
     /* ── page 4: radio ── */
     bool paired;
     char device_id[9];
@@ -276,7 +282,9 @@ void app_ui_render_page_probes(const app_ui_state_t *st, app_ui_fb_t *fb);
  * a name and `Elapsed 04:12:30`, all three of which the bridge was inferring
  * rather than knowing. */
 void app_ui_render_page_trends(const app_ui_state_t *st, app_ui_fb_t *fb);
-void app_ui_render_page_network(const app_ui_state_t *st, app_ui_fb_t *fb);
+/* BLE status: advertised name, advertising/connected, bonds. No network
+ * facts exist on this build. */
+void app_ui_render_page_bluetooth(const app_ui_state_t *st, app_ui_fb_t *fb);
 void app_ui_render_page_radio(const app_ui_state_t *st, app_ui_fb_t *fb);
 void app_ui_render_page_system(const app_ui_state_t *st, app_ui_fb_t *fb);
 

@@ -12,7 +12,6 @@
  * bench could tell us about the CONTRACT is already known here, so the
  * sitting is spent on OEM behaviour instead of on byte layouts.
  */
-#include "app_alarm_svc.h"
 #include "app_power_svc.h"
 #include "app_ble_internal.h"
 #include "app_config_store.h"
@@ -39,19 +38,10 @@ typedef struct {
 
 static notif_t g_notifs[NOTIFY_MAX];
 static int g_notif_count;
-static app_ble_net_snapshot_t g_net;
-static app_net_pending_cfg_t g_applied;
-static int g_apply_calls;
-static int g_scan_starts;
-static int g_scan_cancels;
-static int g_scan_start_rc;
 static int g_identify_calls;
 static int g_reboot_calls;
 static int g_factory_calls;
 static uint64_t g_uptime_ms;
-/* Set to fire a cancel from inside notify(), to prove a scan stream can
- * be interrupted mid-flight rather than only before it starts. */
-static int g_cancel_after_notif;
 
 static void fake_sysinfo(app_ble_sysinfo_t *out) {
     memset(out, 0, sizeof *out);
@@ -66,16 +56,6 @@ static void fake_sysinfo(app_ble_sysinfo_t *out) {
     memcpy(out->mac, mac, 6);
 }
 
-static void fake_net_status(app_ble_net_snapshot_t *out) { *out = g_net; }
-
-static int fake_apply(const app_net_pending_cfg_t *cfg) {
-    g_applied = *cfg;
-    g_apply_calls++;
-    return 0;
-}
-
-static void cancel_scan_now(void);
-
 static int fake_notify(app_ble_char_t ch, const uint8_t *buf, size_t len) {
     if (g_notif_count < NOTIFY_MAX) {
         g_notifs[g_notif_count].ch = ch;
@@ -84,19 +64,6 @@ static int fake_notify(app_ble_char_t ch, const uint8_t *buf, size_t len) {
                len < sizeof g_notifs[0].buf ? len : sizeof g_notifs[0].buf);
         g_notif_count++;
     }
-    if (g_cancel_after_notif > 0 && g_notif_count == g_cancel_after_notif) {
-        cancel_scan_now();
-    }
-    return 0;
-}
-
-static int fake_scan_start(void) {
-    g_scan_starts++;
-    return g_scan_start_rc;
-}
-
-static int fake_scan_cancel(void) {
-    g_scan_cancels++;
     return 0;
 }
 
@@ -118,10 +85,6 @@ static uint64_t fake_uptime(void) { return g_uptime_ms; }
 
 static const app_ble_ops_t k_ops = {
     .sysinfo = fake_sysinfo,
-    .net_status = fake_net_status,
-    .net_request_config = fake_apply,
-    .scan_start = fake_scan_start,
-    .scan_cancel = fake_scan_cancel,
     .notify = fake_notify,
     .identify = fake_identify,
     .reboot = fake_reboot,
@@ -184,18 +147,11 @@ static int hook_stop(void) {
 
 static void reset_all(void) {
     g_notif_count = 0;
-    g_apply_calls = 0;
-    g_scan_starts = 0;
-    g_scan_cancels = 0;
-    g_scan_start_rc = APP_BLE_OK;
     g_identify_calls = 0;
     g_reboot_calls = 0;
     g_factory_calls = 0;
     g_power_off_calls = 0;
-    g_cancel_after_notif = 0;
     g_uptime_ms = 1000;
-    memset(&g_applied, 0, sizeof g_applied);
-    memset(&g_net, 0, sizeof g_net);
 
     memfs_reset();
     cfg_erase_all(NULL);
@@ -206,16 +162,9 @@ static void reset_all(void) {
     CHECK_EQ_INT(smoke_x_ctrl_init(&k_radio_ops, NULL, false, 0), 0);
     cook_ring_reset();
     CHECK_EQ_INT(app_time_core_init(0, NULL, NULL), 0);
-    CHECK_EQ_INT(app_alarm_svc_init(NULL), 0);
     CHECK_EQ_INT(app_power_svc_init(), 0);
     CHECK_EQ_INT(app_ble_core_init(&k_ops), APP_BLE_OK);
     app_ble_set_mtu(APP_BLE_MTU_PREFERRED);
-}
-
-static void cancel_scan_now(void) {
-    const uint8_t cancel[2] = {1, BRIDGE_SCAN_CMD_CANCEL};
-    (void)app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, cancel,
-                             sizeof cancel);
 }
 
 static const notif_t *last_of(app_ble_char_t ch) {
@@ -296,14 +245,6 @@ static void test_registry_matches_the_contract(void) {
         uint8_t sec;
     } want[] = {
         {APP_BLE_CH_DEVICE_INFO, 0x0001, APP_BLE_PROP_READ, APP_BLE_SEC_OPEN},
-        {APP_BLE_CH_NET_STATUS, 0x0002,
-         APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY, APP_BLE_SEC_ENCRYPTED},
-        {APP_BLE_CH_WIFI_SCAN_CTRL, 0x0003, APP_BLE_PROP_WRITE,
-         APP_BLE_SEC_ENCRYPTED},
-        {APP_BLE_CH_WIFI_SCAN_RESULT, 0x0004, APP_BLE_PROP_NOTIFY,
-         APP_BLE_SEC_ENCRYPTED},
-        {APP_BLE_CH_WIFI_CONFIG, 0x0005, APP_BLE_PROP_WRITE,
-         APP_BLE_SEC_AUTHENTICATED},
         {APP_BLE_CH_DEVICE_CONTROL, 0x0006, APP_BLE_PROP_WRITE,
          APP_BLE_SEC_AUTHENTICATED},
         {APP_BLE_CH_LIVE_STATE, 0x0007,
@@ -360,23 +301,17 @@ static void test_security_table(void) {
     CHECK(app_ble_access_allowed(APP_BLE_CH_DEVICE_INFO, &k_open));
     CHECK(app_ble_access_allowed(APP_BLE_CH_DEVICE_INFO, &k_encrypted));
 
-    CHECK(!app_ble_access_allowed(APP_BLE_CH_NET_STATUS, &k_open));
-    CHECK(app_ble_access_allowed(APP_BLE_CH_NET_STATUS, &k_encrypted));
     CHECK(app_ble_access_allowed(APP_BLE_CH_LIVE_STATE, &k_encrypted));
     CHECK(app_ble_access_allowed(APP_BLE_CH_HISTORY_PREVIEW, &k_encrypted));
     CHECK(app_ble_access_allowed(APP_BLE_CH_RESULT, &k_encrypted));
-    CHECK(app_ble_access_allowed(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted));
-    CHECK(app_ble_access_allowed(APP_BLE_CH_WIFI_SCAN_RESULT, &k_encrypted));
 
-    /* The two that can change network config or wipe the device need an
-     * MITM-protected key — an encrypted-but-unauthenticated link is not
-     * enough, and that is the whole reason the OLED shows a passkey. */
-    CHECK(!app_ble_access_allowed(APP_BLE_CH_WIFI_CONFIG, &k_encrypted));
-    CHECK(app_ble_access_allowed(APP_BLE_CH_WIFI_CONFIG, &k_authed));
+    /* The one that can wipe the device needs an MITM-protected key — an
+     * encrypted-but-unauthenticated link is not enough, and that is the
+     * whole reason the OLED shows a passkey. */
     CHECK(!app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, &k_encrypted));
     CHECK(app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, &k_authed));
 
-    CHECK(!app_ble_access_allowed(APP_BLE_CH_WIFI_CONFIG, NULL));
+    CHECK(!app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, NULL));
 }
 
 /* ── F10.1: builders against the P3.2 fixtures ────────────────────── */
@@ -393,26 +328,6 @@ static void test_device_info_matches_fixture(void) {
 
     /* Too small a buffer refuses rather than overruns. */
     CHECK_EQ_INT(app_ble_build_device_info(out, 8), -1);
-}
-
-static void test_net_status_matches_fixture(void) {
-    reset_all();
-    g_net.mode = BRIDGE_NET_MODE_STA;
-    g_net.state = BRIDGE_NET_STATE_UP;
-    g_net.rssi = -54;
-    g_net.ip[0] = 192;
-    g_net.ip[1] = 168;
-    g_net.ip[2] = 1;
-    g_net.ip[3] = 42;
-    snprintf(g_net.ssid, sizeof g_net.ssid, "Backyard");
-    snprintf(g_net.host, sizeof g_net.host, "smokebridge");
-
-    uint8_t out[BRIDGE_NET_STATUS_MAX_SIZE];
-    const int len = app_ble_build_net_status(out, sizeof out);
-    uint8_t want[64];
-    const size_t n = load_fixture("ble-net-status-sta-up", want, sizeof want);
-    CHECK_EQ_INT(len, (int)n);
-    CHECK(memcmp(out, want, n) == 0);
 }
 
 static void seed_ring(int16_t pit, int count) {
@@ -517,13 +432,11 @@ static void test_advertising_pdus(void) {
     CHECK_EQ_INT(bridge_get_u16(rsp + 20), APP_BLE_COMPANY_ID);
     CHECK(rsp_len <= APP_BLE_ADV_MAX);
 
-    /* The BLE name is the AP SSID: one helper, so they cannot disagree. */
+    /* The BLE name is MAC-derived: "SmokeBridge-XXXX". */
     const uint8_t mac[6] = {0x24, 0x6F, 0x28, 0x11, 0xA4, 0xF2};
     char ble_name[APP_BLE_NAME_MAX];
-    char ap_ssid[APP_NET_SSID_MAX];
     app_ble_local_name(mac, ble_name);
-    app_net_ap_ssid(mac, ap_ssid);
-    CHECK(strcmp(ble_name, ap_ssid) == 0);
+    CHECK(strcmp(ble_name, "SmokeBridge-A4F2") == 0);
 }
 
 static void test_status_blob_matrix(void) {
@@ -671,194 +584,32 @@ static void test_result_frames_chunk_too(void) {
     CHECK_EQ_INT(g_notifs[0].len, 68);
 }
 
-/* ── F10.6: wifi_config ───────────────────────────────────────────── */
-
-static size_t pack_wifi_config(uint8_t *out, uint8_t mode, const char *ssid,
-                               const char *psk) {
-    bridge_wifi_config_t c;
-    memset(&c, 0, sizeof c);
-    c.ver = 1;
-    c.mode = mode;
-    c.auth = 3;
-    if (ssid != NULL) {
-        c.ssid_len = (uint8_t)strlen(ssid);
-        memcpy(c.ssid, ssid, c.ssid_len);
-    }
-    if (psk != NULL) {
-        c.psk_len = (uint8_t)strlen(psk);
-        memcpy(c.psk, psk, c.psk_len);
-    }
-    return (size_t)bridge_wifi_config_pack(&c, out, BRIDGE_WIFI_CONFIG_MAX_SIZE);
-}
-
-static void test_wifi_config_accept_then_apply(void) {
-    reset_all();
-    uint8_t buf[BRIDGE_WIFI_CONFIG_MAX_SIZE];
-    const size_t len =
-        pack_wifi_config(buf, BRIDGE_NET_MODE_STA, "Backyard", "hunter2boo");
-    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, buf,
-                                    len),
-                 APP_BLE_OK);
-
-    /* THE ordering that makes a wrong password recoverable from a lawn
-     * chair: the result frame is pushed BEFORE the apply is requested. */
-    CHECK_EQ_INT(g_apply_calls, 1);
-    CHECK(g_notif_count >= 1);
-    CHECK_EQ_INT(g_notifs[0].ch, APP_BLE_CH_RESULT);
-
-    bridge_result_t r;
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
-    CHECK_EQ_INT(r.op_echo, 0); /* wifi_config answers with op_echo 0 */
-    CHECK_EQ_INT(r.len, 0);     /* no PSK on an STA change */
-
-    /* The wire enum (sta=2) becomes the stored enum (sta=1). */
-    CHECK_EQ_INT(g_applied.mode, APP_CONFIG_NET_MODE_STA);
-    CHECK(strcmp(g_applied.sta_ssid, "Backyard") == 0);
-    CHECK(strcmp(g_applied.sta_psk, "hunter2boo") == 0);
-
-    /* A superseding config wins: F8.4 owns the window, we just hand it
-     * the newer one, and the newer one is what the core last passed on. */
-    const size_t len2 =
-        pack_wifi_config(buf, BRIDGE_NET_MODE_STA, "Garage", "second-pw");
-    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, buf,
-                                    len2),
-                 APP_BLE_OK);
-    CHECK_EQ_INT(g_apply_calls, 2);
-    CHECK(strcmp(g_applied.sta_ssid, "Garage") == 0);
-}
-
-static void test_wifi_config_ap_carries_the_psk(void) {
-    reset_all();
-    /* app_config generates the AP PSK on first init (F7.3). */
-    char psk[APP_CONFIG_PSK_LEN + 1] = "";
-    CHECK_EQ_INT(app_config_store_get_str(APP_CONFIG_NET_AP_PSK, psk,
-                                          sizeof psk),
-                 APP_CONFIG_OK);
-    CHECK(psk[0] != '\0');
-
-    uint8_t buf[BRIDGE_WIFI_CONFIG_MAX_SIZE];
-    const size_t len = pack_wifi_config(buf, BRIDGE_NET_MODE_AP, NULL, NULL);
-    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, buf,
-                                    len),
-                 APP_BLE_OK);
-    bridge_result_t r;
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
-    /* The phone needs it to join (§5.9, 05 §5.7). */
-    CHECK_EQ_INT(r.len, (int)strlen(psk));
-    CHECK(memcmp(r.detail, psk, r.len) == 0);
-    CHECK_EQ_INT(g_applied.mode, APP_CONFIG_NET_MODE_AP);
-}
-
-static void test_no_path_emits_a_stored_sta_psk(void) {
-    /* F9.7's discipline, on the GATT surface: store a distinctive STA
-     * credential, then exercise every readable/notifiable characteristic
-     * and every write answer, and assert those bytes appear nowhere.
-     *
-     * The static half is a grep over the component sources for the config
-     * key itself — the only way to read the stored PSK back. */
-    reset_all();
-    static const char kSecret[] = "SuperSecretPassword123";
-    CHECK_EQ_INT(app_config_store_set_str(APP_CONFIG_NET_STA_PSK, kSecret),
-                 APP_CONFIG_OK);
-    seed_ring(2431, 40);
-    snprintf(g_net.ssid, sizeof g_net.ssid, "Backyard");
-    snprintf(g_net.host, sizeof g_net.host, "smokebridge");
-    g_net.mode = BRIDGE_NET_MODE_STA;
-    g_net.state = BRIDGE_NET_STATE_UP;
-
-    uint8_t out[512];
-    for (int ch = 0; ch < APP_BLE_CH_COUNT; ch++) {
-        const int len = app_ble_core_read((app_ble_char_t)ch, out, sizeof out);
-        if (len <= 0) {
-            continue;
-        }
-        for (int i = 0; i + (int)strlen(kSecret) <= len; i++) {
-            CHECK(memcmp(out + i, kSecret, strlen(kSecret)) != 0);
-        }
-    }
-
-    /* And through every notification the write paths produce. */
-    g_notif_count = 0;
-    uint8_t cfg[BRIDGE_WIFI_CONFIG_MAX_SIZE];
-    size_t len = pack_wifi_config(cfg, BRIDGE_NET_MODE_AP, NULL, NULL);
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len);
-    len = pack_wifi_config(cfg, BRIDGE_NET_MODE_STA, "Other", "another-pw");
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len);
-    app_ble_notify_net_status();
-    app_ble_notify_live_state();
-    for (int n = 0; n < g_notif_count; n++) {
-        for (int i = 0;
-             i + (int)strlen(kSecret) <= (int)g_notifs[n].len; i++) {
-            CHECK(memcmp(g_notifs[n].buf + i, kSecret, strlen(kSecret)) != 0);
-        }
-    }
-}
-
-static void test_net_status_notifies_once_per_transition(void) {
-    reset_all();
-    g_net.mode = BRIDGE_NET_MODE_STA;
-    g_net.state = BRIDGE_NET_STATE_CONNECTING;
-    g_notif_count = 0;
-    CHECK_EQ_INT(app_ble_notify_net_status(), APP_BLE_OK);
-    CHECK_EQ_INT(count_of(APP_BLE_CH_NET_STATUS), 1);
-
-    /* connecting → up → failed: each transition is exactly one correctly
-     * packed notification. A missed one strands the wizard (§5.7). */
-    g_net.state = BRIDGE_NET_STATE_UP;
-    g_net.ip[0] = 192;
-    g_net.ip[3] = 42;
-    app_ble_notify_net_status();
-    g_net.state = BRIDGE_NET_STATE_FAILED;
-    app_ble_notify_net_status();
-    CHECK_EQ_INT(count_of(APP_BLE_CH_NET_STATUS), 3);
-
-    const notif_t *last = last_of(APP_BLE_CH_NET_STATUS);
-    CHECK(last != NULL);
-    bridge_net_status_t s;
-    CHECK(bridge_net_status_unpack(last->buf, last->len, &s) == (int)last->len);
-    CHECK_EQ_INT(s.state, BRIDGE_NET_STATE_FAILED);
-    CHECK_EQ_INT(s.mode, BRIDGE_NET_MODE_STA);
-}
-
 /* ── F10.5 / security: refusal happens before the handler ─────────── */
 
 static void test_unauthenticated_write_is_refused(void) {
     reset_all();
-    uint8_t buf[BRIDGE_WIFI_CONFIG_MAX_SIZE];
-    const size_t len =
-        pack_wifi_config(buf, BRIDGE_NET_MODE_STA, "Backyard", "pw");
+    bridge_result_t r;
+    const uint8_t reboot[2] = {1, BRIDGE_CONTROL_OP_REBOOT};
 
     /* Encrypted but NOT authenticated: refused at the security layer. */
     CHECK_EQ_INT(
-        app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_encrypted, buf, len),
+        app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_encrypted, reboot, 2),
         APP_BLE_OK);
-    bridge_result_t r;
     CHECK(last_result(&r));
     CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
-    /* The handler never ran: no apply was requested. */
-    CHECK_EQ_INT(g_apply_calls, 0);
+    /* The handler never ran: no reboot was requested. */
+    CHECK_EQ_INT(g_reboot_calls, 0);
 
-    /* Same for device_control, and for an unencrypted link. */
+    /* And an unencrypted link. */
     reset_all();
-    const uint8_t reboot[2] = {1, BRIDGE_CONTROL_OP_REBOOT};
-    app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_encrypted, reboot, 2);
+    app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_open, reboot, 2);
     CHECK(last_result(&r));
     CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
     CHECK_EQ_INT(g_reboot_calls, 0);
 
-    reset_all();
-    const uint8_t scan[2] = {1, BRIDGE_SCAN_CMD_START};
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_open, scan, 2);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
-    CHECK_EQ_INT(g_scan_starts, 0);
-
     /* Writing a read-only characteristic is refused outright. */
-    CHECK_EQ_INT(
-        app_ble_core_write(APP_BLE_CH_LIVE_STATE, &k_authed, scan, 2),
-        APP_BLE_ERR_INVALID);
+    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_LIVE_STATE, &k_authed, reboot, 2),
+                 APP_BLE_ERR_INVALID);
 }
 
 static void test_malformed_writes_answer_invalid(void) {
@@ -898,269 +649,7 @@ static void test_malformed_writes_answer_invalid(void) {
     CHECK(last_result(&r));
     CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
     CHECK_EQ_INT(r.op_echo, 200);
-    CHECK_EQ_INT(g_reboot_calls + g_factory_calls + g_apply_calls, 0);
-
-    /* Malformed wifi_config: invalid, and nothing is applied. */
-    reset_all();
-    const uint8_t short_cfg[3] = {1, BRIDGE_NET_MODE_STA, 3};
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, short_cfg, 3);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
-    CHECK_EQ_INT(g_apply_calls, 0);
-
-    /* A mode of `off` is not something a phone may ask for. */
-    reset_all();
-    uint8_t cfg[BRIDGE_WIFI_CONFIG_MAX_SIZE];
-    const size_t len = pack_wifi_config(cfg, BRIDGE_NET_MODE_OFF, NULL, NULL);
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
-    CHECK_EQ_INT(g_apply_calls, 0);
-
-    /* STA without an SSID is refused rather than silently hosting. */
-    reset_all();
-    const size_t len2 = pack_wifi_config(cfg, BRIDGE_NET_MODE_STA, NULL, "pw");
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len2);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
-    CHECK_EQ_INT(g_apply_calls, 0);
-}
-
-/* F17 / §13.8.3 — every wifi_config rejection must carry the SAME `op_echo`
- * the accepted config does, so the app's single correlator on `result`
- * (`firstWhere((r) => r.opEcho == …)`, ble_transport.dart:541) hears the
- * rejection instead of falling to the 10 s timeout — the exact crash path
- * §13.2.3 exists to close. The echo is captured from the accepted path and
- * every refusal is checked against it, so a future change that moves the
- * accepted echo off OP_ECHO_NONE without updating a rejection site (the
- * footgun §13.8.3 names) fails here rather than in a user's lawn chair.
- *
- * Giving wifi_config an echo DISTINCT from wifi_scan_ctrl — the other half
- * of the collision — is the protocol's job (a control_op pseudo-op in
- * records.yaml, §13.8.3) and is out of this component's reach; what is
- * provable on the host is that no rejection path drops the correlator. */
-static void test_wifi_config_rejections_carry_a_correlatable_echo(void) {
-    reset_all();
-    uint8_t cfg[BRIDGE_WIFI_CONFIG_MAX_SIZE];
-    bridge_result_t r;
-
-    /* The correlator the app will be waiting on: whatever the ACCEPTED
-     * config answers with. */
-    size_t len = pack_wifi_config(cfg, BRIDGE_NET_MODE_AP, NULL, NULL);
-    CHECK_EQ_INT(
-        app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len),
-        APP_BLE_OK);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
-    const uint8_t echo = r.op_echo;
-
-    /* 1 — a frame too short to decode (the handler's "malformed" path). */
-    const uint8_t malformed[3] = {1, BRIDGE_NET_MODE_STA, 3};
-    g_notif_count = 0;
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, malformed,
-                       sizeof malformed);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
-    CHECK_EQ_INT(r.op_echo, echo);
-
-    /* 2 — a well-formed frame with an unusable mode (`off`). */
-    len = pack_wifi_config(cfg, BRIDGE_NET_MODE_OFF, NULL, NULL);
-    g_notif_count = 0;
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
-    CHECK_EQ_INT(r.op_echo, echo);
-
-    /* 3 — STA with no SSID. */
-    len = pack_wifi_config(cfg, BRIDGE_NET_MODE_STA, NULL, "pw");
-    g_notif_count = 0;
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_authed, cfg, len);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
-    CHECK_EQ_INT(r.op_echo, echo);
-
-    /* And the link-level refusal in front of the handler shares it too, so
-     * an unauthenticated wifi_config is heard rather than timed out. */
-    len = pack_wifi_config(cfg, BRIDGE_NET_MODE_STA, "Backyard", "hunter2boo");
-    g_notif_count = 0;
-    app_ble_core_write(APP_BLE_CH_WIFI_CONFIG, &k_encrypted, cfg, len);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
-    CHECK_EQ_INT(r.op_echo, echo);
-}
-
-/* ── F10.7: the scan flow ─────────────────────────────────────────── */
-
-static void make_scan(app_ble_scan_ap_t *aps, int n) {
-    for (int i = 0; i < n; i++) {
-        memset(&aps[i], 0, sizeof aps[i]);
-        snprintf(aps[i].ssid, sizeof aps[i].ssid, "AP-%02d", i);
-        aps[i].rssi = (int8_t)(-40 - i);
-        aps[i].auth = 3;
-        aps[i].channel = (uint8_t)(1 + (i % 11));
-    }
-}
-
-static void test_scan_streams_indexed_results(void) {
-    reset_all();
-    const uint8_t start[2] = {1, BRIDGE_SCAN_CMD_START};
-    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted,
-                                    start, 2),
-                 APP_BLE_OK);
-    CHECK_EQ_INT(g_scan_starts, 1);
-    CHECK(app_ble_scan_active());
-    bridge_result_t r;
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
-
-    app_ble_scan_ap_t aps[12];
-    make_scan(aps, 12);
-    g_notif_count = 0;
-    app_ble_scan_deliver(aps, 12);
-    CHECK_EQ_INT(count_of(APP_BLE_CH_WIFI_SCAN_RESULT), 12);
-    for (int i = 0; i < 12; i++) {
-        bridge_wifi_scan_result_t w;
-        CHECK(bridge_wifi_scan_result_unpack(g_notifs[i].buf, g_notifs[i].len,
-                                             &w) == (int)g_notifs[i].len);
-        CHECK_EQ_INT(w.index, i);
-        CHECK_EQ_INT(w.total, 12); /* completion is implicit in index/total */
-        CHECK_EQ_INT(w.rssi, -40 - i);
-        CHECK_EQ_INT(w.channel, 1 + (i % 11));
-        char ssid[33];
-        memcpy(ssid, w.ssid, w.ssid_len);
-        ssid[w.ssid_len] = '\0';
-        char want[16];
-        snprintf(want, sizeof want, "AP-%02d", i);
-        CHECK(strcmp(ssid, want) == 0);
-    }
-    /* Delivery ends the scan; a second delivery emits nothing. */
-    CHECK(!app_ble_scan_active());
-    g_notif_count = 0;
-    app_ble_scan_deliver(aps, 12);
-    CHECK_EQ_INT(g_notif_count, 0);
-}
-
-static void test_scan_busy_does_not_disturb_the_running_scan(void) {
-    reset_all();
-    const uint8_t start[2] = {1, BRIDGE_SCAN_CMD_START};
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
-
-    bridge_result_t r;
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_BUSY);
-    CHECK_EQ_INT(r.op_echo, 0);
-    /* The running scan is untouched: no second start, no cancel. */
-    CHECK_EQ_INT(g_scan_starts, 1);
-    CHECK_EQ_INT(g_scan_cancels, 0);
-    CHECK(app_ble_scan_active());
-
-    /* And its results still arrive. */
-    app_ble_scan_ap_t aps[3];
-    make_scan(aps, 3);
-    g_notif_count = 0;
-    app_ble_scan_deliver(aps, 3);
-    CHECK_EQ_INT(count_of(APP_BLE_CH_WIFI_SCAN_RESULT), 3);
-}
-
-static void test_scan_cancel_stops_the_stream(void) {
-    /* Cancel before results: nothing is emitted at all. */
-    reset_all();
-    const uint8_t start[2] = {1, BRIDGE_SCAN_CMD_START};
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
-    cancel_scan_now();
-    CHECK_EQ_INT(g_scan_cancels, 1);
-    CHECK(!app_ble_scan_active());
-    app_ble_scan_ap_t aps[12];
-    make_scan(aps, 12);
-    g_notif_count = 0;
-    app_ble_scan_deliver(aps, 12);
-    CHECK_EQ_INT(count_of(APP_BLE_CH_WIFI_SCAN_RESULT), 0);
-
-    /* Cancel MID-stream: the notifications already sent stand, the rest
-     * are not. The fake fires the cancel from inside notify(). */
-    reset_all();
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
-    g_notif_count = 0;
-    g_cancel_after_notif = 5;
-    app_ble_scan_deliver(aps, 12);
-    CHECK_EQ_INT(count_of(APP_BLE_CH_WIFI_SCAN_RESULT), 5);
-    CHECK(!app_ble_scan_active());
-}
-
-static void test_scan_edge_cases(void) {
-    /* An empty scan (total 0) completes rather than hanging the wizard. */
-    reset_all();
-    const uint8_t start[2] = {1, BRIDGE_SCAN_CMD_START};
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
-    g_notif_count = 0;
-    app_ble_scan_deliver(NULL, 0);
-    CHECK_EQ_INT(count_of(APP_BLE_CH_WIFI_SCAN_RESULT), 0);
-    CHECK(!app_ble_scan_active());
-
-    /* A start that the radio refuses answers failed, and leaves no
-     * phantom scan behind for the next start to trip over. */
-    reset_all();
-    g_scan_start_rc = APP_BLE_ERR_FAILED;
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
-    bridge_result_t r;
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_FAILED);
-    CHECK(!app_ble_scan_active());
-
-    /* A nonsense cmd is invalid, not a silent start. */
-    reset_all();
-    const uint8_t bad[2] = {1, 42};
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, bad, 2);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
-    CHECK_EQ_INT(g_scan_starts, 0);
-
-    /* Cancelling when nothing is running is harmless and answers ok. */
-    reset_all();
-    cancel_scan_now();
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
-}
-
-/* F17 / §13.2.1 — `s_scanning` is cleared on a start-failure, a cancel, and
- * a completed delivery, but NOT on a BLE disconnect: that edge lives in
- * app_ble.c, which drops PUSH_SCAN_RESULTS while the link is down. Pocket
- * the phone mid-scan and the latch survives, so every reconnect's first
- * wifi_scan answers BUSY until reboot. app_ble_ctrl_reset() is the
- * host-testable half of the fix — it clears the latch so the next START is
- * accepted again. The wiring (one call from the disconnect handler) is
- * app_ble.c's and is documented in the F17 report, not edited here. */
-static void test_ctrl_reset_restores_the_accept_scan_state(void) {
-    reset_all();
-    const uint8_t start[2] = {1, BRIDGE_SCAN_CMD_START};
-    bridge_result_t r;
-
-    /* A scan is running; a second START is correctly refused as busy. */
-    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted,
-                                    start, 2),
-                 APP_BLE_OK);
-    CHECK(app_ble_scan_active());
-    app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted, start, 2);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_BUSY);
-
-    /* The disconnect a phone never announces over the wire: without the
-     * reset, this latch strands every future scan at BUSY. */
-    app_ble_ctrl_reset();
-    CHECK(!app_ble_scan_active());
-
-    /* A fresh START is accepted again — it reaches the radio and answers
-     * ok, not busy. */
-    const int starts_before = g_scan_starts;
-    g_notif_count = 0;
-    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_WIFI_SCAN_CTRL, &k_encrypted,
-                                    start, 2),
-                 APP_BLE_OK);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
-    CHECK_EQ_INT(g_scan_starts, starts_before + 1);
-    CHECK(app_ble_scan_active());
+    CHECK_EQ_INT(g_reboot_calls + g_factory_calls, 0);
 }
 
 /* ── F10.8: device_control ────────────────────────────────────────── */
@@ -1467,7 +956,7 @@ static void test_bond_cycle(void) {
     app_ble_set_bond_count(1);
     CHECK(!app_ble_passkey_active());
     CHECK(app_ble_access_allowed(APP_BLE_CH_LIVE_STATE, &k_authed));
-    CHECK(app_ble_access_allowed(APP_BLE_CH_WIFI_CONFIG, &k_authed));
+    CHECK(app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, &k_authed));
 
     /* 4. Reconnect: encrypted from the stored LTK, no new passkey. */
     CHECK(!app_ble_passkey_active());
@@ -1536,54 +1025,6 @@ static void test_passkey_reaches_the_renderer(void) {
     /* And bonding ending takes it off the glass. */
     app_ble_passkey_clear();
     CHECK(!app_ble_passkey_active());
-}
-
-/* F13.8 — live_state.alarm_active was a hardcoded `false` from F10 until
- * M5, and op 11 parsed an id it then threw away. Both are wired now, and
- * this is the test that says so in the one place a phone can observe it. */
-static void test_live_state_alarm_active_follows_the_engine(void) {
-    reset_all();
-    /* Probe 2 is a food probe about to pass its target. */
-    CHECK_EQ_INT(app_config_store_set_u8(APP_CONFIG_PROBE2_ROLE,
-                                         APP_CONFIG_ROLE_FOOD),
-                 APP_CONFIG_OK);
-    CHECK_EQ_INT(app_config_store_set_i32(APP_CONFIG_PROBE2_TARGET, 2030),
-                 APP_CONFIG_OK);
-
-    uint8_t buf[BRIDGE_LIVE_STATE_SIZE];
-    CHECK_EQ_INT(app_ble_build_live_state(buf, sizeof buf),
-                 BRIDGE_LIVE_STATE_SIZE);
-    bridge_live_state_t st;
-    bridge_live_state_decode(buf, &st);
-    CHECK_EQ_INT((st.flags & BRIDGE_LIVE_STATE_FLAGS_ALARM_ACTIVE) != 0, 0);
-
-    cook_ring_sample_t rs = {.t = 30, .rssi = -70};
-    rs.temp[0] = 2430;
-    rs.temp[1] = 2041;
-    rs.temp[2] = INT16_MIN;
-    rs.temp[3] = INT16_MIN;
-    cook_ring_push(&rs);
-    app_alarm_svc_on_sample(30);
-
-    CHECK_EQ_INT(app_ble_build_live_state(buf, sizeof buf),
-                 BRIDGE_LIVE_STATE_SIZE);
-    bridge_live_state_decode(buf, &st);
-    CHECK_EQ_INT((st.flags & BRIDGE_LIVE_STATE_FLAGS_ALARM_ACTIVE) != 0, 1);
-
-    /* The phone acks over op 11 — the real dispatch path, not the
-     * service call — and the flag drops while the alarm REMAINS latched
-     * in the list. Acknowledging silences; it does not resolve. */
-    const app_alarm_slot_t *list[APP_ALARM_MAX_ACTIVE];
-    CHECK_EQ_INT(app_alarm_svc_list(list, APP_ALARM_MAX_ACTIVE), 1);
-    const uint8_t id = list[0]->id;
-    CHECK_EQ_INT(status_after(BRIDGE_CONTROL_OP_ACK_ALARM, &id, 1),
-                 BRIDGE_RESULT_STATUS_OK);
-    CHECK_EQ_INT(app_ble_build_live_state(buf, sizeof buf),
-                 BRIDGE_LIVE_STATE_SIZE);
-    bridge_live_state_decode(buf, &st);
-    CHECK_EQ_INT((st.flags & BRIDGE_LIVE_STATE_FLAGS_ALARM_ACTIVE) != 0, 0);
-    CHECK_EQ_INT(app_alarm_svc_list(list, APP_ALARM_MAX_ACTIVE), 1);
-    CHECK_EQ_INT(list[0]->state, APP_ALARM_SLOT_ACKED);
 }
 
 /* F12.5 — soc_pct and the caps bit that makes it readable. P3.2 chose
@@ -1983,7 +1424,6 @@ int main(void) {
     test_uuid_is_little_endian_on_air();
     test_security_table();
     test_device_info_matches_fixture();
-    test_net_status_matches_fixture();
     test_live_state_sentinels_survive();
     test_history_preview();
     test_advertising_pdus();
@@ -1992,22 +1432,11 @@ int main(void) {
     test_mtu_negotiation_bounds();
     test_chunker_at_both_mtus();
     test_result_frames_chunk_too();
-    test_wifi_config_accept_then_apply();
-    test_wifi_config_ap_carries_the_psk();
-    test_no_path_emits_a_stored_sta_psk();
-    test_net_status_notifies_once_per_transition();
     test_unauthenticated_write_is_refused();
     test_malformed_writes_answer_invalid();
-    test_wifi_config_rejections_carry_a_correlatable_echo();
-    test_scan_streams_indexed_results();
-    test_scan_busy_does_not_disturb_the_running_scan();
-    test_scan_cancel_stops_the_stream();
-    test_scan_edge_cases();
-    test_ctrl_reset_restores_the_accept_scan_state();
     test_every_op_reaches_its_component();
     test_reboot_and_reset_answer_before_they_act();
     test_set_battery_saver_takes_the_tri_state();
-    test_live_state_alarm_active_follows_the_engine();
     test_soc_and_the_battery_capability_bit();
     test_cook_clock_ops();
     test_set_time_backpatches_an_open_session();

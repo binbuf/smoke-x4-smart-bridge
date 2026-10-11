@@ -74,9 +74,12 @@ class _ProbeList extends StatelessWidget {
   Widget build(BuildContext context) {
     final snapshot = controller.latestLive;
     final freshness = controller.freshness;
+    // Only the jacks this bridge actually has: a 2-probe device rendering two
+    // extra "unplugged" rows would read as a fault, not as "not present".
+    final jacks = ProbeJack.values.take(controller.probeCount).toList();
     return Column(
       children: [
-        for (final jack in ProbeJack.values) ...[
+        for (final jack in jacks) ...[
           ProbeCard(
             jack: jack,
             f10: snapshot?.tempAt(jack.n - 1),
@@ -84,8 +87,7 @@ class _ProbeList extends StatelessWidget {
             freshness: freshness,
             hasReading: snapshot != null,
           ),
-          if (jack != ProbeJack.values.last)
-            const SizedBox(height: SmokeSpace.sm),
+          if (jack != jacks.last) const SizedBox(height: SmokeSpace.sm),
         ],
       ],
     );

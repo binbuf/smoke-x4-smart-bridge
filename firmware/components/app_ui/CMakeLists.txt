@@ -4,7 +4,7 @@ idf_component_register(
          "app_ui_cook.c"
     INCLUDE_DIRS "include" "../../../protocol/gen"
     REQUIRES bridge_event
-    PRIV_REQUIRES app_alarm app_config app_net app_power cook_store smoke_x
+    PRIV_REQUIRES app_config app_power cook_store smoke_x
                   esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_timer
                   esp_app_format esp_system
 )

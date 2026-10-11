@@ -1,9 +1,12 @@
 /* main.c — app_main: boot sequence, wiring, nothing else (design 03 §3.1).
  *
- * M0 skeleton: every subsystem behind the boot sequence is a stub that logs
- * and succeeds. The two properties that must be real from the start already
- * are: LoRa-before-network ordering lives in boot_seq's step table, and the
- * double-reset token is armed/consumed against RTC SRAM below.
+ * BLE-ONLY SLIM BUILD. The network/HTTP/OTA/MQTT/alarm subsystems of the full
+ * bridge are gone; what remains is the part that is the product: receive the
+ * Smoke X4 over LoRa, record it to flash, draw it on the OLED, and serve it
+ * over Bluetooth. The two properties kept from the full boot are structural:
+ * LoRa-before-BLE ordering lives in boot_seq's step table, and the
+ * double-reset token is armed/consumed against RTC SRAM below — now used to
+ * enter the on-device recovery (factory reset) flow rather than Wi-Fi AP mode.
  */
 #include <inttypes.h>
 #include <string.h>
@@ -11,20 +14,15 @@
 #include "esp_attr.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
-#include "app_alarm.h"
-#include "app_mqtt.h"
-#include "app_api.h"
 #include "app_ble.h"
 #include "app_config.h"
-#include "app_net.h"
-#include "app_ota.h"
 #include "app_power.h"
-#include "app_ui.h"
 #include "app_time.h"
-#include "bench.h"
+#include "app_ui.h"
 #include "boot_seq.h"
 #include "cook_store.h"
 #include "double_reset.h"
@@ -37,7 +35,7 @@ static const char *TAG = "smoke_bridge";
 static RTC_NOINIT_ATTR bridge_drt_token_t s_drt_token;
 
 typedef struct {
-    bool force_ap; /* double reset or PRG recovery window */
+    bool recovery; /* double reset: open the factory-reset flow this boot */
 } boot_ctx_t;
 
 static uint64_t rtc_now_ms(void) {
@@ -62,8 +60,8 @@ static int step_boot_reason(void *ctx) {
     boot_ctx_t *boot = ctx;
     const uint64_t now = rtc_now_ms();
     if (bridge_double_reset_check(&s_drt_token, now)) {
-        ESP_LOGW(TAG, "double reset detected — forcing AP mode this boot");
-        boot->force_ap = true;
+        ESP_LOGW(TAG, "double reset detected — opening recovery this boot");
+        boot->recovery = true;
     } else {
         bridge_double_reset_arm(&s_drt_token, now);
     }
@@ -109,27 +107,16 @@ static int step_time(void *ctx) {
     return app_time_init();
 }
 
-static int step_net(void *ctx) {
-    const boot_ctx_t *boot = ctx;
-    return app_net_start(boot->force_ap);
-}
-
-static int step_api(void *ctx) {
-    (void)ctx;
-    return app_api_init();
-}
-
-/* F12: early, because the OLED status strip, the saver profile and
- * app_alarm's battery_low rule all read what it publishes. Not fatal —
- * a bridge that cannot measure its pack says SOC_UNKNOWN and cooks. */
+/* F12: early, because the OLED status strip and the saver profile read what
+ * it publishes. Not fatal — a bridge that cannot measure its pack says
+ * SOC_UNKNOWN and cooks. */
 static int step_power(void *ctx) {
     (void)ctx;
     return app_power_init();
 }
 
-/* F11a: the display comes up BEFORE BLE, because the passkey is shown on
- * it — §12.6 rule 4, as an ordering in the boot table rather than a note.
- * Neither is fatal: a bridge with a dead panel or no BLE still cooks. */
+/* The display comes up BEFORE BLE, because the pairing passkey is shown on
+ * it. Neither is fatal: a bridge with a dead panel or no BLE still cooks. */
 static int step_ui(void *ctx) {
     (void)ctx;
     return app_ui_init();
@@ -140,81 +127,29 @@ static int step_ble(void *ctx) {
     return app_ble_init();
 }
 
-/* F13: last of the application steps, because every fact it reads —
- * config, radio, ring, store, power — is already up by the time it runs. */
-static int step_alarm(void *ctx) {
-    (void)ctx;
-    return app_alarm_init();
-}
-
-static int step_recovery_window(void *ctx) {
-    (void)ctx;
-    /* 3 s PRG hold on the splash — stubbed until F11 (app_ui). */
-    ESP_LOGI(TAG, "PRG recovery window: stub until F11");
-    return 0;
-}
-
-/* F14.8 — the three facts the gate cannot read for itself. main is the
- * only place that knows every subsystem came up. */
-
-static bool gate_storage_mounted(void) {
-    /* 03 §3.7 says "both partitions"; taken literally that can NEVER
-     * pass, because D13 declares `www` and leaves it unformatted on
-     * purpose. The clause is `cooks` — the partition the product needs,
-     * and the one whose absence means the bridge stopped recording. */
-    uint32_t total = 0, used = 0;
-    return cook_store_fs_info(&total, &used) == 0 && total > 0;
-}
-
-static bool gate_net_settled(void) {
-    app_net_status_t st;
-    app_net_get_status(&st);
-    if (strcmp(st.mode, "ap") == 0) {
-        return strcmp(st.state, "up") == 0 ||
-               strcmp(st.state, "fallback") == 0;
-    }
-    return strcmp(st.state, "up") == 0 && st.ip[0] != '\0';
-}
-
-static int step_ota_health_gate(void *ctx) {
-    (void)ctx;
-    /* ARMS the gate and returns: the verdict lands up to 120 s later on
-     * an esp_timer, and blocking the boot for two minutes to find out
-     * would be its own reliability problem. */
-    static const app_ota_gate_hooks_t hooks = {
-        .storage_mounted = gate_storage_mounted,
-        .net_settled = gate_net_settled,
-        .httpd_listening = app_api_is_listening,
-    };
-    return app_ota_init(&hooks);
-}
-
-static int step_mqtt(void *ctx) {
-    (void)ctx;
-    /* MQTT / Home Assistant (05 §5.7). Non-fatal and opt-in: it no-ops until
-     * enabled with a broker and STA is up, and adds no application task
-     * (esp-mqtt owns its own). Last so the uplink and API are already up. */
-    return app_mqtt_init();
-}
-
 static void disarm_timer_cb(void *arg) {
     (void)arg;
     bridge_double_reset_disarm(&s_drt_token);
     ESP_LOGD(TAG, "double-reset token disarmed");
 }
 
+/* The confirmed recovery: wipe every store, then reboot. Registered with
+ * app_ui so the UI never depends on the components that own the stores. */
+static void recovery_commit(void) {
+    ESP_LOGW(TAG, "factory reset: wiping bonds, config and recorded cooks");
+    (void)app_ble_forget_bonds();
+    (void)cook_store_wipe_all();
+    (void)app_config_store_factory_reset();
+    esp_restart(); /* does not return */
+}
+
 void app_main(void) {
-#if CONFIG_SMOKEBRIDGE_BENCH_MODE
-    /* The V1.3/V1.4 bench instrument replaces the app entirely. */
-    bench_run();
-    return;
-#endif
     /* Soft power (07 §7.4): if this boot is a wake from a PRG-hold deep
      * sleep, confirm a sustained hold here — before any subsystem starts —
      * or go straight back to sleep. Returns immediately on a normal boot. */
     app_power_wake_gate();
 
-    ESP_LOGI(TAG, "Smoke X4 Smart Bridge — M0 skeleton");
+    ESP_LOGI(TAG, "Smoke X4 Smart Bridge — BLE-only slim build");
     ESP_LOGI(TAG, "task stack budget: %d B declared across %u tasks",
              (int)BRIDGE_TASK_STACK_TOTAL, (unsigned)BRIDGE_TASK_COUNT);
 
@@ -228,17 +163,11 @@ void app_main(void) {
                 [BRIDGE_BOOT_EVENT_LOOP - 1] = step_event_loop,
                 [BRIDGE_BOOT_POWER - 1] = step_power,
                 [BRIDGE_BOOT_UI - 1] = step_ui,
-                [BRIDGE_BOOT_RECOVERY_WINDOW - 1] = step_recovery_window,
                 [BRIDGE_BOOT_COOK_STORE - 1] = step_cook_store,
                 [BRIDGE_BOOT_SMOKE_X_INIT - 1] = step_smoke_x_init,
                 [BRIDGE_BOOT_SMOKE_X_START - 1] = step_smoke_x_start,
                 [BRIDGE_BOOT_TIME - 1] = step_time,
-                [BRIDGE_BOOT_NET - 1] = step_net,
-                [BRIDGE_BOOT_API - 1] = step_api,
                 [BRIDGE_BOOT_BLE - 1] = step_ble,
-                [BRIDGE_BOOT_ALARM - 1] = step_alarm,
-                [BRIDGE_BOOT_OTA_HEALTH_GATE - 1] = step_ota_health_gate,
-                [BRIDGE_BOOT_MQTT - 1] = step_mqtt,
             },
     };
 
@@ -254,8 +183,14 @@ void app_main(void) {
                      bridge_boot_step_name(step));
         }
     }
-    if (boot.force_ap) {
-        ESP_LOGW(TAG, "network override: AP mode for this boot only");
+
+    /* The UI owns the button and the panel, so it owns the reset flow; main
+     * supplies what the commit does. Register before any recovery can open. */
+    app_ui_set_recovery_hook(recovery_commit);
+
+    /* If this boot came from a double reset, open the flow now. */
+    if (boot.recovery) {
+        app_ui_request_recovery();
     }
 
     /* Clear the double-reset token once the boot has been stable ~10 s. */

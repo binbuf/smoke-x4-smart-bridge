@@ -1,8 +1,8 @@
-/* test_boot_seq.c — the 03 §3.4 boot skeleton (F1.5).
+/* test_boot_seq.c — the boot skeleton of the BLE-only slim build (F1.5).
  *
- * The named done-when cases: a stub failing at step 12 still leaves a booted
- * device with steps 1–11 complete, and the double-reset token round-trips
- * across a reset but not a power cycle.
+ * The named done-when cases: a stub failing at a non-fatal step still leaves
+ * a booted device, and the double-reset token round-trips across a reset but
+ * not a power cycle.
  */
 #include "boot_seq.h"
 #include "double_reset.h"
@@ -17,8 +17,6 @@ typedef struct {
 } fake_t;
 
 static fake_t g_fake;
-
-static int fake_step_1(void *ctx);
 
 #define FAKE_STEP(n)                             \
     static int fake_step_##n(void *ctx) {        \
@@ -38,12 +36,6 @@ FAKE_STEP(8)
 FAKE_STEP(9)
 FAKE_STEP(10)
 FAKE_STEP(11)
-FAKE_STEP(12)
-FAKE_STEP(13)
-FAKE_STEP(14)
-FAKE_STEP(15)
-FAKE_STEP(16)
-FAKE_STEP(17)
 
 static bridge_boot_ops_t fake_ops(void) {
     bridge_boot_ops_t ops = {
@@ -60,12 +52,6 @@ static bridge_boot_ops_t fake_ops(void) {
                 fake_step_9,
                 fake_step_10,
                 fake_step_11,
-                fake_step_12,
-                fake_step_13,
-                fake_step_14,
-                fake_step_15,
-                fake_step_16,
-                fake_step_17,
             },
     };
     return ops;
@@ -81,25 +67,24 @@ static void test_clean_boot(void) {
     const bridge_boot_ops_t ops = fake_ops();
     bridge_boot_result_t res;
     CHECK(bridge_boot_run(&ops, NULL, &res));
-    CHECK_EQ_INT(res.steps_completed, 17);
+    CHECK_EQ_INT(res.steps_completed, BRIDGE_BOOT_STEP_COUNT);
     CHECK_EQ_INT(res.failed_mask, 0);
     CHECK_EQ_INT(res.fatal_step, 0);
-    CHECK_EQ_INT(g_fake.n_calls, 17);
+    CHECK_EQ_INT(g_fake.n_calls, BRIDGE_BOOT_STEP_COUNT);
 }
 
-static void test_step12_failure_still_boots(void) {
-    /* The named case: app_net_start (step 12) errors; the device is still
-     * booted with steps 1–11 complete, and later steps still run — every
-     * step after cook_store is individually failure-tolerant. */
-    reset_fake(BRIDGE_BOOT_NET);
+static void test_nonfatal_failure_still_boots(void) {
+    /* BLE (step 11) errors; the device is still booted with the earlier
+     * steps complete. Every step after cook_store is failure-tolerant, and
+     * BLE is the last one — a bridge with no BLE still records the cook. */
+    reset_fake(BRIDGE_BOOT_BLE);
     const bridge_boot_ops_t ops = fake_ops();
     bridge_boot_result_t res;
     CHECK(bridge_boot_run(&ops, NULL, &res));
-    CHECK_EQ_INT(res.steps_completed, 11);
-    CHECK_EQ_INT(res.failed_mask, 1u << (BRIDGE_BOOT_NET - 1));
+    CHECK_EQ_INT(res.steps_completed, BRIDGE_BOOT_BLE - 1);
+    CHECK_EQ_INT(res.failed_mask, 1u << (BRIDGE_BOOT_BLE - 1));
     CHECK_EQ_INT(res.fatal_step, 0);
-    CHECK_EQ_INT(g_fake.n_calls, 17); /* 13..17 still ran */
-    CHECK_EQ_INT(g_fake.calls[16], 17);
+    CHECK_EQ_INT(g_fake.n_calls, BRIDGE_BOOT_STEP_COUNT);
 }
 
 static void test_fatal_steps_abort(void) {
@@ -118,28 +103,24 @@ static void test_fatal_steps_abort(void) {
     CHECK_EQ_INT(g_fake.n_calls, 4);
 }
 
-static void test_lora_before_network(void) {
+static void test_lora_before_ble(void) {
     /* The ordering invariant: smoke_x_start (LoRa RX) runs before
-     * app_net_start and app_ble_start. Data capture is the product. */
+     * app_ble_start. Data capture is the product, and it must not wait on a
+     * radio the phone may never reach. */
     reset_fake(0);
     const bridge_boot_ops_t ops = fake_ops();
     CHECK(bridge_boot_run(&ops, NULL, NULL));
     int idx_lora = -1;
-    int idx_net = -1;
     int idx_ble = -1;
     for (int i = 0; i < g_fake.n_calls; i++) {
         if (g_fake.calls[i] == BRIDGE_BOOT_SMOKE_X_START) {
             idx_lora = i;
         }
-        if (g_fake.calls[i] == BRIDGE_BOOT_NET) {
-            idx_net = i;
-        }
         if (g_fake.calls[i] == BRIDGE_BOOT_BLE) {
             idx_ble = i;
         }
     }
-    CHECK(idx_lora >= 0 && idx_net >= 0 && idx_ble >= 0);
-    CHECK(idx_lora < idx_net);
+    CHECK(idx_lora >= 0 && idx_ble >= 0);
     CHECK(idx_lora < idx_ble);
 }
 
@@ -147,7 +128,7 @@ static void test_null_steps_are_skipped(void) {
     const bridge_boot_ops_t ops = {0}; /* all NULL — a bare skeleton boots */
     bridge_boot_result_t res;
     CHECK(bridge_boot_run(&ops, NULL, &res));
-    CHECK_EQ_INT(res.steps_completed, 17);
+    CHECK_EQ_INT(res.steps_completed, BRIDGE_BOOT_STEP_COUNT);
 }
 
 static void test_double_reset_token(void) {
@@ -189,9 +170,9 @@ static void test_double_reset_token(void) {
 
 int main(void) {
     test_clean_boot();
-    test_step12_failure_still_boots();
+    test_nonfatal_failure_still_boots();
     test_fatal_steps_abort();
-    test_lora_before_network();
+    test_lora_before_ble();
     test_null_steps_are_skipped();
     test_double_reset_token();
     return test_summary("test_boot_seq");

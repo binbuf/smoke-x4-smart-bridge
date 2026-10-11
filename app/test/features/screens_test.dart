@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smoke_bridge/app/bridge_controller.dart';
 import 'package:smoke_bridge/app/bridge_scope.dart';
+import 'package:smoke_bridge/data/ble/ble_transport.dart';
 import 'package:smoke_bridge/data/local/app_database.dart';
 import 'package:smoke_bridge/data/local/drift_sample_cache.dart';
 import 'package:smoke_bridge/design/theme.dart';
@@ -18,6 +19,8 @@ import 'package:smoke_bridge/domain/domain.dart';
 import 'package:smoke_bridge/features/graph/graph_screen.dart';
 import 'package:smoke_bridge/features/history/history_screen.dart';
 import 'package:smoke_bridge/features/live/live_screen.dart';
+
+import '../support/fake_peripheral.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -152,6 +155,45 @@ void main() {
     // The tab's own empty state and the sheet both say "Not connected".
     expect(find.text('Not connected'), findsWidgets);
     expect(find.text('Find my bridge'), findsWidgets);
+
+    controller.dispose();
+  });
+
+  testWidgets('Live shows only the jacks the bridge actually has', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'last_bridge_device_id': 'AA:BB:CC:DD:AA:BB',
+    });
+    final fake = FakePeripheral(state: FakeBridgeState(probes: 2));
+    Future<BleTransport> open() async {
+      await fake.connect('AA:BB:CC:DD:AA:BB');
+      await fake.bond();
+      await fake.requestMtu(247);
+      final transport = BleTransport(fake);
+      await transport.start();
+      return transport;
+    }
+
+    final controller = BridgeController(cache, openTransport: open);
+    // bootstrap dials asynchronously; runAsync uses the real event loop so the
+    // link actually comes up (a fake clock would stall the radio-free fake).
+    await tester.runAsync(() async {
+      await controller.bootstrap();
+      final end = DateTime.now().add(const Duration(seconds: 3));
+      while (!controller.connected && DateTime.now().isBefore(end)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    expect(controller.connected, isTrue, reason: 'link did not come up');
+
+    await tester.pumpWidget(host(controller, const LiveScreen()));
+    await tester.pump();
+
+    expect(find.text('Probe 1'), findsOneWidget);
+    expect(find.text('Probe 2'), findsOneWidget);
+    expect(find.text('Probe 3'), findsNothing);
+    expect(find.text('Probe 4'), findsNothing);
 
     controller.dispose();
   });

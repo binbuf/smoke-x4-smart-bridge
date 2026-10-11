@@ -1,38 +1,50 @@
 /// N1.18 — holes in the recording, and why they are there.
 ///
-/// The two kinds look identical on a chart and mean opposite things:
+/// The kinds look identical on a chart and mean opposite things:
 ///
 ///  * [GapReason.connectivity] — the phone was away. The bridge still has those
 ///    readings and the next sync fills them in. *Wait and it comes back.*
+///  * [GapReason.baseLost] — the base station stopped reporting, so the bridge
+///    never recorded them. **Nobody has that data.** *Waiting will not help.*
 ///  * [GapReason.bufferRollover] — the bridge's ring wrapped past what the phone
 ///    had. **Nobody has that data any more, ever.** *Waiting will not help.*
 ///
-/// Presenting both as one dashed line would tell someone to wait for something
+/// Presenting them as one dashed line would tell someone to wait for something
 /// that is not coming.
 library;
 
 /// Why the recording has a hole.
 enum GapReason {
-  /// Recoverable — the device still holds it.
+  /// Recoverable — the device still holds it. The phone was away and has not
+  /// fetched this range yet; the bridge recorded it throughout.
   connectivity,
+
+  /// Permanent — the base station stopped reporting, so the bridge never
+  /// recorded these readings. Nothing to wait for.
+  baseLost,
 
   /// Permanent — the device overwrote it.
   bufferRollover;
 
   String get label => switch (this) {
     GapReason.connectivity => 'Not synced yet',
+    GapReason.baseLost => 'Base lost',
     GapReason.bufferRollover => 'Buffer rolled over',
   };
 
   String get explanation => switch (this) {
     GapReason.connectivity =>
       'The bridge still has these readings — they arrive on the next sync.',
+    GapReason.baseLost =>
+      'The bridge lost contact with the base station here, so these readings '
+          'were never recorded. They are gone for good.',
     GapReason.bufferRollover =>
       'The bridge recorded over these before the app could fetch them. They '
           'are gone for good.',
   };
 
-  bool get isPermanent => this == GapReason.bufferRollover;
+  bool get isPermanent =>
+      this == GapReason.baseLost || this == GapReason.bufferRollover;
 }
 
 /// A recorded hole in one session, in session-relative seconds.

@@ -129,6 +129,14 @@ class BridgeController extends ChangeNotifier {
   /// The newest session, which is the one an open cook is being appended to.
   SessionInfo? get newestSession => sessions.isEmpty ? null : sessions.first;
 
+  /// How many probe jacks this bridge actually has (2 or 4), from the identity
+  /// card. Defaults to 4 while unconnected or unidentified, so the live list is
+  /// never short a jack on first paint.
+  int get probeCount {
+    final n = identity?.probes ?? 4;
+    return n < 1 ? 1 : (n > 4 ? 4 : n);
+  }
+
   /// Whether the app has declared a cook (the device screen's clock is set).
   bool get cookRunning => _cookStartedMs != null;
 
@@ -185,7 +193,9 @@ class BridgeController extends ChangeNotifier {
   /// failure it lands in [BridgeLink.error] with a reason — never a spinner
   /// that never resolves.
   Future<void> connect() async {
-    if (link == BridgeLink.scanning || link == BridgeLink.connecting) {
+    if (link == BridgeLink.connected ||
+        link == BridgeLink.scanning ||
+        link == BridgeLink.connecting) {
       return;
     }
     problem = null;

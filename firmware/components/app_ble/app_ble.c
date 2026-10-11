@@ -33,11 +33,11 @@
 #include "app_ble_core.h"
 #include "app_ble_internal.h"
 #include "app_config_store.h"
-#include "app_net.h"
 #include "app_power.h"
 #include "bridge_event.h"
+#include "cook_store.h"
 #include "esp_app_desc.h"
-#include "esp_wifi.h"
+#include "esp_mac.h"
 
 static const char *TAG = "app_ble";
 
@@ -61,8 +61,6 @@ static TaskHandle_t s_push_task;
 /* What the ble_push row is asked to send. */
 typedef enum {
     PUSH_LIVE_STATE = 0,
-    PUSH_NET_STATUS,
-    PUSH_SCAN_RESULTS,
     PUSH_HISTORY,
 } push_kind_t;
 
@@ -75,7 +73,7 @@ typedef struct {
 static void op_sysinfo(app_ble_sysinfo_t *out) {
     memset(out, 0, sizeof *out);
     uint8_t mac[6] = {0};
-    (void)esp_wifi_get_mac(WIFI_IF_STA, mac);
+    (void)esp_read_mac(mac, ESP_MAC_WIFI_STA);
     memcpy(out->mac, mac, sizeof mac);
     snprintf(out->id, sizeof out->id, "%02X%02X", mac[4], mac[5]);
     out->model = "heltec-v3";
@@ -104,29 +102,6 @@ static void op_sysinfo(app_ble_sysinfo_t *out) {
     out->caps = (1u << 0) | (1u << 1) | (1u << 3) | (1u << 6);
 }
 
-static void op_net_status(app_ble_net_snapshot_t *out) {
-    /* app_net owns esp_wifi; app_ble reaches the radio only through that
-     * seam, which is what keeps app_ble_core ESP-IDF-free. The two structs
-     * are deliberately separate types with the same shape — a copy, not a
-     * shared header, so neither component pulls in the other's contract. */
-    app_net_wire_status_t s;
-    app_net_get_wire_status(&s);
-    memset(out, 0, sizeof *out);
-    out->mode = s.mode;
-    out->state = s.state;
-    out->rssi = s.rssi;
-    memcpy(out->ip, s.ip, sizeof out->ip);
-    snprintf(out->ssid, sizeof out->ssid, "%s", s.ssid);
-    snprintf(out->host, sizeof out->host, "%s", s.host);
-}
-
-static int op_net_request_config(const app_net_pending_cfg_t *cfg) {
-    return app_net_request_config(cfg);
-}
-
-static int op_scan_start(void) { return app_net_request_scan(); }
-static int op_scan_cancel(void) { return app_net_cancel_scan(); }
-
 static int op_notify(app_ble_char_t ch, const uint8_t *buf, size_t len) {
     if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE ||
         ch < 0 || ch >= APP_BLE_CH_COUNT) {
@@ -149,9 +124,12 @@ static int op_identify(void) {
 static void op_reboot(void) { esp_restart(); }
 
 static int op_factory_reset(void) {
-    /* Both halves, because they live in different NVS namespaces — the
-     * obligation attached to the 03 §3.6.1 exception. */
+    /* Three stores, three namespaces: NimBLE's bonds, the config in NVS,
+     * and the recorded cooks on LittleFS. The full image's reset stopped at
+     * the first two; leaving a "reset" bridge holding every cook was the
+     * bug this build fixes. Order does not matter — the caller reboots. */
     (void)app_ble_forget_bonds();
+    (void)cook_store_wipe_all();
     return app_config_store_factory_reset() == APP_CONFIG_OK ? 0 : -1;
 }
 
@@ -168,10 +146,6 @@ static int op_history_defer(void);
 
 static const app_ble_ops_t k_ops = {
     .sysinfo = op_sysinfo,
-    .net_status = op_net_status,
-    .net_request_config = op_net_request_config,
-    .scan_start = op_scan_start,
-    .scan_cancel = op_scan_cancel,
     .notify = op_notify,
     .identify = op_identify,
     .reboot = op_reboot,
@@ -219,7 +193,11 @@ static int gatt_access(uint16_t conn_handle, uint16_t attr_handle,
                    : BLE_ATT_ERR_INSUFFICIENT_RES;
     }
     case BLE_GATT_ACCESS_OP_WRITE_CHR: {
-        uint8_t buf[BRIDGE_WIFI_CONFIG_MAX_SIZE];
+        /* The largest writable characteristic on this build is
+         * device_control (history_ctrl is the other writer). */
+        uint8_t buf[BRIDGE_DEVICE_CONTROL_MAX_SIZE > BRIDGE_HISTORY_CTRL_SIZE
+                        ? BRIDGE_DEVICE_CONTROL_MAX_SIZE
+                        : BRIDGE_HISTORY_CTRL_SIZE];
         uint16_t len = 0;
         /* Long writes arrive already reassembled by Prepare/Execute. */
         if (ble_hs_mbuf_to_flat(ctxt->om, buf, sizeof buf, &len) != 0) {
@@ -470,13 +448,6 @@ static void ble_push_task(void *arg) {
         case PUSH_LIVE_STATE:
             (void)app_ble_notify_live_state();
             break;
-        case PUSH_NET_STATUS:
-            (void)app_ble_notify_net_status();
-            /* A network transition also changes the advertised blob. */
-            if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
-                start_advertising();
-            }
-            break;
         case PUSH_HISTORY:
             /* §5.10 — hundreds of flash reads and a few hundred
              * notifications, on the row built to carry exactly that. The
@@ -484,22 +455,6 @@ static void ble_push_task(void *arg) {
              * where it is answered. */
             app_ble_history_run();
             break;
-        case PUSH_SCAN_RESULTS: {
-            app_net_scan_ap_t raw[APP_NET_SCAN_MAX];
-            const int n = app_net_take_scan_results(raw, APP_NET_SCAN_MAX);
-            app_ble_scan_ap_t aps[APP_NET_SCAN_MAX];
-            for (int i = 0; i < n; i++) {
-                memset(&aps[i], 0, sizeof aps[i]);
-                snprintf(aps[i].ssid, sizeof aps[i].ssid, "%s", raw[i].ssid);
-                aps[i].rssi = raw[i].rssi;
-                /* ESP-IDF's wifi_auth_mode_t is what ble-gatt §5.4.1
-                 * mirrors, so this is a copy, not a mapping table. */
-                aps[i].auth = raw[i].auth;
-                aps[i].channel = raw[i].channel;
-            }
-            (void)app_ble_scan_deliver(aps, n);
-            break;
-        }
         default:
             break;
         }
@@ -538,30 +493,7 @@ static void on_sample(void *arg, esp_event_base_t base, int32_t id,
     enqueue(PUSH_LIVE_STATE);
 }
 
-static void on_alarm(void *arg, esp_event_base_t base, int32_t id,
-                     void *data) {
-    (void)arg;
-    (void)base;
-    (void)id;
-    (void)data;
-    /* Immediately on any alarm transition, not on the next sample. Wired
-     * now so F13 (M5) changes nothing in app_ble. */
-    enqueue(PUSH_LIVE_STATE);
-}
 
-static void on_net(void *arg, esp_event_base_t base, int32_t id, void *data) {
-    (void)arg;
-    (void)base;
-    (void)id;
-    (void)data;
-    enqueue(PUSH_NET_STATUS);
-}
-
-/* Fired by app_net from the Wi-Fi event task; all it may do is post. */
-static void on_scan_done(void *ctx) {
-    (void)ctx;
-    enqueue(PUSH_SCAN_RESULTS);
-}
 
 /* ── init ─────────────────────────────────────────────────────────── */
 
@@ -617,7 +549,7 @@ int app_ble_init(void) {
     }
 
     uint8_t mac[6] = {0};
-    (void)esp_wifi_get_mac(WIFI_IF_STA, mac);
+    (void)esp_read_mac(mac, ESP_MAC_WIFI_STA);
     char name[APP_BLE_NAME_MAX];
     app_ble_local_name(mac, name);
     if (ble_svc_gap_device_name_set(name) != 0) {
@@ -639,11 +571,6 @@ int app_ble_init(void) {
 
     (void)bridge_event_handler_register(BRIDGE_EVT_SAMPLE, on_sample, NULL,
                                         "app_ble.sample");
-    (void)bridge_event_handler_register(BRIDGE_EVT_ALARM, on_alarm, NULL,
-                                        "app_ble.alarm");
-    (void)bridge_event_handler_register(BRIDGE_EVT_NET, on_net, NULL,
-                                        "app_ble.net");
-    app_net_set_scan_done_cb(on_scan_done, NULL);
 
     nimble_port_freertos_init(host_task);
     ESP_LOGI(TAG, "NimBLE up: %s, %u bond(s) stored", name,

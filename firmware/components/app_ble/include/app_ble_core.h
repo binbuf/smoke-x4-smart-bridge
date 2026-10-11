@@ -25,7 +25,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "app_net_core.h"
 #include "record_gen.h"
 
 #ifdef __cplusplus
@@ -39,20 +38,21 @@ extern "C" {
 #define APP_BLE_ERR_BUSY (-2)
 #define APP_BLE_ERR_FAILED (-3)
 
-/* ── The eleven characteristics (ble-gatt §1) ─────────────────────── */
-
+/* ── The characteristics served on this BLE-only build (ble-gatt §1) ──
+ *
+ * The full image also served net_status (0002), wifi_scan_ctrl (0003),
+ * wifi_scan_result (0004) and wifi_config (0005). There is no network on
+ * this build, so those are not registered. The uuid16 SLOT is what goes on
+ * the air and is unchanged for the ones that remain, so a client that knows
+ * the full contract still finds device_info/live_state/result where it
+ * expects them. */
 typedef enum {
     APP_BLE_CH_DEVICE_INFO = 0, /* 0001 */
-    APP_BLE_CH_NET_STATUS,      /* 0002 */
-    APP_BLE_CH_WIFI_SCAN_CTRL,  /* 0003 */
-    APP_BLE_CH_WIFI_SCAN_RESULT,/* 0004 */
-    APP_BLE_CH_WIFI_CONFIG,     /* 0005 */
     APP_BLE_CH_DEVICE_CONTROL,  /* 0006 */
     APP_BLE_CH_LIVE_STATE,      /* 0007 */
     APP_BLE_CH_HISTORY_PREVIEW, /* 0008 */
     APP_BLE_CH_RESULT,          /* 0009 */
-    /* v1.1 additive growth: appended, never renumbered — the same rule the
-     * control_op table follows (§5.6.6). */
+    /* v1.1 full history over BLE. */
     APP_BLE_CH_HISTORY_CTRL,    /* 000A */
     APP_BLE_CH_HISTORY_DATA,    /* 000B */
     APP_BLE_CH_COUNT,
@@ -106,32 +106,7 @@ typedef struct {
 } app_ble_sysinfo_t;
 
 typedef struct {
-    uint8_t mode;  /* bridge_net_mode_t (wire values) */
-    uint8_t state; /* bridge_net_state_t */
-    int8_t rssi;
-    uint8_t ip[4];
-    char ssid[33];
-    char host[23];
-} app_ble_net_snapshot_t;
-
-typedef struct {
-    char ssid[33];
-    int8_t rssi;
-    uint8_t auth;    /* ble-gatt §5.4.1 */
-    uint8_t channel; /* 1..14 */
-} app_ble_scan_ap_t;
-
-typedef struct {
     void (*sysinfo)(app_ble_sysinfo_t *out);
-    void (*net_status)(app_ble_net_snapshot_t *out);
-    /* F8.4's deferred apply — the ~500 ms window that lets the BLE
-     * acknowledgement flush before the radio it rode on reconfigures. */
-    int (*net_request_config)(const app_net_pending_cfg_t *cfg);
-    /* Scanning from AP mode is not free on this chip; the cost is the
-     * glue's problem, and the empirical size of it is a named bench
-     * observation (F10.7). Returns APP_BLE_ERR_BUSY if already scanning. */
-    int (*scan_start)(void);
-    int (*scan_cancel)(void);
     /* Push `len` bytes on `ch`. The chunker has already split at the
      * negotiated boundary, so the glue never fragments anything. */
     int (*notify)(app_ble_char_t ch, const uint8_t *buf, size_t len);
@@ -162,7 +137,6 @@ int app_ble_core_init(const app_ble_ops_t *ops);
  * Each returns the wire length or -1 if `cap` is too small. */
 
 int app_ble_build_device_info(uint8_t *out, size_t cap);
-int app_ble_build_net_status(uint8_t *out, size_t cap);
 int app_ble_build_live_state(uint8_t *out, size_t cap);
 /* The pit probe's last 2 h at 1-minute buckets, straight from cook_ring —
  * no flash read, ≤ 120 values (ble-gatt §5.8). A ring shorter than 2 h
@@ -212,21 +186,8 @@ int app_ble_core_write(app_ble_char_t ch, const app_ble_link_t *link,
 
 /* ── Push paths (F10.6, F10.9) ────────────────────────────────────── */
 
-/* One notification per BRIDGE_EVT_NET transition — the app watches
- * connecting → up/failed across the §5.7 handoff, and a missed transition
- * strands the wizard. */
-int app_ble_notify_net_status(void);
-/* Every decoded packet (~30 s), plus immediately on any alarm transition.
- * The alarm subscription is wired now so F13 (M5) changes nothing here. */
+/* Every decoded packet (~30 s), plus immediately on any alarm transition. */
 int app_ble_notify_live_state(void);
-
-/* ── Wi-Fi scan flow (F10.7) ──────────────────────────────────────── */
-
-bool app_ble_scan_active(void);
-/* The glue calls this when esp_wifi hands back a completed scan. Emits one
- * correctly-indexed notification per AP, and stops early if a cancel
- * arrives mid-stream. A scan that was cancelled emits nothing. */
-int app_ble_scan_deliver(const app_ble_scan_ap_t *aps, int n);
 
 /* ── Full history over BLE (ble-gatt §5.10–§5.11) ─────────────────── */
 

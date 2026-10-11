@@ -52,7 +52,6 @@ class Samples extends Table {
   IntColumn get p2 => integer().nullable()();
   IntColumn get p3 => integer().nullable()();
   IntColumn get p4 => integer().nullable()();
-  IntColumn get flags => integer().withDefault(const Constant(0))();
   IntColumn get rssi => integer().withDefault(const Constant(0))();
 
   /// NULL when the bridge had no clock.
@@ -124,9 +123,6 @@ Sample sampleFromRow(SampleRow r) => Sample(
   t: r.t,
   tempsF10: [r.p1, r.p2, r.p3, r.p4],
   unixMs: r.unixMs,
-  billows: r.flags & 0x10 != 0,
-  newAlarm: r.flags & 0x20 != 0,
-  sourceCelsius: r.flags & 0x40 != 0,
   rssi: r.rssi,
 );
 

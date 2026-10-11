@@ -893,39 +893,9 @@ static void test_page_trends_goldens(void) {
     }
 }
 
-static void test_page_network_goldens(void) {
-    app_ui_fb_t fb;
-    app_ui_state_t st = cook_state();
-
-    st.net_mode = APP_UI_NET_AP;
-    st.ap_clients = 1;
-    app_ui_render_page_network(&st, &fb);
-    golden("page-network-ap", &fb);
-    /* The AP page exists to put everything needed to join on the glass —
-     * no app, no manual, no default password to look up. If the PSK is
-     * not there, the page has no reason to exist. */
-    app_ui_fb_t psk_only;
-    app_ui_fb_clear(&psk_only);
-    app_ui_draw_text(&psk_only, 0, 4, "  Gk7mR2xQpT");
-    for (int x = 0; x < APP_UI_WIDTH; x++) {
-        for (int y = 32; y < 40; y++) {
-            if (app_ui_get_pixel(&psk_only, x, y)) {
-                CHECK(app_ui_get_pixel(&fb, x, y));
-            }
-        }
-    }
-
-    st = cook_state();
-    app_ui_render_page_network(&st, &fb);
-    golden("page-network-sta", &fb);
-
-    st.net_state = APP_UI_NET_CONNECTING;
-    st.retry_attempt = 3;
-    st.retry_in_s = 292;
-    app_ui_render_page_network(&st, &fb);
-    golden("page-network-connecting", &fb);
-}
-
+/* The Network page is gone on this build; the Bluetooth page replaces it.
+ * Its content is exercised by test_all_pages_render below, not by a golden
+ * yet — the goldens for the new page are owed (see docs). */
 static void test_page_radio_and_system_goldens(void) {
     app_ui_fb_t fb;
     app_ui_state_t st = cook_state();
@@ -1022,8 +992,8 @@ static void test_render_dispatch(void) {
         case APP_UI_PAGE_TRENDS:
             app_ui_render_page_trends(&st, &b);
             break;
-        case APP_UI_PAGE_NETWORK:
-            app_ui_render_page_network(&st, &b);
+        case APP_UI_PAGE_BLUETOOTH:
+            app_ui_render_page_bluetooth(&st, &b);
             break;
         case APP_UI_PAGE_RADIO:
             app_ui_render_page_radio(&st, &b);
@@ -1354,7 +1324,7 @@ static void test_power_off_and_alarm_display(void) {
     model_init(&w);
     model_tap(&w);
     model_tap(&w);
-    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_NETWORK);
+    CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_BLUETOOTH);
     app_ui_model_on_alarm(&w.m, &w.st, w.t);
     CHECK_EQ_INT(app_ui_model_page(&w.m), APP_UI_PAGE_PROBES);
     CHECK_EQ_INT(w.st.overlay, APP_UI_OVERLAY_ALARM);
@@ -1664,7 +1634,7 @@ int main(int argc, char **argv) {
     test_page_probes_goldens();
     test_page_trends_goldens();
     test_cook_clock();
-    test_page_network_goldens();
+
     test_page_radio_and_system_goldens();
     test_overlay_goldens();
     test_render_dispatch();

@@ -700,16 +700,6 @@ class $SamplesTable extends Samples with TableInfo<$SamplesTable, SampleRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _flagsMeta = const VerificationMeta('flags');
-  @override
-  late final GeneratedColumn<int> flags = GeneratedColumn<int>(
-    'flags',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
   static const VerificationMeta _rssiMeta = const VerificationMeta('rssi');
   @override
   late final GeneratedColumn<int> rssi = GeneratedColumn<int>(
@@ -738,7 +728,6 @@ class $SamplesTable extends Samples with TableInfo<$SamplesTable, SampleRow> {
     p2,
     p3,
     p4,
-    flags,
     rssi,
     unixMs,
   ];
@@ -786,12 +775,6 @@ class $SamplesTable extends Samples with TableInfo<$SamplesTable, SampleRow> {
     }
     if (data.containsKey('p4')) {
       context.handle(_p4Meta, p4.isAcceptableOrUnknown(data['p4']!, _p4Meta));
-    }
-    if (data.containsKey('flags')) {
-      context.handle(
-        _flagsMeta,
-        flags.isAcceptableOrUnknown(data['flags']!, _flagsMeta),
-      );
     }
     if (data.containsKey('rssi')) {
       context.handle(
@@ -842,10 +825,6 @@ class $SamplesTable extends Samples with TableInfo<$SamplesTable, SampleRow> {
         DriftSqlType.int,
         data['${effectivePrefix}p4'],
       ),
-      flags: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}flags'],
-      )!,
       rssi: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}rssi'],
@@ -873,7 +852,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
   final int? p2;
   final int? p3;
   final int? p4;
-  final int flags;
   final int rssi;
 
   /// NULL when the bridge had no clock.
@@ -886,7 +864,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
     this.p2,
     this.p3,
     this.p4,
-    required this.flags,
     required this.rssi,
     this.unixMs,
   });
@@ -908,7 +885,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
     if (!nullToAbsent || p4 != null) {
       map['p4'] = Variable<int>(p4);
     }
-    map['flags'] = Variable<int>(flags);
     map['rssi'] = Variable<int>(rssi);
     if (!nullToAbsent || unixMs != null) {
       map['unix_ms'] = Variable<int>(unixMs);
@@ -925,7 +901,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
       p2: p2 == null && nullToAbsent ? const Value.absent() : Value(p2),
       p3: p3 == null && nullToAbsent ? const Value.absent() : Value(p3),
       p4: p4 == null && nullToAbsent ? const Value.absent() : Value(p4),
-      flags: Value(flags),
       rssi: Value(rssi),
       unixMs: unixMs == null && nullToAbsent
           ? const Value.absent()
@@ -946,7 +921,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
       p2: serializer.fromJson<int?>(json['p2']),
       p3: serializer.fromJson<int?>(json['p3']),
       p4: serializer.fromJson<int?>(json['p4']),
-      flags: serializer.fromJson<int>(json['flags']),
       rssi: serializer.fromJson<int>(json['rssi']),
       unixMs: serializer.fromJson<int?>(json['unixMs']),
     );
@@ -962,7 +936,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
       'p2': serializer.toJson<int?>(p2),
       'p3': serializer.toJson<int?>(p3),
       'p4': serializer.toJson<int?>(p4),
-      'flags': serializer.toJson<int>(flags),
       'rssi': serializer.toJson<int>(rssi),
       'unixMs': serializer.toJson<int?>(unixMs),
     };
@@ -976,7 +949,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
     Value<int?> p2 = const Value.absent(),
     Value<int?> p3 = const Value.absent(),
     Value<int?> p4 = const Value.absent(),
-    int? flags,
     int? rssi,
     Value<int?> unixMs = const Value.absent(),
   }) => SampleRow(
@@ -987,7 +959,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
     p2: p2.present ? p2.value : this.p2,
     p3: p3.present ? p3.value : this.p3,
     p4: p4.present ? p4.value : this.p4,
-    flags: flags ?? this.flags,
     rssi: rssi ?? this.rssi,
     unixMs: unixMs.present ? unixMs.value : this.unixMs,
   );
@@ -1000,7 +971,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
       p2: data.p2.present ? data.p2.value : this.p2,
       p3: data.p3.present ? data.p3.value : this.p3,
       p4: data.p4.present ? data.p4.value : this.p4,
-      flags: data.flags.present ? data.flags.value : this.flags,
       rssi: data.rssi.present ? data.rssi.value : this.rssi,
       unixMs: data.unixMs.present ? data.unixMs.value : this.unixMs,
     );
@@ -1016,7 +986,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
           ..write('p2: $p2, ')
           ..write('p3: $p3, ')
           ..write('p4: $p4, ')
-          ..write('flags: $flags, ')
           ..write('rssi: $rssi, ')
           ..write('unixMs: $unixMs')
           ..write(')'))
@@ -1025,7 +994,7 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
 
   @override
   int get hashCode =>
-      Object.hash(bridgeId, sessionId, t, p1, p2, p3, p4, flags, rssi, unixMs);
+      Object.hash(bridgeId, sessionId, t, p1, p2, p3, p4, rssi, unixMs);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1037,7 +1006,6 @@ class SampleRow extends DataClass implements Insertable<SampleRow> {
           other.p2 == this.p2 &&
           other.p3 == this.p3 &&
           other.p4 == this.p4 &&
-          other.flags == this.flags &&
           other.rssi == this.rssi &&
           other.unixMs == this.unixMs);
 }
@@ -1050,7 +1018,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
   final Value<int?> p2;
   final Value<int?> p3;
   final Value<int?> p4;
-  final Value<int> flags;
   final Value<int> rssi;
   final Value<int?> unixMs;
   final Value<int> rowid;
@@ -1062,7 +1029,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
     this.p2 = const Value.absent(),
     this.p3 = const Value.absent(),
     this.p4 = const Value.absent(),
-    this.flags = const Value.absent(),
     this.rssi = const Value.absent(),
     this.unixMs = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1075,7 +1041,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
     this.p2 = const Value.absent(),
     this.p3 = const Value.absent(),
     this.p4 = const Value.absent(),
-    this.flags = const Value.absent(),
     this.rssi = const Value.absent(),
     this.unixMs = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1090,7 +1055,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
     Expression<int>? p2,
     Expression<int>? p3,
     Expression<int>? p4,
-    Expression<int>? flags,
     Expression<int>? rssi,
     Expression<int>? unixMs,
     Expression<int>? rowid,
@@ -1103,7 +1067,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
       if (p2 != null) 'p2': p2,
       if (p3 != null) 'p3': p3,
       if (p4 != null) 'p4': p4,
-      if (flags != null) 'flags': flags,
       if (rssi != null) 'rssi': rssi,
       if (unixMs != null) 'unix_ms': unixMs,
       if (rowid != null) 'rowid': rowid,
@@ -1118,7 +1081,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
     Value<int?>? p2,
     Value<int?>? p3,
     Value<int?>? p4,
-    Value<int>? flags,
     Value<int>? rssi,
     Value<int?>? unixMs,
     Value<int>? rowid,
@@ -1131,7 +1093,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
       p2: p2 ?? this.p2,
       p3: p3 ?? this.p3,
       p4: p4 ?? this.p4,
-      flags: flags ?? this.flags,
       rssi: rssi ?? this.rssi,
       unixMs: unixMs ?? this.unixMs,
       rowid: rowid ?? this.rowid,
@@ -1162,9 +1123,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
     if (p4.present) {
       map['p4'] = Variable<int>(p4.value);
     }
-    if (flags.present) {
-      map['flags'] = Variable<int>(flags.value);
-    }
     if (rssi.present) {
       map['rssi'] = Variable<int>(rssi.value);
     }
@@ -1187,7 +1145,6 @@ class SamplesCompanion extends UpdateCompanion<SampleRow> {
           ..write('p2: $p2, ')
           ..write('p3: $p3, ')
           ..write('p4: $p4, ')
-          ..write('flags: $flags, ')
           ..write('rssi: $rssi, ')
           ..write('unixMs: $unixMs, ')
           ..write('rowid: $rowid')
@@ -2407,7 +2364,6 @@ typedef $$SamplesTableCreateCompanionBuilder =
       Value<int?> p2,
       Value<int?> p3,
       Value<int?> p4,
-      Value<int> flags,
       Value<int> rssi,
       Value<int?> unixMs,
       Value<int> rowid,
@@ -2421,7 +2377,6 @@ typedef $$SamplesTableUpdateCompanionBuilder =
       Value<int?> p2,
       Value<int?> p3,
       Value<int?> p4,
-      Value<int> flags,
       Value<int> rssi,
       Value<int?> unixMs,
       Value<int> rowid,
@@ -2468,11 +2423,6 @@ class $$SamplesTableFilterComposer
 
   ColumnFilters<int> get p4 => $composableBuilder(
     column: $table.p4,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get flags => $composableBuilder(
-    column: $table.flags,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2531,11 +2481,6 @@ class $$SamplesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get flags => $composableBuilder(
-    column: $table.flags,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get rssi => $composableBuilder(
     column: $table.rssi,
     builder: (column) => ColumnOrderings(column),
@@ -2576,9 +2521,6 @@ class $$SamplesTableAnnotationComposer
 
   GeneratedColumn<int> get p4 =>
       $composableBuilder(column: $table.p4, builder: (column) => column);
-
-  GeneratedColumn<int> get flags =>
-      $composableBuilder(column: $table.flags, builder: (column) => column);
 
   GeneratedColumn<int> get rssi =>
       $composableBuilder(column: $table.rssi, builder: (column) => column);
@@ -2622,7 +2564,6 @@ class $$SamplesTableTableManager
                 Value<int?> p2 = const Value.absent(),
                 Value<int?> p3 = const Value.absent(),
                 Value<int?> p4 = const Value.absent(),
-                Value<int> flags = const Value.absent(),
                 Value<int> rssi = const Value.absent(),
                 Value<int?> unixMs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2634,7 +2575,6 @@ class $$SamplesTableTableManager
                 p2: p2,
                 p3: p3,
                 p4: p4,
-                flags: flags,
                 rssi: rssi,
                 unixMs: unixMs,
                 rowid: rowid,
@@ -2648,7 +2588,6 @@ class $$SamplesTableTableManager
                 Value<int?> p2 = const Value.absent(),
                 Value<int?> p3 = const Value.absent(),
                 Value<int?> p4 = const Value.absent(),
-                Value<int> flags = const Value.absent(),
                 Value<int> rssi = const Value.absent(),
                 Value<int?> unixMs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2660,7 +2599,6 @@ class $$SamplesTableTableManager
                 p2: p2,
                 p3: p3,
                 p4: p4,
-                flags: flags,
                 rssi: rssi,
                 unixMs: unixMs,
                 rowid: rowid,

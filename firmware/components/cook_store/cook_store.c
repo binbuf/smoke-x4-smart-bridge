@@ -188,6 +188,31 @@ static int cooks_partition_is_blank(void) {
     return 1;
 }
 
+int cook_store_wipe_all(void) {
+    DIR *d = opendir(COOK_STORE_DIR);
+    if (d == NULL) {
+        /* Nothing mounted or nothing there: a reset of an empty store is a
+         * success, not a failure. */
+        return 0;
+    }
+    struct dirent *e;
+    char path[512]; /* dir + '/' + a max-length d_name, no truncation */
+    int removed = 0;
+    while ((e = readdir(d)) != NULL) {
+        if (e->d_name[0] == '.' || e->d_type == DT_DIR) {
+            continue;
+        }
+        snprintf(path, sizeof path, "%s/%s", COOK_STORE_DIR, e->d_name);
+        if (unlink(path) == 0) {
+            removed++;
+        }
+    }
+    closedir(d);
+    ESP_LOGW(TAG, "factory reset: wiped %d file(s) from %s", removed,
+             COOK_STORE_DIR);
+    return 0;
+}
+
 int cook_store_init(void) {
     /* Format a blank partition BEFORE anything tries to mount it.
      *

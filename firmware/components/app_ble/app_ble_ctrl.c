@@ -1,33 +1,27 @@
-/* app_ble_ctrl.c — the write dispatcher: wifi_config (F10.6), the Wi-Fi
- * scan flow (F10.7), and every device_control op (F10.8).
+/* app_ble_ctrl.c — the write dispatcher for every device_control op (F10.8).
  *
- * Every write is answered on `result` with `op_echo` set — including
- * security refusals, malformed frames, and unknown ops. "No answer" is
- * never a valid outcome: the wizard is a state machine waiting on this
+ * There is no wifi_config or Wi-Fi scan characteristic on this BLE-only
+ * build. Every write is answered on `result` with `op_echo` set — including
+ * security refusals, malformed frames, and unknown ops. "No answer" is never
+ * a valid outcome: the app is a state machine waiting on this
  * characteristic, and silence is the one response it cannot recover from.
  */
 #include "app_ble_internal.h"
 
 #include <string.h>
 
-#include "app_alarm_svc.h"
 #include "app_config_store.h"
 #include "app_ui_cook.h"
 #include "cook_ring.h"
 #include "cook_store_core.h"
 #include "smoke_x_ctrl.h"
 
-/* wifi_config and wifi_scan_ctrl answer with op_echo 0 (ble-gatt §5.9). */
 #define OP_ECHO_NONE 0
 
-static bool s_scanning;
-
 void app_ble_ctrl_reset(void) {
-    s_scanning = false;
     /* A phone pocketed mid-transfer leaves a stream latched, and every
-     * later request would answer BUSY until the board rebooted — the same
-     * failure the scan latch had. The disconnect is the one place that
-     * knows the stream's owner is gone. */
+     * later request would answer BUSY until the board rebooted. The
+     * disconnect is the one place that knows the stream's owner is gone. */
     app_ble_history_reset();
 }
 
@@ -64,145 +58,6 @@ static uint8_t status_of(int rc) {
     default:
         return BRIDGE_RESULT_STATUS_FAILED;
     }
-}
-
-/* ── wifi_config (F10.6, ble-gatt §5.5) ───────────────────────────── */
-
-static int handle_wifi_config(const uint8_t *data, size_t len) {
-    bridge_wifi_config_t c;
-    memset(&c, 0, sizeof c);
-    if (bridge_wifi_config_unpack(data, len, &c) < 0) {
-        return app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_INVALID,
-                              "malformed wifi_config");
-    }
-    if (c.mode != BRIDGE_NET_MODE_AP && c.mode != BRIDGE_NET_MODE_STA) {
-        return app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_INVALID,
-                              "mode must be ap|sta");
-    }
-
-    app_net_pending_cfg_t cfg;
-    memset(&cfg, 0, sizeof cfg);
-    /* The wire enum and the stored enum are NOT the same numbers
-     * (ble-gatt: off/ap/sta = 0/1/2; app_config: ap/sta = 0/1). Translate
-     * once, here, like app_api_core does. */
-    cfg.mode = c.mode == BRIDGE_NET_MODE_STA ? APP_CONFIG_NET_MODE_STA
-                                             : APP_CONFIG_NET_MODE_AP;
-    if (cfg.mode == APP_CONFIG_NET_MODE_STA) {
-        if (c.ssid_len == 0) {
-            return app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_INVALID,
-                                  "sta mode needs an ssid");
-        }
-        memcpy(cfg.sta_ssid, c.ssid, c.ssid_len);
-        cfg.sta_ssid[c.ssid_len] = '\0';
-        memcpy(cfg.sta_psk, c.psk, c.psk_len);
-        cfg.sta_psk[c.psk_len] = '\0';
-        memcpy(cfg.sta_user, c.user, c.user_len);
-        cfg.sta_user[c.user_len] = '\0';
-        cfg.sta_auth = c.auth;
-    }
-
-    /* ANSWER FIRST, then hand off to the ~500 ms deferred apply F8.4 built
-     * for exactly this moment — so the acknowledgement flushes before the
-     * radio it rode on reconfigures (05 §5.4). Reversing these two lines
-     * is the bug that makes a wrong password unrecoverable from a lawn
-     * chair, which is the entire point of the milestone. */
-    int rc;
-    if (cfg.mode == APP_CONFIG_NET_MODE_AP) {
-        /* detail carries the generated AP PSK: the phone needs it to join.
-         * This is the ONLY credential any characteristic ever emits — the
-         * stored STA PSK is never read back on any path (grep-proofed in
-         * test_app_ble.c, the same discipline F9.7 set). */
-        char ap_psk[APP_CONFIG_PSK_LEN + 1] = "";
-        (void)app_config_store_get_str(APP_CONFIG_NET_AP_PSK, ap_psk,
-                                       sizeof ap_psk);
-        rc = app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_OK, ap_psk);
-    } else {
-        rc = app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_OK, NULL);
-    }
-    if (g_ble_ops->net_request_config != NULL) {
-        (void)g_ble_ops->net_request_config(&cfg);
-    }
-    return rc;
-}
-
-/* ── wifi_scan_ctrl / wifi_scan_result (F10.7, §5.3–§5.4) ─────────── */
-
-static int handle_scan_ctrl(const uint8_t *data, size_t len) {
-    if (len < BRIDGE_WIFI_SCAN_CTRL_SIZE) {
-        return app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_INVALID,
-                              "short wifi_scan_ctrl");
-    }
-    bridge_wifi_scan_ctrl_t c;
-    bridge_wifi_scan_ctrl_decode(data, &c);
-
-    if (c.cmd == BRIDGE_SCAN_CMD_CANCEL) {
-        s_scanning = false;
-        if (g_ble_ops->scan_cancel != NULL) {
-            (void)g_ble_ops->scan_cancel();
-        }
-        return app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_OK, NULL);
-    }
-    if (c.cmd != BRIDGE_SCAN_CMD_START) {
-        return app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_INVALID,
-                              "cmd must be start|cancel");
-    }
-    /* A scan already running answers busy WITHOUT disturbing it — the
-     * running scan's results are still on their way to whoever asked. */
-    if (s_scanning) {
-        return app_ble_answer(OP_ECHO_NONE, BRIDGE_RESULT_STATUS_BUSY,
-                              "scan in progress");
-    }
-    const int rc =
-        g_ble_ops->scan_start != NULL ? g_ble_ops->scan_start() : APP_BLE_ERR_FAILED;
-    if (rc == APP_BLE_OK) {
-        s_scanning = true;
-    }
-    return app_ble_answer(OP_ECHO_NONE, status_of(rc), NULL);
-}
-
-bool app_ble_scan_active(void) { return s_scanning; }
-
-int app_ble_scan_deliver(const app_ble_scan_ap_t *aps, int n) {
-    if (!s_scanning) {
-        return APP_BLE_OK; /* cancelled before the results arrived */
-    }
-    if (n < 0) {
-        n = 0;
-    }
-    if (n > 255) {
-        n = 255; /* index/total are u8; a 256-AP scan is not a real place */
-    }
-    /* An empty scan still completes: total 0 means "nothing found", which
-     * the wizard must render as an empty list, not as a hang. */
-    for (int i = 0; i < n; i++) {
-        if (!s_scanning) {
-            break; /* cancelled mid-stream: stop, do not finish the list */
-        }
-        bridge_wifi_scan_result_t r;
-        memset(&r, 0, sizeof r);
-        r.ver = 1;
-        r.index = (uint8_t)i;
-        r.total = (uint8_t)n;
-        r.rssi = aps[i].rssi;
-        r.auth = aps[i].auth;
-        r.channel = aps[i].channel;
-        size_t ssid_len = strnlen(aps[i].ssid, sizeof aps[i].ssid - 1);
-        if (ssid_len > sizeof r.ssid) {
-            ssid_len = sizeof r.ssid;
-        }
-        r.ssid_len = (uint8_t)ssid_len;
-        memcpy(r.ssid, aps[i].ssid, ssid_len);
-
-        uint8_t buf[BRIDGE_WIFI_SCAN_RESULT_MAX_SIZE];
-        const int len = bridge_wifi_scan_result_pack(&r, buf, sizeof buf);
-        if (len < 0) {
-            continue;
-        }
-        (void)app_ble_notify_chunked(APP_BLE_CH_WIFI_SCAN_RESULT, buf,
-                                     (size_t)len);
-    }
-    s_scanning = false;
-    return APP_BLE_OK;
 }
 
 /* ── device_control (F10.8, §5.6) ─────────────────────────────────── */
@@ -292,11 +147,10 @@ static int op_ack_alarm(const uint8_t *body, size_t body_len) {
     }
     bridge_ctrl_ack_alarm_t a;
     bridge_ctrl_ack_alarm_decode(body, &a);
-    /* F13.8 — routed. An unknown or already-acked id silences nothing and
-     * still answers ok: HTTP, BLE and the PRG button can all send the same
-     * ack for the same alarm, and none of them should see a failure for
-     * being second. */
-    (void)app_alarm_svc_ack(a.alarm_id);
+    /* No device-tier alarm engine on this image, so an ack silences nothing
+     * — but it still answers ok: a client retrying an ack for an alarm this
+     * build never raised should not see a failure. */
+    (void)a;
     return APP_BLE_OK;
 }
 
@@ -421,10 +275,6 @@ int app_ble_core_write(app_ble_char_t ch, const app_ble_link_t *link,
                               "over-length write");
     }
     switch (ch) {
-    case APP_BLE_CH_WIFI_SCAN_CTRL:
-        return handle_scan_ctrl(data, len);
-    case APP_BLE_CH_WIFI_CONFIG:
-        return handle_wifi_config(data, len);
     case APP_BLE_CH_DEVICE_CONTROL:
         return handle_device_control(data, len);
     case APP_BLE_CH_HISTORY_CTRL:

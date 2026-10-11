@@ -334,81 +334,26 @@ void app_ui_render_page_trends(const app_ui_state_t *st, app_ui_fb_t *fb) {
     app_ui_render_strip(st, fb);
 }
 
-/* ── page 3: network (F11b.5; 07 §7.2) ──────────────────────────────
- * The page that answers the brief's second question, rendered differently
- * per mode. Hosting puts EVERYTHING needed to join on the glass — no app,
- * no manual, no default password to look up. */
-
-/* `▂▄▆█` has no 5x7 glyphs; four bars of ASCII carry the same reading. */
-static const char *signal_bars(int8_t rssi) {
-    if (rssi >= -55) {
-        return "####";
-    }
-    if (rssi >= -67) {
-        return "###.";
-    }
-    if (rssi >= -78) {
-        return "##..";
-    }
-    if (rssi >= -90) {
-        return "#...";
-    }
-    return "....";
-}
-
-void app_ui_render_page_network(const app_ui_state_t *st, app_ui_fb_t *fb) {
+/* ── page 3: bluetooth (was NETWORK; 07 §7.2) ───────────────────────
+ * This build has no Wi-Fi, so the page that used to carry the network
+ * join/host info now carries the Bluetooth link state — the transport the
+ * product actually ships. The advertised name is on the glass so the
+ * phone's scan list and the device agree. */
+void app_ui_render_page_bluetooth(const app_ui_state_t *st, app_ui_fb_t *fb) {
     app_ui_fb_clear(fb);
     if (st == NULL) {
         return;
     }
     char buf[40];
-
-    if (st->net_mode == APP_UI_NET_AP) {
-        app_ui_draw_text(fb, 0, 0, "NETWORK   hosting");
-        app_ui_draw_text(fb, 0, 1, "SSID");
-        snprintf(buf, sizeof buf, "  %.18s", st->ssid);
-        app_ui_draw_text(fb, 0, 2, buf);
-        app_ui_draw_text(fb, 0, 3, "Password");
-        snprintf(buf, sizeof buf, "  %.10s", st->psk);
-        app_ui_draw_text(fb, 0, 4, buf);
-        app_ui_draw_text(fb, 0, 5, "http://192.168.4.1");
-        snprintf(buf, sizeof buf, "%u device%s connected",
-                 (unsigned)st->ap_clients, st->ap_clients == 1 ? "" : "s");
-        app_ui_draw_text(fb, 0, 6, buf);
-    } else if (st->net_state == APP_UI_NET_UP) {
-        app_ui_draw_text(fb, 0, 0, "NETWORK   joined");
-        snprintf(buf, sizeof buf, "%.21s", st->ssid);
-        app_ui_draw_text(fb, 0, 1, buf);
-        snprintf(buf, sizeof buf, "  %s  %d dBm", signal_bars(st->wifi_rssi),
-                 (int)st->wifi_rssi);
-        app_ui_draw_text(fb, 0, 2, buf);
-        app_ui_draw_text(fb, 0, 3, st->ip);
-        snprintf(buf, sizeof buf, "%.21s", st->host);
-        app_ui_draw_text(fb, 0, 4, buf);
-        snprintf(buf, sizeof buf, "BLE %u conn  %u bond", (unsigned)st->ble_conns,
-                 (unsigned)st->ble_bonds);
-        app_ui_draw_text(fb, 0, 5, buf);
-    } else {
-        /* Connecting or failed. `NETWORK   connecting` is 20 of the 21
-         * columns — the tightest line on any page, and the reason this
-         * whole layer counts cells. */
-        app_ui_draw_text(fb, 0, 0,
-                         st->net_state == APP_UI_NET_FAILED
-                             ? "NETWORK   failed"
-                             : "NETWORK   connecting");
-        snprintf(buf, sizeof buf, "%.21s", st->ssid);
-        app_ui_draw_text(fb, 0, 1, buf);
-        snprintf(buf, sizeof buf, "  attempt %u",
-                 (unsigned)st->retry_attempt);
-        app_ui_draw_text(fb, 0, 2, buf);
-        char mmss[8];
-        snprintf(mmss, sizeof mmss, "%u:%02u", (unsigned)(st->retry_in_s / 60u),
-                 (unsigned)(st->retry_in_s % 60u));
-        snprintf(buf, sizeof buf, "  retry in %s", mmss);
-        app_ui_draw_text(fb, 0, 3, buf);
-        app_ui_draw_text(fb, 0, 5, "Hold PRG to host");
-        app_ui_draw_text(fb, 0, 6, "  own network");
-    }
+    app_ui_draw_text(fb, 0, 0, "BLUETOOTH");
+    snprintf(buf, sizeof buf, "%.20s", st->bt_name);
+    app_ui_draw_text(fb, 0, 1, buf);
+    app_ui_draw_text(fb, 0, 3,
+                     st->ble_conns > 0 ? "connected" : "advertising");
+    snprintf(buf, sizeof buf, "%u bonded phone%s", (unsigned)st->ble_bonds,
+             st->ble_bonds == 1 ? "" : "s");
+    app_ui_draw_text(fb, 0, 4, buf);
+    app_ui_draw_text(fb, 0, 6, "pair from the app");
     app_ui_render_strip(st, fb);
 }
 
@@ -643,9 +588,10 @@ void app_ui_render_overlay_splash(const app_ui_state_t *st, app_ui_fb_t *fb) {
     snprintf(buf, sizeof buf, "%.20s", st->fw);
     app_ui_draw_text_centred(fb, 1, buf);
     /* "Hold PRG at boot" is impossible on this chip (GPIO0 is the boot
-     * strapping pin); this is the 3 s POST-boot window (03 §3.4.1). */
+     * strapping pin); this is the POST-boot window (03 §3.4.1). Holding the
+     * button through it opens the on-device factory-reset flow. */
     app_ui_draw_text(fb, 2, 3, "hold PRG for");
-    snprintf(buf, sizeof buf, "AP mode      %u",
+    snprintf(buf, sizeof buf, "setup        %u",
              (unsigned)st->confirm_count);
     app_ui_draw_text(fb, 2, 4, buf);
     /* 01 §1.5: transmitting into an open port can destroy the PA. */
@@ -691,8 +637,8 @@ void app_ui_render(const app_ui_state_t *st, app_ui_fb_t *fb) {
     switch (st->page) {
     case APP_UI_PAGE_TRENDS:
         return app_ui_render_page_trends(st, fb);
-    case APP_UI_PAGE_NETWORK:
-        return app_ui_render_page_network(st, fb);
+    case APP_UI_PAGE_BLUETOOTH:
+        return app_ui_render_page_bluetooth(st, fb);
     case APP_UI_PAGE_RADIO:
         return app_ui_render_page_radio(st, fb);
     case APP_UI_PAGE_SYSTEM:

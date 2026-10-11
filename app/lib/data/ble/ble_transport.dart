@@ -150,8 +150,6 @@ class BleTransport implements BridgeTransport {
       _live.add(
         LiveSnapshot(
           paired: s.paired,
-          sessionActive: s.sessionActive,
-          sessionT: s.sessionT,
           clockValid: s.clockValid,
           tempsF10: [for (var i = 0; i < 4; i++) s.tempOrNull(i)],
           socPct: s.socPct == wire.socUnknown ? null : s.socPct,
@@ -219,8 +217,6 @@ class BleTransport implements BridgeTransport {
     final s = wire.LiveState.decode(await client.read(BridgeChar.liveState));
     return LiveSnapshot(
       paired: s.paired,
-      sessionActive: s.sessionActive,
-      sessionT: s.sessionT,
       clockValid: s.clockValid,
       tempsF10: [for (var i = 0; i < 4; i++) s.tempOrNull(i)],
       socPct: s.socPct == wire.socUnknown ? null : s.socPct,
@@ -391,16 +387,7 @@ class BleTransport implements BridgeTransport {
       }
       for (var i = 0; i < f.count; i++) {
         final r = wire.SampleRec.decode(f.payloadRaw, i * wire.SampleRec.size);
-        batch.add(
-          Sample(
-            t: r.t,
-            tempsF10: r.tempNullable,
-            billows: r.billows,
-            newAlarm: r.newAlarm,
-            sourceCelsius: r.sourceCelsius,
-            rssi: r.rssi,
-          ),
-        );
+        batch.add(Sample(t: r.t, tempsF10: r.tempNullable, rssi: r.rssi));
       }
       // Coalescing keeps the drift transaction count sane without holding the
       // whole session in memory.

@@ -122,6 +122,66 @@ void main() {
     controller.dispose();
   });
 
+  test('connect() while already connected opens no second link', () async {
+    seedPrefs();
+    var opens = 0;
+    Future<BleTransport> counting() async {
+      opens++;
+      await fake.connect('AA:BB:CC:DD:AA:BB');
+      await fake.bond();
+      await fake.requestMtu(247);
+      final transport = BleTransport(fake);
+      await transport.start();
+      return transport;
+    }
+
+    final controller = BridgeController(cache, openTransport: counting);
+    await controller.bootstrap();
+    await _waitFor(() => controller.link == BridgeLink.connected);
+    expect(opens, 1);
+
+    await controller.connect();
+    expect(opens, 1, reason: 'already connected: no new transport');
+    expect(controller.link, BridgeLink.connected);
+
+    await controller.disconnect();
+    controller.dispose();
+  });
+
+  test('a dropped link silently reconnects on its own', () async {
+    seedPrefs();
+    final state = FakeBridgeState();
+    final fakes = <FakePeripheral>[];
+    var opens = 0;
+    Future<BleTransport> freshClient() async {
+      opens++;
+      final f = FakePeripheral(state: state);
+      fakes.add(f);
+      await f.connect('AA:BB:CC:DD:AA:BB');
+      await f.bond();
+      await f.requestMtu(247);
+      final transport = BleTransport(f);
+      await transport.start();
+      return transport;
+    }
+
+    final controller = BridgeController(cache, openTransport: freshClient);
+    await controller.bootstrap();
+    await _waitFor(() => controller.link == BridgeLink.connected);
+    expect(opens, 1);
+
+    // The peer drops the link; the controller reconnects without a tap.
+    fakes.last.dropLink();
+    await _waitFor(
+      () => controller.link == BridgeLink.connected && opens >= 2,
+      timeout: const Duration(seconds: 8),
+    );
+    expect(opens, greaterThanOrEqualTo(2));
+
+    await controller.disconnect();
+    controller.dispose();
+  });
+
   test('forget drops the OS pairing and the remembered address', () async {
     seedPrefs();
     final controller = BridgeController(cache, openTransport: openTransport);

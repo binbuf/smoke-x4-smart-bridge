@@ -45,7 +45,6 @@ class DriftSampleCache implements SampleCache {
             p2: Value(s.tempsF10.length > 1 ? s.tempsF10[1] : null),
             p3: Value(s.tempsF10.length > 2 ? s.tempsF10[2] : null),
             p4: Value(s.tempsF10.length > 3 ? s.tempsF10[3] : null),
-            flags: Value(_flagsOf(s)),
             rssi: Value(s.rssi),
             unixMs: Value(s.unixMs),
           ),
@@ -277,8 +276,3 @@ class DriftSampleCache implements SampleCache {
   Expression<bool> _gapWhere(String bridgeId, int sessionId, Gaps g) =>
       g.bridgeId.equals(bridgeId) & g.sessionId.equals(sessionId);
 }
-
-int _flagsOf(Sample s) =>
-    (s.billows ? 0x10 : 0) |
-    (s.newAlarm ? 0x20 : 0) |
-    (s.sourceCelsius ? 0x40 : 0);

@@ -30,8 +30,6 @@ void main() {
         final t = await _connected();
         final live = await t.readLive();
         expect(live.paired, isTrue);
-        expect(live.sessionActive, isTrue);
-        expect(live.sessionT, 15120);
         expect(live.tempsF10, [2431, 1632, null, null]);
         expect(live.socPct, isNull, reason: 'SOC_UNKNOWN decodes to null');
         await t.close();

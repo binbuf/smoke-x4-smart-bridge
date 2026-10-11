@@ -30,6 +30,12 @@ int cook_store_task_start(void);
 /* Filesystem numbers for /status (device-side; host tests use ops). */
 int cook_store_fs_info(uint32_t *total_b, uint32_t *used_b);
 
+/* Factory reset: delete every recorded session file under /cooks. Called by
+ * the reset paths BEFORE the config/bond wipe and the reboot. The full
+ * image's reset forgot this store entirely, so a "reset" bridge kept every
+ * cook; this is the fix. Returns 0 on success. */
+int cook_store_wipe_all(void);
+
 #ifdef __cplusplus
 }
 #endif

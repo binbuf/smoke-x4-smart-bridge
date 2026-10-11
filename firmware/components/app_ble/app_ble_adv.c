@@ -11,8 +11,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "app_net_core.h"
-
 /* AD types (Core Supplement, Part A). */
 #define AD_FLAGS 0x01
 #define AD_UUID128_COMPLETE 0x07
@@ -36,12 +34,10 @@ static uint64_t s_fast_until_ms;
 void app_ble_adv_reset(void) { s_fast_until_ms = 0; }
 
 void app_ble_local_name(const uint8_t mac[6], char out[APP_BLE_NAME_MAX]) {
-    /* app_net_ap_ssid is the single definition of the suffix. Reusing it
-     * is not laziness: it is why "SmokeBridge-A4F2" in the Wi-Fi picker
-     * and in the Bluetooth scan list are provably the same device. */
-    char ssid[APP_NET_SSID_MAX];
-    app_net_ap_ssid(mac, ssid);
-    snprintf(out, APP_BLE_NAME_MAX, "%.*s", APP_BLE_NAME_MAX - 1, ssid);
+    /* "SmokeBridge-XXXX" from the eFuse MAC suffix. This is also the
+     * device_info.id suffix, so the Bluetooth scan list name and the id the
+     * app reads cannot disagree. */
+    snprintf(out, APP_BLE_NAME_MAX, "SmokeBridge-%02X%02X", mac[4], mac[5]);
 }
 
 int app_ble_build_adv(uint8_t *out, size_t cap) {

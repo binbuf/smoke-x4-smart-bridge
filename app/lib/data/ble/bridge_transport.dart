@@ -107,8 +107,6 @@ class DeviceIdentity {
 class LiveSnapshot {
   const LiveSnapshot({
     required this.paired,
-    required this.sessionActive,
-    required this.sessionT,
     required this.clockValid,
     required this.tempsF10,
     required this.socPct,
@@ -116,10 +114,6 @@ class LiveSnapshot {
   });
 
   final bool paired;
-  final bool sessionActive;
-
-  /// Seconds into the active session; 0 when none.
-  final int sessionT;
 
   /// Whether the bridge believes it has a wall clock.
   final bool clockValid;

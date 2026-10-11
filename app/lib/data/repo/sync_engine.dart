@@ -66,7 +66,7 @@ class SyncEngine {
     int? lastFetchedT;
     int? previousT;
     RecordedGap? rollover;
-    final connectivity = <RecordedGap>[];
+    final holes = <RecordedGap>[];
     final period = session.samplePeriodS < 1 ? 30 : session.samplePeriodS;
 
     await for (final batch in transport.samples(session.id, fromT: fromT)) {
@@ -87,12 +87,16 @@ class SyncEngine {
         }
       }
       for (final sample in batch) {
+        // The device streams what it actually holds, so a sparse stretch means
+        // the bridge has no records there — the base station was lost, not the
+        // phone. It is permanent, unlike a `connectivity` hole the next sync
+        // would fill.
         if (previousT != null && sample.t - previousT > period * 2.5) {
-          connectivity.add(
+          holes.add(
             RecordedGap(
               fromT: previousT,
               toT: sample.t,
-              reason: GapReason.connectivity,
+              reason: GapReason.baseLost,
             ),
           );
         }
@@ -113,7 +117,7 @@ class SyncEngine {
         fromT: fromT,
         toT: lastFetchedT,
       );
-      for (final gap in connectivity) {
+      for (final gap in holes) {
         await cache.recordGap(bridgeId, session.id, gap);
       }
       await cache.writeSyncState(

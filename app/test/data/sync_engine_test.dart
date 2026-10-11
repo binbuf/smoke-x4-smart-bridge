@@ -2,6 +2,7 @@ import 'package:smoke_bridge/data/ble/ble_transport.dart';
 import 'package:smoke_bridge/data/cache/sample_cache.dart';
 import 'package:smoke_bridge/data/dto/records.g.dart';
 import 'package:smoke_bridge/data/repo/sync_engine.dart';
+import 'package:smoke_bridge/domain/domain.dart';
 import 'package:test/test.dart';
 
 import '../support/fake_peripheral.dart';
@@ -95,6 +96,70 @@ void main() {
       expect(delta.fetched, 10);
       expect(delta.inserted, 10);
       expect(await cache.sampleCount('A4F2', id), 130);
+      await t.close();
+    });
+  });
+
+  group('SyncEngine holes', () {
+    test(
+      'a device buffer that rolled past the high-water is permanent',
+      () async {
+        final state = FakeBridgeState();
+        const id = 0x1A;
+        state.recordCook(hours: 1); // open; t = 0, 30, … 3570
+        // The ring wrapped: the device's earliest retained row is now t=60.
+        state.cooks[id]!.removeRange(0, 2);
+        final t = await _connected(state);
+        final cache = InMemorySampleCache();
+        // The phone already holds t=30 from an earlier sync.
+        await cache.upsertSamples('A4F2', id, const [
+          Sample(t: 30, tempsF10: [2000, 1600, null, 900]),
+        ]);
+        final session = (await t.sessions()).single;
+
+        await SyncEngine().syncSession(
+          t,
+          bridgeId: 'A4F2',
+          session: session,
+          cache: cache,
+        );
+
+        final gaps = await cache.gaps('A4F2', id);
+        expect(gaps, hasLength(1));
+        expect(gaps.single.reason, GapReason.bufferRollover);
+        expect(gaps.single.fromT, 30);
+        expect(gaps.single.toT, 60);
+        await t.close();
+      },
+    );
+
+    test('a hole in the device stream is a permanent base-lost gap', () async {
+      final state = FakeBridgeState();
+      const id = 0x1A;
+      state.recordCook(hours: 2); // t = 0, 30, … 7170
+      // The base was lost for ~5 min: the bridge recorded nothing 300..600.
+      state.cooks[id]!.removeWhere((r) => r.t >= 300 && r.t <= 600);
+      final t = await _connected(state);
+      final cache = InMemorySampleCache();
+      final session = (await t.sessions()).single;
+
+      await SyncEngine().syncSession(
+        t,
+        bridgeId: 'A4F2',
+        session: session,
+        cache: cache,
+      );
+
+      final gaps = await cache.gaps('A4F2', id);
+      final hole = gaps.singleWhere((g) => g.reason == GapReason.baseLost);
+      expect(hole.fromT, 270);
+      expect(hole.toT, 630);
+      expect(hole.reason.isPermanent, isTrue);
+      expect(
+        gaps.where((g) => g.reason == GapReason.connectivity),
+        isEmpty,
+        reason: 'a device-side hole must not be presented as recoverable',
+      );
       await t.close();
     });
   });

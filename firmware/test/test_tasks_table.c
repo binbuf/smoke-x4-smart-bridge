@@ -7,16 +7,16 @@
 
 int main(void) {
     /* The compile-time sum — checkable without running anything.
-     *   lora_rx 4K · smoke_x 3K · cook_store 4K · app_ui 4K · app_alarm 3K
-     *   · app_net 3K · app_power 2.5K · ws_push 4K · ble_push 4K
-     * ws_push is 4 K, not 3 K: board-found in the M2 sitting, because the
-     * lwip send path runs on that stack. ble_push is F10.4's row, and the
-     * 28 KB → 32 KB budget move it forced is argued in tasks.h. */
+     *   lora_rx 4K · smoke_x 3K · cook_store 4K · app_ui 4K
+     *   · app_power 2.5K · ble_push 4K
+     * The BLE-only slim build dropped the app_net and ws_push rows with the
+     * Wi-Fi stack; ble_push (F10.4) stays, because BLE notification fan-out
+     * still must not run on the event loop or the NimBLE host task. */
     CHECK_EQ_INT(BRIDGE_TASK_STACK_TOTAL,
-                 4096 + 3072 + 4096 + 4096 + 3072 + 3072 + 2560 + 4096 + 4096);
+                 4096 + 3072 + 4096 + 4096 + 2560 + 4096);
     CHECK(BRIDGE_TASK_STACK_TOTAL <= BRIDGE_TASK_STACK_BUDGET);
-    CHECK_EQ_INT(BRIDGE_TASK_STACK_BUDGET, 32u * 1024u);
-    CHECK_EQ_INT(BRIDGE_TASK_COUNT, 9);
+    CHECK_EQ_INT(BRIDGE_TASK_STACK_BUDGET, 24u * 1024u);
+    CHECK_EQ_INT(BRIDGE_TASK_COUNT, 6);
 
     /* F10.4: notification fan-out gets its OWN row. If this disappears,
      * someone has moved it back onto the event loop or the NimBLE host
