@@ -1,11 +1,8 @@
 # Release checklist — Smoke Bridge app
 
-The gate before a release build ships. The automated half runs in CI; the bench
-half needs a phone and, for OTA, a board. Do the automated half first — a red
-gate means stop.
-
-The rebuilt app lives at `app/` (the `newui/` design language). `app.old/` is
-the archived legacy app and is git-ignored; see [`new-app.md`](new-app.md).
+The gate before a release build ships. There is no automated CI gate for the
+app yet; run the checks below by hand. The app is at [`app/`](../app/) — see
+[`new-app.md`](new-app.md) for its layout and commands.
 
 ---
 
@@ -14,65 +11,47 @@ the archived legacy app and is git-ignored; see [`new-app.md`](new-app.md).
 | # | Check | Command | Evidence |
 |---|---|---|---|
 | A1 | Analyzer, format and the full Flutter suite | `make app.test` | green |
-| A2 | Pure Dart data/domain suite (drift cache, transports, policy) | `cd app && dart test test/domain test/data` | green |
-| A3 | The invariant suite (I2–I15) | `cd app && flutter test test/verification` | green |
-| A4 | Copy audit, accessibility, reduced motion, empty states, release build | included in A3 | green |
-| A5 | Goldens compared, never regenerated in CI (gallery, destinations × themes × densities, key overlays) | part of A1 | green |
-| A6 | Firmware host tests (unchanged by the app) | `make test-host` | green |
-| A7 | Generated code is fresh | `make app.gen` then `git diff --exit-code` | no diff |
-
-The invariant suite is `app/test/verification/`: `invariants_test.dart` (one
-named test per I2–I15), `copy_audit_test.dart`, `accessibility_test.dart`,
-`reduced_motion_test.dart`, `empty_states_test.dart`, `field_report_test.dart`
-and `release_build_test.dart`.
-
-The golden set is `app/test/golden/`: the design gallery pins the primitives
-across the three themes × both densities; `destination_matrix_golden_test.dart`
-renders all seven destinations in the same matrix and `overlay_golden_test.dart`
-renders the twenty named overlays. Regenerate with
-`flutter test --update-goldens test/golden` and review the diff; never in CI.
+| A2 | Pure Dart domain/data suite (drift cache, transports, sync, policy) | `cd app && dart test test/domain test/data` | green |
+| A3 | Generated code is fresh | `make app.gen` then `git diff --exit-code` | no diff |
+| A4 | Firmware host tests (unchanged by the app) | `make test-host` | 21/21 pass |
 
 ## 2 · Release build (desk)
 
 | # | Check | How | Evidence |
 |---|---|---|---|
-| B1 | Version matches the changelog | `app/pubspec.yaml` `version:` vs `app/CHANGELOG.md` | same `x.y.z` |
-| B2 | Changelog entry exists for the release | `app/CHANGELOG.md` | `## x.y.z` present |
-| B3 | Fonts bundle offline | `flutter build apk --release`, then inspect the APK assets for the three `.ttf` files | present |
-| B4 | No dev panel in release | `release_build_test.dart` proves `kReleaseMode` gates; spot-check the release build has no panel button | absent |
-| B5 | Release APK is signed | `flutter build apk --release --split-per-abi` with the release keystore configured (`android/key.properties`, not committed) | `apksigner verify` passes |
-| B6 | No secrets in the tree | `git status` clean of `*.jks`, `key.properties`, `*.keystore` | none |
-| B7 | The build talks to a real bridge | `lib/data/providers.dart` defaults to `RealBridgeRepository`; the mock requires an explicit `--dart-define=MOCK_BRIDGE=true` and is pinned by `release_build_test.dart` | no fixture data |
+| B1 | Version is set | `app/pubspec.yaml` `version:` | a real `x.y.z+n` |
+| B2 | Fonts bundle offline | `flutter build apk --release`, then inspect the APK assets for the two `.ttf` files | present |
+| B3 | Release APK is signed | `flutter build apk --release --split-per-abi` with the release keystore configured (`android/key.properties`, not committed) | `apksigner verify` passes |
+| B4 | No secrets in the tree | `git status` clean of `*.jks`, `key.properties`, `*.keystore` | none |
 
-> **B5 needs a human with the signing key.** The keystore and `key.properties`
+> **B3 needs a human with the signing key.** The keystore and `key.properties`
 > are intentionally untracked (`.gitignore`); a debug-signed APK is not a
 > release.
 
-## 3 · Bench (phone required)
+## 3 · Bench (phone + a bridge required)
 
 | # | Check | How | Evidence |
 |---|---|---|---|
-| C1 | Install and first-run onboarding | factory-fresh install; pair a real bridge over BLE; skip Wi-Fi | wizard completes |
-| C2 | A live cook with no phone | start a cook, kill the app; the bridge keeps recording and alarming | recording continues |
-| C3 | Notifications wake the phone | run the test alarm with the screen locked and face down | sound + heads-up + screen lights (see [`FIELD-REPORT.md`](FIELD-REPORT.md)) |
-| C4 | Reconnect/failover soak | kill and restore Wi-Fi and BLE repeatedly against `tools/sim` or the board; the UI tells the truth at each step | no stale-as-current, no dead control |
-| C5 | 15-hour chart scroll | scroll the longest cached cook with LTTB active; frame budget held on a mid device | no dropped frames / jank |
-| C6 | Field report dry-run | run Diagnostics → Field report; confirm nothing sensitive leaves without review | reviewed |
-| C7 | OTA on hardware | install a release `.bin` over Wi-Fi behind the rollback gate, on a board that is **not** the only USB-flashable one | update + rollback gate verified |
+| C1 | Factory-fresh install reaches a live reading | install, bond over BLE (read the passkey off the bridge OLED), land on Live with a live temperature | a reading, no external prose needed |
+| C2 | Pair the base station | hold **SYNC** on the Smoke X base until the bridge's OLED confirms | stock receiver keeps working |
+| C3 | Graph and History over BLE | select a session in History, open its detail, compare with Graph | samples match the bridge |
+| C4 | Clock | set the bridge clock from Live, confirm later sessions carry a real date | a dated History row |
+| C5 | Reconnect soak | drop and restore the link repeatedly; the chip tells the truth at each step | no stale-as-current, no dead control |
 
 ## 4 · Sign-off
 
 | Role | Name | Date | Notes |
 |---|---|---|---|
-| Automated gate (A1–A7) | | | |
-| Release build (B1–B6) | | | |
-| Bench (C1–C7) | | | |
+| Automated gate (A1–A4) | | | |
+| Release build (B1–B4) | | | |
+| Bench (C1–C5) | | | |
 | Final approval | | | |
 
 ## Deferred / not in v1
 
-- Adaptive layout beyond width classes (N16.9) — bottom bar → rail; fold
-  postures are deferred until scoped.
-- Performance (N16.6) and the soak (N16.8) are bench checks, not host tests.
-- The signed release APK (B5) and the bench sign-off (C1–C7) need a human with
-  the signing key and a phone/board.
+- Guided first-run pairing, base-pairing controls, and auto clock-setting on
+  connect are roadmap items [S1.1–S1.3](../ROADMAP.md), not release blockers.
+- There is no golden or invariant suite; the end-to-end BLE harness is
+  [S3.5](../ROADMAP.md).
+- The signed release APK (B3) and the bench sign-off (C1–C5) need a human with
+  the signing key, a phone, and a bridge.

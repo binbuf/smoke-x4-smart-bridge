@@ -1,5 +1,12 @@
 # Smoke X4 Smart Bridge — Design
 
+> **This whole directory is historical.** It specifies the larger
+> Wi-Fi/HTTP/MQTT/OTA product that was cut. The shipped product is the slim,
+> BLE-only bridge — **the active plan is [`../../ROADMAP.md`](../../ROADMAP.md)**,
+> with the firmware described in [`../firmware-slim.md`](../firmware-slim.md) and
+> the app in [`../new-app.md`](../new-app.md). Read on for the protocol and
+> hardware research that still applies; do not treat it as the plan.
+
 Design documents for a monorepo that extends the ThermoWorks Smoke X2/X4 wireless thermometer with
 an ESP32-S3 + LoRa bridge and a Flutter app.
 

@@ -1,5 +1,9 @@
 # 05 — Connectivity and Provisioning
 
+> **Historic — describes the full Wi-Fi bridge, not the shipped slim build.** The
+> slim build is BLE-only; see [`../firmware-slim.md`](../firmware-slim.md) and the
+> active plan in [`../../ROADMAP.md`](../../ROADMAP.md).
+
 Covers the two Wi-Fi modes, how the mode gets chosen, the BLE control service, the handoff
 choreography between them, and the Android-specific traps that will otherwise eat a week.
 

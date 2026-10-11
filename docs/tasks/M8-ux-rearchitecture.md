@@ -1,5 +1,10 @@
 # M8 — The UX re-architecture (v1.2)
 
+> **Historic — describes the full Wi-Fi/HTTP bridge, not the shipped slim build.**
+> The screens and routes it names (`onboarding_route.dart`, the wizard, alarms)
+> do not exist on the slim build. See [`../new-app.md`](../new-app.md) and
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 **Exit gate:** a factory-reset bridge and a factory-reset phone reach a live, guided cook over three
 named hops without the user ever reading a wire identifier, a stack trace, or a temperature that is
 not true — and then, with the bridge's power pulled mid-cook, the phone tells the truth on the lock

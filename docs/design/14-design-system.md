@@ -1,5 +1,9 @@
 # 14 — Design System
 
+> **Historic — describes the full Wi-Fi bridge app, not the shipped slim build.**
+> The slim app's design language lives in [`app/lib/design/`](../../app/lib/design/);
+> the active plan is [`../../ROADMAP.md`](../../ROADMAP.md).
+
 The normative token set, component library and rendering rules for the Flutter app. This is the
 document that turns [`docs/ui/`](../ui/design-system.md) — a mood board with real hex values — into
 `app/lib/design/` and `app/lib/ui/`, and it is the document a widget PR is reviewed against.

@@ -1,4 +1,13 @@
-# Running the field report
+> **Archive — full-bridge only.** This document describes the field-report
+> harness (a Device tab, a Diagnostics screen, an in-app check runner) that
+> belonged to the removed Wi-Fi/HTTP product. **None of it exists in the slim
+> BLE-only app**, which has no Device or Diagnostics screen and no field-report
+> flow. It is kept as history; see [`ROADMAP.md`](../ROADMAP.md) and
+> [`new-app.md`](new-app.md) for what ships now.
+
+---
+
+# Running the field report (archived)
 
 **One run, one log, and the desk has everything it needs to finish.**
 

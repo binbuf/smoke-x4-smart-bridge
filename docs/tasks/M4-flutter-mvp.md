@@ -1,5 +1,9 @@
 # M4 — Flutter MVP
 
+> **Historic — describes the full Wi-Fi/HTTP bridge, not the shipped slim build.**
+> The slim app is BLE-only; see [`../new-app.md`](../new-app.md) and
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 **The milestone where the project becomes a thing you cook with.** Everything under
 `app/lib/data/` and `app/lib/domain/` has been true and tested for three milestones without a
 single screen to prove it: the transport contract runs against three implementations, LTTB and ETA

@@ -1,5 +1,10 @@
 # Smoke X4 Smart Bridge — Task Backlog
 
+> **Historic — this backlog plans the full Wi-Fi/HTTP/MQTT/OTA product that was
+> cut. The shipped product is the slim, BLE-only bridge; the active plan is
+> [`../../ROADMAP.md`](../../ROADMAP.md).** Individual tasks below are still good
+> references for protocol and hardware work that carries over.
+
 Execution plan derived from [`docs/design`](../design/README.md), following the conventions in
 [12 — Task Planning Notes](../design/12-task-planning-notes.md).
 

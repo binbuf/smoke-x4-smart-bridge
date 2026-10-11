@@ -1,5 +1,10 @@
 # 13 — UX Architecture
 
+> **Historic — describes the full Wi-Fi bridge, not the shipped slim build.** The
+> slim app's three destinations and BLE-only pairing are described in
+> [`../new-app.md`](../new-app.md); the active plan is
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 The user-facing contract for the whole system: how a person sets a bridge up, what the app and the
 glass say to each other while they do it, what every screen shows in every state, and what the
 firmware and the protocol must provide for any of it to be true.

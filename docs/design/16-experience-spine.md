@@ -1,5 +1,9 @@
 # 16. The experience spine
 
+> **Historic — describes the full Wi-Fi bridge app, not the shipped slim build.**
+> See [`../new-app.md`](../new-app.md) and
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 **Read this before changing any screen.** It is the contract every screen, every
 piece of copy and every recovery path conforms to. It exists because the last
 pass rebuilt the app's *skeleton* — data model, routes, cook model — and left the

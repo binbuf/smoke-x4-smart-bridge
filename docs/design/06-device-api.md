@@ -1,5 +1,10 @@
 # 06 — Device API (HTTP + WebSocket)
 
+> **Historic — describes the full Wi-Fi bridge, not the shipped slim build.** The
+> slim build serves no HTTP; it communicates over BLE only. See
+> [`../firmware-slim.md`](../firmware-slim.md) and
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 The bridge's network interface. Identical in AP and STA mode. The canonical machine-readable
 definition lives at `protocol/openapi.yaml`; this document explains the shape and the reasoning.
 

@@ -1,34 +1,44 @@
-# The rebuilt app (`app/`)
+# The app (`app/`)
 
-The new companion app is the Flutter package at [`app/`](../app/), rebuilt from
-the `newui/` prototype. It replaces the legacy app archived at `app.old/`
-(git-ignored, reference only). This page is the entry point for the new app; the
-pre-rebuild feature inventory in [`current-app.md`](current-app.md) describes the
-**archived** app and is kept only as history.
+The companion app is the Flutter package at [`app/`](../app/) (package
+`smoke_bridge`). It is **BLE-only** and deliberately small: live temperatures, a
+graph, and history, plus a connection sheet and a cook clock. There is no Wi-Fi,
+MQTT, OTA, alarms, notifications, marks, probe roles/targets, or settings tree —
+see [`app/pubspec.yaml`](../app/pubspec.yaml) for the one-paragraph statement of
+scope.
+
+This page is the entry point for the app. [`current-app.md`](current-app.md),
+[`newapp.md`](newapp.md), and the `newui/` prototype are **history**: they
+describe the design language and an earlier, larger app and are kept for
+reference only.
 
 ## Where things live
 
 ```
 app/lib/
-  app/        bootstrap, root widget, router, font licences
+  app/        bootstrap, root widget, router, the one BridgeController
   design/     tokens, typography, primitives — presentation only, stateless
   domain/     pure Dart entities and engines — zero Flutter imports
-  data/       content tables, models, mock + real repositories, transports, cache
-  features/   destinations and overlays (live, temps, timeline, graph,
-              history, settings, onboarding, alarms, connection, monitor)
-  platform/   Android seams (BLE, notifications, permissions, share, OTA)
+  data/
+    ble/      GATT contract + the BLE transport (BridgeTransport)
+    repo/     BridgeRepository and SyncEngine
+    local/    drift database (the persistent sample cache) and prefs
+    dto/      records.g.dart, generated from protocol/records.yaml
+  features/   the three destinations and their pieces:
+                live/     live_screen, probe_card
+                graph/    graph_screen, temp_chart
+                history/  history_screen, session_detail_screen
+                common/   connection (chip + sheet), session_picker
+                cook/     cook_clock_card
+  platform/   Android seams (system settings)
 app/test/
-  domain/ design/ data/ features/ integration/   unit, widget, contract tests
-  golden/                                        text goldens (see golden.dart)
-  verification/                                  N16 invariant + audit suite
-  support/                                       shared test helpers
+  app/ data/ domain/ features/   unit, controller and widget tests
+  support/                        FakePeripheral — the board-free BLE fake
 ```
 
-The architecture, the invariants (I1–I15) and the design rules are in
-[`newui/NOTES.md`](../newui/NOTES.md) and
-[`newui/components_research_notes.md`](../newui/components_research_notes.md).
-The build order is [`newui/ROADMAP.md`](../newui/ROADMAP.md); the shared notebook
-is [`newui/PROGRESS.md`](../newui/PROGRESS.md).
+The layering rule: `domain/` imports no Flutter and is host-testable with
+`package:test`. `design/` is presentation-only. `data/` owns transports and the
+cache. `features/` composes them.
 
 ## Commands
 
@@ -37,35 +47,28 @@ From the repo root:
 | Command | Does |
 |---|---|
 | `make app.run` | `flutter run` on a device/emulator |
-| `make app.test` | analyze + format check + `flutter test` (unit, widget, golden) |
-| `make app.golden` | regenerate the text goldens |
-| `make app.gen` | `dart run build_runner build` |
+| `make app.test` | analyze + format check + `flutter test` |
+| `make app.gen` | `dart run build_runner build` (after a model/provider change) |
 
-From `app/` directly: `flutter test`, `flutter analyze`,
-`dart test test/domain test/data`, `flutter build apk --release`.
+From `app/` directly:
 
-The real bridge is the default. A `flutter run` (or any release build) talks to
-the bridge over HTTP/BLE; set `--dart-define=BRIDGE_HOST=…` when mDNS
-(`smokebridge.local`) is not the right address. The mock repository is opt-in
-for fixture-driven dev runs and the UX lab:
-`flutter run --dart-define=MOCK_BRIDGE=true`.
+```
+flutter analyze
+flutter test
+dart test test/domain test/data
+flutter build apk --release
+```
 
-## Verification and release
+The **real bridge is the only repository**. There is no mock switch and no
+`BRIDGE_HOST`: the app talks to the bridge over BLE, and board-free development
+and tests drive [`test/support/fake_peripheral.dart`](../app/test/support/fake_peripheral.dart),
+which speaks the same generated codecs as the firmware.
 
-- The invariant/audit suite is `app/test/verification/` — one named test per
-  I2–I15, plus the copy, accessibility, reduced-motion, empty-state, field-report
-  and release-build checks.
-- Goldens are **text descriptions** of the widget tree, stable across platform
-  and Flutter version; `flutter test` compares them and a missing golden fails.
-- The release gate is [`RELEASE.md`](RELEASE.md); the bench field report is
-  [`FIELD-REPORT.md`](FIELD-REPORT.md).
+## Testing and release
 
-## Notes on the archive
-
-- `app.old/` is **reference only** and git-ignored. Nothing in the new app
-  imports from it; its behaviour (rate/ETA/stall math, safety floors, sync
-  protocol) was re-implemented, not vendored.
-- [`current-app.md`](current-app.md) and [`newapp.md`](newapp.md) predate the
-  rebuild. `newapp.md` is the redesign spec the prototype implements;
-  `current-app.md` is the archived app's inventory. Neither describes the
-  shipping `app/` — read this page and `app/README.md` for that.
+- The suite is `flutter analyze && flutter test` (`make app.test`); the pure-Dart
+  `domain/` and `data/` tests also run under `dart test`.
+- There is **no golden suite and no separate invariant/verification suite** in
+  the slim app. Adding an end-to-end BLE harness and filling the widget-test gaps
+  is [S3.5 in the roadmap](../ROADMAP.md).
+- The release considerations for the slim app are in [`RELEASE.md`](RELEASE.md).

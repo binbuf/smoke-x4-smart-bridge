@@ -1,5 +1,10 @@
 # 09 — Alarms and Insights
 
+> **Historic — describes the full Wi-Fi bridge, not the shipped slim build.** The
+> slim build has no device-tier alarm engine and the app has no alarms or
+> notifications; see [`../firmware-slim.md`](../firmware-slim.md) and
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 Two things turn a data logger into something you'd actually cook with: **it wakes you up when it
 matters**, and **it tells you something you couldn't work out by staring at the number**.
 

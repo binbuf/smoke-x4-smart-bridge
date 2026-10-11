@@ -1,5 +1,9 @@
 # 17. Identity and warmth — what the competitors have that we do not
 
+> **Historic — describes the full Wi-Fi bridge app, not the shipped slim build.**
+> See [`../new-app.md`](../new-app.md) and
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 Read with `16-experience-spine.md`, which this does not replace. 16 is about
 *honesty*. This is about the thing honesty alone does not buy: an app that looks
 like it belongs to cooking rather than to instrumentation.

@@ -1,5 +1,11 @@
 # Contributing
 
+This is the **slim, BLE-only build**. The active plan is [`ROADMAP.md`](ROADMAP.md);
+[`docs/design/`](docs/design/README.md) and [`docs/tasks/`](docs/tasks/README.md)
+describe the larger Wi-Fi/HTTP product and are **historical**. Before changing
+the app, read [`docs/new-app.md`](docs/new-app.md); before changing the firmware,
+read [`docs/firmware-slim.md`](docs/firmware-slim.md).
+
 ## The one hard rule
 
 **`docs/reference/` is never edited.** It is a read-only vendor snapshot of
@@ -10,7 +16,7 @@ carried file (decision D9).
 
 ## Ground rules
 
-- **Decisions D1–D14 are settled.** They live in
+- **Decisions D1–D15 are settled.** They live in
   [`docs/design/00-overview.md`](docs/design/00-overview.md). If one looks wrong during
   implementation, raise it as a question — don't quietly plan around it
   ([12 §12.3](docs/design/12-task-planning-notes.md)).
@@ -37,9 +43,12 @@ carried file (decision D9).
    (`dart run protogen:gen_record_fixtures`) and update both test suites' expectations — the C
    and Dart tests parse the _same_ fixture files by design, so drift shows up as a red test.
 
-HTTP contract changes go through `protocol/openapi.yaml` + the fixtures in
-`protocol/fixtures/http/` (the sim and the app tests both read them). BLE changes go through
-`protocol/records.yaml` (payloads) and `protocol/ble-gatt.md` (service shape).
+BLE changes go through `protocol/records.yaml` (payloads) and
+[`protocol/ble-gatt.md`](protocol/ble-gatt.md) (service shape) — this is the
+contract the slim build ships. The HTTP contract (`protocol/openapi.yaml` +
+`protocol/fixtures/http/`) belongs to the archived full bridge; the simulator and
+its fixtures are still in the tree but nothing in the slim app or firmware uses
+them.
 
 ## Running the suites
 

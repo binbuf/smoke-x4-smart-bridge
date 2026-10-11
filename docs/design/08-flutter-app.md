@@ -1,5 +1,9 @@
 # 08 — Flutter App
 
+> **Historic — describes the full Wi-Fi bridge, not the shipped slim build.** The
+> slim app is BLE-only; see [`../new-app.md`](../new-app.md) and
+> [`../../ROADMAP.md`](../../ROADMAP.md).
+
 Android first (Flutter target `android`, `minSdk 24`, `targetSdk 35`). iOS is not in v1 scope but
 nothing here precludes it — all platform-specific code sits behind two narrow channels.
 
