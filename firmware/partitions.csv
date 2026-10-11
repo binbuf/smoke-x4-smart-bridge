@@ -1,8 +1,10 @@
-# 8 MB flash, OTA-capable from day one (D8) — design 03 §3.5, byte-exact.
-# 0x5A0000 + 0x260000 = 0x800000: nothing stranded. App slots are 64 KB
+# 8 MB flash, BLE-only slim build (design 03 §3.5, trimmed).
+# 0x520000 + 0x2E0000 = 0x800000: nothing stranded. App slots are 64 KB
 # aligned; the 56 KB the alignment would waste becomes the coredump partition.
-# `www` is declared and left unformatted (D13): reclaiming it later is free,
-# carving it out later would erase every stored cook.
+# The full image's `www` carve-out is gone — it existed only for the Wi-Fi web
+# UI — and `cooks` now spans 0x2E0000 (2.875 MB) for history.
+# Dual OTA slots are retained so a future USB/OTA update keeps its known-good
+# fallback; the app builds into ota_0.
 # Name,     Type, SubType,  Offset,   Size,     Flags
 nvs,        data, nvs,      0x9000,   0x6000,
 otadata,    data, ota,      0xF000,   0x2000,
@@ -10,5 +12,4 @@ phy_init,   data, phy,      0x11000,  0x1000,
 coredump,   data, coredump, 0x12000,  0xE000,
 ota_0,      app,  ota_0,    0x20000,  0x280000,
 ota_1,      app,  ota_1,    0x2A0000, 0x280000,
-www,        data, littlefs, 0x520000, 0x80000,
-cooks,      data, littlefs, 0x5A0000, 0x260000,
+cooks,      data, littlefs, 0x520000, 0x2E0000,

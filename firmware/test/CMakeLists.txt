@@ -4,6 +4,10 @@ project(smoke_bridge_host_tests C)
 # Host unit tests: plain CMake + CTest, no ESP-IDF, no hardware (design 10
 # §10.5, following the reference's test/CMakeLists.txt pattern). Runs in
 # seconds with nothing beyond gcc and cmake.
+#
+# BLE-ONLY SLIM BUILD: the Wi-Fi/HTTP/MQTT/OTA/alarm suites are not present
+# here because their components are not in this tree. Every kept suite below
+# is the same host test the full image ran.
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -41,17 +45,6 @@ target_include_directories(test_bridge_event_guard PRIVATE
 )
 add_test(NAME bridge_event_guard COMMAND test_bridge_event_guard)
 
-# MQTT / Home Assistant publisher core (A16, 05 §5.7).
-add_executable(test_app_mqtt
-    test_app_mqtt.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_mqtt/app_mqtt_core.c
-)
-target_include_directories(test_app_mqtt PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_mqtt/include
-    ${REPO_ROOT}/protocol/gen
-)
-add_test(NAME app_mqtt COMMAND test_app_mqtt)
-
 # Boot sequence + double-reset token (F1.5).
 add_executable(test_boot_seq
     test_boot_seq.c
@@ -63,8 +56,7 @@ target_include_directories(test_boot_seq PRIVATE
 )
 add_test(NAME boot_seq COMMAND test_boot_seq)
 
-# Smoke X payload parser: reference seed corpus + real X4 vectors
-# (F3.1–F3.5).
+# Smoke X payload parser: reference seed corpus + real X4 vectors (F3.1–F3.5).
 add_executable(test_smoke_x_parser
     test_smoke_x_parser.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
@@ -74,8 +66,8 @@ target_include_directories(test_smoke_x_parser PRIVATE
 )
 add_test(NAME smoke_x_parser COMMAND test_smoke_x_parser)
 
-# cook_store write path + crash safety: torn-append recovery at every
-# offset, retention, marks, fsync cadence (F5.1–F5.5, F5.7–F5.9).
+# cook_store write path + crash safety: torn-append recovery at every offset,
+# retention, marks, fsync cadence (F5.1–F5.5, F5.7–F5.9).
 add_executable(test_cook_store
     test_cook_store.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
@@ -88,8 +80,7 @@ target_include_directories(test_cook_store PRIVATE
 )
 add_test(NAME cook_store COMMAND test_cook_store)
 
-# cook_store streaming read: buckets, spike survival, binary-search bound
-# (F5.10).
+# cook_store streaming read: buckets, spike survival, binary-search bound (F5.10).
 add_executable(test_cook_read
     test_cook_read.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
@@ -114,74 +105,8 @@ target_include_directories(test_cook_ring_lifecycle PRIVATE
 )
 add_test(NAME cook_ring_lifecycle COMMAND test_cook_ring_lifecycle)
 
-# The HTTP contract over the real host-tested modules: router, auth,
-# fixtures, streaming bound, WS registry (F9, F8.7, F4.5, F4.6).
-add_executable(test_app_api
-    test_app_api.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_sessions.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_emit.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/app_api_ws.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_pktring.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_ring.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_novelty_log.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_power_log.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/app_time_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_svc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_image.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_gate.c
-    # /cook-clock drives the display clock directly — the real module, not a
-    # double, so the route test and the strip test cannot drift apart.
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_cook.c
-)
-target_include_directories(test_app_api PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_api/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/bridge_event/include
-    ${REPO_ROOT}/protocol/gen
-)
-target_compile_definitions(test_app_api PRIVATE
-    FIXTURES_HTTP_DIR="${REPO_ROOT}/protocol/fixtures/http"
-    FIXTURES_OTA_DIR="${REPO_ROOT}/protocol/fixtures/ota"
-)
-add_test(NAME app_api COMMAND test_app_api)
-
-# Wi-Fi mode selection and STA supervision (F8.1–F8.3).
-add_executable(test_app_net
-    test_app_net.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/dns_shim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_txt.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
-)
-target_include_directories(test_app_net PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
-)
-add_test(NAME app_net COMMAND test_app_net)
-
-# The parser against the whole committed capture corpus, real and
-# adversarial (F3.8, T4.3).
+# The parser against the whole committed capture corpus, real and adversarial
+# (F3.8, T4.3).
 add_executable(test_lora_corpus
     test_lora_corpus.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
@@ -214,8 +139,7 @@ target_compile_definitions(test_replay PRIVATE
 )
 add_test(NAME replay COMMAND test_replay)
 
-# The persisted novelty ring: pinned evidence survives wrap + remount
-# (F4.3).
+# The persisted novelty ring: pinned evidence survives wrap + remount (F4.3).
 add_executable(test_novelty_log
     test_novelty_log.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_novelty_log.c
@@ -227,9 +151,7 @@ target_include_directories(test_novelty_log PRIVATE
 )
 add_test(NAME novelty_log COMMAND test_novelty_log)
 
-# The persisted battery power log: FIFO wrap keeps the newest lines, the
-# boot marker records the reset reason, the line format round-trips
-# (follow-on to F12).
+# The persisted battery power log: FIFO wrap, boot marker, line format.
 add_executable(test_power_log
     test_power_log.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_power_log.c
@@ -297,7 +219,7 @@ target_include_directories(test_smoke_x_ctrl PRIVATE
 add_test(NAME smoke_x_ctrl COMMAND test_smoke_x_ctrl)
 
 # Typed config store: schema round-trips, the reference-compatible sx_pair
-# blob, the v0→v1 adoption migration, notifications, PSK (F7.1–F7.3).
+# blob, the v0→v1 adoption migration, notifications (F7.1–F7.2).
 add_executable(test_app_config
     test_app_config.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
@@ -308,18 +230,16 @@ target_include_directories(test_app_config PRIVATE
 add_test(NAME app_config COMMAND test_app_config)
 
 # The Bridge Control Service as a pure core: registry, security table,
-# builders against the P3.2 fixtures, advertising PDUs, the MTU chunker,
-# and every device_control op through real component doubles (F10).
+# builders, advertising PDUs, the MTU chunker, and every device_control op
+# through real component doubles (F10). No Wi-Fi characteristics on this
+# build, so no app_net double.
 add_executable(test_app_ble
     test_app_ble.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_ctrl.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_adv.c
-    # §5.10–§5.11 full history over BLE. It streams through cook_store_core,
-    # which is already in this binary over the real VFS — so the 12 h
-    # transfer is exercised end to end here, with no radio and no board.
+    # §5.10–§5.11 full history over BLE, streamed through cook_store_core.
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/app_ble_history.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/app_net_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
@@ -327,26 +247,19 @@ add_executable(test_app_ble
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/app_time_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
     # F10.5's done-when: the passkey app_ble generates must be the passkey
-    # F11a draws. The two halves meet here, against the committed golden.
+    # app_ui draws. The two halves meet here, against the committed golden.
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_fb.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_font.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_render.c
     # app_ble_ctrl.c dispatches set/clear_cook_clock straight into it.
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_cook.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_svc.c
 )
 target_include_directories(test_app_ble PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ble/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_net/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_time/include
@@ -360,9 +273,8 @@ target_compile_definitions(test_app_ble PRIVATE
 )
 add_test(NAME app_ble COMMAND test_app_ble)
 
-# The display layer: primitives, clipping, both fonts, the §7.3 passkey
-# overlay against golden framebuffers, and the V1.4 rail-before-bus
-# bring-up order through the injected I²C seam (F11a.1–F11a.5).
+# The display layer: primitives, clipping, both fonts, the passkey overlay
+# against golden framebuffers, and the rail-before-bus bring-up order.
 add_executable(test_app_ui
     test_app_ui.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/app_ui_fb.c
@@ -378,8 +290,6 @@ target_include_directories(test_app_ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ui/include
     ${REPO_ROOT}/protocol/gen
 )
-# Goldens are reviewed as PNGs (tools/oled); rendered copies land in the
-# build dir so CI can upload the picture even when the bytes disagree.
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/oled-render)
 target_compile_definitions(test_app_ui PRIVATE
     GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/goldens/oled"
@@ -387,51 +297,8 @@ target_compile_definitions(test_app_ui PRIVATE
 )
 add_test(NAME app_ui COMMAND test_app_ui)
 
-# The device-tier alarm engine: the 09 §9.2 rule table, the latching
-# lifecycle, the ±1 °F oscillation regression from 10 §10.5, and the
-# lid-open branch that keeps a spritz from being an alarm (F13.1,
-# F13.3–F13.5).
-add_executable(test_app_alarm
-    test_app_alarm.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
-)
-target_include_directories(test_app_alarm PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
-    ${REPO_ROOT}/protocol/gen
-)
-add_test(NAME app_alarm COMMAND test_app_alarm)
-
-# The alarm engine wired to the REAL app_config_store, smoke_x_ctrl,
-# cook_ring and cook_store — the modules the firmware runs, not doubles of
-# them. Only the four device facts are faked (F13.6, F13.7).
-add_executable(test_app_alarm_svc
-    test_app_alarm_svc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_cfg.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/rules.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_lid.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/alarm_engine.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/app_alarm_svc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/app_config_store.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_store_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/cook_ring.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_ctrl.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/smoke_x_parser.c
-)
-target_include_directories(test_app_alarm_svc PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_alarm/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_config/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/cook_store/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/smoke_x/include
-    ${REPO_ROOT}/protocol/gen
-)
-add_test(NAME app_alarm_svc COMMAND test_app_alarm_svc)
-
-# Battery: the 01 §1.3 discharge curve, the EMA, the inferred charging
-# state, the plateau solver and its ±20 % clamp, the saver hysteresis, and
-# the V1.3 gate ORDER through the injected ADC seam (F12.1–F12.4).
+# Battery: the discharge curve, the EMA, inferred charging, the plateau
+# solver, the saver hysteresis, and the V1.3 gate ORDER (F12.1–F12.4).
 add_executable(test_app_power
     test_app_power.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_power/power_core.c
@@ -448,22 +315,3 @@ target_include_directories(test_tasks_table PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../main
 )
 add_test(NAME tasks_table COMMAND test_tasks_table)
-
-# The OTA path (F14.1–F14.4): the image inspector against the first 288
-# bytes of REAL builds, admission, the phase machine and its throttled
-# progress, the injected flash seam with every failure a board would take
-# a reflash to produce, and 03 §3.7's health gate as a table. Nothing in
-# F14 touches the board before F14.9, and this binary is why.
-add_executable(test_app_ota
-    test_app_ota.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_image.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_core.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/ota_gate.c
-)
-target_include_directories(test_app_ota PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../components/app_ota/include
-)
-target_compile_definitions(test_app_ota PRIVATE
-    FIXTURES_OTA_DIR="${REPO_ROOT}/protocol/fixtures/ota"
-)
-add_test(NAME app_ota COMMAND test_app_ota)

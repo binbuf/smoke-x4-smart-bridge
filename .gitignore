@@ -71,3 +71,4 @@ firmware/build-test/
 # symphony harness (local tool, not tracked)
 .symphony/
 .stop
+firmware/build-local/
