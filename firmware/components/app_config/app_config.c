@@ -1,10 +1,9 @@
 /* app_config — ESP-IDF binding for the typed store (design 03 §3.6).
  * Everything interesting lives in app_config_store.c, which is host-tested;
- * this file only supplies the NVS backend and the hardware RNG. */
+ * this file only supplies the NVS backend. */
 #include "app_config.h"
 
 #include "app_config_store.h"
-#include "esp_random.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 
@@ -51,8 +50,8 @@ static int nvs_backend_set(void *ctx, const char *ns, const char *key,
 
 static int nvs_backend_erase_all(void *ctx) {
     (void)ctx;
-    /* Factory reset erases the whole NVS partition — pairing, network,
-     * probe names, everything (F11 reboots immediately after). */
+    /* Factory reset erases the whole NVS partition — pairing, probes,
+     * everything (F11 reboots immediately after). */
     nvs_flash_deinit();
     esp_err_t err = nvs_flash_erase();
     if (err != ESP_OK) {
@@ -69,5 +68,5 @@ static const app_config_backend_t k_nvs_backend = {
 };
 
 int app_config_init(void) {
-    return app_config_store_init(&k_nvs_backend, esp_random);
+    return app_config_store_init(&k_nvs_backend);
 }

@@ -57,10 +57,10 @@ As specified in `docs/design/05-connectivity-and-provisioning.md`, the **Welcome
 
 ## 4. Color Palette & Tokens
 
-### Base Obsidian Dark Palette
+### Smoke X4 Obsidian Dark Palette
 | Token Name | Hex Code | Purpose |
 | :--- | :--- | :--- |
-| `bg-darkest` | `#07090E` | Deepest background; outdoor night screen base |
+| `bg-darkest` | `#07090E` | Deepest background; outdoor night screen Smoke X4 |
 | `bg-surface` | `#0F131D` | Container surface; device frame background |
 | `bg-card` | `#161C2A` | Primary card container background |
 | `bg-card-hover` | `#1E2638` | Interactive hovered/tapped state |

@@ -195,6 +195,8 @@ typedef enum {
     BRIDGE_CONTROL_OP_POWER_OFF = 13,
     BRIDGE_CONTROL_OP_SET_COOK_CLOCK = 14,
     BRIDGE_CONTROL_OP_CLEAR_COOK_CLOCK = 15,
+    BRIDGE_CONTROL_OP_SET_PROBE = 16,
+    BRIDGE_CONTROL_OP_SET_DEVICE_PREFS = 17,
 } bridge_control_op_t;
 
 static inline const char *bridge_control_op_str(int v) {
@@ -229,6 +231,10 @@ static inline const char *bridge_control_op_str(int v) {
         return "set_cook_clock";
     case 15:
         return "clear_cook_clock";
+    case 16:
+        return "set_probe";
+    case 17:
+        return "set_device_prefs";
     default:
         return "";
     }
@@ -514,7 +520,7 @@ typedef struct __attribute__((packed)) {
     uint32_t sample_period_s; /* nominal 30 */
     uint32_t sample_count; /* authoritative on close; derived from file size while open */
     uint8_t _rsv44[4];
-    char device_id[8]; /* the paired base station, NUL-padded */
+    char device_id[8]; /* the paired Smoke X4, NUL-padded */
     char name[40]; /* user label, UTF-8, NUL-padded */
     char probe_name[4][12]; /* UTF-8, NUL-padded */
     uint8_t probe_role[4];
@@ -714,7 +720,7 @@ typedef struct __attribute__((packed)) {
     uint8_t ver;
     uint8_t api; /* HTTP/BLE API major version */
     uint8_t probes; /* 2 or 4 */
-    uint8_t caps; /* b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN. b6 history_full: this bridge serves §5.10/§5.11, so a client can tell a v1.1 bridge from a v1.0 one that would silently never answer a history_ctrl write */
+    uint8_t caps; /* b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN. b6 history_full: this bridge serves §5.10/§5.11, so a client can tell a v1.1 bridge from a v1.0 one that would silently never answer a history_ctrl write. b7 admin: this bridge serves the read-only device_stats characteristic and the set_probe / set_device_prefs control ops (v1.2). */
     char id[4]; /* ASCII hex, e.g. A4F2 */
     char model[16]; /* UTF-8, NUL-padded */
     char fw[16]; /* UTF-8, NUL-padded */
@@ -730,6 +736,7 @@ _Static_assert(sizeof(bridge_device_info_t) == BRIDGE_DEVICE_INFO_SIZE,
 #define BRIDGE_DEVICE_INFO_CAPS_OTA (1u << 4)
 #define BRIDGE_DEVICE_INFO_CAPS_BATTERY (1u << 5)
 #define BRIDGE_DEVICE_INFO_CAPS_HISTORY_FULL (1u << 6)
+#define BRIDGE_DEVICE_INFO_CAPS_ADMIN (1u << 7)
 static inline bool bridge_device_info_wifi_ap(uint8_t caps) {
     return (caps & (1u << 0)) != 0;
 }
@@ -751,6 +758,9 @@ static inline bool bridge_device_info_battery(uint8_t caps) {
 static inline bool bridge_device_info_history_full(uint8_t caps) {
     return (caps & (1u << 6)) != 0;
 }
+static inline bool bridge_device_info_admin(uint8_t caps) {
+    return (caps & (1u << 7)) != 0;
+}
 
 static inline void bridge_device_info_encode(const bridge_device_info_t *v, uint8_t out[BRIDGE_DEVICE_INFO_SIZE]) {
     out[0] = v->ver;
@@ -771,6 +781,130 @@ static inline void bridge_device_info_decode(const uint8_t *buf, bridge_device_i
     memcpy(v->id, buf + 4, 4);
     memcpy(v->model, buf + 8, 16);
     memcpy(v->fw, buf + 24, 16);
+}
+
+/* ── device_stats (39 B) ── */
+
+#define BRIDGE_DEVICE_STATS_SIZE 39u
+
+typedef struct __attribute__((packed)) {
+    uint8_t ver;
+    uint8_t flags; /* b0 paired (Smoke X4) · b1 clock_valid · b2 BLE advertising · b3 a central is connected */
+    uint32_t uptime_s; /* seconds since boot */
+    uint32_t heap_free; /* free heap bytes now */
+    uint32_t heap_min; /* lowest free heap since boot */
+    uint32_t storage_used_b; /* cook filesystem bytes used */
+    uint32_t storage_total_b; /* cook filesystem capacity */
+    uint16_t stored_sessions; /* cook files on flash */
+    uint32_t lora_freq_hz; /* the tuned LoRa frequency */
+    int8_t lora_rssi; /* dBm of the last state message */
+    int8_t lora_snr; /* dB of the last state message */
+    uint32_t packets_ok; /* state messages accepted */
+    uint32_t packets_bad; /* parse + CRC + unknown failures */
+    uint8_t bonds; /* stored phone bonds */
+} bridge_device_stats_t;
+
+_Static_assert(sizeof(bridge_device_stats_t) == BRIDGE_DEVICE_STATS_SIZE,
+               "device_stats must pack to 39 bytes");
+
+#define BRIDGE_DEVICE_STATS_FLAGS_PAIRED (1u << 0)
+#define BRIDGE_DEVICE_STATS_FLAGS_CLOCK_VALID (1u << 1)
+#define BRIDGE_DEVICE_STATS_FLAGS_ADVERTISING (1u << 2)
+#define BRIDGE_DEVICE_STATS_FLAGS_CONNECTED (1u << 3)
+static inline bool bridge_device_stats_paired(uint8_t flags) {
+    return (flags & (1u << 0)) != 0;
+}
+static inline bool bridge_device_stats_clock_valid(uint8_t flags) {
+    return (flags & (1u << 1)) != 0;
+}
+static inline bool bridge_device_stats_advertising(uint8_t flags) {
+    return (flags & (1u << 2)) != 0;
+}
+static inline bool bridge_device_stats_connected(uint8_t flags) {
+    return (flags & (1u << 3)) != 0;
+}
+
+static inline void bridge_device_stats_encode(const bridge_device_stats_t *v, uint8_t out[BRIDGE_DEVICE_STATS_SIZE]) {
+    out[0] = v->ver;
+    out[1] = v->flags;
+    bridge_put_u32(out + 2, v->uptime_s);
+    bridge_put_u32(out + 6, v->heap_free);
+    bridge_put_u32(out + 10, v->heap_min);
+    bridge_put_u32(out + 14, v->storage_used_b);
+    bridge_put_u32(out + 18, v->storage_total_b);
+    bridge_put_u16(out + 22, v->stored_sessions);
+    bridge_put_u32(out + 24, v->lora_freq_hz);
+    out[28] = (uint8_t)v->lora_rssi;
+    out[29] = (uint8_t)v->lora_snr;
+    bridge_put_u32(out + 30, v->packets_ok);
+    bridge_put_u32(out + 34, v->packets_bad);
+    out[38] = v->bonds;
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_device_stats_decode(const uint8_t *buf, bridge_device_stats_t *v) {
+    v->ver = buf[0];
+    v->flags = buf[1];
+    v->uptime_s = bridge_get_u32(buf + 2);
+    v->heap_free = bridge_get_u32(buf + 6);
+    v->heap_min = bridge_get_u32(buf + 10);
+    v->storage_used_b = bridge_get_u32(buf + 14);
+    v->storage_total_b = bridge_get_u32(buf + 18);
+    v->stored_sessions = bridge_get_u16(buf + 22);
+    v->lora_freq_hz = bridge_get_u32(buf + 24);
+    v->lora_rssi = (int8_t)buf[28];
+    v->lora_snr = (int8_t)buf[29];
+    v->packets_ok = bridge_get_u32(buf + 30);
+    v->packets_bad = bridge_get_u32(buf + 34);
+    v->bonds = buf[38];
+}
+
+/* ── device_config (87 B) ── */
+
+#define BRIDGE_DEVICE_CONFIG_SIZE 87u
+
+typedef struct __attribute__((packed)) {
+    uint8_t ver;
+    uint16_t display_timeout_s; /* 0 = never sleep */
+    uint8_t led_enabled;
+    uint8_t buzzer_enabled;
+    uint8_t retention_max_sessions;
+    uint8_t retention_min_free_pct;
+    char probe_name[4][17]; /* UTF-8, NUL-padded, ≤16 chars each */
+    uint8_t probe_role[4];
+    int16_t probe_target[4]; /* tenths °F, 0 = none */
+} bridge_device_config_t;
+
+_Static_assert(sizeof(bridge_device_config_t) == BRIDGE_DEVICE_CONFIG_SIZE,
+               "device_config must pack to 87 bytes");
+
+static inline void bridge_device_config_encode(const bridge_device_config_t *v, uint8_t out[BRIDGE_DEVICE_CONFIG_SIZE]) {
+    out[0] = v->ver;
+    bridge_put_u16(out + 1, v->display_timeout_s);
+    out[3] = v->led_enabled;
+    out[4] = v->buzzer_enabled;
+    out[5] = v->retention_max_sessions;
+    out[6] = v->retention_min_free_pct;
+    memcpy(out + 7, v->probe_name[0], 68);
+    memcpy(out + 75, v->probe_role, 4);
+    for (size_t i = 0; i < 4; i++) {
+        bridge_put_u16(out + 79 + i * 2, (uint16_t)v->probe_target[i]);
+    }
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_device_config_decode(const uint8_t *buf, bridge_device_config_t *v) {
+    v->ver = buf[0];
+    v->display_timeout_s = bridge_get_u16(buf + 1);
+    v->led_enabled = buf[3];
+    v->buzzer_enabled = buf[4];
+    v->retention_max_sessions = buf[5];
+    v->retention_min_free_pct = buf[6];
+    memcpy(v->probe_name[0], buf + 7, 68);
+    memcpy(v->probe_role, buf + 75, 4);
+    for (size_t i = 0; i < 4; i++) {
+        v->probe_target[i] = (int16_t)bridge_get_u16(buf + 79 + i * 2);
+    }
 }
 
 /* ── wifi_scan_ctrl (2 B) ── */
@@ -1564,6 +1698,67 @@ static inline void bridge_ctrl_set_battery_saver_encode(const bridge_ctrl_set_ba
 /* Fills *v from the wire bytes. Never rejects on version. */
 static inline void bridge_ctrl_set_battery_saver_decode(const uint8_t *buf, bridge_ctrl_set_battery_saver_t *v) {
     v->saver = buf[0];
+}
+
+/* ── set_probe (device_control body, 21 B) ── */
+
+#define BRIDGE_CTRL_SET_PROBE_SIZE 21u
+
+typedef struct __attribute__((packed)) {
+    uint8_t index; /* 0..3 (jack 1..4) */
+    uint8_t role;
+    char name[17]; /* UTF-8, NUL-padded within 17 B (≤16 chars) */
+    int16_t target_f10; /* tenths °F, 0 = no target */
+} bridge_ctrl_set_probe_t;
+
+_Static_assert(sizeof(bridge_ctrl_set_probe_t) == BRIDGE_CTRL_SET_PROBE_SIZE,
+               "set_probe must pack to 21 bytes");
+
+static inline void bridge_ctrl_set_probe_encode(const bridge_ctrl_set_probe_t *v, uint8_t out[BRIDGE_CTRL_SET_PROBE_SIZE]) {
+    out[0] = v->index;
+    out[1] = v->role;
+    memcpy(out + 2, v->name, 17);
+    bridge_put_u16(out + 19, (uint16_t)v->target_f10);
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_ctrl_set_probe_decode(const uint8_t *buf, bridge_ctrl_set_probe_t *v) {
+    v->index = buf[0];
+    v->role = buf[1];
+    memcpy(v->name, buf + 2, 17);
+    v->target_f10 = (int16_t)bridge_get_u16(buf + 19);
+}
+
+/* ── set_device_prefs (device_control body, 6 B) ── */
+
+#define BRIDGE_CTRL_SET_DEVICE_PREFS_SIZE 6u
+
+typedef struct __attribute__((packed)) {
+    uint16_t display_timeout_s; /* 0 = never sleep */
+    uint8_t led_enabled;
+    uint8_t buzzer_enabled;
+    uint8_t retention_max_sessions;
+    uint8_t retention_min_free_pct;
+} bridge_ctrl_set_device_prefs_t;
+
+_Static_assert(sizeof(bridge_ctrl_set_device_prefs_t) == BRIDGE_CTRL_SET_DEVICE_PREFS_SIZE,
+               "set_device_prefs must pack to 6 bytes");
+
+static inline void bridge_ctrl_set_device_prefs_encode(const bridge_ctrl_set_device_prefs_t *v, uint8_t out[BRIDGE_CTRL_SET_DEVICE_PREFS_SIZE]) {
+    bridge_put_u16(out + 0, v->display_timeout_s);
+    out[2] = v->led_enabled;
+    out[3] = v->buzzer_enabled;
+    out[4] = v->retention_max_sessions;
+    out[5] = v->retention_min_free_pct;
+}
+
+/* Fills *v from the wire bytes. Never rejects on version. */
+static inline void bridge_ctrl_set_device_prefs_decode(const uint8_t *buf, bridge_ctrl_set_device_prefs_t *v) {
+    v->display_timeout_s = bridge_get_u16(buf + 0);
+    v->led_enabled = buf[2];
+    v->buzzer_enabled = buf[3];
+    v->retention_max_sessions = buf[4];
+    v->retention_min_free_pct = buf[5];
 }
 
 #ifdef __cplusplus

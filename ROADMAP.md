@@ -105,24 +105,24 @@ cook with".
   sessions carrying a real date, the History rows show a date with no user
   action, and a test asserts `setTime` is written exactly once per connect.
 
-### S1.2 Show base-station pairing state, and drive it from the app
+### S1.2 Show Smoke X4 pairing state, and drive it from the app
 
-- **why:** the product's defining action — pairing the bridge to the Smoke X base
+- **why:** the product's defining action — pairing the bridge to the Smoke X4
   (the single LoRa transmit) — has no app counterpart. The user cannot see
-  whether the base is paired and cannot initiate pairing.
+  whether the Smoke X4 is paired and cannot initiate pairing.
 - **evidence:** firmware exposes `pair`/`unpair` (`app_ble_ctrl.c:175-180` →
   `smoke_x_ctrl_unpair`) but the app never calls them (no `PAIR` reference under
   `app/lib/`). `live_state.paired` is decoded
   (`app/lib/data/ble/bridge_transport.dart:112-117`) but used only to compute
   `Freshness.frozen` (`bridge_controller.dart:120-127`).
 - **action:** surface paired/unpaired prominently (Live header or a pairing
-  card), and offer a "Pair with base station" action that dispatches op `pair`
+  card), and offer a "Pair with Smoke X4" action that dispatches op `pair`
   and reflects the result. When unpaired, say what to do; when paired, show the
   last LoRa RSSI.
 - **done when:** the app states paired/unpaired from `live_state`, a user can
   initiate pairing from the app, and a widget test covers both states.
 
-### S1.3 Guided first-run pairing (passkey + base SYNC)
+### S1.3 Guided first-run pairing (passkey + Smoke X4 SYNC)
 
 - **why:** bonding raises an OS passkey dialog while the six digits appear only
   on the bridge's OLED; the app never tells the user to read them, and first-run
@@ -133,7 +133,7 @@ cook with".
   (`app/lib/features/live/live_screen.dart:50-63`).
 - **action:** add a minimal first-run/setup surface that (1) explains the three
   hops — find, pair, optionally name — (2) during bonding, instructs the user to
-  read the six digits on the bridge's OLED, and (3) explains the base-station
+  read the six digits on the bridge's OLED, and (3) explains the Smoke X4
   SYNC gesture and the bridge OLED confirmation. Keep it to the slim scope; no
   Wi-Fi step.
 - **done when:** a factory-fresh install reaches a live reading through named,

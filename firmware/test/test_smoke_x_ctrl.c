@@ -85,8 +85,6 @@ static int mem_erase_all(void *ctx) {
 static const app_config_backend_t g_backend = {
     .get = mem_get, .set = mem_set, .erase_all = mem_erase_all, .ctx = NULL};
 
-static uint32_t fake_rng(void) { return 42u; }
-
 /* ── Radio/event doubles ───────────────────────────────────────────────── */
 
 static uint32_t g_freq_set;
@@ -146,7 +144,7 @@ static void reset_doubles(void) {
 
 static void fresh_ctrl(bool rescan) {
     mem_erase_all(NULL);
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_init(&g_backend), APP_CONFIG_OK);
     reset_doubles();
     CHECK_EQ_INT(smoke_x_ctrl_init(&g_ops, NULL, rescan, 0), 0);
 }

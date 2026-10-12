@@ -141,6 +141,93 @@ static int op_set_battery_saver(const uint8_t *body, size_t body_len) {
                : APP_BLE_ERR_FAILED;
 }
 
+/* ── probe + device administration (v1.2) ─────────────────────────── */
+
+/* Wire probe_role (unused 0, pit 1, food 2, ambient 3) to the NVS role the
+ * OLED and alarms read. The orders differ on purpose: the wire enum predates
+ * the config, and renumbering either would break a shipped binder. */
+static uint8_t role_to_config(uint8_t wire_role) {
+    switch (wire_role) {
+    case BRIDGE_PROBE_ROLE_PIT:
+        return APP_CONFIG_ROLE_PIT;
+    case BRIDGE_PROBE_ROLE_FOOD:
+        return APP_CONFIG_ROLE_FOOD;
+    case BRIDGE_PROBE_ROLE_AMBIENT:
+        return APP_CONFIG_ROLE_AMBIENT;
+    case BRIDGE_PROBE_ROLE_UNUSED:
+        return APP_CONFIG_ROLE_UNUSED;
+    default:
+        return 0xFF;
+    }
+}
+
+static int op_set_probe(const uint8_t *body, size_t body_len) {
+    if (body_len < BRIDGE_CTRL_SET_PROBE_SIZE) {
+        return APP_BLE_ERR_INVALID;
+    }
+    bridge_ctrl_set_probe_t p;
+    bridge_ctrl_set_probe_decode(body, &p);
+    if (p.index > 3) {
+        return APP_BLE_ERR_INVALID;
+    }
+    const uint8_t role = role_to_config(p.role);
+    if (role == 0xFF) {
+        return APP_BLE_ERR_INVALID;
+    }
+    static const app_config_key_t name_keys[4] = {
+        APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME, APP_CONFIG_PROBE3_NAME,
+        APP_CONFIG_PROBE4_NAME};
+    static const app_config_key_t role_keys[4] = {
+        APP_CONFIG_PROBE1_ROLE, APP_CONFIG_PROBE2_ROLE, APP_CONFIG_PROBE3_ROLE,
+        APP_CONFIG_PROBE4_ROLE};
+    static const app_config_key_t target_keys[4] = {
+        APP_CONFIG_PROBE1_TARGET, APP_CONFIG_PROBE2_TARGET,
+        APP_CONFIG_PROBE3_TARGET, APP_CONFIG_PROBE4_TARGET};
+
+    /* The wire name is NUL-padded within 17 B; the store wants a
+     * NUL-terminated string. Force the terminator so a full-width name cannot
+     * run on. */
+    char name[sizeof p.name];
+    memcpy(name, p.name, sizeof p.name);
+    name[sizeof name - 1] = '\0';
+
+    if (app_config_store_set_str(name_keys[p.index], name) != APP_CONFIG_OK) {
+        return APP_BLE_ERR_FAILED;
+    }
+    if (app_config_store_set_u8(role_keys[p.index], role) != APP_CONFIG_OK) {
+        return APP_BLE_ERR_FAILED;
+    }
+    if (app_config_store_set_i32(target_keys[p.index], p.target_f10) !=
+        APP_CONFIG_OK) {
+        return APP_BLE_ERR_FAILED;
+    }
+    return APP_BLE_OK;
+}
+
+static int op_set_device_prefs(const uint8_t *body, size_t body_len) {
+    if (body_len < BRIDGE_CTRL_SET_DEVICE_PREFS_SIZE) {
+        return APP_BLE_ERR_INVALID;
+    }
+    bridge_ctrl_set_device_prefs_t p;
+    bridge_ctrl_set_device_prefs_decode(body, &p);
+    if (p.led_enabled > 1 || p.buzzer_enabled > 1) {
+        return APP_BLE_ERR_INVALID;
+    }
+    if (app_config_store_set_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S,
+                                 p.display_timeout_s) != APP_CONFIG_OK ||
+        app_config_store_set_u8(APP_CONFIG_DEV_LED_ENABLED, p.led_enabled) !=
+            APP_CONFIG_OK ||
+        app_config_store_set_u8(APP_CONFIG_DEV_BUZZER_ENABLED,
+                                p.buzzer_enabled) != APP_CONFIG_OK ||
+        app_config_store_set_u8(APP_CONFIG_DEV_RETENTION_MAX_SESSIONS,
+                                p.retention_max_sessions) != APP_CONFIG_OK ||
+        app_config_store_set_u8(APP_CONFIG_DEV_RETENTION_MIN_FREE_PCT,
+                                p.retention_min_free_pct) != APP_CONFIG_OK) {
+        return APP_BLE_ERR_FAILED;
+    }
+    return APP_BLE_OK;
+}
+
 static int op_ack_alarm(const uint8_t *body, size_t body_len) {
     if (body_len < BRIDGE_CTRL_ACK_ALARM_SIZE) {
         return APP_BLE_ERR_INVALID;
@@ -173,7 +260,7 @@ static int op_set_cook_clock(const uint8_t *body, size_t body_len) {
 static int dispatch_op(uint8_t op, const uint8_t *body, size_t body_len) {
     switch (op) {
     case BRIDGE_CONTROL_OP_PAIR:
-        /* Re-enter sync/scan toward the base station. Touches nothing
+        /* Re-enter sync/scan toward the Smoke X4. Touches nothing
          * outside this device — an invariant two milestones old (§2.5). */
         return smoke_x_ctrl_unpair() == 0 ? APP_BLE_OK : APP_BLE_ERR_FAILED;
     case BRIDGE_CONTROL_OP_UNPAIR:
@@ -200,6 +287,10 @@ static int dispatch_op(uint8_t op, const uint8_t *body, size_t body_len) {
         return op_ack_alarm(body, body_len);
     case BRIDGE_CONTROL_OP_SET_BATTERY_SAVER:
         return op_set_battery_saver(body, body_len);
+    case BRIDGE_CONTROL_OP_SET_PROBE:
+        return op_set_probe(body, body_len);
+    case BRIDGE_CONTROL_OP_SET_DEVICE_PREFS:
+        return op_set_device_prefs(body, body_len);
     case BRIDGE_CONTROL_OP_SET_COOK_CLOCK:
         return op_set_cook_clock(body, body_len);
     case BRIDGE_CONTROL_OP_CLEAR_COOK_CLOCK:

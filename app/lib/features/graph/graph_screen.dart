@@ -12,6 +12,7 @@ import '../../design/format.dart';
 import '../../design/primitives.dart';
 import '../../design/tokens.dart';
 import '../../domain/domain.dart';
+import '../common/bridge_app_bar.dart';
 import '../common/connection.dart';
 import '../common/session_picker.dart';
 import 'temp_chart.dart';
@@ -55,34 +56,7 @@ class _GraphScreenState extends State<GraphScreen> {
     final sessions = controller.sessions;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Graph'),
-        actions: [
-          const ConnectionChip(),
-          const SizedBox(width: SmokeSpace.sm),
-          IconButton(
-            tooltip: controller.syncing
-                ? 'Syncing…'
-                : (controller.syncError ?? 'Sync now'),
-            onPressed: controller.connected ? controller.syncNow : null,
-            icon: controller.syncing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
-                  )
-                : Icon(
-                    controller.syncError == null
-                        ? Icons.sync
-                        : Icons.sync_problem,
-                    color: controller.syncError == null
-                        ? null
-                        : SmokePalette.warning,
-                  ),
-          ),
-          const SizedBox(width: SmokeSpace.sm),
-        ],
-      ),
+      appBar: const BridgeAppBar(title: 'Graph'),
       body: sessions.isEmpty
           ? _NoSessions(controller: controller)
           : RefreshIndicator(

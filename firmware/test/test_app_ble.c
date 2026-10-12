@@ -155,7 +155,7 @@ static void reset_all(void) {
 
     memfs_reset();
     cfg_erase_all(NULL);
-    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend),
                  APP_CONFIG_OK);
     CHECK_EQ_INT(cook_store_core_init(&g_vfs, NULL, NULL), COOK_STORE_OK);
     cook_store_set_request_hooks(hook_start, hook_stop);
@@ -246,12 +246,12 @@ static void test_registry_matches_the_contract(void) {
     } want[] = {
         {APP_BLE_CH_DEVICE_INFO, 0x0001, APP_BLE_PROP_READ, APP_BLE_SEC_OPEN},
         {APP_BLE_CH_DEVICE_CONTROL, 0x0006, APP_BLE_PROP_WRITE,
-         APP_BLE_SEC_AUTHENTICATED},
+         APP_BLE_SEC_ENCRYPTED},
         {APP_BLE_CH_LIVE_STATE, 0x0007,
          APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY, APP_BLE_SEC_ENCRYPTED},
         {APP_BLE_CH_HISTORY_PREVIEW, 0x0008, APP_BLE_PROP_READ,
          APP_BLE_SEC_ENCRYPTED},
-        {APP_BLE_CH_RESULT, 0x0009, APP_BLE_PROP_NOTIFY,
+        {APP_BLE_CH_RESULT, 0x0009, APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY,
          APP_BLE_SEC_ENCRYPTED},
         /* v1.1 full history. `encrypted`, deliberately NOT authenticated:
          * these read stored cooks and change nothing, so they sit with
@@ -259,7 +259,13 @@ static void test_registry_matches_the_contract(void) {
          * wipe the device (§3). */
         {APP_BLE_CH_HISTORY_CTRL, 0x000A, APP_BLE_PROP_WRITE,
          APP_BLE_SEC_ENCRYPTED},
-        {APP_BLE_CH_HISTORY_DATA, 0x000B, APP_BLE_PROP_NOTIFY,
+        {APP_BLE_CH_HISTORY_DATA, 0x000B,
+         APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY, APP_BLE_SEC_ENCRYPTED},
+        /* v1.2 admin: a read-only telemetry snapshot and a read-only view of
+         * the writable settings, both behind the bond. */
+        {APP_BLE_CH_DEVICE_STATS, 0x000C, APP_BLE_PROP_READ,
+         APP_BLE_SEC_ENCRYPTED},
+        {APP_BLE_CH_DEVICE_CONFIG, 0x000D, APP_BLE_PROP_READ,
          APP_BLE_SEC_ENCRYPTED},
     };
     CHECK_EQ_INT(sizeof want / sizeof want[0], APP_BLE_CH_COUNT);
@@ -305,10 +311,11 @@ static void test_security_table(void) {
     CHECK(app_ble_access_allowed(APP_BLE_CH_HISTORY_PREVIEW, &k_encrypted));
     CHECK(app_ble_access_allowed(APP_BLE_CH_RESULT, &k_encrypted));
 
-    /* The one that can wipe the device needs an MITM-protected key — an
-     * encrypted-but-unauthenticated link is not enough, and that is the
-     * whole reason the OLED shows a passkey. */
-    CHECK(!app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, &k_encrypted));
+    /* The one that can wipe the device needs a bond — an encrypted link —
+     * but NOT an MITM-protected key: pairing is Just Works (no passkey on
+     * the glass), so a bond is the strongest link the app can hold. */
+    CHECK(!app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, &k_open));
+    CHECK(app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, &k_encrypted));
     CHECK(app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, &k_authed));
 
     CHECK(!app_ble_access_allowed(APP_BLE_CH_DEVICE_CONTROL, NULL));
@@ -586,30 +593,33 @@ static void test_result_frames_chunk_too(void) {
 
 /* ── F10.5 / security: refusal happens before the handler ─────────── */
 
-static void test_unauthenticated_write_is_refused(void) {
+static void test_unencrypted_write_is_refused(void) {
     reset_all();
     bridge_result_t r;
     const uint8_t reboot[2] = {1, BRIDGE_CONTROL_OP_REBOOT};
 
-    /* Encrypted but NOT authenticated: refused at the security layer. */
+    /* Not encrypted: refused at the security layer, handler never runs. */
+    CHECK_EQ_INT(
+        app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_open, reboot, 2),
+        APP_BLE_OK);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
+    CHECK_EQ_INT(g_reboot_calls, 0);
+
+    /* Encrypted is enough: Just Works pairing gives a bond, not MITM, and
+     * the app must still be able to drive the device. */
+    reset_all();
     CHECK_EQ_INT(
         app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_encrypted, reboot, 2),
         APP_BLE_OK);
     CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
-    /* The handler never ran: no reboot was requested. */
-    CHECK_EQ_INT(g_reboot_calls, 0);
-
-    /* And an unencrypted link. */
-    reset_all();
-    app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_open, reboot, 2);
-    CHECK(last_result(&r));
-    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_UNAUTHORIZED);
-    CHECK_EQ_INT(g_reboot_calls, 0);
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_OK);
+    CHECK_EQ_INT(g_reboot_calls, 1);
 
     /* Writing a read-only characteristic is refused outright. */
-    CHECK_EQ_INT(app_ble_core_write(APP_BLE_CH_LIVE_STATE, &k_authed, reboot, 2),
-                 APP_BLE_ERR_INVALID);
+    CHECK_EQ_INT(
+        app_ble_core_write(APP_BLE_CH_LIVE_STATE, &k_encrypted, reboot, 2),
+        APP_BLE_ERR_INVALID);
 }
 
 static void test_malformed_writes_answer_invalid(void) {
@@ -627,6 +637,16 @@ static void test_malformed_writes_answer_invalid(void) {
     memset(big, 0xAB, sizeof big);
     big[0] = 1;
     app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_authed, big, sizeof big);
+    CHECK(last_result(&r));
+    CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
+
+    /* The GATT glue's flatten-failure branch answers with no data (NULL, 0);
+     * the core must take that as an explicit invalid, not read past a
+     * buffer whose length it never checked. */
+    reset_all();
+    CHECK_EQ_INT(
+        app_ble_core_write(APP_BLE_CH_DEVICE_CONTROL, &k_authed, NULL, 0),
+        APP_BLE_OK);
     CHECK(last_result(&r));
     CHECK_EQ_INT(r.status, BRIDGE_RESULT_STATUS_INVALID);
 
@@ -1432,7 +1452,7 @@ int main(void) {
     test_mtu_negotiation_bounds();
     test_chunker_at_both_mtus();
     test_result_frames_chunk_too();
-    test_unauthenticated_write_is_refused();
+    test_unencrypted_write_is_refused();
     test_malformed_writes_answer_invalid();
     test_every_op_reaches_its_component();
     test_reboot_and_reset_answer_before_they_act();

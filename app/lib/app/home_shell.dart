@@ -1,4 +1,4 @@
-/// The three destinations: Live, Graph, History.
+/// The four destinations: Live, Graph, History, Settings.
 ///
 /// Kept as an [IndexedStack] so each tab holds its scroll position and the
 /// live connection is never torn down by a tab switch.
@@ -10,6 +10,7 @@ import '../design/tokens.dart';
 import '../features/graph/graph_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/live/live_screen.dart';
+import '../features/settings/settings_screen.dart';
 import 'bridge_controller.dart';
 import 'bridge_scope.dart';
 
@@ -66,7 +67,12 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [LiveScreen(), GraphScreen(), HistoryScreen()],
+        children: const [
+          LiveScreen(),
+          GraphScreen(),
+          HistoryScreen(),
+          SettingsScreen(),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
@@ -90,6 +96,11 @@ class _HomeShellState extends State<HomeShell> {
               icon: Icon(Icons.history_outlined),
               selectedIcon: Icon(Icons.history),
               label: 'History',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: 'Settings',
             ),
           ],
         ),

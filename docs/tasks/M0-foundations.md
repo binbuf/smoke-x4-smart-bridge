@@ -120,7 +120,7 @@ and gates M1's exit.**
 - **blocked-by:** V1.2 · **verify:** C · **board:** yes
 - **design:** [02 §2.2.1, §2.8](../design/02-smoke-x-protocol.md)
 
-Two minutes of work: put the base in sync mode with the bridge unpaired and capture the 6-comma
+Two minutes of work: put the Smoke X4 in sync mode with the bridge unpaired and capture the 6-comma
 beacon. Closes **Q2** (what is sync field `020001`?) partially and **Q6** fully.
 
 **Done when:** a real X4 sync vector is committed alongside V2.1's state vectors.
@@ -348,7 +348,7 @@ both at once.
 - **blocked-by:** T1.1, P1.1 · **verify:** H · **board:** no
 - **design:** [05 §5.6](../design/05-connectivity-and-provisioning.md)
 
-The UUID table under base `7f9aXXXX-4c5b-4b0f-9a3d-1c2e3f405162`, a byte-offset table per
+The UUID table under Base `7f9aXXXX-4c5b-4b0f-9a3d-1c2e3f405162`, a byte-offset table per
 characteristic, the security profile (which characteristics need encryption, and which two
 additionally need authentication because they can change network config or wipe the device), the
 advertising and scan-response layout, and the MTU strategy.
@@ -391,7 +391,7 @@ task WDT, tickless idle, and the trimmed Wi-Fi buffers.
 - **blocked-by:** F1.1 · **verify:** H · **board:** no
 - **design:** [03 §3.2](../design/03-firmware-architecture.md)
 
-`BRIDGE_EVENT` base, the twelve event IDs, and POD payload structs copied by `esp_event` — no
+`BRIDGE_EVENT` Smoke X4, the twelve event IDs, and POD payload structs copied by `esp_event` — no
 pointers into caller stacks.
 
 Add the enforcement: **a debug-build assertion that measures handler duration and fires above ~5 ms.**
@@ -711,7 +711,7 @@ return the AP PSK, which the user needs to read back.
 - **blocked-by:** T3.2, T3.3, T3.4 · **verify:** S · **board:** no
 - **design:** [10 §10.3](../design/10-repo-tooling-and-testing.md)
 
-All ten: `stall`, `lid-open`, `base-lost`, `flaky`, `unpaired`, `detached`, `celsius`,
+All ten: `stall`, `lid-open`, `Smoke X4-lost`, `flaky`, `unpaired`, `detached`, `celsius`,
 `storage-full`, `ota`, `long`. Each exists because it is painful or impossible to produce on real
 hardware — `long` is 54 days of samples, which no one is going to cook.
 

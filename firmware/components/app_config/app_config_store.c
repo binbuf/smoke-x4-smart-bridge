@@ -38,7 +38,6 @@ static const key_entry_t k_keys[] = {
 };
 
 static const app_config_backend_t *s_backend;
-static uint32_t (*s_rng)(void);
 static uint16_t s_version;
 
 static struct {
@@ -327,28 +326,6 @@ int app_config_store_clear_pairing(void) {
     return rc;
 }
 
-/* ── PSK generation (F7.3) ── */
-
-/* No 0/O, no 1/l/I: this gets read off a 128×64 OLED in a dark yard. */
-static const char k_psk_alphabet[] =
-    "23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
-
-void app_config_generate_psk(char out[APP_CONFIG_PSK_LEN + 1],
-                             uint32_t (*rng)(void)) {
-    const uint32_t n = sizeof k_psk_alphabet - 1;
-    /* Rejection sampling: a plain modulo would bias toward the low end of
-     * the alphabet. */
-    const uint32_t limit = UINT32_MAX - (UINT32_MAX % n);
-    for (int i = 0; i < APP_CONFIG_PSK_LEN; i++) {
-        uint32_t r;
-        do {
-            r = rng();
-        } while (r >= limit);
-        out[i] = k_psk_alphabet[r % n];
-    }
-    out[APP_CONFIG_PSK_LEN] = '\0';
-}
-
 /* ── Migrations (F7.2) ──
  * The stored version is the number of migrations applied; each runs at most
  * once, in order, and the version is stamped after each step. */
@@ -410,29 +387,13 @@ uint16_t app_config_store_version(void) { return s_version; }
 
 /* ── Lifecycle ── */
 
-static int ensure_psk(void) {
-    char psk[APP_CONFIG_PSK_LEN + 1];
-    int rc = app_config_store_get_str(APP_CONFIG_NET_AP_PSK, psk, sizeof psk);
-    if (rc == APP_CONFIG_OK && psk[0] != '\0') {
-        return APP_CONFIG_OK;
-    }
-    app_config_generate_psk(psk, s_rng);
-    return app_config_store_set_str(APP_CONFIG_NET_AP_PSK, psk);
-}
-
-int app_config_store_init(const app_config_backend_t *backend,
-                          uint32_t (*rng)(void)) {
-    if (!backend || !backend->get || !backend->set || !rng) {
+int app_config_store_init(const app_config_backend_t *backend) {
+    if (!backend || !backend->get || !backend->set) {
         return APP_CONFIG_ERR;
     }
     s_backend = backend;
-    s_rng = rng;
     s_version = 0;
-    int rc = run_migrations();
-    if (rc != APP_CONFIG_OK) {
-        return rc;
-    }
-    return ensure_psk();
+    return run_migrations();
 }
 
 int app_config_store_factory_reset(void) {
@@ -443,7 +404,7 @@ int app_config_store_factory_reset(void) {
     if (rc != APP_CONFIG_OK) {
         return rc;
     }
-    return app_config_store_init(s_backend, s_rng);
+    return app_config_store_init(s_backend);
 }
 
 int app_config_store_subscribe(app_config_subscriber_t cb, void *ctx) {

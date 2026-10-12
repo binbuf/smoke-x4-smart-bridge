@@ -87,7 +87,7 @@ static int bucket_sink(void *ctx, const cook_bucket_t *b) {
 static void test_24h_bucket_90_minmax_is_960_and_spike_survives(void) {
     memfs_reset();
     cfg_erase_all(NULL);
-    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend),
                  APP_CONFIG_OK);
     put_session_file(7, 2880, 30, cook24_temp);
     CHECK_EQ_INT(cook_store_core_init(&g_vfs, NULL, NULL), COOK_STORE_OK);
@@ -119,7 +119,7 @@ static int16_t flat_temp(uint32_t idx, int probe) {
 static void test_stride_decimation(void) {
     memfs_reset();
     cfg_erase_all(NULL);
-    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend),
                  APP_CONFIG_OK);
     put_session_file(8, 600, 30, flat_temp);
     CHECK_EQ_INT(cook_store_core_init(&g_vfs, NULL, NULL), COOK_STORE_OK);
@@ -134,7 +134,7 @@ static void test_stride_decimation(void) {
 static void test_54_day_range_query_is_a_seek(void) {
     memfs_reset();
     cfg_erase_all(NULL);
-    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend),
                  APP_CONFIG_OK);
     /* 54 days at 30 s = 155,520 records ≈ 2.5 MB. */
     put_session_file(9, 155520, 30, flat_temp);

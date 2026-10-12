@@ -138,7 +138,7 @@ typedef enum {
 
 typedef enum {
     APP_UI_OVERLAY_NONE = 0,
-    APP_UI_OVERLAY_SPLASH,  /* boot + recovery window (03 §3.4.1) */
+    APP_UI_OVERLAY_SPLASH,  /* boot screen; clears on a timer (07 §7.4) */
     APP_UI_OVERLAY_PASSKEY, /* F10.5 bonding */
     APP_UI_OVERLAY_ALARM,   /* inverted video, reads across a dark yard */
     APP_UI_OVERLAY_CONFIRM, /* every hold action, release-to-cancel */

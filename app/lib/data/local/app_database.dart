@@ -97,6 +97,9 @@ class SyncStates extends Table {
   IntColumn get deviceMaxT => integer().nullable()();
   IntColumn get lastSyncUnixMs => integer().nullable()();
 
+  /// A closed session fully drained from the device. See [SyncState.complete].
+  BoolColumn get complete => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column<Object>> get primaryKey => {bridgeId, sessionId};
 }
@@ -106,11 +109,16 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(syncStates, syncStates.complete);
+      }
+    },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },

@@ -77,87 +77,11 @@ static SemaphoreHandle_t s_lock;
 static TaskHandle_t s_task;
 static uint32_t s_boot_ms;
 
-/* ── on-device recovery (factory reset) ───────────────────────────────
- * Two ways in, one flow out:
- *   - double RST within 10 s (main.c calls app_ui_request_recovery), or
- *   - holding PRG through the post-boot splash window.
- * The flow is hold-to-confirm: hold ~3 s, release to reset, release early
- * to cancel. Committing wipes bonds + config + recorded cooks, then
- * reboots. This is the recovery the full image routed through Wi-Fi AP
- * mode; with no network, it lives entirely on the device. */
-#define APP_UI_RECOVERY_WINDOW_MS 5000u /* splash window a hold can arm in */
-#define APP_UI_RECOVERY_HOLD_MS 3000u   /* the boot-hold that opens it */
-#define APP_UI_RECOVERY_CONFIRM_MS 3000u /* the hold that commits the wipe */
-
-static volatile bool s_recovery_requested;
-static bool s_recovering;
-static bool s_boot_pressed;
-static uint32_t s_boot_press_ms;
-static bool s_rec_pressed;
-static uint32_t s_rec_press_ms;
-static app_ui_recovery_fn s_recovery_hook;
-
-void app_ui_request_recovery(void) {
-    s_recovery_requested = true;
-    if (s_task != NULL) {
-        xTaskNotifyGive(s_task);
-    }
-}
-
-void app_ui_set_recovery_hook(app_ui_recovery_fn fn) { s_recovery_hook = fn; }
-
-static void enter_recovery(uint32_t now) {
-    s_recovering = true;
-    /* The boot-hold that got us here is still held: continue it into the
-     * confirm rather than requiring a fresh press. */
-    s_rec_pressed = true;
-    s_rec_press_ms = now;
-    s_state.overlay = APP_UI_OVERLAY_CONFIRM;
-    snprintf(s_state.confirm_text, sizeof s_state.confirm_text,
-             "FACTORY RESET?");
-    s_state.confirm_count = 3;
-    app_ui_model_wake(&s_model, now);
-}
-
-static void commit_factory_reset(void) {
-    ESP_LOGW(TAG, "factory reset confirmed");
-    if (s_recovery_hook != NULL) {
-        s_recovery_hook(); /* wipes and reboots; does not return */
-    }
-    esp_restart(); /* no hook registered: reboot rather than hang */
-}
-
-/* Returns true while the recovery flow owns the button. */
-static bool handle_recovery(bool pressed, uint32_t now) {
-    if (!s_recovering) {
-        return false;
-    }
-    if (pressed && !s_rec_pressed) {
-        s_rec_pressed = true;
-        s_rec_press_ms = now;
-    } else if (!pressed && s_rec_pressed) {
-        s_rec_pressed = false;
-        const uint32_t held = now - s_rec_press_ms;
-        s_recovering = false;
-        s_state.overlay = APP_UI_OVERLAY_NONE;
-        if (held >= APP_UI_RECOVERY_CONFIRM_MS) {
-            commit_factory_reset(); /* does not return */
-        }
-        return true;
-    }
-    const uint32_t held = s_rec_pressed ? now - s_rec_press_ms : 0u;
-    if (held >= APP_UI_RECOVERY_CONFIRM_MS) {
-        snprintf(s_state.confirm_text, sizeof s_state.confirm_text,
-                 "release to reset");
-        s_state.confirm_count = 1;
-    } else {
-        const uint32_t remain = APP_UI_RECOVERY_CONFIRM_MS - held;
-        snprintf(s_state.confirm_text, sizeof s_state.confirm_text,
-                 "FACTORY RESET?");
-        s_state.confirm_count = (uint8_t)((remain + 999u) / 1000u);
-    }
-    return true;
-}
+/* ── the boot splash ──────────────────────────────────────────────────
+ * A boot screen only (07 §7.4). It clears itself after a short window; the
+ * button has no recovery vocabulary here. Reset, pairing, and the rest of
+ * the lifecycle all belong to the app, which reaches this device over BLE. */
+#define APP_UI_SPLASH_MS 3000u
 
 /* ── the panel seam ───────────────────────────────────────────────── */
 
@@ -535,40 +459,15 @@ static void ui_task(void *arg) {
         app_ui_state_t snapshot;
         xSemaphoreTake(s_lock, portMAX_DELAY);
 
-        /* A recovery request from main (double reset) opens the flow. */
-        if (s_recovery_requested) {
-            s_recovery_requested = false;
-            enter_recovery(t);
-        }
-
-        /* Boot splash with the recovery window: holding PRG through it
-         * opens the factory-reset flow (03 §3.4.1, now on-device). */
-        if (!s_recovering && s_state.overlay == APP_UI_OVERLAY_SPLASH) {
-            const uint32_t age = t - s_boot_ms;
-            if (pressed && !s_boot_pressed) {
-                s_boot_pressed = true;
-                s_boot_press_ms = t;
-            } else if (!pressed) {
-                s_boot_pressed = false;
-            }
-            if (s_boot_pressed &&
-                (t - s_boot_press_ms) >= APP_UI_RECOVERY_HOLD_MS) {
-                enter_recovery(t);
-            } else if (age >= APP_UI_RECOVERY_WINDOW_MS) {
-                s_state.overlay = APP_UI_OVERLAY_NONE;
-            } else {
-                const uint32_t remain = APP_UI_RECOVERY_WINDOW_MS - age;
-                s_state.confirm_count = (uint8_t)((remain + 999u) / 1000u);
-            }
+        /* The boot splash clears itself after a short window. There is no
+         * recovery gesture on this button (07 §7.4). */
+        if (s_state.overlay == APP_UI_OVERLAY_SPLASH &&
+            t - s_boot_ms >= APP_UI_SPLASH_MS) {
+            s_state.overlay = APP_UI_OVERLAY_NONE;
         }
 
         fill_snapshot(&s_state, &cfg);
-        if (s_recovering) {
-            /* The recovery flow owns the button; the page model is idle. */
-            (void)handle_recovery(pressed, t);
-        } else {
-            app_ui_model_tick(&s_model, &s_state, pressed, t, timeout_s);
-        }
+        app_ui_model_tick(&s_model, &s_state, pressed, t, timeout_s);
         snapshot = s_state;
 
         s_led.alarm_unacked = snapshot.alarm_unacked;

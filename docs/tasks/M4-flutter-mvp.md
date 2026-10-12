@@ -114,7 +114,7 @@ cancellable without leaking a native discovery; and `flutter test` touches no pl
 
 `ConnectionManager.writeCache` has been a no-op at every production call site since A7.1, which
 means the `cachedIp` lane — _"the common case: same bridge, same network, second launch — is one
-50 ms request"_ — has never once been warm. Introduce a tiny `BridgePrefs` interface (last base
+50 ms request"_ — has never once been warm. Introduce a tiny `BridgePrefs` interface (last Smoke X4
 URL, last bridge id, last-seen timestamp, display units, theme mode) with a `shared_preferences`
 implementation and an in-memory one for tests, hand it to the ConnectionManager as `writeCache`,
 and read it back at launch as `cachedBaseUrl`. **The BLE lane deliberately does not write it**
@@ -188,11 +188,11 @@ Session name, elapsed time, and the connection chip: which transport won, over w
 when the winner is BLE — the honest degraded notice that A3.1's capability flags were built to
 drive. Battery renders from `socPct`, and renders its own absence when battery reporting does not
 exist yet (F12, M5) rather than showing `0%`. `base_lost` and `lastPacketSAgo` surface here too,
-because a bridge that is reachable while the *base station* is not is a distinct failure the header
+because a bridge that is reachable while the *Smoke X4* is not is a distinct failure the header
 is the only place to say.
 
 **Done when:** the strip is widget-tested for HTTP-connected, BLE-degraded, offline-from-cache, no
-battery data, base-lost, and a session that has no clock (`startedUnixMs == null` renders elapsed
+battery data, Smoke X4-lost, and a session that has no clock (`startedUnixMs == null` renders elapsed
 time, not an epoch date).
 
 ### A9.4 features/dashboard: implement the session controls
@@ -596,7 +596,7 @@ recorded 18-hour cook, with no hardware anywhere. Drive the **real** `HttpTransp
 `SyncEngine`, the **real** repositories and the real screens against a running `tools/sim`, through
 the whole MVP path — connect, sync 18 hours, render the dashboard, scroll the chart, open the
 session detail, export the CSV — and against the adverse scenarios that exist for exactly this
-(`flaky`, `base-lost`, `stall`, `lid-open`), because passing only the happy path is what the **S**
+(`flaky`, `Smoke X4-lost`, `stall`, `lid-open`), because passing only the happy path is what the **S**
 tier explicitly does not mean.
 
 **Done when:** the run passes against a live sim on the fixture cook and on at least two adverse

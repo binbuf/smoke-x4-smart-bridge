@@ -106,7 +106,7 @@ bool smoke_x_ctrl_base_lost(void);
 uint32_t smoke_x_ctrl_frequency_hz(void);
 
 /* The newest ACCEPTED state message, or NULL before the first one. Read
- * by app_alarm (F13): the smoke_x_alarm rule mirrors the BASE's own
+ * by app_alarm (F13): the smoke_x_alarm rule mirrors the Smoke X4's own
  * per-probe band, which bridge_evt_sample_t does not carry. */
 const smoke_x_state_t *smoke_x_ctrl_last_state(void);
 

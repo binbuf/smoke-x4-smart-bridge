@@ -105,7 +105,7 @@ CI-testable before any firmware exists, and stays testable afterwards without a 
 dart run tools/sim --port 8080 --speed 60 --cook fixtures/brisket-18h.smk
 dart run tools/sim --scenario stall --probes 4
 dart run tools/sim --scenario lid-open --drop 5%
-dart run tools/sim --scenario base-lost --after 2h
+dart run tools/sim --scenario Smoke X4-lost --after 2h
 dart run tools/sim --scenario unpaired
 dart run tools/sim --advertise-mdns          # so app discovery is exercised too
 ```
@@ -116,9 +116,9 @@ Scenarios exist for every case that is painful to produce on real hardware:
 | -------------- | ----------------------------------------------------------------------- |
 | `stall`        | A 3-hour plateau at 158 °F — for the stall detector and ETA suppression |
 | `lid-open`     | A 40 °F pit drop and recovery — for the grace-window logic              |
-| `base-lost`    | Packets stop dead — for the watchdog and gap rendering                  |
+| `Smoke X4-lost`    | Packets stop dead — for the watchdog and gap rendering                  |
 | `flaky`        | 5–20 % packet loss — for gap detection at every scale                   |
-| `unpaired`     | The pairing flow, without holding a base station in sync mode           |
+| `unpaired`     | The pairing flow, without holding a Smoke X4 in sync mode           |
 | `detached`     | Probes unplugged mid-cook — for the null-not-zero rule                  |
 | `celsius`      | A mid-cook unit switch — for the canonical-°F conversion                |
 | `storage-full` | The retention path                                                      |
@@ -163,8 +163,8 @@ convenience, it is the thing that makes iteration possible at all.
 | 2   | Let it run overnight                                 | Q1 (does field 1 ever leave `30`?), interval statistics, real dropouts and RSSI decay | none                  |
 | 3   | Unplug and replug a probe mid-cook                   | Q4 — probe `state` values beyond `0`/`3`                                              | 10 seconds            |
 | 4   | Set a tight alarm band so it trips, leave it tripped | Q8 — is `new_alarm` edge or level?                                                    | 1 minute              |
-| 5   | Flip the base between °F and °C mid-cook             | The unit-change path, and whether anything else shifts                                | 1 minute              |
-| 6   | Re-sync the base while the bridge is unpaired        | Q2, Q6 — real X4 sync vectors                                                         | 2 minutes             |
+| 5   | Flip the Smoke X4 between °F and °C mid-cook             | The unit-change path, and whether anything else shifts                                | 1 minute              |
+| 6   | Re-sync the Smoke X4 while the bridge is unpaired        | Q2, Q6 — real X4 sync vectors                                                         | 2 minutes             |
 | 7   | Short the probe jack, open it, exceed range          | The rest of Q4                                                                        | bench, no cook needed |
 | 8   | _Borrow an X2_                                       | Q2 comparison across models                                                           | opportunistic         |
 | 9   | _Borrow a Billows_                                   | Q3, Q5 — the only blocked questions                                                   | opportunistic         |

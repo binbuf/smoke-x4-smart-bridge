@@ -62,7 +62,24 @@ class BridgeController extends ChangeNotifier {
   /// a bridge that drops the instant it connects cannot spin forever.
   int _reconnectAttempts = 0;
 
+  /// The bound on silent auto-reconnects before the app stops spinning and
+  /// tells the user, rather than reading "Offline" with no explanation.
+  static const _maxReconnects = 3;
+
+  /// When the phone last wrote the bridge's clock, so a still-live link can
+  /// re-assert it without re-writing on every 30 s tick.
+  DateTime? _clockSetAt;
+
+  /// How long a written clock is trusted before the phone re-asserts it while
+  /// the link stays up. A reconnect always re-writes regardless — the bridge
+  /// forgets its clock across a reboot.
+  static const _clockRefreshAfter = Duration(hours: 6);
+
   BridgeLink link = BridgeLink.disconnected;
+
+  /// True when auto-reconnect gave up after [_maxReconnects] silent tries. The
+  /// UI turns this into a tap-to-retry rather than an unexplained "Offline".
+  bool reconnectExhausted = false;
 
   /// Why the last connect attempt failed, when it did — the UI turns this into
   /// the one action that can actually change the outcome.
@@ -108,14 +125,30 @@ class BridgeController extends ChangeNotifier {
 
   TempUnit unit = TempUnit.fahrenheit;
 
+  /// The bridge's battery-saver profile as last set from here. There is no BLE
+  /// read-back, so this reflects the app's intent, not a device report.
+  BatterySaverMode batterySaver = BatterySaverMode.off;
+
+  /// The last `device_stats` snapshot, or null when unconnected or the bridge
+  /// predates the v1.2 admin surface.
+  DeviceStats? deviceStats;
+
+  /// The last `device_config` read (probe names/roles/targets + preferences).
+  DeviceConfig? deviceConfig;
+
   bool get connected => link == BridgeLink.connected;
   BridgeRepository? get repository => _repo;
 
   /// Whether this phone remembers a bridge pairing to forget.
   bool get canForget => _rememberedDeviceId != null;
 
+  /// True until this phone has ever spoken to a bridge — a factory-fresh
+  /// install. Drives the guided first-run surface so a new user is walked
+  /// through find → pair rather than shown a bare "Not connected".
+  bool get firstRun => _rememberedDeviceId == null && _bridgeId == null;
+
   /// The freshness of the latest reading: [Freshness.unknown] before any
-  /// reading, [Freshness.frozen] when the base station is lost, else bucketed
+  /// reading, [Freshness.frozen] when the Smoke X4 is lost, else bucketed
   /// by the age of the last snapshot on the phone's clock.
   Freshness get freshness {
     final at = liveAt;
@@ -184,7 +217,22 @@ class BridgeController extends ChangeNotifier {
     }
     unit = value;
     unawaited(_prefs.writeUnit(value));
+    // Mirror the choice onto the bridge's own OLED, best-effort: the OLED is a
+    // convenience, not the record, so a failed write never blocks the toggle.
+    unawaited(_writeUnits(value));
     notifyListeners();
+  }
+
+  Future<void> _writeUnits(TempUnit value) async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.setUnits(value);
+    } on Object {
+      // Best-effort; the phone's preference is already saved.
+    }
   }
 
   // ── connection lifecycle ────────────────────────────────────────────
@@ -200,6 +248,7 @@ class BridgeController extends ChangeNotifier {
     }
     problem = null;
     errorMessage = null;
+    reconnectExhausted = false;
     link = BridgeLink.scanning;
     notifyListeners();
 
@@ -233,17 +282,25 @@ class BridgeController extends ChangeNotifier {
       _dropSub = transport.disconnects.listen((_) => unawaited(_onDrop()));
       latestLive = await repo.readLive();
       liveAt = DateTime.now();
+      // The bridge stores sessions with no wall clock until the phone writes
+      // one, so a fresh connect always sets it *before* pulling the session
+      // list — the device then back-patches its open session with a real date.
+      await _writeClock();
       await _refreshSessions();
       await _refreshLinkRssi();
       await _resumeCookClock();
+      await _refreshAdmin();
       link = BridgeLink.connected;
       _reconnectAttempts = 0;
       notifyListeners();
       unawaited(_syncSessions());
-      _syncTimer = Timer.periodic(
-        const Duration(seconds: 30),
-        (_) => unawaited(_syncSessions()),
-      );
+      _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        unawaited(_ensureClock());
+        // The periodic tick is bounded: only what is still growing or was
+        // never finished. The full sweep happens on connect and on a
+        // user-triggered sync, so a long finished history costs nothing here.
+        unawaited(_syncSessions(full: false));
+      });
       // Rebuild every 10 s so the freshness ladder ages on screen even while
       // no new snapshot arrives. Without this a probe that stops updating
       // stays "Live" indefinitely (the ladder is computed from DateTime.now()).
@@ -305,12 +362,34 @@ class BridgeController extends ChangeNotifier {
     link = BridgeLink.disconnected;
     notifyListeners();
     await _loadCachedData();
-    if (_reconnectAttempts < 3) {
+    await _autoReconnect();
+  }
+
+  /// Silent reconnect, bounded by [_maxReconnects]. A failed attempt falls back
+  /// to [BridgeLink.disconnected] so the next one is allowed to run; when the
+  /// bound is reached the app stops spinning and raises [reconnectExhausted] so
+  /// the UI can offer a tap-to-retry instead of failing silently.
+  Future<void> _autoReconnect() async {
+    while (_reconnectAttempts < _maxReconnects) {
       _reconnectAttempts++;
       await Future<void>.delayed(const Duration(seconds: 2));
-      if (!_tearingDown && link == BridgeLink.disconnected) {
-        await connect();
+      if (_tearingDown || link != BridgeLink.disconnected) {
+        return;
       }
+      await connect();
+      if (_tearingDown || link == BridgeLink.connected) {
+        return;
+      }
+      // connect() left us in error (or scanning); fall back to disconnected so
+      // the loop's guard lets the next attempt run rather than stopping here.
+      if (link != BridgeLink.disconnected) {
+        link = BridgeLink.disconnected;
+        notifyListeners();
+      }
+    }
+    if (!_tearingDown && link != BridgeLink.connected) {
+      reconnectExhausted = true;
+      notifyListeners();
     }
   }
 
@@ -330,6 +409,8 @@ class BridgeController extends ChangeNotifier {
     liveAt = null;
     linkRssiDbm = null;
     identity = null;
+    deviceStats = null;
+    deviceConfig = null;
     // sessions and _bridgeId are deliberately kept: the cache still holds the
     // history, and a disconnected app must be able to read it.
   }
@@ -385,9 +466,13 @@ class BridgeController extends ChangeNotifier {
     await _syncSessions();
   }
 
-  /// Delta-syncs every not-yet-cached session. Safe to call repeatedly; the
+  /// Delta-syncs not-yet-cached sessions. Safe to call repeatedly; the
   /// [SyncEngine] skips a closed, fully-cached session without a round trip.
-  Future<void> _syncSessions() async {
+  ///
+  /// [full] sweeps every session (connect, pull-to-refresh, "Sync now"). When
+  /// false — the periodic tick — a closed session already drained is skipped
+  /// entirely, so a long finished history is never a burst of BLE reads.
+  Future<void> _syncSessions({bool full = true}) async {
     final repo = _repo;
     if (repo == null || syncing) {
       return;
@@ -396,6 +481,9 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
     try {
       for (final s in sessions) {
+        if (!full && s.closed && await repo.sessionComplete(s)) {
+          continue;
+        }
         await repo.syncSession(s);
       }
       syncError = null;
@@ -417,6 +505,11 @@ class BridgeController extends ChangeNotifier {
     _report(syncError == null ? 'History synced' : 'Sync failed: $syncError');
     notifyListeners();
   }
+
+  /// The bounded sweep the periodic tick runs: open or unfinished sessions
+  /// only. Exposed so the bound can be asserted without waiting on the timer.
+  @visibleForTesting
+  Future<void> syncIncomplete() => _syncSessions(full: false);
 
   /// One session's cached samples (for the graph and history detail). Reads the
   /// cache directly — the link is irrelevant to data already on the phone.
@@ -506,20 +599,249 @@ class BridgeController extends ChangeNotifier {
   /// Writes the bridge's wall clock from the phone, so future sessions carry
   /// real timestamps.
   Future<void> syncClock() async {
+    if (await _writeClock()) {
+      _report('Bridge clock set');
+    }
+  }
+
+  /// The one clock write. Sets [unixMs]/timezone from the phone's clock and
+  /// stamps when it happened. Best-effort: a failed clock write reports but
+  /// never fails the connect it rode in on.
+  Future<bool> _writeClock() async {
+    final repo = _repo;
+    if (repo == null) {
+      return false;
+    }
+    final now = DateTime.now();
+    try {
+      await repo.setTime(
+        now.millisecondsSinceEpoch,
+        tzOffsetMin: now.timeZoneOffset.inMinutes,
+      );
+      _clockSetAt = now;
+      return true;
+    } on Object catch (e) {
+      _report('Could not set the bridge clock: ${_reason(e)}');
+      return false;
+    }
+  }
+
+  /// Re-asserts the clock on a still-live link once it is older than
+  /// [_clockRefreshAfter]. A no-op for a recently-set clock, so the periodic
+  /// tick does not write on every pass.
+  Future<void> _ensureClock() async {
+    final last = _clockSetAt;
+    if (last != null && DateTime.now().difference(last) < _clockRefreshAfter) {
+      return;
+    }
+    await _writeClock();
+  }
+
+  // ── Smoke X4 pairing ────────────────────────────────────────────────
+
+  /// Puts the bridge into sync/scan mode toward the Smoke X4 (`pair`, op 1).
+  /// The Smoke X4 must be in SYNC too; the bridge's OLED is the confirmation,
+  /// so this reports the step rather than a success it cannot observe.
+  Future<void> pairSmokeX() async {
     final repo = _repo;
     if (repo == null) {
       return;
     }
     try {
-      final now = DateTime.now();
-      await repo.setTime(
-        now.millisecondsSinceEpoch,
-        tzOffsetMin: now.timeZoneOffset.inMinutes,
-      );
-      _report('Bridge clock set');
+      await repo.pair();
+      latestLive = await repo.readLive();
+      liveAt = DateTime.now();
+      _report('Listening for the Smoke X4…');
     } on Object catch (e) {
-      _report('Could not set the bridge clock: ${_reason(e)}');
+      _report('Could not pair with the Smoke X4: ${_reason(e)}');
     }
+    notifyListeners();
+  }
+
+  /// Forgets the paired Smoke X4 (`unpair`, op 2).
+  Future<void> unpairSmokeX() async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.unpair();
+      latestLive = await repo.readLive();
+      liveAt = DateTime.now();
+      _report('Smoke X4 unpaired');
+    } on Object catch (e) {
+      _report('Could not unpair the Smoke X4: ${_reason(e)}');
+    }
+    notifyListeners();
+  }
+
+  // ── bridge lifecycle (Settings) ─────────────────────────────────────
+
+  /// Wakes the bridge's OLED and flashes what it has (`identify`, op 10).
+  Future<void> identifyBridge() async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.identify();
+      _report('Bridge display flashed');
+    } on Object catch (e) {
+      _report('Could not identify the bridge: ${_reason(e)}');
+    }
+    notifyListeners();
+  }
+
+  /// Sets the bridge's battery-saver profile (`set_battery_saver`, op 12).
+  Future<void> setBatterySaver(BatterySaverMode mode) async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.setBatterySaver(mode);
+      batterySaver = mode;
+      _report('Battery saver: ${mode.name}');
+    } on Object catch (e) {
+      _report('Could not set battery saver: ${_reason(e)}');
+    }
+    notifyListeners();
+  }
+
+  /// Restarts the bridge (`reboot`, op 7). The link drops and returns; the app
+  /// tears its half down honestly and lets the user (or a later connect)
+  /// re-establish it rather than trusting a link the peer has already dropped.
+  Future<void> rebootBridge() async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.reboot();
+      await disconnect();
+      _report('Bridge is rebooting…');
+    } on Object catch (e) {
+      _report('Could not reboot the bridge: ${_reason(e)}');
+    }
+    notifyListeners();
+  }
+
+  /// Puts the bridge into deep sleep (`power_off`, op 13). Waking needs the
+  /// physical button.
+  Future<void> powerOffBridge() async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.powerOff();
+      await disconnect();
+      _report('Bridge powered off');
+    } on Object catch (e) {
+      _report('Could not power off the bridge: ${_reason(e)}');
+    }
+    notifyListeners();
+  }
+
+  /// Wipes the bridge (`factory_reset`, op 8): its bonds, config and recorded
+  /// cooks. The device's bond is gone with it, so this phone forgets its own
+  /// pairing and drops the cached history — a reset bridge showing old cooks
+  /// would be a lie.
+  Future<void> factoryResetBridge() async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.factoryReset();
+    } on Object catch (e) {
+      _report('Could not reset the bridge: ${_reason(e)}');
+      notifyListeners();
+      return;
+    }
+    // Drop the OS bond best-effort (the bridge no longer holds our key), then
+    // forget the address so the next connect scans fresh and re-pairs.
+    try {
+      await _transport?.forget();
+    } on Object {
+      // A refused removeBond is recoverable via Bluetooth settings.
+    }
+    await _prefs.clearLastBridgeId();
+    _rememberedDeviceId = null;
+    _bridgeId = null;
+    await cache.clear();
+    await cache.clearSessions();
+    await disconnect();
+    _report('Bridge reset to factory defaults');
+    notifyListeners();
+  }
+
+  // ── bridge administration (v1.2) ────────────────────────────────────
+
+  /// Re-reads the `device_stats` snapshot on demand (the Settings pane's
+  /// refresh). Best-effort: a bridge without the admin surface leaves it null.
+  Future<void> refreshStats() async {
+    await _refreshAdmin();
+    notifyListeners();
+  }
+
+  /// Reads the admin characteristics once after connect. A failure is not a
+  /// connection failure — an older bridge simply has no admin surface.
+  Future<void> _refreshAdmin() async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      deviceStats = await repo.stats();
+    } on Object {
+      deviceStats = null;
+    }
+    try {
+      deviceConfig = await repo.deviceConfig();
+    } on Object {
+      deviceConfig = null;
+    }
+  }
+
+  /// Saves one probe's label, role and target (`set_probe`, op 16), then
+  /// re-reads `device_config` so the editor shows what the device accepted.
+  Future<void> setProbeConfig({
+    required int index,
+    required String name,
+    required ProbeRole role,
+    required int targetF10,
+  }) async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.setProbe(
+        ProbeConfig(index: index, name: name, role: role, targetF10: targetF10),
+      );
+      deviceConfig = await repo.deviceConfig();
+      _report('Probe ${index + 1} saved');
+    } on Object catch (e) {
+      _report('Could not save probe ${index + 1}: ${_reason(e)}');
+    }
+    notifyListeners();
+  }
+
+  /// Saves the bridge preferences (`set_device_prefs`, op 17), then re-reads.
+  Future<void> saveDevicePrefs(DevicePrefs prefs) async {
+    final repo = _repo;
+    if (repo == null) {
+      return;
+    }
+    try {
+      await repo.setDevicePrefs(prefs);
+      deviceConfig = await repo.deviceConfig();
+      _report('Bridge settings saved');
+    } on Object catch (e) {
+      _report('Could not save bridge settings: ${_reason(e)}');
+    }
+    notifyListeners();
   }
 
   // ── user feedback ───────────────────────────────────────────────────

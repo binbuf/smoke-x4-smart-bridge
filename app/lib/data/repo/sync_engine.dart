@@ -47,13 +47,15 @@ class SyncEngine {
     final cachedMax = await cache.maxT(bridgeId, session.id);
     final deviceMaxT = session.deviceMaxT;
     final before = await cache.sampleCount(bridgeId, session.id);
+    final period = session.samplePeriodS < 1 ? 30 : session.samplePeriodS;
 
-    // 3. A closed session whose authoritative `sample_count` we already hold
-    // is done — no round trip. (The header's wall-clock extent can exceed the
-    // last sample's `t`, so the sample count is the honest completeness test.)
+    // 3. A closed session we have already drained is done — no round trip.
+    // This is deliberately independent of `sample_count`: a header's wall-clock
+    // extent can sit past its last row, and a ring can report a count it no
+    // longer retains, so `before >= sample_count` alone re-fetches such a
+    // session forever. The fact is persisted (see [SyncState.complete]).
     if (session.closed &&
-        session.sampleCount > 0 &&
-        before >= session.sampleCount) {
+        await _closedComplete(cache, bridgeId, session, cachedMax, period)) {
       return const SyncResult(fetched: 0, inserted: 0, skipped: true);
     }
 
@@ -67,7 +69,6 @@ class SyncEngine {
     int? previousT;
     RecordedGap? rollover;
     final holes = <RecordedGap>[];
-    final period = session.samplePeriodS < 1 ? 30 : session.samplePeriodS;
 
     await for (final batch in transport.samples(session.id, fromT: fromT)) {
       if (batch.isEmpty) {
@@ -88,7 +89,7 @@ class SyncEngine {
       }
       for (final sample in batch) {
         // The device streams what it actually holds, so a sparse stretch means
-        // the bridge has no records there — the base station was lost, not the
+        // the bridge has no records there — the Smoke X4 was lost, not the
         // phone. It is permanent, unlike a `connectivity` hole the next sync
         // would fill.
         if (previousT != null && sample.t - previousT > period * 2.5) {
@@ -108,6 +109,7 @@ class SyncEngine {
     }
 
     final after = await cache.sampleCount(bridgeId, session.id);
+    final lastSyncMs = (nowMs ?? _wallClock)();
     if (lastFetchedT != null) {
       // Filled range: drop the recoverable holes we just covered and record
       // the ones this run reveals.
@@ -127,7 +129,25 @@ class SyncEngine {
           highWaterT: _max(cachedMax ?? -1, lastFetchedT),
           deviceMinT: firstFetchedT,
           deviceMaxT: deviceMaxT ?? lastFetchedT,
-          lastSyncMs: (nowMs ?? _wallClock)(),
+          lastSyncMs: lastSyncMs,
+          // A closed session that streamed to its terminator is fully drained;
+          // an open one is not, and will be re-read on the next tick.
+          complete: session.closed,
+        ),
+      );
+    } else if (session.closed) {
+      // The device answered with no rows past our high-water: for a closed
+      // session that is the end of it, even when the header claimed a wider
+      // extent. Persist the fact so we never ask again.
+      await cache.writeSyncState(
+        bridgeId,
+        session.id,
+        SyncState(
+          highWaterT: cachedMax ?? -1,
+          deviceMinT: null,
+          deviceMaxT: deviceMaxT ?? cachedMax,
+          lastSyncMs: lastSyncMs,
+          complete: true,
         ),
       );
     }
@@ -138,6 +158,38 @@ class SyncEngine {
       skipped: false,
       rollover: rollover,
     );
+  }
+
+  /// Whether a closed session has nothing left to pull: either we recorded the
+  /// fact after draining it, or the header's extent is already covered by the
+  /// cache (within one sample period, since a session's last row sits a period
+  /// inside its wall-clock end).
+  Future<bool> isComplete(
+    SampleCache cache, {
+    required String bridgeId,
+    required SessionInfo session,
+  }) async {
+    if (!session.closed) {
+      return false;
+    }
+    final cachedMax = await cache.maxT(bridgeId, session.id);
+    final period = session.samplePeriodS < 1 ? 30 : session.samplePeriodS;
+    return _closedComplete(cache, bridgeId, session, cachedMax, period);
+  }
+
+  Future<bool> _closedComplete(
+    SampleCache cache,
+    String bridgeId,
+    SessionInfo session,
+    int? cachedMax,
+    int period,
+  ) async {
+    final state = await cache.syncState(bridgeId, session.id);
+    if (state?.complete == true) {
+      return true;
+    }
+    final dm = session.deviceMaxT;
+    return cachedMax != null && dm != null && dm <= cachedMax + period;
   }
 }
 

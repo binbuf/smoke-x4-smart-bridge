@@ -26,7 +26,7 @@ void main() {
       expect(Freshness.fromAge(null), Freshness.unknown);
     });
 
-    test('a lost base station outranks a fresh phone link', () {
+    test('a lost Smoke X4 outranks a fresh phone link', () {
       expect(Freshness.fromAge(5, baseLost: true), Freshness.frozen);
     });
 

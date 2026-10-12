@@ -81,7 +81,7 @@ tags:
   - name: sessions
     description: Cook sessions and their history
   - name: pairing
-    description: Smoke X base-station pairing
+    description: Smoke X4 pairing
   - name: config
     description: Network, device, and alarm configuration
   - name: system
@@ -521,7 +521,7 @@ paths:
       operationId: pairingSync
       summary: Enter pairing mode
       description: |
-        Puts the bridge into sync listen mode. Put the base station into sync mode;
+        Puts the bridge into sync listen mode. Put the Smoke X4 into sync mode;
         progress is pushed as `pairing` WebSocket frames.
       responses:
         "200":
@@ -1607,7 +1607,7 @@ components:
         device_id:
           type: string
           nullable: true
-          description: The paired base station's id; null when unpaired.
+          description: The paired Smoke X4's id; null when unpaired.
           example: "|abCDe"
         model:
           type: string
@@ -1651,7 +1651,7 @@ components:
           example: 3
         id_mismatch:
           type: integer
-          description: Valid packets addressed to a different base station.
+          description: Valid packets addressed to a different Smoke X4.
           example: 0
 
     StorageInfo:
@@ -1814,7 +1814,7 @@ components:
           example: 1774094400000
         units_source:
           type: string
-          description: Units the base station is transmitting in. Wire temps stay canonical tenths-°F either way.
+          description: Units the Smoke X4 is transmitting in. Wire temps stay canonical tenths-°F either way.
           enum: [F, C]
           example: F
         billows:
@@ -2047,7 +2047,7 @@ components:
               example: 30
             device_id:
               type: string
-              description: The base station this session was recorded from.
+              description: The Smoke X4 this session was recorded from.
               example: "|abCDe"
             num_probes:
               type: integer

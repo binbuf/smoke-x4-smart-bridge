@@ -9,8 +9,9 @@
  *      after cook_store is individually failure-tolerant and logged.
  *
  * The Wi-Fi/HTTP/OTA/MQTT steps of the full image are gone: there is no
- * network stack on this build. The recovery window is owned by app_ui (it
- * has the button and the panel), so it is not a boot step here.
+ * network stack on this build. The device is headless — the button only
+ * taps through pages and holds to power off — so there is no recovery boot
+ * step; reset and pairing live in the app.
  */
 #ifndef BOOT_SEQ_H
 #define BOOT_SEQ_H
@@ -31,7 +32,7 @@ typedef enum {
     BRIDGE_BOOT_CONFIG = 3,
     BRIDGE_BOOT_EVENT_LOOP = 4,
     BRIDGE_BOOT_POWER = 5,
-    BRIDGE_BOOT_UI = 6, /* display + button + the recovery window */
+    BRIDGE_BOOT_UI = 6, /* display + button */
     BRIDGE_BOOT_COOK_STORE = 7,
     BRIDGE_BOOT_SMOKE_X_INIT = 8,
     BRIDGE_BOOT_SMOKE_X_START = 9, /* LoRa RX begins — before BLE */

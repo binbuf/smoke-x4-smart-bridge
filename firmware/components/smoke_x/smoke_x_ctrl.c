@@ -23,7 +23,7 @@ static uint64_t s_last_packet_ms; /* for the interval histogram */
 static bool s_base_lost;
 /* The newest ACCEPTED state message, kept whole. The bridge_evt_sample_t
  * the event bus carries is deliberately narrow (03 §3.2 — small POD
- * payloads), and app_alarm's smoke_x_alarm rule needs the base's own
+ * payloads), and app_alarm's smoke_x_alarm rule needs the Smoke X4's own
  * per-probe alarm band, which does not fit there. Storing 40 bytes here
  * is cheaper than widening an event every subscriber copies. */
 static smoke_x_state_t s_last_state;
@@ -171,7 +171,7 @@ void smoke_x_ctrl_tick(uint64_t now_ms) {
         publish(SMOKE_X_EVT_BASE_LOST, NULL);
     }
 
-    /* Default off: silently re-pairing to a different base would be worse
+    /* Default off: silently re-pairing to a different Smoke X4 would be worse
      * than staying put (§2.7). Never while a cook is active. */
     if (s_rescan_enabled && silent_ms >= SMOKE_X_RESCAN_TIMEOUT_MS) {
         uint32_t active_id = 0;

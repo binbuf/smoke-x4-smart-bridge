@@ -106,6 +106,12 @@ class FakeBridgeState {
     this.sessionActive = true,
     this.pitTempF10 = 2431,
     this.sessionSeconds = 15120,
+    this.admin = false,
+    this.displayTimeoutS = 60,
+    this.ledEnabled = 1,
+    this.buzzerEnabled = 1,
+    this.retentionMaxSessions = 64,
+    this.retentionMinFreePct = 10,
   });
 
   String deviceId;
@@ -117,6 +123,19 @@ class FakeBridgeState {
   bool sessionActive;
   int pitTempF10;
   int sessionSeconds;
+
+  /// v1.2 admin surface: caps b7 + the device_stats / device_config reads.
+  bool admin;
+  int displayTimeoutS;
+  int ledEnabled;
+  int buzzerEnabled;
+  int retentionMaxSessions;
+  int retentionMinFreePct;
+
+  /// Probe labels/roles(wire)/targets, index 0..3.
+  final List<String> probeNames = ['', '', '', ''];
+  final List<int> probeRoles = [0, 0, 0, 0];
+  final List<int> probeTargets = [0, 0, 0, 0];
 
   LiveState live() => LiveState(
     flags:
@@ -132,10 +151,39 @@ class FakeBridgeState {
   DeviceInfo info() => DeviceInfo(
     api: 1,
     probes: probes,
-    caps: caps,
+    caps: admin ? (caps | 0x80) : (caps & ~0x80),
     idRaw: utf8ToPadded(deviceId, 4),
     modelRaw: utf8ToPadded(model, 16),
     fwRaw: utf8ToPadded(fw, 16),
+  );
+
+  DeviceStats stats() => DeviceStats(
+    flags: (paired ? 1 << 0 : 0) | (1 << 1) | (1 << 2) | (1 << 3),
+    uptimeS: 1234,
+    heapFree: 100000,
+    heapMin: 90000,
+    storageUsedB: 12 * 1024,
+    storageTotalB: 2944 * 1024,
+    storedSessions: 3,
+    loraFreqHz: 918500000,
+    loraRssi: -71,
+    loraSnr: 7,
+    packetsOk: 500,
+    packetsBad: 4,
+    bonds: 1,
+  );
+
+  DeviceConfig config() => DeviceConfig(
+    displayTimeoutS: displayTimeoutS,
+    ledEnabled: ledEnabled,
+    buzzerEnabled: buzzerEnabled,
+    retentionMaxSessions: retentionMaxSessions,
+    retentionMinFreePct: retentionMinFreePct,
+    probeNameRaw: Uint8List.fromList([
+      for (final n in probeNames) ...utf8ToPadded(n, 17),
+    ]),
+    probeRole: List<int>.of(probeRoles),
+    probeTarget: List<int>.of(probeTargets),
   );
 
   /// Session id → the records the bridge holds, in `t` order.
@@ -381,6 +429,10 @@ class FakePeripheral implements BleGattClient {
         return state.info().encode();
       case BridgeChar.liveState:
         return state.live().encode();
+      case BridgeChar.deviceStats when state.admin:
+        return state.stats().encode();
+      case BridgeChar.deviceConfig when state.admin:
+        return state.config().encode();
       default:
         throw const BleStateException('characteristic is not readable');
     }
@@ -465,6 +517,20 @@ class FakePeripheral implements BleGattClient {
         }
       case ControlOp.clearCookClock:
         cookClockElapsedS = null;
+      case ControlOp.setProbe:
+        final body = CtrlSetProbe.decode(ctrl.bodyRaw);
+        if (body.index < 4) {
+          state.probeNames[body.index] = body.name;
+          state.probeRoles[body.index] = body.role;
+          state.probeTargets[body.index] = body.targetF10;
+        }
+      case ControlOp.setDevicePrefs:
+        final body = CtrlSetDevicePrefs.decode(ctrl.bodyRaw);
+        state.displayTimeoutS = body.displayTimeoutS;
+        state.ledEnabled = body.ledEnabled;
+        state.buzzerEnabled = body.buzzerEnabled;
+        state.retentionMaxSessions = body.retentionMaxSessions;
+        state.retentionMinFreePct = body.retentionMinFreePct;
       default:
         break;
     }
@@ -482,8 +548,13 @@ class FakePeripheral implements BleGattClient {
   /// Frames emitted for the last request, for assertion.
   int historyFramesSent = 0;
 
+  /// Every `history_ctrl` request the client has made, across all requests.
+  /// Lets a test prove a bounded sync issues no BLE round trips.
+  int historyRequests = 0;
+
   Future<void> _onHistoryCtrl(Uint8List value) async {
     final req = HistoryCtrl.decode(value);
+    historyRequests++;
     var seq = 0;
     historyFramesSent = 0;
 

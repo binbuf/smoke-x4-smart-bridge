@@ -23,7 +23,7 @@ enum Freshness {
   /// ≤ 600 s. Dim, derived values removed.
   stale,
 
-  /// > 600 s, or the bridge says the base went quiet. A `LAST` chip.
+  /// > 600 s, or the bridge says the Smoke X4 went quiet. A `LAST` chip.
   frozen,
 
   /// No timestamped reading yet. Distinct from aged; absent is not zero.
@@ -33,11 +33,11 @@ enum Freshness {
   static const int agingMaxS = 90;
   static const int staleMaxS = 600;
 
-  /// The ladder from an age in seconds and the bridge's own base-lost flag.
+  /// The ladder from an age in seconds and the bridge's own Smoke X4-lost flag.
   ///
   /// A null [ageS] is [unknown]; [baseLost] outranks the arithmetic because
-  /// the phone may be hearing the bridge perfectly while the *base station*
-  /// has stopped measuring.
+  /// the phone may be hearing the bridge perfectly while the *Smoke X4* has
+  /// stopped measuring.
   static Freshness fromAge(int? ageS, {bool baseLost = false}) {
     if (baseLost) {
       return Freshness.frozen;

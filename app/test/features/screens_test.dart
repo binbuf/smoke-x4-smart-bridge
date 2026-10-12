@@ -16,9 +16,11 @@ import 'package:smoke_bridge/data/local/app_database.dart';
 import 'package:smoke_bridge/data/local/drift_sample_cache.dart';
 import 'package:smoke_bridge/design/theme.dart';
 import 'package:smoke_bridge/domain/domain.dart';
+import 'package:smoke_bridge/features/common/unit_toggle.dart';
 import 'package:smoke_bridge/features/graph/graph_screen.dart';
 import 'package:smoke_bridge/features/history/history_screen.dart';
 import 'package:smoke_bridge/features/live/live_screen.dart';
+import 'package:smoke_bridge/features/settings/settings_screen.dart';
 
 import '../support/fake_peripheral.dart';
 
@@ -42,6 +44,27 @@ void main() {
     controller: controller,
     child: MaterialApp(theme: buildSmokeTheme(), home: child),
   );
+
+  Future<BleTransport> openFake(FakePeripheral fake) async {
+    await fake.connect('AA:BB:CC:DD:AA:BB');
+    await fake.bond();
+    await fake.requestMtu(247);
+    final transport = BleTransport(fake);
+    await transport.start();
+    return transport;
+  }
+
+  /// Boots the controller over a fake and waits for the link, on the real event
+  /// loop (a fake clock would stall the radio-free fake).
+  Future<void> connect(WidgetTester tester, BridgeController controller) async {
+    await tester.runAsync(() async {
+      await controller.bootstrap();
+      final end = DateTime.now().add(const Duration(seconds: 3));
+      while (!controller.connected && DateTime.now().isBefore(end)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+  }
 
   Future<void> seedSession() async {
     await cache.upsertSessions('A4F2', const [
@@ -95,7 +118,9 @@ void main() {
     expect(find.text('Cook clock'), findsOneWidget);
     expect(find.text('Not started'), findsNothing);
     // The card reads as running, not merely present.
-    expect(find.text('Restart cook'), findsOneWidget);
+    expect(find.text('Restart clock'), findsOneWidget);
+    // And it is explicit that the clock does not create a History entry.
+    expect(find.textContaining('records continuously'), findsOneWidget);
 
     controller.dispose();
   });
@@ -194,6 +219,162 @@ void main() {
     expect(find.text('Probe 2'), findsOneWidget);
     expect(find.text('Probe 3'), findsNothing);
     expect(find.text('Probe 4'), findsNothing);
+
+    controller.dispose();
+  });
+
+  testWidgets('a factory-fresh install is walked through setup', (
+    tester,
+  ) async {
+    final controller = BridgeController(cache);
+    await controller.bootstrap();
+
+    await tester.pumpWidget(host(controller, const LiveScreen()));
+    await tester.pump();
+
+    expect(find.text('Set up your bridge'), findsOneWidget);
+    expect(find.text('Find the bridge'), findsOneWidget);
+    expect(find.text('Pair it'), findsOneWidget);
+    expect(find.text('Connect your Smoke X4'), findsOneWidget);
+    expect(find.text('Find my bridge'), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('a paired bridge shows the Smoke X4 and LoRa signal', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'last_bridge_device_id': 'AA:BB:CC:DD:AA:BB',
+    });
+    final fake = FakePeripheral(state: FakeBridgeState());
+    final controller = BridgeController(
+      cache,
+      openTransport: () => openFake(fake),
+    );
+    await connect(tester, controller);
+    expect(controller.connected, isTrue, reason: 'link did not come up');
+
+    await tester.pumpWidget(host(controller, const LiveScreen()));
+    await tester.pump();
+
+    expect(find.text('Smoke X4 paired'), findsOneWidget);
+    expect(find.textContaining('LoRa'), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('an unpaired bridge offers the pair action', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'last_bridge_device_id': 'AA:BB:CC:DD:AA:BB',
+    });
+    final fake = FakePeripheral(state: FakeBridgeState(paired: false));
+    final controller = BridgeController(
+      cache,
+      openTransport: () => openFake(fake),
+    );
+    await connect(tester, controller);
+    expect(controller.connected, isTrue, reason: 'link did not come up');
+
+    await tester.pumpWidget(host(controller, const LiveScreen()));
+    await tester.pump();
+
+    expect(find.text('No Smoke X4 paired'), findsOneWidget);
+    expect(find.text('Pair with Smoke X4'), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('the unit control is on every tab and can change the unit', (
+    tester,
+  ) async {
+    await seedSession();
+    final controller = BridgeController(cache);
+    await controller.bootstrap();
+    addTearDown(controller.dispose);
+
+    for (final screen in const [LiveScreen(), GraphScreen(), HistoryScreen()]) {
+      await tester.pumpWidget(host(controller, screen));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(UnitToggle),
+        findsOneWidget,
+        reason: '${screen.runtimeType} must expose the unit control',
+      );
+    }
+
+    // Switch it from the Graph, away from the default.
+    await tester.pumpWidget(host(controller, const GraphScreen()));
+    await tester.pumpAndSettle();
+    expect(controller.unit, TempUnit.fahrenheit);
+
+    await tester.tap(find.byType(UnitToggle));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Celsius'));
+    await tester.pumpAndSettle();
+
+    expect(controller.unit, TempUnit.celsius);
+  });
+
+  testWidgets('Settings exposes the bridge lifecycle controls', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({
+      'last_bridge_device_id': 'AA:BB:CC:DD:AA:BB',
+    });
+    final fake = FakePeripheral(state: FakeBridgeState());
+    final controller = BridgeController(
+      cache,
+      openTransport: () => openFake(fake),
+    );
+    await connect(tester, controller);
+    expect(controller.connected, isTrue, reason: 'link did not come up');
+
+    await tester.pumpWidget(host(controller, const SettingsScreen()));
+    await tester.pump();
+
+    // Identity and telemetry.
+    expect(find.text('A4F2'), findsOneWidget);
+    expect(find.text('heltec-v3'), findsOneWidget);
+    // Link verbs.
+    expect(find.text('Disconnect'), findsOneWidget);
+    // Smoke X4 pair/unpair.
+    expect(find.text('Unpair Smoke X4'), findsOneWidget);
+    // Device actions.
+    expect(find.text('Identify (flash screen)'), findsOneWidget);
+    expect(find.text('Reboot bridge'), findsOneWidget);
+    expect(find.text('Power off'), findsOneWidget);
+    expect(find.text('Factory reset'), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('Settings shows stats and the probe editor on an admin bridge', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 3600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({
+      'last_bridge_device_id': 'AA:BB:CC:DD:AA:BB',
+    });
+    final fake = FakePeripheral(state: FakeBridgeState(admin: true));
+    final controller = BridgeController(
+      cache,
+      openTransport: () => openFake(fake),
+    );
+    await connect(tester, controller);
+    expect(controller.connected, isTrue, reason: 'link did not come up');
+
+    await tester.pumpWidget(host(controller, const SettingsScreen()));
+    await tester.pump();
+
+    expect(find.text('BRIDGE STATS'), findsOneWidget);
+    expect(find.text('BRIDGE PREFERENCES'), findsOneWidget);
+    expect(find.text('Edit probes'), findsOneWidget);
 
     controller.dispose();
   });

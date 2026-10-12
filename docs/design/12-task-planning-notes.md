@@ -149,7 +149,7 @@ without "and" is two tasks.
 
 - **H** — host unit tests pass in CI, including the failure cases named in
   [10 §10.5](10-repo-tooling-and-testing.md)
-- **S** — passes against `tools/sim` including the relevant adverse scenario (`flaky`, `base-lost`,
+- **S** — passes against `tools/sim` including the relevant adverse scenario (`flaky`, `Smoke X4-lost`,
   `detached`, …), not just the happy path
 - **B** — verified on the board and the result written into `docs/hardware-verified.md`
 - **C** — observed across a real cook, with the artifact (novelty log, session file, screenshot)

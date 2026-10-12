@@ -9,8 +9,10 @@ import 'package:flutter/material.dart';
 import '../../app/bridge_controller.dart';
 import '../../app/bridge_scope.dart';
 import '../../design/format.dart';
+import '../../design/primitives.dart';
 import '../../design/tokens.dart';
 import '../../domain/domain.dart';
+import '../common/bridge_app_bar.dart';
 import '../common/connection.dart';
 import '../cook/cook_clock_card.dart';
 import 'probe_card.dart';
@@ -23,15 +25,7 @@ class LiveScreen extends StatelessWidget {
     final controller = BridgeScope.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Live readings'),
-        actions: [
-          const ConnectionChip(),
-          const SizedBox(width: SmokeSpace.sm),
-          _UnitToggle(controller: controller),
-          const SizedBox(width: SmokeSpace.sm),
-        ],
-      ),
+      appBar: const BridgeAppBar(title: 'Live readings'),
       body: controller.connected
           ? RefreshIndicator(
               onRefresh: controller.refresh,
@@ -39,6 +33,8 @@ class LiveScreen extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(SmokeSpace.lg),
                 children: [
+                  _PairingCard(controller: controller),
+                  const SizedBox(height: SmokeSpace.lg),
                   _ProbeList(controller: controller),
                   const SizedBox(height: SmokeSpace.lg),
                   _ReadingFooter(controller: controller),
@@ -60,6 +56,8 @@ class LiveScreen extends StatelessWidget {
                 ),
               ],
             )
+          : controller.firstRun
+          ? const FirstRunGuide()
           : const ConnectionEmpty(primaryAction: true),
     );
   }
@@ -94,6 +92,86 @@ class _ProbeList extends StatelessWidget {
   }
 }
 
+/// Smoke X4 pairing, made visible and drivable. The bridge's defining action
+/// is the single LoRa hop to the Smoke X4; without this card the user can
+/// neither see whether it happened nor start it.
+class _PairingCard extends StatelessWidget {
+  const _PairingCard({required this.controller});
+
+  final BridgeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final live = controller.latestLive;
+    if (live == null) {
+      return const SizedBox.shrink();
+    }
+    final paired = live.paired;
+    return SmokeCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                paired ? Icons.link : Icons.link_off,
+                size: 18,
+                color: paired ? SmokePalette.positive : SmokePalette.textMuted,
+              ),
+              const SizedBox(width: SmokeSpace.sm),
+              Expanded(
+                child: Text(
+                  paired ? 'Smoke X4 paired' : 'No Smoke X4 paired',
+                  style: const TextStyle(
+                    color: SmokePalette.textHi,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (paired)
+                Text(
+                  'LoRa ${live.rssiLora} dBm',
+                  style: const TextStyle(
+                    color: SmokePalette.textMuted,
+                    fontSize: 13,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: SmokeSpace.sm),
+          Text(
+            paired
+                ? 'Readings are arriving from your Smoke X4.'
+                : 'Put your Smoke X4 into SYNC, then pair it here. The '
+                      'bridge screen confirms the link.',
+            style: const TextStyle(
+              color: SmokePalette.textBody,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: SmokeSpace.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: paired
+                ? TextButton.icon(
+                    onPressed: controller.unpairSmokeX,
+                    icon: const Icon(Icons.link_off, size: 18),
+                    label: const Text('Unpair Smoke X4'),
+                  )
+                : FilledButton.icon(
+                    onPressed: controller.pairSmokeX,
+                    icon: const Icon(Icons.link),
+                    label: const Text('Pair with Smoke X4'),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The honest line under the readings: when the last reading arrived, and a
 /// nudge the bridge's own clock can be set from the phone.
 class _ReadingFooter extends StatelessWidget {
@@ -123,26 +201,6 @@ class _ReadingFooter extends StatelessWidget {
           child: const Text('Set bridge clock'),
         ),
       ],
-    );
-  }
-}
-
-class _UnitToggle extends StatelessWidget {
-  const _UnitToggle({required this.controller});
-
-  final BridgeController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<TempUnit>(
-      showSelectedIcon: false,
-      style: const ButtonStyle(visualDensity: VisualDensity.compact),
-      segments: const [
-        ButtonSegment(value: TempUnit.fahrenheit, label: Text('°F')),
-        ButtonSegment(value: TempUnit.celsius, label: Text('°C')),
-      ],
-      selected: {controller.unit},
-      onSelectionChanged: (s) => controller.setUnit(s.first),
     );
   }
 }

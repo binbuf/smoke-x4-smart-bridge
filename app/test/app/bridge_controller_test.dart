@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smoke_bridge/app/bridge_controller.dart';
 import 'package:smoke_bridge/data/local/app_database.dart';
+import 'package:smoke_bridge/data/local/app_prefs.dart';
 import 'package:smoke_bridge/data/local/drift_sample_cache.dart';
 import 'package:smoke_bridge/domain/domain.dart';
 
@@ -71,6 +72,20 @@ void main() {
 
     expect(controller.sessions, isEmpty);
     expect(await controller.samplesFor(1), isEmpty);
+
+    controller.dispose();
+  });
+
+  test('a unit change is persisted for the next launch', () async {
+    final controller = BridgeController(cache);
+    await controller.bootstrap();
+    expect(controller.unit, TempUnit.fahrenheit);
+
+    controller.setUnit(TempUnit.celsius);
+    // setUnit persists asynchronously; let the write land.
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await AppPrefs().readUnit(), TempUnit.celsius);
 
     controller.dispose();
   });

@@ -36,10 +36,10 @@ void main() {
     expect(storage['free_pct'], lessThanOrEqualTo(2));
   });
 
-  test('base-lost: packets stop dead after the cutoff', () async {
-    // Clock far past the cutoff: the base has been silent for hours.
+  test('Smoke X4-lost: packets stop dead after the cutoff', () async {
+    // Clock far past the cutoff: the Smoke X4 has been silent for hours.
     final state = scenarioState(
-      'base-lost',
+      'Smoke X4-lost',
       afterS: 2 * 3600,
       nowMs: pastEndClock(3 * 3600),
     );

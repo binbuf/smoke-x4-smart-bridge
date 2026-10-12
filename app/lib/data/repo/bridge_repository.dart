@@ -68,6 +68,11 @@ class BridgeRepository {
     );
   }
 
+  /// Whether a closed session has already been fully pulled. Lets the periodic
+  /// tick skip a long, finished history without even a cache round trip.
+  Future<bool> sessionComplete(SessionInfo session) =>
+      _sync.isComplete(cache, bridgeId: bridgeId, session: session);
+
   Future<List<Sample>> samples(int sessionId, {int? fromT, int? toT}) =>
       cache.samples(bridgeId, sessionId, fromT: fromT, toT: toT);
 
@@ -79,6 +84,44 @@ class BridgeRepository {
   /// Writes the bridge's wall clock so its sessions carry real timestamps.
   Future<void> setTime(int unixMs, {int? tzOffsetMin}) =>
       transport.setTime(unixMs, tzOffsetMin: tzOffsetMin);
+
+  /// Enters sync/scan mode toward the Smoke X4 (`pair`, op 1).
+  Future<void> pair() => transport.pair();
+
+  /// Forgets the paired Smoke X4 (`unpair`, op 2).
+  Future<void> unpair() => transport.unpair();
+
+  /// Wakes/flashes the bridge's display (`identify`, op 10).
+  Future<void> identify() => transport.identify();
+
+  /// Restarts the bridge (`reboot`, op 7). The link drops and returns.
+  Future<void> reboot() => transport.reboot();
+
+  /// Wipes the bridge's bonds, config and cooks, then reboots (op 8).
+  Future<void> factoryReset() => transport.factoryReset();
+
+  /// Puts the bridge into deep sleep (`power_off`, op 13).
+  Future<void> powerOff() => transport.powerOff();
+
+  /// Sets the bridge's OLED unit preference (`set_units`, op 9).
+  Future<void> setUnits(TempUnit unit) => transport.setUnits(unit);
+
+  /// Sets the bridge's battery-saver profile (`set_battery_saver`, op 12).
+  Future<void> setBatterySaver(BatterySaverMode mode) =>
+      transport.setBatterySaver(mode);
+
+  /// The read-only telemetry snapshot (`device_stats`).
+  Future<DeviceStats> stats() => transport.stats();
+
+  /// The current writable settings (`device_config`).
+  Future<DeviceConfig> deviceConfig() => transport.deviceConfig();
+
+  /// One probe's label, role and target (`set_probe`, op 16).
+  Future<void> setProbe(ProbeConfig probe) => transport.setProbe(probe);
+
+  /// The device preferences (`set_device_prefs`, op 17).
+  Future<void> setDevicePrefs(DevicePrefs prefs) =>
+      transport.setDevicePrefs(prefs);
 
   /// Declares the elapsed time the device's OLED shows (the cook clock).
   Future<void> setCookClock(int elapsedS) => transport.setCookClock(elapsedS);

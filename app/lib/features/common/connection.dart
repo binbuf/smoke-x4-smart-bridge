@@ -25,33 +25,41 @@ class ConnectionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = BridgeScope.of(context);
-    final chrome = switch (controller.link) {
-      BridgeLink.disconnected => (
-        icon: Icons.bluetooth_disabled,
-        label: 'Offline',
-        color: SmokePalette.textMuted,
-      ),
-      BridgeLink.scanning => (
-        icon: Icons.bluetooth_searching,
-        label: 'Searching',
-        color: SmokePalette.warning,
-      ),
-      BridgeLink.connecting => (
-        icon: Icons.bluetooth_searching,
-        label: 'Connecting',
-        color: SmokePalette.warning,
-      ),
-      BridgeLink.error => (
-        icon: Icons.error_outline,
-        label: 'No link',
-        color: SmokePalette.critical,
-      ),
-      BridgeLink.connected => (
-        icon: Icons.bluetooth_connected,
-        label: 'Connected',
-        color: SmokePalette.positive,
-      ),
-    };
+    final chrome =
+        controller.reconnectExhausted &&
+            controller.link == BridgeLink.disconnected
+        ? (
+            icon: Icons.bluetooth_disabled,
+            label: 'Lost bridge',
+            color: SmokePalette.critical,
+          )
+        : switch (controller.link) {
+            BridgeLink.disconnected => (
+              icon: Icons.bluetooth_disabled,
+              label: 'Offline',
+              color: SmokePalette.textMuted,
+            ),
+            BridgeLink.scanning => (
+              icon: Icons.bluetooth_searching,
+              label: 'Searching',
+              color: SmokePalette.warning,
+            ),
+            BridgeLink.connecting => (
+              icon: Icons.bluetooth_searching,
+              label: 'Connecting',
+              color: SmokePalette.warning,
+            ),
+            BridgeLink.error => (
+              icon: Icons.error_outline,
+              label: 'No link',
+              color: SmokePalette.critical,
+            ),
+            BridgeLink.connected => (
+              icon: Icons.bluetooth_connected,
+              label: 'Connected',
+              color: SmokePalette.positive,
+            ),
+          };
 
     return Semantics(
       button: true,
@@ -138,18 +146,31 @@ class _ConnectionBody extends StatelessWidget {
     switch (controller.link) {
       case BridgeLink.disconnected:
         return _block(
-          title: 'Not connected',
-          body:
-              'Bluetooth is how this app reads your bridge. Pair once and it '
-              'reconnects on its own. History and graphs keep working offline '
-              'from what is already cached.',
+          title: controller.reconnectExhausted
+              ? 'Lost the bridge'
+              : 'Not connected',
+          body: controller.reconnectExhausted
+              ? 'The bridge stopped answering and the automatic reconnects '
+                    'gave up. Make sure it is powered on and nearby, then try '
+                    'again. History keeps working offline from what is cached.'
+              : 'Bluetooth is how this app reads your bridge. Pair once and it '
+                    'reconnects on its own. History and graphs keep working '
+                    'offline from what is already cached.',
           action: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               FilledButton.icon(
                 onPressed: controller.connect,
-                icon: const Icon(Icons.bluetooth_searching),
-                label: const Text('Find my bridge'),
+                icon: Icon(
+                  controller.reconnectExhausted
+                      ? Icons.refresh
+                      : Icons.bluetooth_searching,
+                ),
+                label: Text(
+                  controller.reconnectExhausted
+                      ? 'Try again'
+                      : 'Find my bridge',
+                ),
               ),
               if (controller.canForget) ...[
                 const SizedBox(height: SmokeSpace.sm),
@@ -366,6 +387,23 @@ class ConnectionEmpty extends StatelessWidget {
         );
       case BridgeLink.disconnected:
       case BridgeLink.connected:
+        if (controller.reconnectExhausted &&
+            controller.link == BridgeLink.disconnected) {
+          return EmptyState(
+            icon: Icons.bluetooth_disabled,
+            title: 'Lost the bridge',
+            message:
+                'The bridge stopped answering and the automatic reconnects '
+                'gave up. Make sure it is powered on and nearby, then try '
+                'again.',
+            tone: SmokePalette.critical,
+            action: FilledButton.icon(
+              onPressed: controller.connect,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          );
+        }
         return EmptyState(
           icon: Icons.bluetooth_searching,
           title: title ?? 'Not connected',
@@ -385,6 +423,141 @@ class ConnectionEmpty extends StatelessWidget {
                 ),
         );
     }
+  }
+}
+
+/// The guided first-run surface: what to do, in order, when this phone has
+/// never spoken to a bridge. It names the three hops — find, pair, optionally
+/// name — and, crucially, tells the user to read the six digits off the
+/// bridge's OLED when the OS asks for them during bonding. Without this a new
+/// user meets a bare passkey dialog and a bridge that looks unresponsive.
+class FirstRunGuide extends StatelessWidget {
+  const FirstRunGuide({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = BridgeScope.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(SmokeSpace.xl),
+      children: [
+        const Icon(
+          Icons.developer_board,
+          size: 40,
+          color: SmokePalette.textMuted,
+        ),
+        const SizedBox(height: SmokeSpace.lg),
+        const Text(
+          'Set up your bridge',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: SmokePalette.textHi,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: SmokeSpace.sm),
+        const Text(
+          'Three steps, once. After this the app reconnects on its own.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: SmokePalette.textBody,
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: SmokeSpace.xl),
+        const _SetupStep(
+          n: 1,
+          title: 'Find the bridge',
+          body: 'Tap “Find my bridge”. Keep it powered on and nearby.',
+        ),
+        const SizedBox(height: SmokeSpace.lg),
+        const _SetupStep(
+          n: 2,
+          title: 'Pair it',
+          body:
+              'Bluetooth will ask to pair with your bridge. Accept it — no '
+              'code is needed; the bridge pairs automatically.',
+        ),
+        const SizedBox(height: SmokeSpace.lg),
+        const _SetupStep(
+          n: 3,
+          title: 'Connect your Smoke X4',
+          body:
+              'Put the Smoke X4 into SYNC, then tap “Pair with Smoke X4” '
+              'on the Live screen. The bridge screen confirms it.',
+        ),
+        const SizedBox(height: SmokeSpace.xl),
+        FilledButton.icon(
+          onPressed: controller.connect,
+          icon: const Icon(Icons.bluetooth_searching),
+          label: const Text('Find my bridge'),
+        ),
+      ],
+    );
+  }
+}
+
+/// One numbered instruction in [FirstRunGuide].
+class _SetupStep extends StatelessWidget {
+  const _SetupStep({required this.n, required this.title, required this.body});
+
+  final int n;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: SmokePalette.ember.withValues(alpha: 0.16),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: SmokePalette.ember.withValues(alpha: 0.4),
+            ),
+          ),
+          child: Text(
+            '$n',
+            style: const TextStyle(
+              color: SmokePalette.textHi,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: SmokeSpace.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: SmokePalette.textHi,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                body,
+                style: const TextStyle(
+                  color: SmokePalette.textBody,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 

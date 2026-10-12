@@ -36,8 +36,10 @@
 #include "app_power.h"
 #include "bridge_event.h"
 #include "cook_store.h"
+#include "cook_store_core.h"
 #include "esp_app_desc.h"
 #include "esp_mac.h"
+#include "smoke_x_ctrl.h"
 
 static const char *TAG = "app_ble";
 
@@ -99,7 +101,99 @@ static void op_sysinfo(app_ble_sysinfo_t *out) {
      * The bit exists for the client's sake — a v1.0 bridge leaves it clear
      * and the app keeps its "full history needs Wi-Fi" path rather than
      * writing a characteristic that will never answer. */
-    out->caps = (1u << 0) | (1u << 1) | (1u << 3) | (1u << 6);
+    out->caps = (1u << 0) | (1u << 1) | (1u << 3) | (1u << 6) | (1u << 7);
+}
+
+/* §5.12 — the admin snapshot. Values are pulled from the components that own
+ * them; nothing here is cached, so a read always reflects the moment. */
+static void op_stats(app_ble_stats_t *out) {
+    memset(out, 0, sizeof *out);
+    uint8_t flags = 0;
+    if (smoke_x_ctrl_state() == SMOKE_X_CONFIRMED) {
+        flags |= BRIDGE_DEVICE_STATS_FLAGS_PAIRED;
+    }
+    if (app_time_core_source() != APP_TIME_NONE) {
+        flags |= BRIDGE_DEVICE_STATS_FLAGS_CLOCK_VALID;
+    }
+    if (ble_gap_adv_active()) {
+        flags |= BRIDGE_DEVICE_STATS_FLAGS_ADVERTISING;
+    }
+    if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+        flags |= BRIDGE_DEVICE_STATS_FLAGS_CONNECTED;
+    }
+    out->flags = flags;
+    out->uptime_s = (uint32_t)(esp_log_timestamp() / 1000u);
+    out->heap_free = (uint32_t)esp_get_free_heap_size();
+    out->heap_min = (uint32_t)esp_get_minimum_free_heap_size();
+    uint32_t total = 0;
+    uint32_t used = 0;
+    if (cook_store_fs_info(&total, &used) == 0) {
+        out->storage_total_b = total;
+        out->storage_used_b = used;
+    }
+    out->stored_sessions = (uint16_t)cook_store_index_count();
+    out->lora_freq_hz = smoke_x_ctrl_frequency_hz();
+    const smoke_x_stats_t *sx = smoke_x_ctrl_stats();
+    out->lora_rssi = sx->last_rssi;
+    out->lora_snr = sx->last_snr;
+    out->packets_ok = sx->valid;
+    out->packets_bad = sx->parse_fail + sx->crc_fail + sx->unknown_commas;
+    out->bonds = app_ble_bond_count();
+}
+
+/* §5.13 — the current writable settings, read back for the app's editors. */
+static uint8_t role_to_wire(uint8_t config_role) {
+    switch (config_role) {
+    case APP_CONFIG_ROLE_PIT:
+        return BRIDGE_PROBE_ROLE_PIT;
+    case APP_CONFIG_ROLE_FOOD:
+        return BRIDGE_PROBE_ROLE_FOOD;
+    case APP_CONFIG_ROLE_AMBIENT:
+        return BRIDGE_PROBE_ROLE_AMBIENT;
+    default:
+        return BRIDGE_PROBE_ROLE_UNUSED;
+    }
+}
+
+static void op_config(app_ble_config_t *out) {
+    memset(out, 0, sizeof *out);
+    uint16_t timeout = 60;
+    (void)app_config_store_get_u16(APP_CONFIG_DEV_DISPLAY_TIMEOUT_S, &timeout);
+    out->display_timeout_s = timeout;
+    uint8_t led = 1;
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_LED_ENABLED, &led);
+    out->led_enabled = led;
+    uint8_t buzzer = 1;
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_BUZZER_ENABLED, &buzzer);
+    out->buzzer_enabled = buzzer;
+    uint8_t max_sessions = 64;
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_RETENTION_MAX_SESSIONS,
+                                  &max_sessions);
+    out->retention_max_sessions = max_sessions;
+    uint8_t min_free = 10;
+    (void)app_config_store_get_u8(APP_CONFIG_DEV_RETENTION_MIN_FREE_PCT,
+                                  &min_free);
+    out->retention_min_free_pct = min_free;
+
+    static const app_config_key_t name_keys[4] = {
+        APP_CONFIG_PROBE1_NAME, APP_CONFIG_PROBE2_NAME, APP_CONFIG_PROBE3_NAME,
+        APP_CONFIG_PROBE4_NAME};
+    static const app_config_key_t role_keys[4] = {
+        APP_CONFIG_PROBE1_ROLE, APP_CONFIG_PROBE2_ROLE, APP_CONFIG_PROBE3_ROLE,
+        APP_CONFIG_PROBE4_ROLE};
+    static const app_config_key_t target_keys[4] = {
+        APP_CONFIG_PROBE1_TARGET, APP_CONFIG_PROBE2_TARGET,
+        APP_CONFIG_PROBE3_TARGET, APP_CONFIG_PROBE4_TARGET};
+    for (int i = 0; i < 4; i++) {
+        (void)app_config_store_get_str(name_keys[i], out->probe_name[i],
+                                       sizeof out->probe_name[i]);
+        uint8_t role = APP_CONFIG_ROLE_UNUSED;
+        (void)app_config_store_get_u8(role_keys[i], &role);
+        out->probe_role[i] = role_to_wire(role);
+        int32_t target = 0;
+        (void)app_config_store_get_i32(target_keys[i], &target);
+        out->probe_target[i] = (int16_t)target;
+    }
 }
 
 static int op_notify(app_ble_char_t ch, const uint8_t *buf, size_t len) {
@@ -146,6 +240,8 @@ static int op_history_defer(void);
 
 static const app_ble_ops_t k_ops = {
     .sysinfo = op_sysinfo,
+    .stats = op_stats,
+    .config = op_config,
     .notify = op_notify,
     .identify = op_identify,
     .reboot = op_reboot,
@@ -199,9 +295,12 @@ static int gatt_access(uint16_t conn_handle, uint16_t attr_handle,
                         ? BRIDGE_DEVICE_CONTROL_MAX_SIZE
                         : BRIDGE_HISTORY_CTRL_SIZE];
         uint16_t len = 0;
-        /* Long writes arrive already reassembled by Prepare/Execute. */
+        /* Long writes arrive already reassembled by Prepare/Execute. A
+         * flatten failure (over-long attribute) leaves `buf` untouched, so
+         * answer explicitly on `result` with no data rather than hand the
+         * core a stale buffer and a length past its end. */
         if (ble_hs_mbuf_to_flat(ctxt->om, buf, sizeof buf, &len) != 0) {
-            (void)app_ble_core_write(ch, &link, buf, sizeof buf + 1);
+            (void)app_ble_core_write(ch, &link, NULL, 0);
             return 0; /* the core answered `invalid` on `result` */
         }
         (void)app_ble_core_write(ch, &link, buf, len);
@@ -530,12 +629,16 @@ int app_ble_init(void) {
     ble_hs_cfg.sync_cb = on_sync;
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
-    /* DisplayOnly + MITM + Secure Connections + bonding: the four flags
-     * that together mean "the six digits on the OLED are load-bearing"
-     * (§3). Dropping any one of them silently downgrades to Just Works. */
-    ble_hs_cfg.sm_io_cap = BLE_HS_IO_DISPLAY_ONLY;
+    /* JUST WORKS + bonding + Secure Connections. The active button surface
+     * is tap (pages) and hold (power off); there is no gesture to read a
+     * passkey off the glass, so pairing is frictionless by design — any
+     * phone that scans the device bonds and encrypts automatically, and the
+     * app owns the rest of the lifecycle. The link is still encrypted and
+     * bonded; it is simply not MITM-protected (07 §7.4, decided for the
+     * headless MVP). */
+    ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
     ble_hs_cfg.sm_bonding = 1;
-    ble_hs_cfg.sm_mitm = 1;
+    ble_hs_cfg.sm_mitm = 0;
     ble_hs_cfg.sm_sc = 1;
     ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
     ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;

@@ -33,7 +33,7 @@ app yet; run the checks below by hand. The app is at [`app/`](../app/) — see
 | # | Check | How | Evidence |
 |---|---|---|---|
 | C1 | Factory-fresh install reaches a live reading | install, bond over BLE (read the passkey off the bridge OLED), land on Live with a live temperature | a reading, no external prose needed |
-| C2 | Pair the base station | hold **SYNC** on the Smoke X base until the bridge's OLED confirms | stock receiver keeps working |
+| C2 | Pair the Smoke X4 | hold **SYNC** on the Smoke X4 until the bridge's OLED confirms | stock receiver keeps working |
 | C3 | Graph and History over BLE | select a session in History, open its detail, compare with Graph | samples match the bridge |
 | C4 | Clock | set the bridge clock from Live, confirm later sessions carry a real date | a dated History row |
 | C5 | Reconnect soak | drop and restore the link repeatedly; the chip tells the truth at each step | no stale-as-current, no dead control |
@@ -49,7 +49,7 @@ app yet; run the checks below by hand. The app is at [`app/`](../app/) — see
 
 ## Deferred / not in v1
 
-- Guided first-run pairing, base-pairing controls, and auto clock-setting on
+- Guided first-run pairing, Smoke X4-pairing controls, and auto clock-setting on
   connect are roadmap items [S1.1–S1.3](../ROADMAP.md), not release blockers.
 - There is no golden or invariant suite; the end-to-end BLE harness is
   [S3.5](../ROADMAP.md).

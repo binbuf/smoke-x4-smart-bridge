@@ -372,14 +372,14 @@ void app_ui_render_page_radio(const app_ui_state_t *st, app_ui_fb_t *fb) {
     if (!st->paired) {
         app_ui_draw_text(fb, 0, 0, "RADIO    UNPAIRED");
         app_ui_draw_text(fb, 0, 2, "Scanning 915/920 MHz");
-        app_ui_draw_text(fb, 0, 4, "Put your Smoke X");
-        app_ui_draw_text(fb, 0, 5, "base in SYNC mode");
+        app_ui_draw_text(fb, 0, 4, "Put your Smoke");
+        app_ui_draw_text(fb, 0, 5, "X4 into SYNC");
         app_ui_render_strip(st, fb);
         return;
     }
 
     app_ui_draw_text(fb, 0, 0, "RADIO      paired");
-    snprintf(buf, sizeof buf, "Smoke X  %.8s", st->device_id);
+    snprintf(buf, sizeof buf, "Smoke X4 %.8s", st->device_id);
     app_ui_draw_text(fb, 0, 1, buf);
     snprintf(buf, sizeof buf, "%u.%u MHz",
              (unsigned)(st->frequency_hz / 1000000u),
@@ -587,13 +587,11 @@ void app_ui_render_overlay_splash(const app_ui_state_t *st, app_ui_fb_t *fb) {
     app_ui_draw_text_centred(fb, 0, "SMOKE BRIDGE");
     snprintf(buf, sizeof buf, "%.20s", st->fw);
     app_ui_draw_text_centred(fb, 1, buf);
-    /* "Hold PRG at boot" is impossible on this chip (GPIO0 is the boot
-     * strapping pin); this is the POST-boot window (03 §3.4.1). Holding the
-     * button through it opens the on-device factory-reset flow. */
-    app_ui_draw_text(fb, 2, 3, "hold PRG for");
-    snprintf(buf, sizeof buf, "setup        %u",
-             (unsigned)st->confirm_count);
-    app_ui_draw_text(fb, 2, 4, buf);
+    /* A boot screen only. The device advertises continuously and any phone
+     * pairs with Just Works, so the copy points at the app rather than at a
+     * button gesture (07 §7.4). */
+    app_ui_draw_text_centred(fb, 3, "open the app");
+    app_ui_draw_text_centred(fb, 4, "to connect");
     /* 01 §1.5: transmitting into an open port can destroy the PA. */
     app_ui_draw_text(fb, 2, 6, "connect antenna");
     app_ui_draw_text(fb, 2, 7, "before use");

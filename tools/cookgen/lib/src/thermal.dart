@@ -58,7 +58,7 @@ class DetachEvent {
   final int toS;
 }
 
-/// The base station is flipped to °C at [atS] (values stay canonical °F —
+/// The Smoke X4 is flipped to °C at [atS] (values stay canonical °F —
 /// only the provenance flag changes; there must be NO cliff in the series).
 class CelsiusSwitchEvent {
   const CelsiusSwitchEvent({required this.atS});

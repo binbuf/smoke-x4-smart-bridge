@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "boot_seq.c" "double_reset.c"
+    SRCS "main.c" "boot_seq.c"
     INCLUDE_DIRS "."
     PRIV_REQUIRES app_ble app_config app_power app_time app_ui
                   cook_store smoke_x

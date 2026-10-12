@@ -12,7 +12,7 @@ import 'state.dart';
 const simScenarios = [
   'stall',
   'lid-open',
-  'base-lost',
+  'Smoke X4-lost',
   'flaky',
   'unpaired',
   'detached',
@@ -23,7 +23,7 @@ const simScenarios = [
 ];
 
 /// Builds the state for a named scenario. [dropPct] feeds `flaky`,
-/// [afterS] feeds `base-lost`.
+/// [afterS] feeds `Smoke X4-lost`.
 SimState scenarioState(
   String name, {
   double speed = 1,
@@ -49,7 +49,7 @@ SimState scenarioState(
         probes: probes,
         dropoutPct: dropPct ?? 10,
       );
-    case 'base-lost':
+    case 'Smoke X4-lost':
       final cutoff = afterS ?? 2 * 3600;
       cook = cg.generateScenario(
         'flat',

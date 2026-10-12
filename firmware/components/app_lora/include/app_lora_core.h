@@ -32,7 +32,7 @@ typedef struct {
 const app_lora_params_t *app_lora_params(void);
 
 /* ── Unpaired scanner (F2.5) ──
- * Alternate the two sync channels every 3.3 s while the base beacons every
+ * Alternate the two sync channels every 3.3 s while the Smoke X4 beacons every
  * 3 s — deliberately offset so the two never lock into a beat pattern that
  * starves one channel (02 §2.4). */
 #define APP_LORA_SCAN_DWELL_MS 3300u

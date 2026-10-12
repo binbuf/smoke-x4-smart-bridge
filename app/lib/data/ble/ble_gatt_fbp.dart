@@ -1,14 +1,14 @@
-/// A6.1 (production half) — [BleGattClient] over `flutter_blue_plus`.
+/// [BleGattClient] over `flutter_blue_plus` — the production half of the seam.
 ///
-/// The seam's whole purpose is that everything above it — `BleTransport`,
-/// the reassembler, the onboarding wizard — is tested against the Dart
-/// fake with no radio. This file is the part that only a phone can prove,
+/// The seam's whole purpose is that everything above it — `BleTransport` and
+/// the notification reassembler — is tested against the Dart fake with no
+/// radio. This file is the part that only a phone can prove,
 /// and it is deliberately the thinnest thing that can work: find the
 /// service, map characteristics by their 16-bit slot, translate the
 /// plugin's failures into the typed conditions the app knows how to
 /// render. No decisions live here.
 ///
-/// Android reality that shapes the code (05 §5.8, A6 epic flag):
+/// Android reality that shapes the code (ble-gatt §3):
 ///
 ///  * The **passkey dialog is owned by the OS**. `createBond()` returns
 ///    when the user has dealt with it; we never see the digits, which is
@@ -56,13 +56,11 @@ class FlutterBlueGattClient implements BleGattClient {
   /// **This stream MUST terminate.** `FlutterBluePlus.onScanResults` is a
   /// long-lived stream that never closes, so an `await for` over it runs
   /// forever — and a caller that treats "the scan ended" as a step
-  /// boundary (the onboarding wizard does) then keeps being dragged back
-  /// to the find step from under whatever screen the user moved on to.
+  /// boundary keeps being dragged back to the find step from under whatever
+  /// the user moved on to.
   ///
-  /// Board-found on the first real run: the Wi-Fi picker and the bridge
-  /// list fought each other and the screen flickered blank. The Dart fake
-  /// returns a stream that ends on its own, which is exactly why the test
-  /// suite could not see it — so [FakePeripheral] now has a
+  /// The Dart fake returns a stream that ends on its own, which is exactly
+  /// why the test suite could not see this — so [FakePeripheral] has a
   /// `continuousScan` mode that reproduces the real plugin's behaviour.
   ///
   /// Ends on: the timeout, [stopScan], or the listener cancelling.
@@ -118,8 +116,7 @@ class FlutterBlueGattClient implements BleGattClient {
       try {
         // Filtered by OUR service UUID, so the list is bridges and nothing
         // else. `androidUsesFineLocation` stays at its `false` default, which
-        // keeps the promise the manifest's `neverForLocation` makes (A6.6,
-        // 05 §5.8.3).
+        // keeps the promise the manifest's `neverForLocation` makes.
         await FlutterBluePlus.startScan(
           withServices: [Guid(bridgeUuid(BridgeChar.service))],
           timeout: timeout,
@@ -213,7 +210,7 @@ class FlutterBlueGattClient implements BleGattClient {
     final svc = services.where((s) => s.uuid == serviceUuid).firstOrNull;
     if (svc == null) {
       throw const BleStateException(
-        'this device does not expose the Bridge Control Service',
+        'not a Smoke Bridge (no Bridge Control Service)',
       );
     }
     _chars.clear();
@@ -271,7 +268,7 @@ class FlutterBlueGattClient implements BleGattClient {
   Future<void> removeBond() async {
     final device = _device;
     if (device == null) {
-      throw const BleStateException('removeBond() with no device');
+      throw const BleStateException('removeBond() with no bridge');
     }
     try {
       // Android-only plugin call (reflection over the hidden API). Where it
@@ -306,7 +303,7 @@ class FlutterBlueGattClient implements BleGattClient {
   // ── attributes ─────────────────────────────────────────────────────
 
   /// Routed through the same bond-aware mapping as every other GATT op: a
-  /// stale-bond stall must read as "re-pair", not as "no signal" (A24.11).
+  /// stale-bond stall must read as "re-pair", not as "no signal".
   @override
   Future<int> readRssi() async {
     final device = _device;
@@ -335,7 +332,7 @@ class FlutterBlueGattClient implements BleGattClient {
   /// The plugin reports both "you are not bonded" and "the peer forgot
   /// you" as GATT auth errors. They are the same code and completely
   /// different problems, so the bond state we are holding is what tells
-  /// them apart (A6.4).
+  /// them apart.
   Never _mapGattFailure(FlutterBluePlusException e) {
     final desc = e.description?.toLowerCase() ?? '';
     final isAuth =
@@ -355,12 +352,11 @@ class FlutterBlueGattClient implements BleGattClient {
     throw BleStateException(e.description ?? 'GATT operation failed');
   }
 
-  /// A GATT op that STALLS is Android silently retrying security. The
-  /// board-found case (A24.11): a stale OS bond against a factory-reset
-  /// bridge never errors — the stack re-tries the dead key while the app
-  /// waits forever. Bounding every op and reading the stall through the
-  /// bond state turns "it just hangs" into the same typed answers the
-  /// error path already gives.
+  /// A GATT op that STALLS is Android silently retrying security. A stale OS
+  /// bond against a factory-reset bridge never errors — the stack re-tries the
+  /// dead key while the app waits forever. Bounding every op and reading the
+  /// stall through the bond state turns "it just hangs" into the same typed
+  /// answers the error path already gives.
   static const _opTimeout = Duration(seconds: 12);
 
   Never _mapStall() {
@@ -391,7 +387,7 @@ class FlutterBlueGattClient implements BleGattClient {
   Future<void> write(int slot, Uint8List value) async {
     try {
       // With response: every write on this contract is answered on
-      // `result`, and a silently-dropped write would strand the wizard.
+      // `result`, and a silently-dropped write would strand a command.
       await _charFor(slot).write(value).timeout(_opTimeout);
     } on TimeoutException {
       _mapStall();
@@ -409,8 +405,8 @@ class FlutterBlueGattClient implements BleGattClient {
     final ctl = StreamController<Uint8List>.broadcast();
     _notifyCtls[slot] = ctl;
     final c = _charFor(slot);
-    // Chunks arrive exactly as the firmware sent them; reassembly is
-    // A6.3's job one layer up, because the boundary is a property of the
+    // Chunks arrive exactly as the firmware sent them; reassembly happens
+    // one layer up, because the boundary is a property of the
     // payload rather than of the link.
     _notifySubs[slot] = c.onValueReceived.listen(
       (v) => ctl.add(Uint8List.fromList(v)),
@@ -420,7 +416,7 @@ class FlutterBlueGattClient implements BleGattClient {
       c.setNotifyValue(true).timeout(_opTimeout).catchError((Object e) {
         // The CCCD write needs encryption, so a stale bond stalls or
         // auth-fails right here — route it through the same bond-aware
-        // mapping as reads and writes (A24.11).
+        // mapping as reads and writes.
         if (_bond == BleBondState.bonded &&
             (e is TimeoutException || e is FlutterBluePlusException)) {
           ctl.addError(const BleRebondRequiredException());
@@ -558,7 +554,10 @@ Future<String?> _candidate(
   if (known != null && await _isSystemDevice(known)) {
     return known;
   }
-  return _scanForDeviceId(client, scanTimeout);
+  // The remembered bridge may be present without the OS still listing it as a
+  // system device (a cleared bond, a rebooted adapter). A scan is then the only
+  // way in, and it must not settle for whichever bridge advertises first.
+  return _scanForDeviceId(client, scanTimeout, preferId: known);
 }
 
 Future<bool> _isSystemDevice(String deviceId) async {
@@ -572,19 +571,81 @@ Future<bool> _isSystemDevice(String deviceId) async {
   }
 }
 
-Future<String?> _scanForDeviceId(
-  FlutterBlueGattClient client,
-  Duration timeout,
-) async {
-  try {
-    final adv = await client.scan(timeout: timeout).first;
-    return adv.deviceId;
-  } on Object {
+/// Choose the bridge to connect to when more than one is advertising.
+///
+/// The remembered one wins if it is present — its OS handle *is* the value the
+/// advertisement carries, so matching [preferId] is exact. Otherwise a name
+/// match is honoured, then the strongest signal (the best proxy for "nearest"),
+/// then the first seen. Pure, so the preference is testable with no radio.
+BleAdvertisement? selectBridge(
+  List<BleAdvertisement> ads, {
+  String? preferId,
+  String? preferName,
+}) {
+  if (ads.isEmpty) {
     return null;
   }
+  if (preferId != null) {
+    for (final a in ads) {
+      if (a.deviceId == preferId) {
+        return a;
+      }
+    }
+  }
+  if (preferName != null) {
+    for (final a in ads) {
+      if (a.name == preferName) {
+        return a;
+      }
+    }
+  }
+  var best = ads.first;
+  for (final a in ads.skip(1)) {
+    if (a.rssi > best.rssi) {
+      best = a;
+    }
+  }
+  return best;
 }
 
-/// Connect, bond and probe, healing a stale bond (A24.11) once automatically.
+/// The id of the bridge to connect to, over a bounded scan.
+///
+/// When a [preferId]/[preferName] is given, the scan is awaited to the timeout
+/// (or returns early the instant the wanted bridge appears) so the choice is
+/// deliberate rather than "first wins". With no preference the first
+/// advertisement is returned immediately, preserving the fast first connect.
+Future<String?> _scanForDeviceId(
+  FlutterBlueGattClient client,
+  Duration timeout, {
+  String? preferId,
+  String? preferName,
+}) async {
+  final preference = preferId != null || preferName != null;
+  final seen = <BleAdvertisement>[];
+  try {
+    await for (final adv in client.scan(timeout: timeout)) {
+      if (preferId != null && adv.deviceId == preferId) {
+        return adv.deviceId;
+      }
+      if (preferName != null && adv.name == preferName) {
+        return adv.deviceId;
+      }
+      if (!preference) {
+        return adv.deviceId;
+      }
+      seen.add(adv);
+    }
+  } on Object {
+    // A scan that ends in error still leaves whatever was already seen.
+  }
+  return selectBridge(
+    seen,
+    preferId: preferId,
+    preferName: preferName,
+  )?.deviceId;
+}
+
+/// Connect, bond and probe, healing a stale bond once automatically.
 Future<BleTransport> _connectAndHeal(
   FlutterBlueGattClient client,
   String deviceId,

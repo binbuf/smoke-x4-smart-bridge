@@ -65,7 +65,7 @@ that owns hardware/tasks/event bus. All records go through generated codecs.
 
 | Component | Kind | Purpose | Emits / exposes | Notes |
 |---|---|---|---|---|
-| `smoke_x` | firmware | LoRa packet parse, pairing state machine, stale-pairing watchdog, novelty seen-set, raw packet ring | `SMOKE_X_EVT_SYNCED/PAIRED`; stats, last-valid, base-lost | Comma count → 6=sync, 16=X2, 26=X4; X4 `state==3` = detached (temp field frozen); canonical storage tenths-°F |
+| `smoke_x` | firmware | LoRa packet parse, pairing state machine, stale-pairing watchdog, novelty seen-set, raw packet ring | `SMOKE_X_EVT_SYNCED/PAIRED`; stats, last-valid, Smoke X4-lost | Comma count → 6=sync, 16=X2, 26=X4; X4 `state==3` = detached (temp field frozen); canonical storage tenths-°F |
 | `app_lora` | firmware | SX1262 init/retune, unpaired 915↔920 MHz scanner, TX guard | `app_lora_start_tx`, guard open/close | SF9/BW125/CR4-5/+22 dBm; band 902–928 MHz; TX only inside sync window |
 | `app_alarm` | firmware | Device-tier alarm engine: 9 rules, hysteresis, lid detection, ack | `BRIDGE_EVT_ALARM`; `app_alarm_list/unacked/ack` | Runs with no phone; 10 s tick; ack silences, does not resolve |
 | `cook_store` | firmware | LittleFS `cooks` partition, session files, recovery, retention, streaming reads, RAM ring, novelty/power logs | session open/append/close/mark; ring slope; retention | `.smk` (256 B header + 16 B samples), `.mrk` (32 B marks); ~54 days; 64 sessions; fsync every 4th append |
@@ -86,7 +86,7 @@ that owns hardware/tasks/event bus. All records go through generated codecs.
 
 | # | Rule | Severity | Auto-clear | Session-scoped | Lid-suppressed |
 |---|---|---|---|---|---|
-| 0 | `smoke_x_alarm` (mirrors base station's own band) | critical | latched | yes | no |
+| 0 | `smoke_x_alarm` (mirrors Smoke X4's own band) | critical | latched | yes | no |
 | 1 | `target_reached` (food crosses target up) | critical | latched | yes | no |
 | 2 | `pit_out_of_band` | warning | auto | yes | yes |
 | 3 | `pit_crash` | critical | latched | yes | yes |
@@ -96,7 +96,7 @@ that owns hardware/tasks/event bus. All records go through generated codecs.
 | 7 | `storage_low` | warning | auto | no | no |
 | 8 | `system_fault` (coredump / OTA gate failed) | warning | latched | no | no |
 
-Defaults: all enabled; pit band ±25 °F sustained 600 s; pit crash −100 °F/hr below target; base lost
+Defaults: all enabled; pit band ±25 °F sustained 600 s; pit crash −100 °F/hr below target; Smoke X4 lost
 600 s; battery warn 15 % / crit 5 %; storage free 2 %; target rearm 3 °F; band rearm 300 s; lid grace
 900 s. Twelve global tunables back these (see `app_alarm_cfg_t`).
 
@@ -149,7 +149,7 @@ drift. Endianness: little. Record version 1. CRC-16/CCITT-FALSE (records), CRC-3
 alarm/phase_change/auto_detected), alarm_rule (9), alarm_severity, net_mode, net_state, control_op
 (1–15), result_status, units, battery_saver, scan_cmd, history_req, history_kind.
 
-### 3.3 HTTP endpoints (base `/api/v1`, optional Bearer)
+### 3.3 HTTP endpoints (Smoke X4 `/api/v1`, optional Bearer)
 
 | Group | Endpoints |
 |---|---|
@@ -193,7 +193,7 @@ ver, flags, pit temp, SoC, session minutes), company id `0xFFFF`.
 ### 3.6 Pairing handshake (the one-transmit path)
 
 1. Unpaired bridge alternates 915 MHz (X4) ↔ 920 MHz (X2) scanning.
-2. Base station in sync mode broadcasts `<field0>,<deviceid>,<freq bytes>,` (6 commas).
+2. Smoke X4 in sync mode broadcasts `<field0>,<deviceid>,<freq bytes>,` (6 commas).
 3. Bridge accepts only when unpaired; range-checks 902–928 MHz **before** retuning; copies device id;
    retunes to operating frequency; transmits `<deviceid>,SUCCESS,`; state → SYNC_RECEIVED.
 4. First valid state message (16 or 26 commas) → CONFIRMED, learns probe count, persists pairing.
@@ -303,7 +303,7 @@ Every reader widget renders the snapshot and nothing else. Contains the absent�
 
 ### 6.3 Cook model
 
-- **`CookPlan`** — app-tier guided cook (never reaches the base). Constructor is a food-safety gate.
+- **`CookPlan`** — app-tier guided cook (never reaches the Smoke X4). Constructor is a food-safety gate.
   Persisted as JSON in prefs so the first frame picks the right mode. `fromJson` re-runs the gate.
 - **`CookAnnotation`** — a named, time-bounded, targeted **window** over the continuous recording.
   Edits are metadata only: `backdatedTo`, `splitAt`, `mergedWith`, `retargetedTo`, `repeatAt`.
@@ -497,7 +497,7 @@ merged, or split in a new design.
 
 ### 11.5 Onboarding / provisioning
 
-- Three-hop guided setup (BLE pair → base/LoRa pair → Wi-Fi) behind a preflight gate; ~40 states.
+- Three-hop guided setup (BLE pair → Smoke X4/LoRa pair → Wi-Fi) behind a preflight gate; ~40 states.
 - Passkey shown only on the device OLED.
 - Non-destructive pairing; skipped hops read "— not set up".
 - Recovery paths: factory reset over BLE, resume plan, add-second-phone fast path.
@@ -521,7 +521,7 @@ named states. Neutralized into hop stages:
 |---|---|
 | Preflight (hop 0) | permission primer, permission denied (permanent), Bluetooth off (resumable), location off (SDK≤32), Bluetooth unsupported (terminal) |
 | BLE (hop 1) | scanning, no bridges, add-this-phone, pairing, passkey-not-seen, bonded, passkey-wrong, rebond-needed, bond-slots-full, not-a-bridge |
-| Base/LoRa (hop 2) | intro, listening, heard, confirmed, skipped, failed (named causes) |
+| Smoke X4/LoRa (hop 2) | intro, listening, heard, confirmed, skipped, failed (named causes) |
 | Network (hop 3) | pick, empty, manual (hidden SSID + auth), password, applying (4 narrated phases), wifi-failed (5 reasons), unreachable, hosted-join, hosted-refused |
 | Finish | name+units, done, reset-done, link-lost, fault |
 

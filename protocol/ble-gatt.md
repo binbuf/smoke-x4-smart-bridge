@@ -49,6 +49,11 @@ Base UUID: `7f9aXXXX-4c5b-4b0f-9a3d-1c2e3f405162`. The service is
 | `0009` | `result`                   | Notify       | encrypted                     | variable ≤ 68 B (§5.9)  |
 | `000A` | `history_ctrl`             | Write        | encrypted                     | fixed 16 B (§5.10)      |
 | `000B` | `history_data`             | Notify       | encrypted                     | variable ≤ 244 B (§5.11) |
+| `000C` | `device_stats`             | Read         | encrypted                     | fixed 39 B (§5.12)      |
+| `000D` | `device_config`            | Read         | encrypted                     | fixed 87 B (§5.13)      |
+
+Chars `000C`/`000D` are **v1.2** (caps b7 `admin`). A bridge without the bit does
+not register them; an app that reads them anyway gets `invalid handle`.
 
 Every characteristic with Notify carries a standard CCCD (`0x2902`); writing it requires the
 same security level as the characteristic value.
@@ -178,7 +183,7 @@ Fixed 40 B. The unencrypted identity card, mirroring the mDNS TXT records
 | 0      | 1    | `ver`    | u8       | `1`                                                                                                    |
 | 1      | 1    | `api`    | u8       | HTTP/BLE API major version, `1`                                                                        |
 | 2      | 1    | `probes` | u8       | 2 or 4                                                                                                 |
-| 3      | 1    | `caps`   | u8       | b0 `wifi_ap` · b1 `wifi_sta` · b2 `wifi_enterprise` · b3 `history_preview` · b4 `ota` · b5 `battery` · b6 `history_full` · b7 reserved |
+| 3      | 1    | `caps`   | u8       | b0 `wifi_ap` · b1 `wifi_sta` · b2 `wifi_enterprise` · b3 `history_preview` · b4 `ota` · b5 `battery` · b6 `history_full` · b7 `admin` |
 | 4      | 4    | `id`     | char[4]  | device id, e.g. `A4F2` (ASCII hex, matches SSID/name suffix)                                           |
 | 8      | 16   | `model`  | char[16] | UTF-8, NUL-padded, e.g. `heltec-v3`                                                                    |
 | 24     | 16   | `fw`     | char[16] | UTF-8, NUL-padded, e.g. `1.0.0`                                                                        |
@@ -295,8 +300,8 @@ answered on `result` (`0009`) with `op_echo` set to the op.
 
 | Op  | Name            | Body            | Total write | Action                                       |
 | --- | --------------- | --------------- | ----------- | -------------------------------------------- |
-| 1   | `pair`          | —               | 2 B         | enter sync/scan mode toward the base station |
-| 2   | `unpair`        | —               | 2 B         | forget the paired base                       |
+| 1   | `pair`          | —               | 2 B         | enter sync/scan mode toward the Smoke X4 |
+| 2   | `unpair`        | —               | 2 B         | forget the paired Smoke X4                       |
 | 3   | `set_time`      | 10 B (§5.6.2)   | 12 B        | set wall clock + timezone                    |
 | 4   | `session_start` | —               | 2 B         | start a cook session                         |
 | 5   | `session_stop`  | —               | 2 B         | stop the session                             |
@@ -310,6 +315,8 @@ answered on `result` (`0009`) with `op_echo` set to the op.
 | 13  | `power_off`     | —               | 2 B         | enter deep sleep; **PRG wakes it, nothing remote does** |
 | 14  | `set_cook_clock` | 4 B (§5.6.8)   | 6 B         | the elapsed time the SCREEN shows; sets or adjusts     |
 | 15  | `clear_cook_clock` | —             | 2 B         | the cook is over — blank the screen's clock            |
+| 16  | `set_probe`     | 21 B (§5.6.9)   | 23 B        | one probe's name, role and alarm target               |
+| 17  | `set_device_prefs` | 6 B (§5.6.10) | 8 B         | screen timeout, LED, buzzer and retention             |
 
 Ops **12–15 are v1.1 additive growth** under §5.6.6: appended to the end of the
 table, never renumbering 1–11, so a v1.0 peer that never sends them is unaffected
@@ -415,6 +422,32 @@ re-sends op 14 on reconnect.
 before it is executed (§5.9), because it destroys the link that carries the answer — and
 unlike them, **nothing over BLE brings the bridge back**: waking is a physical PRG hold.
 A client should confirm with the user before sending it.
+
+#### 5.6.9 `set_probe` body (op 16, 21 B) — v1.2
+
+| Body offset | (abs) | Size | Field        | Type   | Meaning                          |
+| ----------- | ----- | ---- | ------------ | ------ | -------------------------------- |
+| 0           | 2     | 1    | `index`      | u8     | 0..3 (jack 1..4)                 |
+| 1           | 3     | 1    | `role`       | u8     | `probe_role`: 0 unused · 1 pit · 2 food · 3 ambient |
+| 2           | 4     | 17   | `name`       | char   | UTF-8, NUL-padded (≤16 chars)    |
+| 19          | 21    | 2    | `target_f10` | i16 LE | tenths °F; 0 = no target         |
+
+One probe per write. The role drives the bridge's own OLED Probes page and the
+per-probe alarm band the Smoke X4 carries, so it is stored in the bridge's
+config, not only the app's. `index` beyond 3 or an unknown `role` is `invalid`.
+
+#### 5.6.10 `set_device_prefs` body (op 17, 6 B) — v1.2
+
+| Body offset | (abs) | Size | Field                     | Type   | Meaning                    |
+| ----------- | ----- | ---- | ------------------------- | ------ | -------------------------- |
+| 0           | 2     | 2    | `display_timeout_s`       | u16 LE | 0 = never sleep            |
+| 2           | 4     | 1    | `led_enabled`             | u8     | 0/1                        |
+| 3           | 5     | 1    | `buzzer_enabled`          | u8     | 0/1                        |
+| 4           | 6     | 1    | `retention_max_sessions`  | u8     | keep at most N sessions    |
+| 5           | 7     | 1    | `retention_min_free_pct`  | u8     | unless free space < N %    |
+
+`led_enabled`/`buzzer_enabled` other than 0/1 are `invalid`. Retention takes
+effect from the next trim; it is not retroactive.
 
 ### 5.7 `0007 live_state` — Read + Notify, encrypted
 
@@ -553,6 +586,48 @@ re-request the range — never to stitch across the hole.
 An empty answer is a valid one: a session with no marks answers with `end`/`ok` and
 nothing else, which the client must render as "no marks" rather than as a hang. This
 is the same rule the §5.4 empty scan follows.
+
+### 5.12 `000C device_stats` — Read, encrypted — v1.2
+
+**Fixed 39 B.** A read-only telemetry snapshot: the values the bridge's own OLED
+System and Radio pages show, exposed so the app can present them. Read it again
+to refresh; there is no notification.
+
+| Offset | Size | Field             | Type   | Meaning                                   |
+| ------ | ---- | ----------------- | ------ | ----------------------------------------- |
+| 0      | 1    | `ver`             | u8     | 1                                         |
+| 1      | 1    | `flags`           | u8     | b0 paired · b1 clock_valid · b2 advertising · b3 connected |
+| 2      | 4    | `uptime_s`        | u32 LE | seconds since boot                        |
+| 6      | 4    | `heap_free`       | u32 LE | free heap bytes now                       |
+| 10     | 4    | `heap_min`        | u32 LE | lowest free heap since boot               |
+| 14     | 4    | `storage_used_b`  | u32 LE | cook filesystem bytes used                |
+| 18     | 4    | `storage_total_b` | u32 LE | cook filesystem capacity                  |
+| 22     | 2    | `stored_sessions` | u16 LE | cook files on flash                       |
+| 24     | 4    | `lora_freq_hz`    | u32 LE | the tuned LoRa frequency                  |
+| 28     | 1    | `lora_rssi`       | i8     | dBm of the last state message             |
+| 29     | 1    | `lora_snr`        | i8     | dB of the last state message              |
+| 30     | 4    | `packets_ok`      | u32 LE | state messages accepted                   |
+| 34     | 4    | `packets_bad`     | u32 LE | parse + CRC + unknown failures            |
+| 38     | 1    | `bonds`           | u8     | stored phone bonds                        |
+
+### 5.13 `000D device_config` — Read, encrypted — v1.2
+
+**Fixed 87 B.** The read-back of the writable settings, so an app can show
+current values *before* editing them; the writes themselves are the
+`set_probe` / `set_device_prefs` control ops (§5.6.9–§5.6.10). `probe_role`
+uses the wire `probe_role` values (0 unused · 1 pit · 2 food · 3 ambient).
+
+| Offset | Size | Field                     | Type    | Meaning                    |
+| ------ | ---- | ------------------------- | ------- | -------------------------- |
+| 0      | 1    | `ver`                     | u8      | 1                          |
+| 1      | 2    | `display_timeout_s`       | u16 LE  | 0 = never sleep            |
+| 3      | 1    | `led_enabled`             | u8      | 0/1                        |
+| 4      | 1    | `buzzer_enabled`          | u8      | 0/1                        |
+| 5      | 1    | `retention_max_sessions`  | u8      | keep at most N sessions    |
+| 6      | 1    | `retention_min_free_pct`  | u8      | unless free space < N %    |
+| 7      | 68   | `probe_name`              | char[4][17] | UTF-8, NUL-padded      |
+| 75     | 4    | `probe_role`              | u8 ×4   | wire `probe_role`          |
+| 79     | 8    | `probe_target`            | i16 ×4  | tenths °F; 0 = none        |
 
 ---
 

@@ -214,7 +214,9 @@ enum ControlOp {
   setBatterySaver(12),
   powerOff(13),
   setCookClock(14),
-  clearCookClock(15);
+  clearCookClock(15),
+  setProbe(16),
+  setDevicePrefs(17);
 
   const ControlOp(this.wire);
   final int wire;
@@ -498,7 +500,7 @@ class SessionHeader {
   final int sampleCount;
   final List<int> rsv44;
 
-  /// the paired base station, NUL-padded
+  /// the paired Smoke X4, NUL-padded
   final Uint8List deviceIdRaw;
 
   /// user label, UTF-8, NUL-padded
@@ -780,7 +782,7 @@ class DeviceInfo {
   /// 2 or 4
   final int probes;
 
-  /// b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN. b6 history_full: this bridge serves §5.10/§5.11, so a client can tell a v1.1 bridge from a v1.0 one that would silently never answer a history_ctrl write
+  /// b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN. b6 history_full: this bridge serves §5.10/§5.11, so a client can tell a v1.1 bridge from a v1.0 one that would silently never answer a history_ctrl write. b7 admin: this bridge serves the read-only device_stats characteristic and the set_probe / set_device_prefs control ops (v1.2).
   final int caps;
 
   /// ASCII hex, e.g. A4F2
@@ -799,6 +801,7 @@ class DeviceInfo {
   bool get ota => (caps & (1 << 4)) != 0;
   bool get battery => (caps & (1 << 5)) != 0;
   bool get historyFull => (caps & (1 << 6)) != 0;
+  bool get admin => (caps & (1 << 7)) != 0;
   String get id => utf8FromPadded(idRaw);
   String get model => utf8FromPadded(modelRaw);
   String get fw => utf8FromPadded(fwRaw);
@@ -835,6 +838,201 @@ class DeviceInfo {
     out.setRange(4, 4 + 4, idRaw);
     out.setRange(8, 8 + 16, modelRaw);
     out.setRange(24, 24 + 16, fwRaw);
+    return out;
+  }
+}
+
+/// device_stats — fixed 39 B.
+class DeviceStats {
+  DeviceStats({
+    this.ver = 1,
+    this.flags = 0,
+    this.uptimeS = 0,
+    this.heapFree = 0,
+    this.heapMin = 0,
+    this.storageUsedB = 0,
+    this.storageTotalB = 0,
+    this.storedSessions = 0,
+    this.loraFreqHz = 0,
+    this.loraRssi = 0,
+    this.loraSnr = 0,
+    this.packetsOk = 0,
+    this.packetsBad = 0,
+    this.bonds = 0,
+  });
+
+  static const int size = 39;
+
+  final int ver;
+
+  /// b0 paired (Smoke X4) · b1 clock_valid · b2 BLE advertising · b3 a central is connected
+  final int flags;
+
+  /// seconds since boot
+  final int uptimeS;
+
+  /// free heap bytes now
+  final int heapFree;
+
+  /// lowest free heap since boot
+  final int heapMin;
+
+  /// cook filesystem bytes used
+  final int storageUsedB;
+
+  /// cook filesystem capacity
+  final int storageTotalB;
+
+  /// cook files on flash
+  final int storedSessions;
+
+  /// the tuned LoRa frequency
+  final int loraFreqHz;
+
+  /// dBm of the last state message
+  final int loraRssi;
+
+  /// dB of the last state message
+  final int loraSnr;
+
+  /// state messages accepted
+  final int packetsOk;
+
+  /// parse + CRC + unknown failures
+  final int packetsBad;
+
+  /// stored phone bonds
+  final int bonds;
+
+  bool get paired => (flags & (1 << 0)) != 0;
+  bool get clockValid => (flags & (1 << 1)) != 0;
+  bool get advertising => (flags & (1 << 2)) != 0;
+  bool get connected => (flags & (1 << 3)) != 0;
+
+  /// Parses 39 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory DeviceStats.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return DeviceStats(
+      ver: bd.getUint8(0),
+      flags: bd.getUint8(1),
+      uptimeS: bd.getUint32(2, Endian.little),
+      heapFree: bd.getUint32(6, Endian.little),
+      heapMin: bd.getUint32(10, Endian.little),
+      storageUsedB: bd.getUint32(14, Endian.little),
+      storageTotalB: bd.getUint32(18, Endian.little),
+      storedSessions: bd.getUint16(22, Endian.little),
+      loraFreqHz: bd.getUint32(24, Endian.little),
+      loraRssi: bd.getInt8(28),
+      loraSnr: bd.getInt8(29),
+      packetsOk: bd.getUint32(30, Endian.little),
+      packetsBad: bd.getUint32(34, Endian.little),
+      bonds: bd.getUint8(38),
+    );
+  }
+
+  /// Serializes to 39 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, ver);
+    bd.setUint8(1, flags);
+    bd.setUint32(2, uptimeS, Endian.little);
+    bd.setUint32(6, heapFree, Endian.little);
+    bd.setUint32(10, heapMin, Endian.little);
+    bd.setUint32(14, storageUsedB, Endian.little);
+    bd.setUint32(18, storageTotalB, Endian.little);
+    bd.setUint16(22, storedSessions, Endian.little);
+    bd.setUint32(24, loraFreqHz, Endian.little);
+    bd.setInt8(28, loraRssi);
+    bd.setInt8(29, loraSnr);
+    bd.setUint32(30, packetsOk, Endian.little);
+    bd.setUint32(34, packetsBad, Endian.little);
+    bd.setUint8(38, bonds);
+    return out;
+  }
+}
+
+/// device_config — fixed 87 B.
+class DeviceConfig {
+  DeviceConfig({
+    this.ver = 1,
+    this.displayTimeoutS = 0,
+    this.ledEnabled = 0,
+    this.buzzerEnabled = 0,
+    this.retentionMaxSessions = 0,
+    this.retentionMinFreePct = 0,
+    Uint8List? probeNameRaw,
+    List<int>? probeRole,
+    List<int>? probeTarget,
+  }) : probeNameRaw = probeNameRaw ?? Uint8List(68),
+       probeRole = probeRole ?? List<int>.filled(4, 0),
+       probeTarget = probeTarget ?? List<int>.filled(4, 0);
+
+  static const int size = 87;
+
+  final int ver;
+
+  /// 0 = never sleep
+  final int displayTimeoutS;
+  final int ledEnabled;
+  final int buzzerEnabled;
+  final int retentionMaxSessions;
+  final int retentionMinFreePct;
+
+  /// UTF-8, NUL-padded, ≤16 chars each
+  final Uint8List probeNameRaw;
+  final List<int> probeRole;
+
+  /// tenths °F, 0 = none
+  final List<int> probeTarget;
+
+  List<String> get probeName => [
+    for (var i = 0; i < 4; i++)
+      utf8FromPadded(Uint8List.sublistView(probeNameRaw, i * 17, (i + 1) * 17)),
+  ];
+  List<ProbeRole?> get probeRoleEnum => [
+    for (final v in probeRole) ProbeRole.fromWire(v),
+  ];
+
+  /// Parses 87 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory DeviceConfig.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return DeviceConfig(
+      ver: bd.getUint8(0),
+      displayTimeoutS: bd.getUint16(1, Endian.little),
+      ledEnabled: bd.getUint8(3),
+      buzzerEnabled: bd.getUint8(4),
+      retentionMaxSessions: bd.getUint8(5),
+      retentionMinFreePct: bd.getUint8(6),
+      probeNameRaw: Uint8List.fromList(
+        Uint8List.sublistView(buf, offset + 7, offset + 7 + 68),
+      ),
+      probeRole: [for (var i = 0; i < 4; i++) bd.getUint8(75 + i * 1)],
+      probeTarget: [
+        for (var i = 0; i < 4; i++) bd.getInt16(79 + i * 2, Endian.little),
+      ],
+    );
+  }
+
+  /// Serializes to 87 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, ver);
+    bd.setUint16(1, displayTimeoutS, Endian.little);
+    bd.setUint8(3, ledEnabled);
+    bd.setUint8(4, buzzerEnabled);
+    bd.setUint8(5, retentionMaxSessions);
+    bd.setUint8(6, retentionMinFreePct);
+    out.setRange(7, 7 + 68, probeNameRaw);
+    for (var i = 0; i < 4; i++) {
+      bd.setUint8(75 + i * 1, probeRole[i]);
+    }
+    for (var i = 0; i < 4; i++) {
+      bd.setInt16(79 + i * 2, probeTarget[i], Endian.little);
+    }
     return out;
   }
 }
@@ -1829,6 +2027,101 @@ class CtrlSetBatterySaver {
     final out = Uint8List(size);
     final bd = ByteData.sublistView(out);
     bd.setUint8(0, saver);
+    return out;
+  }
+}
+
+/// set_probe — fixed 21 B. (device_control body)
+class CtrlSetProbe {
+  CtrlSetProbe({
+    this.index = 0,
+    this.role = 0,
+    Uint8List? nameRaw,
+    this.targetF10 = 0,
+  }) : nameRaw = nameRaw ?? Uint8List(17);
+
+  static const int size = 21;
+
+  /// 0..3 (jack 1..4)
+  final int index;
+  final int role;
+
+  /// UTF-8, NUL-padded within 17 B (≤16 chars)
+  final Uint8List nameRaw;
+
+  /// tenths °F, 0 = no target
+  final int targetF10;
+
+  ProbeRole? get roleEnum => ProbeRole.fromWire(role);
+  String get name => utf8FromPadded(nameRaw);
+
+  /// Parses 21 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory CtrlSetProbe.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return CtrlSetProbe(
+      index: bd.getUint8(0),
+      role: bd.getUint8(1),
+      nameRaw: Uint8List.fromList(
+        Uint8List.sublistView(buf, offset + 2, offset + 2 + 17),
+      ),
+      targetF10: bd.getInt16(19, Endian.little),
+    );
+  }
+
+  /// Serializes to 21 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, index);
+    bd.setUint8(1, role);
+    out.setRange(2, 2 + 17, nameRaw);
+    bd.setInt16(19, targetF10, Endian.little);
+    return out;
+  }
+}
+
+/// set_device_prefs — fixed 6 B. (device_control body)
+class CtrlSetDevicePrefs {
+  CtrlSetDevicePrefs({
+    this.displayTimeoutS = 0,
+    this.ledEnabled = 0,
+    this.buzzerEnabled = 0,
+    this.retentionMaxSessions = 0,
+    this.retentionMinFreePct = 0,
+  });
+
+  static const int size = 6;
+
+  /// 0 = never sleep
+  final int displayTimeoutS;
+  final int ledEnabled;
+  final int buzzerEnabled;
+  final int retentionMaxSessions;
+  final int retentionMinFreePct;
+
+  /// Parses 6 wire bytes at [offset]. Never rejects on version;
+  /// check [crcOk] after decoding.
+  factory CtrlSetDevicePrefs.decode(Uint8List buf, [int offset = 0]) {
+    final bd = ByteData.sublistView(buf, offset, offset + size);
+    return CtrlSetDevicePrefs(
+      displayTimeoutS: bd.getUint16(0, Endian.little),
+      ledEnabled: bd.getUint8(2),
+      buzzerEnabled: bd.getUint8(3),
+      retentionMaxSessions: bd.getUint8(4),
+      retentionMinFreePct: bd.getUint8(5),
+    );
+  }
+
+  /// Serializes to 6 wire bytes.
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint16(0, displayTimeoutS, Endian.little);
+    bd.setUint8(2, ledEnabled);
+    bd.setUint8(3, buzzerEnabled);
+    bd.setUint8(4, retentionMaxSessions);
+    bd.setUint8(5, retentionMinFreePct);
     return out;
   }
 }

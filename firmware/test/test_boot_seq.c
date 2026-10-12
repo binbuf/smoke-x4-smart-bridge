@@ -1,11 +1,9 @@
 /* test_boot_seq.c — the boot skeleton of the BLE-only slim build (F1.5).
  *
  * The named done-when cases: a stub failing at a non-fatal step still leaves
- * a booted device, and the double-reset token round-trips across a reset but
- * not a power cycle.
+ * a booted device, and only NVS + the event loop can abort a boot.
  */
 #include "boot_seq.h"
-#include "double_reset.h"
 #include "test_util.h"
 
 #include <stdint.h>
@@ -131,49 +129,11 @@ static void test_null_steps_are_skipped(void) {
     CHECK_EQ_INT(res.steps_completed, BRIDGE_BOOT_STEP_COUNT);
 }
 
-static void test_double_reset_token(void) {
-    /* "Reset": the token variable survives; only the clock moves. */
-    bridge_drt_token_t rtc = {0};
-
-    /* Cold boot: no token → not a double reset; arm. */
-    CHECK(!bridge_double_reset_check(&rtc, 1000));
-    bridge_double_reset_arm(&rtc, 1000);
-
-    /* Reset 3 s later: token survives RTC SRAM → double reset detected. */
-    CHECK(bridge_double_reset_check(&rtc, 4000));
-    /* ...and consumed: a third reset right after is NOT a double reset. */
-    CHECK(!bridge_double_reset_check(&rtc, 4100));
-
-    /* Stale token (beyond the 10 s window) does not trigger. */
-    bridge_double_reset_arm(&rtc, 1000);
-    CHECK(!bridge_double_reset_check(&rtc, 1000 + BRIDGE_DRT_WINDOW_MS));
-
-    /* Disarm after a stable boot: nothing pending. */
-    bridge_double_reset_arm(&rtc, 50000);
-    bridge_double_reset_disarm(&rtc);
-    CHECK(!bridge_double_reset_check(&rtc, 51000));
-
-    /* "Power cycle": RTC SRAM comes up zeroed → no token, no trigger. */
-    bridge_drt_token_t cold = {0};
-    CHECK(!bridge_double_reset_check(&cold, 500));
-
-    /* Corrupt magic (RTC SRAM noise) must not trigger. */
-    bridge_drt_token_t noise;
-    noise.magic = 0xDEADBEEF;
-    noise.armed_at_ms = 100;
-    CHECK(!bridge_double_reset_check(&noise, 200));
-
-    /* Clock anomaly: armed_at in the future must not trigger. */
-    bridge_double_reset_arm(&rtc, 9000);
-    CHECK(!bridge_double_reset_check(&rtc, 8000));
-}
-
 int main(void) {
     test_clean_boot();
     test_nonfatal_failure_still_boots();
     test_fatal_steps_abort();
     test_lora_before_ble();
     test_null_steps_are_skipped();
-    test_double_reset_token();
     return test_summary("test_boot_seq");
 }

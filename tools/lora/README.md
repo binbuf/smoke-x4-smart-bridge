@@ -17,7 +17,7 @@ for [design 02 §2.3](../../docs/design/02-smoke-x-protocol.md).
 
 ## The bench + capture sitting (V1.x, V2.1, V2.2 — no cook required)
 
-The base station broadcasts every 30 s whether anything is cooking or not;
+The Smoke X4 broadcasts every 30 s whether anything is cooking or not;
 probes at room temperature produce fully real X4 vectors.
 
 **Safety, before any power:**
@@ -55,7 +55,7 @@ idf.py -p COMx flash monitor          # COM port from Device Manager
 In the monitor press **Ctrl+T then Ctrl+L** to log to a file — that file is
 the deliverable. Then:
 
-- **V2.2 (2 min):** with the bridge unpaired, put the X4 base in sync mode →
+- **V2.2 (2 min):** with the bridge unpaired, put the X4 Smoke X4 in sync mode →
   the 6-comma beacon and our ACK land in the log. Afterwards confirm the
   stock ThermoWorks receiver still updates.
 - **V2.1:** all four probes in, leave it logging (overnight on the counter is

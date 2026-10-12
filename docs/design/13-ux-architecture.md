@@ -51,10 +51,10 @@ just completed, with no message. **[K]**
 hatch from that false failure re-enters `joinAp` while already bound, throws `BinderStateError`, is
 swallowed as `false`, and lands on the same screen — permanently. **[K]**
 
-**3 — The bridge is never introduced to the thermometer.** There is no base-pairing step in the
+**3 — The bridge is never introduced to the thermometer.** There is no Smoke X4-pairing step in the
 wizard (`wizard.dart:50-144`), and `alarm_task` seeds `since_last_packet_s` from boot with no
 pairing gate (`app_alarm.c:195-198`, `rules.c:246-247`). A brand-new bridge therefore posts
-**"Base station lost"** ten minutes after the user finishes setup, about hardware they have not yet
+**"Smoke X4 lost"** ten minutes after the user finishes setup, about hardware they have not yet
 connected. **[K]**
 
 **4 — The glass and the phone contradict each other, and both freeze.** The OLED says *"enter this
@@ -82,7 +82,7 @@ This is **instrument mode** (§13.3.1), and it is blocked in firmware, not in th
 `cook_ring_push` runs only inside `if (cook_session_is_open())` (`cook_store_task.c:180-191`), and a
 session opens only once a probe reads ≥ 90.0 °F (`cook_lifecycle.h:18`). Both `/live` and BLE
 `live_state` read `cook_ring_get(0)`. So a bridge sitting next to a cold smoker reports four
-detached probes while the base station is transmitting perfect 68 °F readings every 30 s.
+detached probes while the Smoke X4 is transmitting perfect 68 °F readings every 30 s.
 
 Fixing it is **not one line** — see §13.7.6.
 
@@ -190,7 +190,7 @@ This is the household case, and it is the difference between a 15-second second-
 walking a spouse through Wi-Fi provisioning for a bridge that is already on the network.
 
 **`SetupAddThisPhone` must still verify over HTTP.** It does hop 1 only, then reads `net_status` for
-the SSID and `pair_status` for the base id — but if it stops there, `prefs.lastBaseUrl` is null and
+the SSID and `pair_status` for the Smoke X4 id — but if it stops there, `prefs.lastBaseUrl` is null and
 that phone's *next* launch races with no cached-IP lane, which is failure #1 all over again. So the
 flow ends with the same `_verifyOverHttp` → `recordConnection(url, bridgeId:)` the main flow uses.
 When the bridge is BLE-only (hop 3 skipped), it records `lastBridgeId` + `lastBleDeviceId` and
@@ -336,7 +336,7 @@ digits simply vanish either way. It gets its own 3 s stance:
 │  Phone connected    │
 │                     │
 │  Next: your         │
-│  Smoke X base       │
+│  Smoke X4       │
 ```
 
 #### Also required at hop 1
@@ -370,22 +370,22 @@ cause of "my bridge doesn't work".
 
 Contrary to earlier drafts, the repo is **not** silent on this handshake.
 `docs/reference/smoke-x-receiver/README.md:147` documents that an unpaired receiver alternates the
-two sync channels (920 MHz for X2, 915 MHz for X4); that placing the base in sync mode makes it send
+two sync channels (920 MHz for X2, 915 MHz for X4); that placing the Smoke X4 in sync mode makes it send
 **sync bursts every three seconds**; and that once the receiver transmits its sync response on the
-target frequency, **the base returns to normal operation**. [02 §2.4](02-smoke-x-protocol.md) carries
+target frequency, **the Smoke X4 returns to normal operation**. [02 §2.4](02-smoke-x-protocol.md) carries
 the state machine and [02 §2.5](02-smoke-x-protocol.md) the invariant that this ACK is the only LoRa
 transmission we ever make.
 
 The gesture itself is confirmed by the product owner: **hold the SYNC button for a few seconds**, on
-the base and on a ThermoWorks receiver alike. Our bridge performs the receiver half in software, so
-the user only ever touches the base. **[K, owner-reported]**
+the Smoke X4 and on a ThermoWorks receiver alike. Our bridge performs the receiver half in software, so
+the user only ever touches the Smoke X4. **[K, owner-reported]**
 
 Three facts remain genuinely unmeasured, and all three are timing:
 
 | Fact | Sets | Conf. |
 |---|---|---|
-| Exact hold duration and the base's own confirmation (LCD text? tone?) | the instruction card and the "did it register?" fallback | **[?]** |
-| How long the sync window stays open before the base gives up | `kSyncWindowS` | **[?]** |
+| Exact hold duration and the Smoke X4's own confirmation (LCD text? tone?) | the instruction card and the "did it register?" fallback | **[?]** |
+| How long the sync window stays open before the Smoke X4 gives up | `kSyncWindowS` | **[?]** |
 | Interval to the first state message after the ACK | the SYNC_RECEIVED watchdog | **[I]** one broadcast period, 30 s |
 
 **These do not block the hop.** All three live as named constants in one file,
@@ -397,15 +397,15 @@ and no screen is redesigned.
 
 #### `SetupBaseIntro`
 
-Full-bleed illustration of the X4 base with the SYNC control highlighted in `pit`, gesture as the
+Full-bleed illustration of the X4 Smoke X4 with the SYNC control highlighted in `pit`, gesture as the
 headline:
 
 > **Now let's find your thermometer**
-> Press and hold **SYNC** on your Smoke X base for a few seconds, until its screen shows that it's
+> Press and hold **SYNC** on your Smoke X4 for a few seconds, until its screen shows that it's
 > syncing.
 >
 > **[ I've done it — start listening ]**
-> *My base isn't here right now*
+> *My Smoke X4 isn't here right now*
 
 The secondary is a real, non-punitive skip → `SetupBaseSkipped`, which finishes setup and drops a
 persistent resumable card on the Cook tab: *"Pair your Smoke X — the bridge can't read temperatures
@@ -418,7 +418,7 @@ at the same instant:
 │SETUP       1[2]3    │
 │                     │
 │ Hold SYNC on your   │
-│ Smoke X base        │
+│ Smoke X4        │
 │                     │
 │ Listening...   14s  │
 │*ap    --:--     87% │
@@ -440,20 +440,20 @@ addition in this document, and at ~64 B it fits the heap budget with room to spa
 #### `SetupBaseListening`
 
 > **Listening for your Smoke X…** `0:14`
-> Keep the base within about 30 metres of the bridge.
+> Keep the Smoke X4 within about 30 metres of the bridge.
 > *Cancel*
 
 Three sub-states, driven by `pair_status`, that the user can act on differently:
 
 | `pair_status` | Phone | OLED |
 |---|---|---|
-| `listening`, `garbled > 0` | "We're hearing something, but it's too faint to read. Move the base closer." | `Signal too faint / move closer` |
+| `listening`, `garbled > 0` | "We're hearing something, but it's too faint to read. Move the Smoke X4 closer." | `Signal too faint / move closer` |
 | `heard` | "Found it — Smoke X 3F91. Waiting for its first reading…" | `SMOKE X FOUND / waiting for a reading` |
 | `confirmed` | the payoff → | |
 
-The `heard` wait is real and ~30 s long — the base's broadcast interval. It must be narrated, not
+The `heard` wait is real and ~30 s long — the Smoke X4's broadcast interval. It must be narrated, not
 spun through. Today `parse_fail` is folded into `/status.radio.packets_bad`, which the app never
-reads, so "check your base" and "move it closer" look identical.
+reads, so "check your Smoke X4" and "move it closer" look identical.
 
 **Who counts the seconds.** `smoke_x_ctrl_tick` returns immediately unless CONFIRMED
 (`smoke_x_ctrl.c:163-166`), so nothing drives `elapsed_s`/`remaining_s` today. The listen window
@@ -493,7 +493,7 @@ Permanent deadlock, broken only by "Re-scan" — which **erases the pairing**.
 |---|---|---|---|
 | `timeout_no_beacon` | "We didn't hear your Smoke X. Its sync window may have closed." | Try again (re-arms the instruction **and** the listen) | `NO SMOKE X / hold SYNC and / try again` |
 | `timeout_no_state` | "We heard your Smoke X but it never sent a reading. Move it closer and try again." | Try again | `HEARD IT, NO DATA / move closer` |
-| `garbled > 3` | "There's a lot of radio noise here. Try moving the bridge away from the smoker's metal body, or closer to the base." | Try again | `TOO NOISY / move the bridge` |
+| `garbled > 3` | "There's a lot of radio noise here. Try moving the bridge away from the smoker's metal body, or closer to the Smoke X4." | Try again | `TOO NOISY / move the bridge` |
 | `ack_failed` | "We couldn't answer your Smoke X. Trying again…" | *(auto-retry)* | `retrying...` |
 
 #### Two hard truths this hop must tell
@@ -501,13 +501,13 @@ Permanent deadlock, broken only by "Re-scan" — which **erases the pairing**.
 **1 — Re-listening costs a telemetry gap.** To hear a beacon the radio must alternate 915/920;
 `app_lora_set_frequency()` sets `s_scanning = false` (`app_lora.c:46`) and
 `app_lora_set_scanning(true)` starts the alternation — mutually exclusive with sitting on the paired
-base's operating frequency. So during any listen window the bridge receives **nothing** from the base
+Smoke X4's operating frequency. So during any listen window the bridge receives **nothing** from the Smoke X4
 it is already paired to. Consequences, all normative:
 
 - `POST /pairing/listen` returns **409 `session_active`** while a cook is open, matching the OTA
   refusal at `app_api_core.c:1435` and the 409 `openapi.yaml:535-536,556-557` already declares and
   the firmware never returns.
-- The Bridge settings row is *"Re-listen for the base station — pauses readings for up to 90 s"*,
+- The Bridge settings row is *"Re-listen for the Smoke X4 — pauses readings for up to 90 s"*,
   **not** "keeps: everything".
 - The new listen entry point must satisfy `app_lora_guard_tx_allowed(s_freq_hz)`
   (`app_lora.c:41-44`) or the ACK silently fails — which is exactly the failure `ack_failed` exists
@@ -519,13 +519,13 @@ it is already paired to. Consequences, all normative:
 `smoke_x_ctrl_listen(window_ms)` is **non-destructive**: the existing binding stays in NVS and is
 restored if the window expires without a confirm.
 
-#### Multi-unit: two Smoke X bases in range
+#### Multi-unit: two Smoke X4 units in range
 
 `smoke_x_ctrl.c:50-88` accepts the **first decodable beacon** — no RSSI ranking, no dwell-window
 collection, no confirmation. `handle_state` then counts foreign traffic into `s_stats.id_mismatch`
 (`:104-108`), surfaced at `/status.radio.id_mismatch` and read by nothing.
 
-v1.0 keeps first-beacon-wins — a second base *in sync mode* at the same moment is rare, and ranking
+v1.0 keeps first-beacon-wins — a second Smoke X4 *in sync mode* at the same moment is rare, and ranking
 requires a dwell-and-collect rewrite of the pairing path. What v1.0 adds is **legibility**:
 
 - `SetupBaseConfirmed` states the id it locked onto (`Smoke X 3F91`), so a wrong lock is visible
@@ -803,8 +803,8 @@ returning a non-empty `deviceId`, despite `ConnectionProbe`'s own contract promi
 | 0:04 | one found → auto-advance | — | solid |
 | 0:06 | passkey illustration, countdown | `PAIR WITH PHONE` + `418 302` | solid |
 | 0:09 | OS dialog; user types from the glass | — | solid |
-| 0:12 | ✓ haptic | `PAIRED ✓ / Next: your Smoke X base` (3 s) | 3 fast blinks |
-| 0:13 | `SetupBaseIntro` — illustrated SYNC hold | `Hold SYNC on your Smoke X base` | 2 Hz pulse |
+| 0:12 | ✓ haptic | `PAIRED ✓ / Next: your Smoke X4` (3 s) | 3 fast blinks |
+| 0:13 | `SetupBaseIntro` — illustrated SYNC hold | `Hold SYNC on your Smoke X4` | 2 Hz pulse |
 | 0:16 | user holds SYNC · **Wi-Fi scan pre-warms** | — | 2 Hz pulse |
 | 0:19 | "Found it — Smoke X 3F91. Waiting for a reading…" | `SMOKE X FOUND / waiting for a reading` | 2 Hz pulse |
 | 0:45 | **`SetupBaseConfirmed` — Pit 243 °F**, haptic | `Pit 243°F / Probe 1 68°F` | 3 fast blinks |
@@ -817,7 +817,7 @@ returning a non-empty `deviceId`, despite `ConnectionProbe`'s own contract promi
 | 1:10 | Cook tab, live, cached URL persisted | `Pit 243°F` | off |
 
 **Seventy seconds. Three hops. Zero questions the user couldn't answer. Zero raw errors. The two
-screens never disagreed.** The dominant cost is the ~30 s wait at hop 2 for the base's next
+screens never disagreed.** The dominant cost is the ~30 s wait at hop 2 for the Smoke X4's next
 broadcast — real, unavoidable, and narrated rather than spun through.
 
 ---
@@ -954,9 +954,9 @@ renders an °F value under a `Target (°C)` label with °F bounds.
 
 **Historical sessions.** Storage stays tenths of °F; conversion is presentation-only, so a cook
 recorded in °F renders in °C with no migration. Note the nuance: `sample_rec` carries a
-`source_celsius` flag (`records.yaml:161`) recording what the *base station* was displaying when the
+`source_celsius` flag (`records.yaml:161`) recording what the *Smoke X4* was displaying when the
 sample was taken. It is provenance, not storage format, and it is what lets a session detail say
-*"recorded while the base was set to °C"*. State both facts in `core/units.dart`'s doc comment so
+*"recorded while the Smoke X4 was set to °C"*. State both facts in `core/units.dart`'s doc comment so
 nobody "fixes" either.
 
 ### 13.3.6 Accessibility
@@ -1052,7 +1052,7 @@ named secondary, an exit.
 | `offline-empty` | offline, no cache | `EmptyState` + Try again + Enter the address + Set up a bridge + a "what was tried" disclosure |
 | `offline-cached` | offline, cache non-empty | full layout + `StaleVeil` + reconnect countdown |
 | `powered-off` | `prefs.poweredOffAt` recent | *"You switched this bridge off at 20:14. Hold PRG for 5 seconds to wake it."* |
-| `unpaired` | `!truth.paired` | *"This bridge hasn't met your Smoke X yet."* → **[ Pair the base station ]**. **Not** *"Plug a probe into the base station"* (`dashboard_screen.dart:163`), which is wrong advice here. |
+| `unpaired` | `!truth.paired` | *"This bridge hasn't met your Smoke X yet."* → **[ Pair the Smoke X4 ]**. **Not** *"Plug a probe into the Smoke X4"* (`dashboard_screen.dart:163`), which is wrong advice here. |
 | `no-probes` | paired, none attached | today's copy — correct in this branch only |
 | `instrument` / `guided` | connected | §13.3.1 |
 | `ble-degraded` | BLE transport | full layout + `CapabilityNotice` |
@@ -1137,11 +1137,11 @@ Your bridge
   Identify (flash the screen)
   Paired phones (2 of 3)                 →
   Re-run Wi-Fi setup            keeps: pairing, cooks, this phone's bond
-  Re-listen for the base station   pauses readings for up to 90 s
+  Re-listen for the Smoke X4   pauses readings for up to 90 s
   ─────────────────────────────────────
   Restart the bridge            keeps: everything
   Forget this bridge on this phone   loses: cooks cached here   [Export first]
-  Unpair the base station       loses: the RF link; ends the running cook
+  Unpair the Smoke X4       loses: the RF link; ends the running cook
   Factory reset the bridge      loses: pairing, Wi-Fi, all cooks on the bridge,
                                        this phone's Bluetooth bond
   Power off                     nothing on your phone can turn it back on
@@ -1174,7 +1174,7 @@ LoRa dBm on the right, each **absent** when unknown, never `0%`.
 | 1 | `alarm.critical` | rule title + probe + value | Silence |
 | 2 | `data.frozen` | "No readings for 14 minutes." | What to check |
 | 3 | `link.lost` | "Not connected · retrying in 8s" | Retry now |
-| 4 | `base.lost` | "Base station silent for 14m." | What to check |
+| 4 | `base.lost` | "Smoke X4 silent for 14m." | What to check |
 | 5 | `alarm.warning` | title + value | Silence |
 | 6 | `link.blocked` | "Bluetooth is off" / "Nearby devices permission needed" / "This phone is offline" | Turn on / Allow / Open settings |
 | 7 | `pair.unpaired` | "Not linked to your Smoke X." | Set it up |
@@ -1240,7 +1240,7 @@ session open + storage free. `presumed` = last contact < 30 min and all of that 
 get different sentences, and `presumed` never uses the word "is".
 
 **Three clocks, never conflated:** *link age* (bytes from the bridge), *data age* (LoRa packets from
-the base), *cache age* (how old the thing on screen is). Each has its own field, its own surface and
+the Smoke X4), *cache age* (how old the thing on screen is). Each has its own field, its own surface and
 its own word.
 
 **Freshness is a function, not a field:**
@@ -1285,7 +1285,7 @@ that closes it; every identifier used is defined there.
 | Bridge identity | `/status.device.id` | `device_info.id` | `prefs.lastBridgeId` |
 | Bridge net mode | §13.8.4 | `net_status.mode` ✓ | last known |
 | Paired to Smoke X | `/status.pairing.paired` | `live_state.PAIRED` ✓ | last known |
-| Base lost | `/status.pairing.base_lost` | §13.8.3 flags b5 | derived from cache age |
+| Smoke X4 lost | `/status.pairing.base_lost` | §13.8.3 flags b5 | derived from cache age |
 | Data age | `/status.pairing.last_packet_s_ago` | §13.8.3 `sample_age_s` | derived |
 | Four probe temps | `/live` — §13.7.6 | `live_state.temp[4]` ✓ | last cached sample |
 | Probe names / roles / targets | `/live` — §13.8.4 | ✗ — assume jack 1 = pit | needs schema v2 |
@@ -1310,12 +1310,12 @@ and the chart footer) and nowhere else pretends.
 
 Each cell: **hero / banner / primary action**.
 
-| | Unpaired | Listening / heard | Paired, live | Paired, base lost |
+| | Unpaired | Listening / heard | Paired, live | Paired, Smoke X4 lost |
 |---|---|---|---|---|
-| **Wi-Fi STA** | four `—`, dashed · *"This bridge hasn't met your Smoke X yet."* · **Set up the base station** | `PairingProgress` card with elapsed and base-side instructions · **Cancel** | full dashboard, no banner · **Set up a cook** | values per the freshness ladder · *"Base station silent for 14m."* · **What to check** |
+| **Wi-Fi STA** | four `—`, dashed · *"This bridge hasn't met your Smoke X yet."* · **Set up the Smoke X4** | `PairingProgress` card with elapsed and Smoke X4-side instructions · **Cancel** | full dashboard, no banner · **Set up a cook** | values per the freshness ladder · *"Smoke X4 silent for 14m."* · **What to check** |
 | **Wi-Fi AP** | as STA, plus a persistent `AP` chip and *"Your phone is on the bridge's network — no internet."* | as STA | full dashboard; chart, history, settings all work | as STA |
-| **BLE** | four `—` · *"Not paired. Pair the base from here."* · **Set up the base station** | `PairingProgress` from `pair_status` | live temps ✓, names are `Probe 1..4`, no ETA · chart footer *"Bluetooth: 2 hours of the pit probe."* | needs flags b5; same banner as STA |
-| **None (cache)** | `—` + "as of" · *"Can't reach your bridge."* · **Retry now** | *"Pairing was interrupted."* | last readings frozen + `LAST` chips + `as of 14:02` · **Retry now** | *"Base was silent when we last heard from the bridge."* |
+| **BLE** | four `—` · *"Not paired. Pair the Smoke X4 from here."* · **Set up the Smoke X4** | `PairingProgress` from `pair_status` | live temps ✓, names are `Probe 1..4`, no ETA · chart footer *"Bluetooth: 2 hours of the pit probe."* | needs flags b5; same banner as STA |
+| **None (cache)** | `—` + "as of" · *"Can't reach your bridge."* · **Retry now** | *"Pairing was interrupted."* | last readings frozen + `LAST` chips + `as of 14:02` · **Retry now** | *"Smoke X4 was silent when we last heard from the bridge."* |
 
 ### 13.6.4 The hard cells
 
@@ -1407,7 +1407,7 @@ instantiated once in `AppEnv`, not in a route's `initState`, because routes disp
 | First session start | Request notification permission **here**, not at launch; then offer the battery-optimisation exemption once |
 | Cook running + monitoring on | Foreground service; ongoing notification at 30 s with pit, food, and ETA |
 | Ongoing, `stale` | Body swaps to *"Last reading 6 minutes ago"* and **drops the ETA** — this is where a false ETA does the most damage |
-| Ongoing, `frozen` | Title prefix ⚠️, body *"No readings for 14 min — check the base station"* |
+| Ongoing, `frozen` | Title prefix ⚠️, body *"No readings for 14 min — check the Smoke X4"* |
 | Critical alarm | HIGH channel, full-screen intent, DND bypass, survives quiet hours. **Two actions: Silence and Open** — the one interaction a person in bed will attempt must not require unlocking, finding the app and tapping a banner |
 | Warning alarm | DEFAULT channel, silenced (not suppressed) during quiet hours |
 | Bridge unreachable 3 min with a cook | Warning, once |
@@ -1434,7 +1434,7 @@ Keep the five pages (`app_ui_core.h:130-135`), add one page and one overlay.
 | Page | Changes |
 |---|---|
 | `WELCOME` **(new)** | forced default while `ble_bonds == 0 && !paired`: `SMOKE BRIDGE / Open the app / Bluetooth: SmokeBridge-A4F2 / or join Wi-Fi <ssid>`. Auto-retires on first bond. |
-| `PROBES` | fix the sticky alarm band (`p->has_band` is set inside a conditional with no `else` and the state is memset once at init, so a disarmed band stays on the glass forever); fix the 12×24 headline colliding with row 4; `BASE LOST  Nm ago` replaces the numbers when the base is silent |
+| `PROBES` | fix the sticky alarm band (`p->has_band` is set inside a conditional with no `else` and the state is memset once at init, so a disarmed band stays on the glass forever); fix the 12×24 headline colliding with row 4; `SMOKE X4 LOST  Nm ago` replaces the numbers when the Smoke X4 is silent |
 | `COOK` | copy fix `Hold PRG to start` → `No session running / Start one in the app`; real ETA and stall from `cook_ring_slope_f_per_hr` — today `eta_valid`/`eta_s`/`stalled` are never assigned outside tests, so it reads `ETA --` forever |
 | `NETWORK` | add a **fallback branch** — `app_net_get_status` emits `"fallback"` and `fill_snapshot` only tests for `"failed"`, so a bridge that could not join renders as a cheerful `NETWORK hosting`; wire real `retry_attempt`/`retry_in_s` (today both render from fields nothing writes, `app_ui_render.c:375-382` vs `app_ui.c:274-291`); add the QR frame |
 | `RADIO` | add the `SMOKE_X_SYNC_RECEIVED` third state — today it renders as fully unpaired, telling the user to do the thing they just did; replace the hardcoded `Interval 30.0s avg` with a real mean or delete the row |
@@ -1506,7 +1506,7 @@ adds three; both redefinitions are called out so nobody reads this as new work o
 
 **The existing `PAIRING` (solid) is the "setup waiting" pattern — renamed, not duplicated.** It is
 driven every tick by `s_led.pairing = !snapshot.paired` (`app_ui.c:487`), i.e. "not paired to the
-**Smoke X base**". Adding a second solid pattern meaning "waiting for a phone" would give one duty
+**Smoke X4**". Adding a second solid pattern meaning "waiting for a phone" would give one duty
 cycle two meanings. Resolution: rename it `APP_UI_LED_ATTENTION` (solid = *the bridge wants you*),
 driven by `!paired || setup_stance_active`, and let the glass disambiguate — it is already saying
 which.
@@ -1546,7 +1546,7 @@ is listed as an open question (§13.9.3), not smuggled in as a consequence.
 | Dirty-render never fires | `app_ui.c:351` copies the panel's own I²C counters into the compared snapshot; `app_ui_panel.c:185` memcmps the whole state | 1029 B pushed every 20 ms tick (~23 ms of bus at 400 kHz), voiding the power argument and degrading button sampling. **Fix: memcmp the rendered framebuffer, not the state.** |
 | I²C on the event loop, inside the lock | `on_ble_event`/`on_alarm_event` → `app_ui_model_wake` → `panel_power` → blocking `i2c_master_transmit(…, 100)` | Over `bridge_event`'s 5 ms budget — the class that took the board down on 2026-07-23 (`19c88ec`, `a336597`), **on the alarm path**. Note the budget asserts only under `!NDEBUG` (`bridge_event.c:26-29`): it panics debug builds and stalls the event loop in release ones. Handlers set flags and notify; all I²C on `ui_task`. |
 | Dead OLED bricks provisioning | `app_ui_init` returns -1 before registering handlers or starting `ui_task`, while BLE is `BLE_HS_IO_DISPLAY_ONLY` + `sm_mitm = 1` | No display → no passkey → **unprovisionable board**. Start `ui_task` regardless (`app_ui_panel_render` already no-ops when the panel is down) and fall back to Just Works when the display is known dead, saying so in the app. |
-| Base indicator flaps | 60 s threshold against a 30 s nominal interval | two dropped packets start an alarming blink. Hysteresis: stale at 90 s, clear on the next valid packet. |
+| Smoke X4 indicator flaps | 60 s threshold against a 30 s nominal interval | two dropped packets start an alarming blink. Hysteresis: stale at 90 s, clear on the next valid packet. |
 
 ### 13.7.6 Live temperatures without a cook
 
@@ -1668,7 +1668,7 @@ The blocker for hop 2, and at ~64 B of heap the cheapest high-value item in this
 
 | Change | Note |
 |---|---|
-| `live_state.flags` **b5 `base_lost`**, **b6 `alarm_critical`**, **b7 `t_is_boot`** | spare bits exist; without b5, BLE is structurally blind to base loss. b7 is §13.7.6's origin marker. |
+| `live_state.flags` **b5 `base_lost`**, **b6 `alarm_critical`**, **b7 `t_is_boot`** | spare bits exist; without b5, BLE is structurally blind to Smoke X4 loss. b7 is §13.7.6's origin marker. |
 | `live_state` trailing **`u8 sample_age_s`** (255 = ≥255/never), 16 B → 17 B | the data-age clock on the BLE lane |
 | `net_status` trailing **`u8 reason`** | §13.2.3; `app_net.c:283-285` starts carrying `wifi_event_sta_disconnected_t.reason` through |
 | `control_op` **14 `set_setup_stance`** — `u8 hop (0=exit,1..3)`, `u8 substate` | 4 B, inside the frozen 30 B envelope; expires at 120 s, owned by `app_ui`'s tick |
@@ -1700,8 +1700,8 @@ paths must be updated to echo the op they are rejecting.
 | Change | Path |
 |---|---|
 | **`POST /api/v1/alarms/ack`** `{alarm_id}` → the resulting alarm state | Ack is WebSocket-only today, and `HttpTransport.control` writes to `_ws?.sink` un-awaited, so a null socket silently discards a 3 a.m. silence |
-| `/live` emits `name`/`role`/`target_f10` for **all four** probes regardless of attachment; adds `sample_age_s` and `t_origin`; renames the emitted `alarm_enabled` to `base_alarm_active` | `app_api_core.c:512-547`. Identity is configuration, not telemetry — and the app currently round-trips the base's *armed* flag back as config |
-| Bounded `pending_start`: 60 s deadline, `pending_expires_s` on `/status`, WS `pending`/`pending_failed`, **409 `base_lost`** when unpaired or silent | Today `POST /sessions` returns 200 and may open a cook hours later when someone switches the base on |
+| `/live` emits `name`/`role`/`target_f10` for **all four** probes regardless of attachment; adds `sample_age_s` and `t_origin`; renames the emitted `alarm_enabled` to `base_alarm_active` | `app_api_core.c:512-547`. Identity is configuration, not telemetry — and the app currently round-trips the Smoke X4's *armed* flag back as config |
+| Bounded `pending_start`: 60 s deadline, `pending_expires_s` on `/status`, WS `pending`/`pending_failed`, **409 `base_lost`** when unpaired or silent | Today `POST /sessions` returns 200 and may open a cook hours later when someone switches the Smoke X4 on |
 | Split `POST /pairing/sync` from unpair: **`POST /pairing/listen?window_ms=`** non-destructive, **409 `session_active`** while a cook is open; `GET /pairing` returns the full state including `last_packet_s_ago` and `base_lost`; both POSTs return the pairing state as the spec already declares | `app_api_core.c:600-626, 1268-1282` |
 | `/status.net` gains `mode`, `state`, `ssid`, `reason`; `/status.pairing.paired` derives from `smoke_x_ctrl_state()` rather than NVS (`app_api_core.c:306-307`) | so `/status` and `/pairing` cannot disagree during a watchdog re-scan |
 | WS `session` frame carries `reason` (`stopped`/`detached`/`unpaired`/`cap`), a real `renamed` action, and `continues_session_id` on the 36 h split | `app_api.c:557-563`; today every non-start maps to the literal `"ended"` |
@@ -1772,7 +1772,7 @@ the deferred rows and is scheduled in [M8](../tasks/M8-ux-rearchitecture.md).
 | U2 | **Heap additions stay net-neutral**; multi-client WebSocket and the second BLE connection wait for a heap-reduction package | The 80 KB floor is already failing and the repo explicitly refused to lower it |
 | U3 | **Food-safety floors are enforced in `CookPlan`'s constructor**, cited to USDA/FSIS, and **hazard-classed** so whole-muscle red meat has no floor | Owner decision; a 125 °F ribeye is a preference, a 150 °F chicken breast is not |
 | U4 | **Dark-only ships.** `SmokeTheme.light` is deleted; a daylight *contrast profile* of the dark set replaces it | A white screen outdoors is worse than a high-contrast dark one; see [14 §14.3.3](14-design-system.md) |
-| U5 | **Both hop 2 and hop 3 are skippable** and resumable, with a persistent card until done | A bridge with no base is a logger with nothing to log; a bridge with no Wi-Fi is BLE-only. Neither is a reason to trap the user in setup |
+| U5 | **Both hop 2 and hop 3 are skippable** and resumable, with a persistent card until done | A bridge with no Smoke X4 is a logger with nothing to log; a bridge with no Wi-Fi is BLE-only. Neither is a reason to trap the user in setup |
 | U6 | **iOS is out of scope for v1.0** | There is no `app/ios/` and `pubspec.yaml:1` says so. See below for what this costs |
 | U7 | **English-only for v1.0**, with every string extracted to `copy/` files | ARB becomes mechanical later; the OLED's 21-column budget makes device-side localisation a real project |
 
@@ -1787,7 +1787,7 @@ paid entitlement; and the foreground service has no counterpart. This is a proje
 ### 13.9.2 The three bench facts
 
 Hop 2's copy is written and its constants are isolated (§13.2.2), but the sync window duration, the
-exact hold duration, and the base's own confirmation remain **[?]**. They are M8 W0 and they change
+exact hold duration, and the Smoke X4's own confirmation remain **[?]**. They are M8 W0 and they change
 three constants, not any screen.
 
 ### 13.9.3 Still open

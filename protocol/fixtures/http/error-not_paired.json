@@ -1,7 +1,7 @@
 {
   "error": {
     "code": "not_paired",
-    "message": "no base station is paired",
+    "message": "no Smoke X4 is paired",
     "detail": null
   }
 }

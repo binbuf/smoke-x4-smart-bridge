@@ -25,8 +25,8 @@ looks.
 | 2   | Let it run overnight                                 | Q1, interval statistics, dropouts, RSSI decay | none           | ✅ yes                    |
 | 3   | Unplug and replug a probe mid-cook                   | Q4 — probe `state` beyond `0`/`3`             | 10 s           | partly                    |
 | 4   | Set a tight alarm band so it trips, leave it tripped | **Q8** — is `new_alarm` edge or level?        | 1 min          | ✅ yes                    |
-| 5   | Flip the base between °F and °C mid-cook             | The unit-change path                          | 1 min          | ✅ yes                    |
-| 6   | Re-sync the base while the bridge is unpaired        | Q2, Q6                                        | 2 min          | ✅ **done at V2.2**       |
+| 5   | Flip the Smoke X4 between °F and °C mid-cook             | The unit-change path                          | 1 min          | ✅ yes                    |
+| 6   | Re-sync the Smoke X4 while the bridge is unpaired        | Q2, Q6                                        | 2 min          | ✅ **done at V2.2**       |
 | 7   | Short the probe jack, open it, exceed range          | The rest of **Q4**                            | bench, no cook | no — do deliberately      |
 | 8   | _Borrow an X2_                                       | Q2 comparison across models                   | opportunistic  | no                        |
 | 9   | _Borrow a Billows_                                   | **Q3, Q5**                                    | opportunistic  | no                        |

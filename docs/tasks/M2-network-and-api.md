@@ -584,7 +584,7 @@ contract writes it.
 - **design:** [08 §8.5](../design/08-flutter-app.md)
 
 Run the A4 sync and repository suites over `HttpTransport` against the sim's adverse scenarios
-(`flaky`, `base-lost`, `detached`), not just the happy path: the three-hour-disconnect reconnect
+(`flaky`, `Smoke X4-lost`, `detached`), not just the happy path: the three-hour-disconnect reconnect
 transfers **exactly 360 samples**, a restart mid-sync resumes without duplicate rows, and live
 WebSocket samples append to the cache seamlessly across a sync boundary. This is the test that
 says `MockTransport` and `HttpTransport` are behaviourally interchangeable — the claim the whole

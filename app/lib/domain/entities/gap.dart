@@ -4,7 +4,7 @@
 ///
 ///  * [GapReason.connectivity] — the phone was away. The bridge still has those
 ///    readings and the next sync fills them in. *Wait and it comes back.*
-///  * [GapReason.baseLost] — the base station stopped reporting, so the bridge
+///  * [GapReason.baseLost] — the Smoke X4 stopped reporting, so the bridge
 ///    never recorded them. **Nobody has that data.** *Waiting will not help.*
 ///  * [GapReason.bufferRollover] — the bridge's ring wrapped past what the phone
 ///    had. **Nobody has that data any more, ever.** *Waiting will not help.*
@@ -19,7 +19,7 @@ enum GapReason {
   /// fetched this range yet; the bridge recorded it throughout.
   connectivity,
 
-  /// Permanent — the base station stopped reporting, so the bridge never
+  /// Permanent — the Smoke X4 stopped reporting, so the bridge never
   /// recorded these readings. Nothing to wait for.
   baseLost,
 
@@ -28,7 +28,7 @@ enum GapReason {
 
   String get label => switch (this) {
     GapReason.connectivity => 'Not synced yet',
-    GapReason.baseLost => 'Base lost',
+    GapReason.baseLost => 'Smoke X4 lost',
     GapReason.bufferRollover => 'Buffer rolled over',
   };
 
@@ -36,7 +36,7 @@ enum GapReason {
     GapReason.connectivity =>
       'The bridge still has these readings — they arrive on the next sync.',
     GapReason.baseLost =>
-      'The bridge lost contact with the base station here, so these readings '
+      'The bridge lost contact with the Smoke X4 here, so these readings '
           'were never recorded. They are gone for good.',
     GapReason.bufferRollover =>
       'The bridge recorded over these before the app could fetch them. They '

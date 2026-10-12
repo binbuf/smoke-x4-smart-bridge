@@ -36,9 +36,9 @@ and the user cannot tell why:
    `result.success(null)` before `invokeMethod("onBound")` (`NetworkBinder.kt:77-83`), so a join that
    worked reads as `false`. The escape hatch throws `BinderStateError` and lands on the same screen,
    permanently. **[K]**
-3. **The bridge is never introduced to the thermometer.** There is no base-pairing step in the
+3. **The bridge is never introduced to the thermometer.** There is no Smoke X4-pairing step in the
    wizard (`wizard.dart:50-144`), and `alarm_task` seeds `since_last_packet_s` from boot with no
-   pairing gate (`app_alarm.c:195-198`, `rules.c:246-247`) — so a brand-new bridge posts *"Base
+   pairing gate (`app_alarm.c:195-198`, `rules.c:246-247`) — so a brand-new bridge posts *"Smoke X4
    station lost"* ten minutes after setup, about hardware the user has not connected. **[K]**
 4. **The glass and the phone contradict each other, and both freeze.** `BridgeSession` swallows link
    death (`onError: (Object _) {}`, `bridge_session.dart:88-92`), `AppConnection.reconnect()` has
@@ -172,8 +172,8 @@ on one of them is flagged at its task. **This is one sitting.**
 > **What the repo already knows, so the sitting does not re-take it.**
 > [`docs/reference/smoke-x-receiver/README.md:147`](../reference/smoke-x-receiver/README.md) states
 > that an unpaired receiver alternates the two sync channels (920 MHz X2 / 915 MHz X4), that placing
-> the base in sync mode makes it **send sync bursts every three seconds**, and that once the ESP32
-> transmits its sync response on the target frequency **the base returns to normal operation**. The
+> the Smoke X4 in sync mode makes it **send sync bursts every three seconds**, and that once the ESP32
+> transmits its sync response on the target frequency **the Smoke X4 returns to normal operation**. The
 > beacon interval and the post-ACK behaviour are therefore **[K]**, not unknowns. Hop 2 has exactly
 > **three** genuine unknowns, not five.
 
@@ -181,14 +181,14 @@ on one of them is flagged at its task. **This is one sitting.**
 
 - **blocked-by:** — · **verify:** B · **board:** yes · **design:** [13 §13.2.2](../design/13-ux-architecture.md)
 
-Put a real Smoke X4 base into sync mode with a stopwatch and a camera. Record, into
+Put a real Smoke X4 into sync mode with a stopwatch and a camera. Record, into
 `docs/hardware-verified.md` under a new *"Smoke X4 sync"* heading:
 
 | Fact | Status | Sets |
 | --- | --- | --- |
 | The physical control and its hold duration | **[?]** | the illustrated instruction card in `base_sync_copy.dart` |
-| The base's own tell that sync mode is active (LCD legend, LED, beep) | **[?]** | *"Its screen will show …"* — the sentence that tells the user their action registered |
-| How long the sync window stays open before the base gives up | **[?]** | `kListenWindowS`, and through it `kListenBudgetS` |
+| The Smoke X4's own tell that sync mode is active (LCD legend, LED, beep) | **[?]** | *"Its screen will show …"* — the sentence that tells the user their action registered |
+| How long the sync window stays open before the Smoke X4 gives up | **[?]** | `kListenWindowS`, and through it `kListenBudgetS` |
 | Beacon repeat interval while open | **[K]** 3 s | the *"we're hearing something"* threshold |
 | Post-ACK behaviour | **[K]** returns to normal operation | the `SYNC_RECEIVED` watchdog's success edge |
 | Interval from ACK to the first state message | **[?]** | the `SYNC_RECEIVED` watchdog's **timeout** (F19.2) |
@@ -198,7 +198,7 @@ Put a real Smoke X4 base into sync mode with a stopwatch and a camera. Record, i
 sitting:
 
 ```dart
-const kListenWindowS = /* V6.1 measured */;          // the base's own window
+const kListenWindowS = /* V6.1 measured */;          // the Smoke X4's own window
 const kListenFloorS  = 20;                           // 6 beacons at the [K] 3 s interval,
                                                      // enough that a single missed burst is not a failure
 const kListenBudgetS = max(kListenFloorS, 2 * kListenWindowS);
@@ -210,7 +210,7 @@ user can act on rather than for bad luck. **One budget, one derivation, one file
 a literal, and if the bench says the window is 15 s rather than 30, three constants change and no
 screen is redesigned.
 
-**Done when:** the three `[?]` rows are `[K]` with a photograph of the base in sync mode committed
+**Done when:** the three `[?]` rows are `[K]` with a photograph of the Smoke X4 in sync mode committed
 beside them, `base_sync_copy.dart` cites this row by task id, and any fact the sitting could not take
 is written down as an open row rather than left blank.
 
@@ -1270,7 +1270,7 @@ flash per packet, off by default). So this task is mostly **redefinition**, and 
 
 **The collision, resolved explicitly.** `APP_UI_LED_PAIRING` is *solid* and is driven **every tick**
 by `s_led.pairing = !snapshot.paired` (`app_ui.c:487`) **[K]** — it means *"not paired to the Smoke X
-base"*, which is a **steady state**, not an event. A new solid `SETUP_WAIT` would be the same duty
+Smoke X4"*, which is a **steady state**, not an event. A new solid `SETUP_WAIT` would be the same duty
 cycle carrying a second meaning of the word "pairing". **Decision: `PAIRING` stops driving the LED
 entirely and is renamed `BASE_UNPAIRED` in the enum, surviving only as a status-strip pip.** An
 unpaired bridge is not an emergency and does not need a lamp; the glass says it, and W9's Cook-tab
@@ -1540,8 +1540,8 @@ inside 64 B; and asserts the `:me` flag matches the connected peer and no other.
 | Change | Where |
 | --- | --- |
 | **`POST /api/v1/alarms/ack`** `{alarm_id}` → the resulting alarm state | new route → `app_alarm_ack`. Ack is WS-only today, and `HttpTransport.control` writes to `_ws?.sink` **un-awaited**, so a null socket silently discards a 3 a.m. silence **[K]** |
-| `/live` emits `name`/`role`/`target_f10` for **all four** probes regardless of `attached`; adds top-level `sample_age_s`; renames the emitted `alarm_enabled` to `base_alarm_active` | `app_api_core.c:512-547`. Identity is configuration, not telemetry — and the app currently round-trips the base's *firing* flag back as config **[K]** |
-| Bounded `pending_start`: a 60 s deadline, `session.pending_start` + `pending_expires_s` on `/status`, WS `session{action:"pending"\|"pending_failed"}`, and **409 `base_lost`** when unpaired or silent | `cook_store_task.c:224-238`, `app_api_sessions.c:86-98`. Today `POST /sessions` returns 200 and may open a cook hours later when someone switches the base on **[K]** |
+| `/live` emits `name`/`role`/`target_f10` for **all four** probes regardless of `attached`; adds top-level `sample_age_s`; renames the emitted `alarm_enabled` to `base_alarm_active` | `app_api_core.c:512-547`. Identity is configuration, not telemetry — and the app currently round-trips the Smoke X4's *firing* flag back as config **[K]** |
+| Bounded `pending_start`: a 60 s deadline, `session.pending_start` + `pending_expires_s` on `/status`, WS `session{action:"pending"\|"pending_failed"}`, and **409 `base_lost`** when unpaired or silent | `cook_store_task.c:224-238`, `app_api_sessions.c:86-98`. Today `POST /sessions` returns 200 and may open a cook hours later when someone switches the Smoke X4 on **[K]** |
 | Split `POST /pairing/sync` from unpair; add `POST /pairing/listen?window_ms=`; `GET /pairing` returns the full state including `last_packet_s_ago` and `base_lost`; both POSTs return the pairing state **as the spec already declares and the firmware never does** | `app_api_core.c:600-626, 1268-1282` |
 | `/status.net` gains `mode`, `state`, `ssid`, `reason` — closing M7's known gap 1 | `app_api_core.c` |
 | WS `session` frame carries `reason` (`stopped`/`detached`/`unpaired`/`cap`), a real `renamed` action, and `continues_session_id` on the 36 h cap split | `app_api.c:557-563`. Today every non-start maps to the literal `"ended"` **[K]** |
@@ -1624,14 +1624,14 @@ and restores it if the window expires.
 **But "non-destructive" is a claim about NVS, not about the radio, and the difference is a telemetry
 gap.** `app_lora_set_frequency()` sets `s_scanning = false` (`app_lora.c:46`) while
 `app_lora_set_scanning(true)` starts the 915/920 alternation **[K]** — the two are mutually exclusive
-with sitting on the paired base's operating frequency. **During any listen window the bridge receives
-no samples from the currently-paired base.** So:
+with sitting on the paired Smoke X4's operating frequency. **During any listen window the bridge receives
+no samples from the currently-paired Smoke X4.** So:
 
 - The listen entry point **refuses with `409 session_active` while a cook is open** and, over BLE,
   answers `invalid` with the same reason.
 - With no cook open it proceeds, and both surfaces say what it costs: *"The bridge stops reading your
   Smoke X while it listens — about 30 seconds."*
-- A24.4's Bridge-settings row is labelled **"Re-listen for the base station — pauses readings for the
+- A24.4's Bridge-settings row is labelled **"Re-listen for the Smoke X4 — pauses readings for the
   listen window"**, not *"keeps: everything"*.
 - The listen entry point must satisfy `app_lora_guard_tx_allowed(s_freq_hz)` (`app_lora.c:41-44`)
   **[K]** before the ACK, or the ACK silently fails — which is the very failure F19.2 exists to
@@ -1661,14 +1661,14 @@ to `UNPAIRED` with the scan restarted.
 **Done when:** ctest asserts a failed ACK leaves the state `UNPAIRED` with scanning on; asserts
 `SYNC_RECEIVED` times out to `UNPAIRED` and republishes; asserts the deadline is evaluated **before**
 the CONFIRMED early return; and the bench run reproduces at least the timeout path against a real
-base whose sync window was allowed to close.
+Smoke X4 whose sync window was allowed to close.
 
 ### F19.3 smoke_x/app_alarm: gate `base_lost`, and derive `/status.pairing` from the controller
 
 - **blocked-by:** F19.1 · **verify:** H · **board:** no · **design:** [09 §9.1](../design/09-alarms-and-insights.md)
 
 `alarm_task` seeds `since_last_packet_s` from boot with no pairing gate (`app_alarm.c:195-198`,
-`rules.c:246-247`) **[K]**, so a brand-new bridge posts *"Base station lost"* ten minutes after setup
+`rules.c:246-247`) **[K]**, so a brand-new bridge posts *"Smoke X4 lost"* ten minutes after setup
 about hardware the user has never connected. Gate the rule on
 `smoke_x_ctrl_state() == SMOKE_X_CONFIRMED`. And derive `/status.pairing.paired` from the controller
 rather than from NVS (`app_api_core.c:306-307`) **[K]**, so `/status` and `/pairing` cannot disagree
@@ -1684,7 +1684,7 @@ states including mid-watchdog.
 
 `/live` and BLE `live_state` both read `cook_ring_get(0)`, and the ring is written only inside
 `if (cook_session_is_open())` (`cook_store_task.c:180-191`), which requires a probe ≥ 90.0 °F
-(`cook_lifecycle.h:18`) **[K]**. A cold smoker therefore reports four detached probes against a base
+(`cook_lifecycle.h:18`) **[K]**. A cold smoker therefore reports four detached probes against a Smoke X4
 transmitting perfect 68 °F readings — which makes A21's payoff screen and A23's instrument mode
 both empty on real hardware.
 
@@ -1724,7 +1724,7 @@ never returned.
 asserts the 409 on an open session for both unpair and listen; and asserts the app-side
 `BridgeEvent.pairing` is consumed by the truth model rather than dropped.
 
-### F19.6 smoke_x: two Smoke X bases in the room
+### F19.6 smoke_x: two Smoke X4 units in the room
 
 - **blocked-by:** F19.2 · **verify:** H · **board:** no · **design:** [02 §2.5](../design/02-smoke-x-protocol.md)
 
@@ -1739,7 +1739,7 @@ Two changes, the second cheap enough that it ships even if the first is cut:
 1. **Dwell before committing.** Collect candidates for one beacon interval (**[K]** 3 s) plus margin
    into a 3-entry static table with RSSI, then: one candidate → proceed as today; two or more → do
    **not** ACK, publish `SMOKE_X_EVT_MULTIPLE_FOUND` with the candidate ids and RSSIs, and let the
-   app ask *"We found two Smoke X bases — which is yours?"* with the nearer one preselected. The ACK
+   app ask *"We found two Smoke X4 units — which is yours?"* with the nearer one preselected. The ACK
    goes only to the chosen id.
 2. **Surface `id_mismatch`.** A non-zero counter becomes *"Another Smoke X nearby is being ignored"*
    on the Radio page and in the Bridge settings — the sentence that converts an unexplained silence
@@ -1773,7 +1773,7 @@ is asserted to write a resumable stub and surface the card.
 
 - **blocked-by:** A22.1, A24.4 · **verify:** H · **board:** no · **design:** [13 §13.5.6](../design/13-ux-architecture.md)
 
-The same machine, reachable after setup from `/bridge/pair-base`, plus the **cost sheet that tells
+The same machine, reachable after setup from `/bridge/pair-Smoke X4`, plus the **cost sheet that tells
 the truth about what a re-listen costs** (F19.1): readings pause for the listen window, and it is
 refused outright while a cook is open. **Unpair** is a separate, harder-confirmed row that loses the
 RF link and ends the running cook.
@@ -1875,8 +1875,8 @@ The thirteen states [13 §13.5.2](../design/13-ux-architecture.md) enumerates �
 `offline-empty`, `offline-cached`, `powered-off`, `unpaired`, `no-probes`, `instrument`, `guided`,
 `ble-degraded`, `stale`/`frozen`, `alarm`, `pending-start`, `ended-remotely` — each rendering from
 `AppTruth` and none of them a bare spinner (`dashboard_route.dart:120-123` is one today **[K]**).
-`unpaired` says *"This bridge hasn't met your Smoke X yet"* → **Pair the base station**, **not**
-*"Plug a probe into the base station"* (`dashboard_screen.dart:163`), which is wrong advice in that
+`unpaired` says *"This bridge hasn't met your Smoke X yet"* → **Pair the Smoke X4**, **not**
+*"Plug a probe into the Smoke X4"* (`dashboard_screen.dart:163`), which is wrong advice in that
 branch **[K]**.
 
 **The mode switch is animated, not a rebuild**: `AnimatedSwitcher` on the header, `AnimatedSize` +
@@ -1924,7 +1924,7 @@ the alarm text both convert.
 
 **Storage stays tenths °F, always** — conversion is presentation-only, so a cook recorded in °F
 renders in °C with no migration. **And `source_celsius` must be reconciled rather than ignored:** it
-is a real `sample_rec` flag (`records.yaml:161`) **[K]**, and it records **what the base was
+is a real `sample_rec` flag (`records.yaml:161`) **[K]**, and it records **what the Smoke X4 was
 displaying when the sample was taken** — provenance, not storage units. Both facts go in
 `core/units.dart`'s doc comment so nobody "fixes" either one.
 
@@ -2129,7 +2129,7 @@ outside a `testWidgets` file.
 | `sta.paired.live.cook` | the baseline; every derived value present |
 | `sta.paired.stale.cook` | **ETA, trend, arc, stall absent** — not greyed (R6) |
 | `sta.paired.frozen.cook` | `LAST` chips, crimson rail, no animating pulse dot |
-| `sta.paired.baselost.cook` | the base-lost banner distinct from the link-lost banner |
+| `sta.paired.baselost.cook` | the Smoke X4-lost banner distinct from the link-lost banner |
 | `sta.unpaired.nocook` | *"hasn't met your Smoke X"* + a route into hop 2 |
 | `ap.paired.live.nocook` | the persistent AP chip and the no-internet sentence |
 | `ble.paired.live.cook` | live temps, `Probe 1..4` names, no ETA, the chart's 2 h footer |
@@ -2181,7 +2181,7 @@ multicast lock's acquire/release nesting (A18.4).
 ### OLED golden framebuffers
 
 One `.fb` per stance: `setup-ready`, `setup-passkey`, `setup-paired`, `setup-pair-failed`,
-`setup-bonds-full`, `setup-base-listen`, `setup-base-heard`, `setup-base-ok`, `setup-base-timeout`,
+`setup-bonds-full`, `setup-Smoke X4-listen`, `setup-Smoke X4-heard`, `setup-Smoke X4-ok`, `setup-Smoke X4-timeout`,
 `setup-wifi-pick`, `setup-wifi-joining`, `setup-wifi-ok`, `setup-wifi-failed`, `setup-ap-hosting`,
 `setup-ap-qr`, `setup-complete`, `welcome`, `network-fallback`, `radio-sync-received`,
 `overlay-ota-progress`, plus **`font-descenders.fb`** rendering the full PSK alphabet, plus
@@ -2265,7 +2265,7 @@ evidence.
 | The piezo buzzer | Unfitted on every board, no GPIO7 net. D16 exists precisely because it is absent. Fitting it is one BOM line, one net and ~0.5 day of firmware — a hardware decision with a UX consequence, owed before the next board spin |
 | `APP_API_WS_MAX_CLIENTS` 4 | **Conditional on F17.5** (see the heap budget). v1.0 ships at 2 with the *"another device is watching — Take over"* copy unless the heap says otherwise |
 | Localization | W12 extracts every string, which makes ARB mechanical later. The OLED's 21-column budget and 5×7 font make device-side localization genuinely hard — German will not fit the current strings — so English-only for v1.0 |
-| Two-base disambiguation **proven on hardware** | F19.6 ships the logic and the host tests; a second real Smoke X does not exist here. Joins [standing-work](standing-work.md) beside "borrow an X2" |
+| Two-Smoke X4 disambiguation **proven on hardware** | F19.6 ships the logic and the host tests; a second real Smoke X does not exist here. Joins [standing-work](standing-work.md) beside "borrow an X2" |
 | Comparing two sessions on one chart | Route reserved at `/history/compare`, not built. Needs a second viewport and a second palette assignment; v1.1 |
 | Multi-bridge picker | D12. The cache and prefs stay multi-capable; onboarding a second bridge replaces the first |
 | The device-served web UI | D13. Would also be the natural home for freeing a bond slot with no phone left (see the open question below) |
@@ -2280,7 +2280,7 @@ Decisions this document cannot make. Each blocks a named task.
 | **Q-G** | **Feature negotiation, or a hard minimum-firmware wall?** P4.7 lets a new app talk to a v1.0.0 bridge with affordances hidden. Gating is simpler to build and worse to own. **If any bridge has shipped to a customer, negotiation is not optional** | P4.7 |
 | **Q-H** | **Fit the piezo, or ship LED-only?** One BOM line, one GPIO7 net, ~0.5 day. Not fitting it means a phone-dead, out-of-range user gets a blinking LED and nothing else at 3 a.m. — and D16 stands or falls with the answer | F18.6, next board spin |
 | **Q-I** | **Three bond slots, and what happens at the wall?** With `forget_bond` a user can free one *from a phone that is still paired*. A household that loses all three has only double-tap-RESET → AP mode → the QR. Acceptable, or should bonds be freeable from an AP-mode web path (which does not exist and is its own project)? | P4.5, D13 |
-| **Q-J** | **Are hops 2 and 3 both skippable ship states?** A bridge with no base is a logger with nothing to log; a bridge with no Wi-Fi is BLE-only. Both are skippable by design — confirm, or name which one blocks `SetupDone` | A21.7, A22.1 |
+| **Q-J** | **Are hops 2 and 3 both skippable ship states?** A bridge with no Smoke X4 is a logger with nothing to log; a bridge with no Wi-Fi is BLE-only. Both are skippable by design — confirm, or name which one blocks `SetupDone` | A21.7, A22.1 |
 | **Q-K** | **Who owns `protocol/`?** Four generated files, three hand-written specs, three proposals that have all edited them independently. **OWNER: TBD — assign before W8**, or the bump lands three times against three schemas | P4.1 |
 
 **Do not relitigate D1–D16** ([§12.3](../design/12-task-planning-notes.md)) — if a decision looks

@@ -209,6 +209,7 @@ class BleTransport implements BridgeTransport {
       fw: info.fw,
       probes: info.probes,
       historyFull: info.historyFull,
+      admin: info.admin,
     );
   }
 
@@ -412,6 +413,124 @@ class BleTransport implements BridgeTransport {
   }
 
   @override
+  Future<void> pair() =>
+      _writeAndAwaitResult(wire.ControlOp.pair, Uint8List(0));
+
+  @override
+  Future<void> unpair() =>
+      _writeAndAwaitResult(wire.ControlOp.unpair, Uint8List(0));
+
+  @override
+  Future<void> identify() =>
+      _writeAndAwaitResult(wire.ControlOp.identify, Uint8List(0));
+
+  @override
+  Future<void> reboot() =>
+      _writeAndAwaitResult(wire.ControlOp.reboot, Uint8List(0));
+
+  @override
+  Future<void> factoryReset() =>
+      _writeAndAwaitResult(wire.ControlOp.factoryReset, Uint8List(0));
+
+  @override
+  Future<void> powerOff() =>
+      _writeAndAwaitResult(wire.ControlOp.powerOff, Uint8List(0));
+
+  @override
+  Future<void> setUnits(TempUnit unit) => _writeAndAwaitResult(
+    wire.ControlOp.setUnits,
+    wire.CtrlSetUnits(
+      units: unit == TempUnit.celsius
+          ? wire.TempUnits.celsius.wire
+          : wire.TempUnits.fahrenheit.wire,
+    ).encode(),
+  );
+
+  @override
+  Future<void> setBatterySaver(BatterySaverMode mode) => _writeAndAwaitResult(
+    wire.ControlOp.setBatterySaver,
+    wire.CtrlSetBatterySaver(saver: mode.wire).encode(),
+  );
+
+  // ── device administration (v1.2) ────────────────────────────────────
+
+  @override
+  Future<DeviceStats> stats() async {
+    final d = wire.DeviceStats.decode(
+      await client.read(BridgeChar.deviceStats),
+    );
+    return DeviceStats(
+      paired: d.paired,
+      clockValid: d.clockValid,
+      advertising: d.advertising,
+      connected: d.connected,
+      uptimeS: d.uptimeS,
+      heapFreeB: d.heapFree,
+      heapMinB: d.heapMin,
+      storageUsedB: d.storageUsedB,
+      storageTotalB: d.storageTotalB,
+      storedSessions: d.storedSessions,
+      loraFreqHz: d.loraFreqHz,
+      loraRssi: d.loraRssi,
+      loraSnr: d.loraSnr,
+      packetsOk: d.packetsOk,
+      packetsBad: d.packetsBad,
+      bonds: d.bonds,
+    );
+  }
+
+  @override
+  Future<DeviceConfig> deviceConfig() async {
+    final d = wire.DeviceConfig.decode(
+      await client.read(BridgeChar.deviceConfig),
+    );
+    final names = d.probeName;
+    final roles = d.probeRole;
+    final targets = d.probeTarget;
+    return DeviceConfig(
+      prefs: DevicePrefs(
+        displayTimeoutS: d.displayTimeoutS,
+        ledEnabled: d.ledEnabled != 0,
+        buzzerEnabled: d.buzzerEnabled != 0,
+        retentionMaxSessions: d.retentionMaxSessions,
+        retentionMinFreePct: d.retentionMinFreePct,
+      ),
+      probes: [
+        for (var i = 0; i < 4; i++)
+          ProbeConfig(
+            index: i,
+            name: names[i],
+            role: _roleFromWire(roles[i]),
+            targetF10: targets[i],
+          ),
+      ],
+    );
+  }
+
+  @override
+  Future<void> setProbe(ProbeConfig probe) => _writeAndAwaitResult(
+    wire.ControlOp.setProbe,
+    wire.CtrlSetProbe(
+      index: probe.index,
+      role: _roleToWire(probe.role),
+      nameRaw: wire.utf8ToPadded(probe.name, 17),
+      targetF10: probe.targetF10,
+    ).encode(),
+  );
+
+  @override
+  Future<void> setDevicePrefs(DevicePrefs prefs) => _writeAndAwaitResult(
+    wire.ControlOp.setDevicePrefs,
+    wire.CtrlSetDevicePrefs(
+      displayTimeoutS: prefs.displayTimeoutS,
+      ledEnabled: prefs.ledEnabled ? 1 : 0,
+      buzzerEnabled: prefs.buzzerEnabled ? 1 : 0,
+      retentionMaxSessions: prefs.retentionMaxSessions,
+      retentionMinFreePct: prefs.retentionMinFreePct,
+    ).encode(),
+  );
+
+  @override
   Future<void> setCookClock(int elapsedS) async {
     // The device refuses `invalid` past 99:59; clamping here keeps a long cook
     // from turning a state write into a failed write.
@@ -492,4 +611,21 @@ String _statusCode(wire.ResultStatus? s) => switch (s) {
   wire.ResultStatus.unauthorized => 'unauthorized',
   wire.ResultStatus.failed => 'failed',
   _ => 'failed',
+};
+
+/// The wire `probe_role` order (unused 0, pit 1, food 2, ambient 3) differs
+/// from the app's [ProbeRole]; these two functions are the only place that
+/// knows, so the mapping cannot drift.
+ProbeRole _roleFromWire(int wireRole) => switch (wireRole) {
+  1 => ProbeRole.pit,
+  2 => ProbeRole.food,
+  3 => ProbeRole.ambient,
+  _ => ProbeRole.unused,
+};
+
+int _roleToWire(ProbeRole role) => switch (role) {
+  ProbeRole.pit => wire.ProbeRole.pit.wire,
+  ProbeRole.food => wire.ProbeRole.food.wire,
+  ProbeRole.ambient => wire.ProbeRole.ambient.wire,
+  ProbeRole.unused => wire.ProbeRole.unused.wire,
 };

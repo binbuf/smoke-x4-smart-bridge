@@ -54,7 +54,7 @@ beside them on the app side and joining at the sitting.
 > | Question | Answer | Recorded in |
 > | --- | --- | --- |
 > | The 5×7 font has no `●`, `⚠`, `▲`, `▼` or `▂▄▆█` | **ASCII stand-ins carrying the same three states** — `*`/`o`, `!`, `^`/`v`/`-`, `####`/`###.` Inventing glyphs for a 21-column strip is how a status line becomes unreadable, and every one of these is a single legible cell | `app_ui_render.c`, with the goldens |
-> | Where does `smoke_x_alarm` get the base's own band? | `smoke_x_ctrl_last_state()`, a new accessor. `bridge_evt_sample_t` is deliberately narrow (03 §3.2) and does not carry it; 40 static bytes beat widening an event every subscriber copies | `smoke_x_ctrl.c` |
+> | Where does `smoke_x_alarm` get the Smoke X4's own band? | `smoke_x_ctrl_last_state()`, a new accessor. `bridge_evt_sample_t` is deliberately narrow (03 §3.2) and does not carry it; 40 static bytes beat widening an event every subscriber copies | `smoke_x_ctrl.c` |
 > | Does the 10 s tick feed the lid detector? | **No.** The §9.4 window is defined over SAMPLES, and a tick is the absence of one — advancing the detector on a tick feeds it the same temperature at a new timestamp and quietly widens the window | `app_alarm_input_t.sample_fresh` |
 > | Which alarms latch, and which clear themselves? | Per-rule. Everything critical plus `system_fault` latches until acknowledged; the rest auto-clear. And an **acked** alarm may clear on its re-arm condition, which is what lets `target_reached` fire again on the next cut | `rules.c` |
 
@@ -116,13 +116,13 @@ That is four spellings of the same closed set across two languages — exactly w
 is added as an `enums:` entry, regenerated through `tools/protogen`, and `protogen --check` stays
 green with all three Dart copies and the C header updated (F13.2).
 
-### `pit_out_of_band` uses the **configured target**, the base's band drives `smoke_x_alarm`
+### `pit_out_of_band` uses the **configured target**, the Smoke X4's band drives `smoke_x_alarm`
 
 [09 §9.2](../design/09-alarms-and-insights.md) lists both rules and the distinction is easy to
-collapse by accident. `smoke_x_alarm` mirrors *the base station's own* decision — the packet's
+collapse by accident. `smoke_x_alarm` mirrors *the Smoke X4's own* decision — the packet's
 `new_alarm` edge, or an `alarm_armed` probe outside the `alarm_low`/`alarm_high` the X4 itself
 carries. `pit_out_of_band` is **ours**, evaluated against the pit probe's `p*_target` from
-`app_config` ± the configured band. They can disagree, and when they do both are correct: the base is
+`app_config` ± the configured band. They can disagree, and when they do both are correct: the Smoke X4 is
 reporting its settings, we are reporting the user's.
 
 ### Alarm identity is `(rule, probe)`; ids are u8, monotonic, never 0
@@ -236,7 +236,7 @@ firmware can raise and the app cannot name is a bug the enum now makes visible).
 - **design:** [09 §9.2](../design/09-alarms-and-insights.md)
 
 `rules.c` — pure C11, no ESP-IDF, no globals a test cannot reach. One function that takes an input
-snapshot (per-probe temperature and attach state, per-probe role and target, the base's own
+snapshot (per-probe temperature and attach state, per-probe role and target, the Smoke X4's own
 `alarm_armed`/`alarm_low`/`alarm_high`, the `new_alarm` edge, slopes from `cook_ring`, seconds since
 the last packet, battery SoC, free storage percent, coredump-present) plus the decoded config, and
 returns the set of conditions that are **true right now**. It decides nothing about latching — that
@@ -407,7 +407,7 @@ promised to close here: `●sta  04:12  71%  ⚠` — filled dot for a packet wi
 when a client is associated, elapsed or `--:--`, SoC or `USB`, and the warning glyph only while an
 alarm is unacknowledged.
 
-**Done when:** the strip is golden-pinned in all five of its interesting shapes (base lost, AP with a
+**Done when:** the strip is golden-pinned in all five of its interesting shapes (Smoke X4 lost, AP with a
 client, no session, charging, unacked alarm); the passkey overlay's committed golden is **regenerated
 with the strip present** and the change is called out as the promised closure rather than drift; and
 the struct is asserted to contain no pointers, so comparing two snapshots compares their content.
@@ -574,7 +574,7 @@ talking to it" are different claims and only the second one saves current.
 - **design:** [07 §7.5](../design/07-display-and-controls.md)
 
 §7.5's pattern table as a pure function of (state, time) → duty cycle: 2 Hz blink for an unacked
-alarm, solid while pairing, double-blink every 2 s for base-lost, slow breathe during OTA, a 20 ms
+alarm, solid while pairing, double-blink every 2 s for Smoke X4-lost, slow breathe during OTA, a 20 ms
 per-packet heartbeat (off by default), and the 5 s rapid flash for `identify`. Governed by
 `led_enabled`, whose default is `alarms_only`, because a light blinking all night on a bedside bridge
 is a reason to unplug it. The piezo on GPIO7 mirrors the alarm pattern when `buzzer_enabled` — the
@@ -582,7 +582,7 @@ code is present and a **no-op when unfitted**, which is the state of every board
 
 **Done when:** each pattern is asserted at sampled instants across two full periods (a blink asserted
 at one instant is not a blink); precedence is asserted when several conditions are true at once
-(alarm outranks base-lost outranks heartbeat); `led_enabled = off` is asserted to produce a zero duty
+(alarm outranks Smoke X4-lost outranks heartbeat); `led_enabled = off` is asserted to produce a zero duty
 cycle in **every** state including alarm; and `identify` is asserted to return to the prior pattern
 after 5 s rather than latching.
 

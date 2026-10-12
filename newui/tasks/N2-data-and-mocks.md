@@ -99,7 +99,7 @@ consume this seam rather than reimplement it.
   theme / profile toggles and "simulate connection sheet". Release-excluded
   (`kReleaseMode`), never navigates — reports through `onScreen` / `onOverlay`.
 - `app/lib/features/dev/dev_boot.dart` — `applyDevDeepLink` (N2.32) applies the
-  `scenario` / `units` half at boot. `bootstrap.dart` parses `Uri.base`, applies
+  `scenario` / `units` half at boot. `bootstrap.dart` parses `Uri.Smoke X4`, applies
   it and stashes the parsed link in `initialDevDeepLinkProvider` for the N4
   router.
 - Tests `app/test/data/`: `content_validation_test.dart`, `timeline_test.dart`,

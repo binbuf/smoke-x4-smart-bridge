@@ -1,10 +1,9 @@
-/// A6.1 — the GATT client seam (design 08 §8.1,
-/// [ble-gatt](../../../../protocol/ble-gatt.md) §1–§5).
+/// The GATT client seam ([ble-gatt](../../../../protocol/ble-gatt.md) §1–§5).
 ///
 /// `flutter_blue_plus` is a platform plugin, so it hides behind a narrow
-/// interface — exactly as `nsd` did for A7.2. Everything above this line
-/// (BleTransport, the reassembler, the onboarding wizard) is then testable
-/// against a Dart fake with no radio, no phone, and no board.
+/// interface. Everything above this line — `BleTransport` and the notification
+/// reassembler — is then testable against a Dart fake with no radio, no phone,
+/// and no board.
 ///
 /// **The interface is deliberately smaller than the plugin.** Scan,
 /// connect, bond, MTU, read, write, subscribe. Nothing about services or
@@ -19,15 +18,18 @@ import 'dart:typed_data';
 String bridgeUuid(int slot) =>
     '7f9a${slot.toRadixString(16).padLeft(4, '0')}-4c5b-4b0f-9a3d-1c2e3f405162';
 
-/// The eleven characteristics, by their `XXXX` slot.
+/// The characteristics the slim bridge actually registers, by their `XXXX`
+/// slot. This set matches `app_ble_core.h`'s registry exactly: the full image's
+/// `net_status` (0002), `wifi_scan_ctrl` (0003), `wifi_scan_result` (0004) and
+/// `wifi_config` (0005) are deliberately absent, because there is no network on
+/// this build. Declaring them here would invite a write that will never answer.
 class BridgeChar {
   static const deviceInfo = 0x0001;
-  static const netStatus = 0x0002;
-  static const wifiScanCtrl = 0x0003;
-  static const wifiScanResult = 0x0004;
-  static const wifiConfig = 0x0005;
   static const deviceControl = 0x0006;
   static const liveState = 0x0007;
+
+  /// Present in the registry and served by the firmware, but this app does not
+  /// read it — kept so the declared set is the contract, not a subset of it.
   static const historyPreview = 0x0008;
   static const result = 0x0009;
 
@@ -37,6 +39,12 @@ class BridgeChar {
   /// them rather than a try/catch.
   static const historyCtrl = 0x000A;
   static const historyData = 0x000B;
+
+  /// v1.2 — device administration. `device_stats` is a read-only telemetry
+  /// snapshot; `device_config` is the read-back of the writable settings.
+  /// Present only on a bridge whose `device_info.caps` b7 `admin` is set.
+  static const deviceStats = 0x000C;
+  static const deviceConfig = 0x000D;
 
   static const service = 0x0000;
 }
@@ -89,7 +97,7 @@ class BleNotBondedException extends BleException {
 
 /// We hold a bond the peer no longer does — the bridge was factory-reset
 /// since we paired. The fix is to forget and re-pair, which is a different
-/// action from "retry", and the app must say so (A6.4).
+/// action from "retry", and the app must say so.
 class BleRebondRequiredException extends BleException {
   const BleRebondRequiredException([
     super.message = 'the bridge no longer knows this phone',
@@ -104,8 +112,7 @@ class BleBondRejectedException extends BleException {
   const BleBondRejectedException([super.message = 'pairing was rejected']);
 }
 
-/// Misuse the platform would otherwise turn into platform-dependent luck
-/// (the same discipline A14.1's binder applies).
+/// Misuse the platform would otherwise turn into platform-dependent luck.
 class BleStateException extends BleException {
   const BleStateException(super.message);
 }
@@ -127,11 +134,11 @@ abstract interface class BleGattClient {
   Stream<BleBondState> get bondStates;
 
   /// Drives the platform bond flow. On Android the passkey dialog is owned
-  /// by the OS and appears over the app (see A6's epic flag), so this
+  /// by the OS and appears over the app, so this
   /// *observes* rather than prompts.
   Future<void> bond();
 
-  /// Drops the OS-level bond for this device (A24.11). The stale-bond heal:
+  /// Drops the OS-level bond for this device. The stale-bond heal:
   /// a factory-reset bridge no longer holds our key, and Android will retry
   /// the dead key forever rather than show a new passkey dialog — the only
   /// way to pair fresh is to forget the old bond first. May throw where the
@@ -145,7 +152,7 @@ abstract interface class BleGattClient {
   Future<int> requestMtu(int mtu);
   int get mtu;
 
-  /// A26 — the connected link's RSSI in dBm, read from the phone's own
+  /// The connected link's RSSI in dBm, read from the phone's own
   /// radio. This is the *phone ↔ bridge* hop and the only one the app can
   /// measure directly; nothing on the GATT contract carries it, because it
   /// is a property of the link rather than of the peer. Throws
@@ -155,8 +162,8 @@ abstract interface class BleGattClient {
   Future<Uint8List> read(int slot);
   Future<void> write(int slot, Uint8List value);
 
-  /// Raw notification chunks, exactly as they arrive. Reassembly is
-  /// A6.3's job, one layer up, because the boundary is a property of the
+  /// Raw notification chunks, exactly as they arrive. Reassembly happens
+  /// one layer up, because the boundary is a property of the
   /// payload rather than of the link.
   Stream<Uint8List> subscribe(int slot);
 

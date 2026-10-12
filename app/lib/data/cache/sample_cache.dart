@@ -19,6 +19,7 @@ class SyncState {
     required this.deviceMinT,
     required this.deviceMaxT,
     required this.lastSyncMs,
+    this.complete = false,
   });
 
   /// The greatest `t` this phone has cached, or `-1` when it has none.
@@ -26,6 +27,12 @@ class SyncState {
   final int? deviceMinT;
   final int? deviceMaxT;
   final int lastSyncMs;
+
+  /// A closed session whose device stream has been fully drained. Persisted so a
+  /// session that can never satisfy `sample_count` (a header extent past its
+  /// last row, or a count that outran retention) stops being re-fetched on every
+  /// tick. Independent of `sampleCount` by design.
+  final bool complete;
 }
 
 /// The cache contract.

@@ -351,9 +351,9 @@ widget to guess.
 **Storage is canonical tenths °F** (`records.yaml:143-147`, [04 §4.2](04-storage-and-history.md)) and
 display conversion is presentation-only, so a cook recorded before the user switched to °C renders in
 °C with no migration. `source_celsius` (`records.yaml:161`, `04:83`) does **not** contradict that: it
-is a *provenance* bit recording that the Smoke X base reported °C and the bridge converted on the way
+is a *provenance* bit recording that the Smoke X4 reported °C and the bridge converted on the way
 in, which means such a sample carries one °F rounding step and converting it back to °C is not
-bit-exact with what the base displayed. That is a ±0.05 °C artefact, it is documented in
+bit-exact with what the Smoke X4 displayed. That is a ±0.05 °C artefact, it is documented in
 `core/units.dart`'s doc comment, and it is not a reason to store two units.
 
 ## 14.6 Colour
@@ -469,7 +469,7 @@ card, and gauge *type* (band vs sweep, §14.7).
 
 | Role | Hue | Fill / border | Change | Where |
 | --- | --- | --- | --- | --- |
-| `critical` | `#F04444` | 14 % / 35 % | **from `#D03B3B`** | pit crash, base lost, probe detached, link dead |
+| `critical` | `#F04444` | 14 % / 35 % | **from `#D03B3B`** | pit crash, Smoke X4 lost, probe detached, link dead |
 | `warning` | `#FAB219` | 14 % / 35 % | unchanged | out of band, stall, battery low, storage low |
 | `positive` | `#10B981` | 12 % / 30 % | new | **transport healthy only** — never a probe state |
 | `info` | `#94A3B8` | 10 % / 22 % | **from `#898781`** | advisory, "this is normal", capability notices |
@@ -635,7 +635,7 @@ hop 0 — preflight            hop 2 active                 hop 2, errorTint
 - **`errorTint`** recolours the **active** circle to `critical`. A failure is a bad hop, not a fourth
   hop — that is the whole reason ~30 setup states stay legible as three.
 - **skipped** hops render as done with a **dash**, not a tick, and the state's subtitle says so.
-  A bridge already bonded to a base skips hop 2 and must not be shown a tick it did not earn.
+  A bridge already bonded to a Smoke X4 skips hop 2 and must not be shown a tick it did not earn.
 
 ### 14.7.5 Blocked dependencies
 

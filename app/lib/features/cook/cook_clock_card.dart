@@ -90,6 +90,21 @@ class _CookClockCardState extends State<CookClockCard> {
               fontWeight: FontWeight.w500,
             ),
           ),
+          const SizedBox(height: SmokeSpace.sm),
+          // The honesty the card was missing: "Start" reads like a recording
+          // boundary, but the bridge records continuously on its own. Say what
+          // the clock is, and say that History is not split by it, so a user is
+          // never surprised by a missing History entry.
+          const Text(
+            'This is a clock the bridge shows on its screen. Your bridge '
+            'records continuously, whether or not it is running — History is '
+            'that recording, not a new cook.',
+            style: TextStyle(
+              color: SmokePalette.textBody,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
           const SizedBox(height: SmokeSpace.md),
           Row(
             children: [
@@ -98,7 +113,7 @@ class _CookClockCardState extends State<CookClockCard> {
                     ? () => widget.controller.startCook()
                     : null,
                 icon: const Icon(Icons.play_arrow, size: 18),
-                label: Text(running ? 'Restart cook' : 'Start cook'),
+                label: Text(running ? 'Restart clock' : 'Start clock'),
               ),
               const SizedBox(width: SmokeSpace.sm),
               if (running)

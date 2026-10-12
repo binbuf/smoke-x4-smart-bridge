@@ -5,7 +5,7 @@
  * reentrant (F3.2). The controller wraps these calls with pairing state,
  * NVS, and event dispatch.
  *
- * Sync message (base station, during pairing):
+ * Sync message (Smoke X4, during pairing):
  *   <field0>,<deviceid>,<f0>,<f1>,<f2>,<f3>,
  *   - f0..f3: decimal bytes of the LE uint32 operating frequency in Hz
  *   - field0: "020001" per the X2-era docs; a real X4 sent "000000" (Q2)

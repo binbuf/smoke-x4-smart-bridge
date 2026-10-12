@@ -8,7 +8,7 @@ import 'package:sim/sim.dart';
 ///   dart run sim --port 8080 --speed 60 --cook fixtures/brisket-18h.smk
 ///   dart run sim --scenario stall --probes 4
 ///   dart run sim --scenario lid-open --drop 5
-///   dart run sim --scenario base-lost --after 2h
+///   dart run sim --scenario Smoke X4-lost --after 2h
 ///   dart run sim --scenario unpaired
 ///   dart run sim --advertise-mdns
 void main(List<String> argv) async {
@@ -20,7 +20,7 @@ void main(List<String> argv) async {
     ..addOption('probes', defaultsTo: '4')
     ..addOption('seed', defaultsTo: '42')
     ..addOption('drop', help: 'packet-loss percent (flaky)')
-    ..addOption('after', help: 'base-lost cutoff, e.g. 2h, 45m, 300s')
+    ..addOption('after', help: 'Smoke X4-lost cutoff, e.g. 2h, 45m, 300s')
     ..addFlag('advertise-mdns', negatable: false)
     ..addFlag('help', abbr: 'h', negatable: false);
   final args = parser.parse(argv);

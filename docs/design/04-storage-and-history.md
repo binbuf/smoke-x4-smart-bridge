@@ -11,7 +11,7 @@ The arithmetic, because it is the whole reason this is easy:
 
 |                                                                     |                                      |
 | ------------------------------------------------------------------- | ------------------------------------ |
-| Base station transmit interval                                      | 30 s                                 |
+| Smoke X4 transmit interval                                      | 30 s                                 |
 | Samples per hour                                                    | 120                                  |
 | **Samples in 24 h**                                                 | **2,880**                            |
 | Bytes per sample (fixed, all 4 probes + flags + link quality + CRC) | **16 B**                             |
@@ -61,7 +61,7 @@ typedef struct __attribute__((packed)) {
 | 6           | Source packet was in °C (provenance only — the stored value is already °F)  |
 | 7           | Reserved                                                                    |
 
-**Why canonical °F rather than "whatever the base sent":** the user can flip the base station
+**Why canonical °F rather than "whatever the Smoke X4 sent":** the user can flip the Smoke X4
 between °F and °C mid-cook, which would otherwise leave a single series with two unit regimes and a
 20 °-looking cliff in the middle of the graph. Converting °C tenths on write
 (`F10 = C10 × 9 / 5 + 320`) upsamples — 0.1 °C is a finer step than 0.1 °F — so no resolution is
@@ -88,7 +88,7 @@ the specific failure the reference cannot represent, because its samples carry n
 | 36  | 4    | `sample_period_s`   | nominal 30                                                      |
 | 40  | 4    | `sample_count`      | authoritative on close; derived from file size while open       |
 | 44  | 4    | —                   | reserved                                                        |
-| 48  | 8    | `device_id[8]`      | the paired base station                                         |
+| 48  | 8    | `device_id[8]`      | the paired Smoke X4                                         |
 | 56  | 40   | `name[40]`          | user label, UTF-8                                               |
 | 96  | 48   | `probe_name[4][12]` | UTF-8                                                           |
 | 144 | 4    | `probe_role[4]`     | 0 unused · 1 pit · 2 food · 3 ambient                           |
@@ -226,9 +226,9 @@ brisket is a design that loses data.
 — at **any temperature** (amended A25). The original rule also required an attached probe above
 90 °F ("something is actually cooking"), which lost exactly the stretch a cook most wants to see
 later: lighting the fire and getting the pit stable before it crosses 90 °F. Recording now begins
-the moment the powered bridge syncs with the base, so a cook can set up the hardware, tend the fire,
+the moment the powered bridge syncs with the Smoke X4, so a cook can set up the hardware, tend the fire,
 and open the app hours later to the whole history — with no session setup at all, or naming the
-already-recording cook retroactively. The cost is an occasional counter-top session from a base
+already-recording cook retroactively. The cost is an occasional counter-top session from a Smoke X4
 left on with probes plugged in; the 10-minute detached rule and retention absorb those.
 
 **End** when any of:
@@ -239,7 +239,7 @@ left on with probes plugged in; the 10-minute detached rule and retention absorb
   split rather than lost)
 - the bridge is unpaired
 
-**Not** an end condition: packet loss. Going out of range, or the base station being switched off
+**Not** an end condition: packet loss. Going out of range, or the Smoke X4 being switched off
 briefly, leaves the session open and produces a visible gap in `t`. A cook that resumes after a
 30-minute dropout is one cook, and the graph should say so.
 

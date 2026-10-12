@@ -4,6 +4,7 @@
 /// the whole of it is host-testable without a binding (`dart test`).
 library;
 
+export 'entities/device_admin.dart';
 export 'entities/freshness.dart';
 export 'entities/gap.dart';
 export 'entities/probe.dart';

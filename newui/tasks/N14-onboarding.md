@@ -1,7 +1,7 @@
 # N14 — Onboarding
 
 **Goal:** the guided first-run wizard: pair over BLE, coach the passkey, listen for
-the base station, choose a network mode, name the bridge, done.
+the Smoke X4, choose a network mode, name the bridge, done.
 
 **Design:** [`newui/app.js`](../app.js) §7 `overlayOnboarding`, `permRow`,
 `modeCardCompact` · `newui/NOTES.md` §6 · `components_research_notes.md` §11.5,
@@ -14,7 +14,7 @@ the base station, choose a network mode, name the bridge, done.
 | # | Invariant | Where |
 |---|---|---|
 | — | The passkey is shown **only on the device OLED**; the app cannot render a real code and coaches the user before Android's own (wrong) dialog | passkey step |
-| — | The bridge is a pure listener: pairing is non-destructive and the base-pair step teaches that | sync step |
+| — | The bridge is a pure listener: pairing is non-destructive and the Smoke X4-pair step teaches that | sync step |
 | I6 | No state without a next step | every step |
 | I15 | No raw exception escapes; failures become named states with copy | `SetupFault` |
 | — | A superseded flow cannot drag the user backwards (monotonic generation counter) | wizard controller |
@@ -176,7 +176,7 @@ N14.1–N14.13 all landed; every "Done when" gate below runs green.
   `-next`, `-back`, `-skip`, `-welcome`, `-welcome-copy`, `-preflight`,
   `-perm-<Name>`, `-perm-allow-<Name>`, `-scan`, `-scan-ring`, `-found-bridge`,
   `-found-sub`, `-troubleshoot-link`, `-troubleshoot`, `-ts-<i>`, `-passkey`,
-  `-passkey-note`, `-sync`, `-listener-notice`, `-skip-base`, `-network`,
+  `-passkey-note`, `-sync`, `-listener-notice`, `-skip-Smoke X4`, `-network`,
   `-mode-<id>`, `-name`, `-name-field`, `-units`, `-done`, `-done-copy`,
   `-hop-<Hop>`, `-hop-status-<Hop>`, `-fault`, `-fault-title`, `-fault-body`,
   `-fault-recover`; Live `live-connect-bridge`.

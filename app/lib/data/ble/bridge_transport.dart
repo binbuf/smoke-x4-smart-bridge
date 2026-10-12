@@ -26,7 +26,8 @@ class TransportException implements Exception {
       'TransportException($code${status == null ? '' : ' · $status'}): $message';
 }
 
-/// The capability is not available on this transport (e.g. a Wi-Fi-only op).
+/// The capability is not available on this transport (e.g. full history on a
+/// bridge whose firmware predates it).
 class TransportUnsupported extends TransportException {
   const TransportUnsupported(String feature)
     : super('unsupported', 'this transport cannot $feature');
@@ -89,6 +90,7 @@ class DeviceIdentity {
     required this.fw,
     required this.probes,
     required this.historyFull,
+    required this.admin,
   });
 
   /// ASCII hex, e.g. `A4F2` — matches the advertising name suffix.
@@ -101,6 +103,10 @@ class DeviceIdentity {
 
   /// `caps` b6 — whether this bridge serves full history over BLE.
   final bool historyFull;
+
+  /// `caps` b7 — whether this bridge serves `device_stats` and the
+  /// `set_probe` / `set_device_prefs` control ops (v1.2).
+  final bool admin;
 }
 
 /// The current probe state, from one `live_state` (16 B, §5.7).
@@ -137,6 +143,17 @@ class LiveSnapshot {
 /// start timestamp.
 const int cookClockMaxS = 359940;
 
+/// The bridge's battery-saver tri-state (`set_battery_saver`, op 12). There is
+/// no BLE read-back, so the app remembers what it last set.
+enum BatterySaverMode {
+  off(0),
+  on(1),
+  auto(2);
+
+  const BatterySaverMode(this.wire);
+  final int wire;
+}
+
 /// The bridge's BLE surface, as this app uses it.
 abstract interface class BridgeTransport {
   /// A stable label for logs/UI (`BLE`).
@@ -156,8 +173,7 @@ abstract interface class BridgeTransport {
   /// Read `live_state` once.
   Future<LiveSnapshot> readLive();
 
-  /// `live_state` notifications, one per decoded LoRa packet (~30 s) plus on
-  /// any alarm transition.
+  /// `live_state` notifications, one per decoded LoRa packet (~30 s).
   Stream<LiveSnapshot> get liveUpdates;
 
   /// The session list (`history_ctrl` `req = sessions`).
@@ -175,6 +191,50 @@ abstract interface class BridgeTransport {
 
   /// `set_time` — so the bridge's sessions carry a wall clock.
   Future<void> setTime(int unixMs, {int? tzOffsetMin});
+
+  /// `pair` (op 1) — put the bridge into sync/scan mode toward the Smoke X4.
+  /// The Smoke X4 must be put into SYNC as well; the bridge's OLED is the
+  /// only confirmation, so this returns on a wire acknowledgement, not on a
+  /// successful pairing.
+  Future<void> pair();
+
+  /// `unpair` (op 2) — forget the paired Smoke X4.
+  Future<void> unpair();
+
+  /// `identify` (op 10) — wake the bridge's OLED and flash what it has, so a
+  /// user standing in front of the bridge can find it in a rack of them.
+  Future<void> identify();
+
+  /// `reboot` (op 7) — the bridge answers first, then restarts; the link drops
+  /// and re-establishes on its own.
+  Future<void> reboot();
+
+  /// `factory_reset` (op 8) — wipes the bridge's bonds, config and recorded
+  /// cooks, then reboots. The link and this phone's bond are gone with it.
+  Future<void> factoryReset();
+
+  /// `power_off` (op 13) — the bridge enters deep sleep. Waking needs the
+  /// physical button; nothing over BLE brings it back.
+  Future<void> powerOff();
+
+  /// `set_units` (op 9) — the bridge's OLED unit preference.
+  Future<void> setUnits(TempUnit unit);
+
+  /// `set_battery_saver` (op 12) — the tri-state saver profile.
+  Future<void> setBatterySaver(BatterySaverMode mode);
+
+  /// The read-only telemetry snapshot (`device_stats`). Present only when the
+  /// bridge's `device_info.caps` b7 `admin` is set.
+  Future<DeviceStats> stats();
+
+  /// The current writable settings (`device_config` read).
+  Future<DeviceConfig> deviceConfig();
+
+  /// One probe's label, role and alarm target (`set_probe`, op 16).
+  Future<void> setProbe(ProbeConfig probe);
+
+  /// The device preferences (`set_device_prefs`, op 17).
+  Future<void> setDevicePrefs(DevicePrefs prefs);
 
   /// Declare the elapsed time the device's OLED shows (`set_cook_clock`, op 14).
   ///

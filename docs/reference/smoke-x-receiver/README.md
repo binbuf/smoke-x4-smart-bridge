@@ -40,7 +40,7 @@ flowchart LR
   web <--> browser(Any web browser)
 
   subgraph ThermoWorks Smoke X2/X4
-    Probes --> base(Base station) -->|LoRa RF| recv(ThermoWorks Receiver)
+    Probes --> smoke(Smoke X4) -->|LoRa RF| recv(ThermoWorks Receiver)
     Billows --> base
   end
 
@@ -154,7 +154,7 @@ The web UI is also used to configure the device to connect to an MQTT broker. Th
 
 ## MQTT Schema
 
-If MQTT is configured and enabled, the application will publish status messages upon receipt of an RF transmission from the Smoke X base station. The base station transmits every thirty seconds. The message content that this application publishes is in the following format:
+If MQTT is configured and enabled, the application will publish status messages upon receipt of an RF transmission from the Smoke X4. The Smoke X4 transmits every thirty seconds. The message content that this application publishes is in the following format:
 
 ```json
 {

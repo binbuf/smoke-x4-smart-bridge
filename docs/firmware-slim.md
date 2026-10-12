@@ -32,23 +32,46 @@ wire contract it depends on is unchanged.
   spans 0x2E0000 (2.875 MB). Dual OTA slots are retained for a future wired
   update.
 
-## Reset and recovery (rethought for a networkless device)
+## Headless lifecycle (reset, pairing, advertising)
 
-The full image's only real recovery was double-reset → Wi-Fi AP mode. With no
-Wi-Fi, recovery lives entirely on the device:
+The device is deliberately headless: its button has exactly two meanings, and
+everything else happens in the app.
 
-- **Double RST within 10 s** enters the recovery flow (main consumes the
-  RTC-SRAM token).
-- **Holding PRG through the post-boot splash** (≈3 s of the 5 s window) enters
-  the same flow.
-- The flow is **hold-to-confirm**: hold ~3 s, *release to reset*, release early
-  to cancel. Committing wipes **bonds + config + recorded cooks**, then reboots.
-  The archived reset forgot the `cooks` store entirely — this build fixes that
-  (`cook_store_wipe_all`).
+- **Tap** = next info page (wakes the display).
+- **Hold** = power off (commit on release); **hold ≥5 s from sleep** = power on.
+- **Nothing else.** There is no on-device factory-reset gesture. The full
+  image's double-reset → Wi-Fi AP mode and the slim build's short-lived
+  double-RST / boot-hold recovery are both gone. Factory reset, reboot, and
+  power-off are `device_control` ops the app drives over BLE
+  (`BRIDGE_CONTROL_OP_FACTORY_RESET`, `REBOOT`, `POWER_OFF`).
 
-The button otherwise keeps its two meanings: **tap** = next page (wakes the
-display), **hold** = power off (commit on release), and **hold ≥5 s from sleep**
-= power on.
+Pairing is **Just Works + bonding + Secure Connections** (no MITM): any phone
+that scans the device bonds and encrypts automatically, with no passkey to
+read off the glass. `device_info` is open; every other characteristic needs
+the encrypted link a bond provides, and `device_control` needs only that bond
+(not an MITM-protected key). This is the trade the MVP makes for a device with
+one button and no passkey display — a phone in BLE range can bond and read
+recorded cooks.
+
+The radio is **always advertising unless connected**: advertising starts on
+host sync and restarts on disconnect, failed connect, and adv-complete. A
+newly freed device is discoverable within one advertising interval, so the app
+can find and (re)connect with no device interaction.
+
+## Device administration (v1.2)
+
+Because the bridge owns no controls, the settings its OLED once kept private are
+exposed to the app (`device_info.caps` b7 `admin`):
+
+- `device_stats` (read) — uptime, heap, storage, LoRa radio + packet counts,
+  bonds: the System/Radio pages as data.
+- `device_config` (read) — the current probe names/roles/targets and the
+  display/LED/buzzer/retention preferences, so the app can show values before
+  editing them.
+- `set_probe` / `set_device_prefs` control ops — the writes.
+
+The app surfaces these under **Settings** (Device preferences, Device stats)
+and a **Probes** editor.
 
 ## Build and test
 
@@ -75,12 +98,17 @@ board** (no USB-UART was attached during the port), so the on-hardware rows —
 OLED pages, the recovery gesture, BLE bonding, LoRa guard-time — are owed a
 bench sitting.
 
+## Update path (decided)
+
+**USB-only for the MVP.** An update is a `firmware/` rebuild flashed over the
+USB-UART with `idf.py -p COMx flash`; there is no over-the-air or BLE update
+path on this build. The dual OTA slots are retained so a wired update can
+later write the inactive slot, but the BLE `app_ota` characteristic and the
+Wi-Fi OTA flow are gone. The OLED **Bluetooth** page has a committed byte
+golden (`page-bluetooth-{connected,advertising}.fb`), and the `net/*`, `mqtt/*`,
+`alarms/*` and AP-PSK config keys have been pruned.
+
 ## Owed
 
-- A bench sitting on a real board: pages legible, the recovery gesture wipes
-  and reboots, BLE bonds + history stream, LoRa RX cadence.
-- OLED goldens for the new **Bluetooth** page (its content is covered by the
-  render-all-pages test, not yet by a byte golden).
-- Decide the update path: USB-only for MVP, or a BLE OTA later.
-- Prune the now-inert config keys (`net/*`, `mqtt/*`, `alarms/*`, the AP PSK)
-  from `app_config_store.h` and its host test when convenient.
+- A bench sitting on a real board: pages legible, Just Works pairing + bond,
+  history stream, LoRa RX cadence, and the app driving factory reset over BLE.

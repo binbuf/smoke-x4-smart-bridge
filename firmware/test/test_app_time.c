@@ -18,7 +18,7 @@ static void fresh(void) {
     memfs_reset();
     cfg_erase_all(NULL);
     g_acquired_calls = 0;
-    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend),
                  APP_CONFIG_OK);
 }
 

@@ -114,8 +114,6 @@ static int cfg_erase(void *ctx) {
 static const app_config_backend_t g_backend = {
     .get = cfg_get, .set = cfg_set, .erase_all = cfg_erase, .ctx = NULL};
 
-static uint32_t rng(void) { return 3u; }
-
 static uint32_t g_radio_freq;
 static int g_tx_attempts;
 static int g_tx_accepted;
@@ -163,7 +161,7 @@ static const smoke_x_ops_t g_ops = {
 
 static void test_only_the_sync_handler_reaches_tx(void) {
     cfg_erase(NULL);
-    CHECK_EQ_INT(app_config_store_init(&g_backend, rng), APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_init(&g_backend), APP_CONFIG_OK);
     app_lora_guard_reset();
     g_radio_freq = 0;
     g_tx_attempts = 0;

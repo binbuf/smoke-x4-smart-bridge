@@ -52,7 +52,7 @@ Row 7 (the bottom line) is reserved on every page:
 
 | Field                | Meaning                                                       |
 | -------------------- | ------------------------------------------------------------- |
-| `●` / `○`            | filled = LoRa packet within the last 60 s; hollow = base lost |
+| `●` / `○`            | filled = LoRa packet within the last 60 s; hollow = Smoke X4 lost |
 | `sta` / `ap` / `---` | network mode; `ap*` when a client is associated               |
 | `04:12`              | the **app-confirmed** cook clock, or **blank**                |
 | `71%`                | battery SoC, or `USB` when charging                           |
@@ -232,7 +232,7 @@ When unpaired, it becomes the pairing screen:
 │Scanning 915/920 MHz │
 │                     │
 │Put your Smoke X     │
-│base in SYNC mode    │
+│Smoke X4 in SYNC mode    │
 │                     │
 │○---         71%     │
 └─────────────────────┘
@@ -414,7 +414,7 @@ a light blinking all night on a bedside bridge is a reason to unplug it.
 | Off                        | Normal, or the user disabled it                             |
 | 2 Hz blink                 | **Unacknowledged alarm**                                    |
 | Solid                      | Pairing mode active                                         |
-| Double-blink every 2 s     | Base station lost                                           |
+| Double-blink every 2 s     | Smoke X4 lost                                           |
 | Slow breathe               | OTA in progress                                             |
 | One 20 ms flash per packet | Heartbeat — off by default, useful during antenna placement |
 | 5 s rapid flash            | `identify` from the app, for telling two bridges apart      |

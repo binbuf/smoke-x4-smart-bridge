@@ -39,7 +39,7 @@ static void fresh_store(void) {
     memfs_reset();
     cfg_erase_all(NULL);
     memset(g_evt_counts, 0, sizeof g_evt_counts);
-    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend, cfg_rng),
+    CHECK_EQ_INT(app_config_store_init(&g_cfg_backend),
                  APP_CONFIG_OK);
     CHECK_EQ_INT(cook_store_core_init(&g_vfs, on_evt, NULL), COOK_STORE_OK);
 }

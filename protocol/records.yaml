@@ -114,6 +114,11 @@ enums:
     # the RECORDING and say nothing about what the glass shows.
     set_cook_clock: 14
     clear_cook_clock: 15
+    # v1.2 additive growth (ble-gatt §5.6.6): device administration moved into
+    # the app, since the bridge has no controls of its own. Appended, never
+    # renumbered.
+    set_probe: 16
+    set_device_prefs: 17
   result_status: # result.status
     ok: 0
     invalid: 1
@@ -253,7 +258,7 @@ records:
           name: device_id,
           type: char,
           count: 8,
-          doc: "the paired base station, NUL-padded",
+          doc: "the paired Smoke X4, NUL-padded",
         }
       - {
           name: name,
@@ -372,16 +377,66 @@ ble_payloads:
               ota,
               battery,
               history_full,
-              _rsv7,
+              admin,
             ],
           doc: "b5 battery: false until F12 (M5) — soc_pct is SOC_UNKNOWN.
             b6 history_full: this bridge serves §5.10/§5.11, so a client can
             tell a v1.1 bridge from a v1.0 one that would silently never
-            answer a history_ctrl write",
+            answer a history_ctrl write. b7 admin: this bridge serves the
+            read-only device_stats characteristic and the set_probe /
+            set_device_prefs control ops (v1.2).",
         }
       - { name: id, type: char, count: 4, doc: "ASCII hex, e.g. A4F2" }
       - { name: model, type: char, count: 16, doc: "UTF-8, NUL-padded" }
       - { name: fw, type: char, count: 16, doc: "UTF-8, NUL-padded" }
+
+  device_stats: # read (encrypted): the device telemetry the OLED System/Radio
+    # pages show, moved into the app because the bridge itself has no controls.
+    # A snapshot, not a register: re-read to refresh. v1.2 (caps b7 admin).
+    size: 39
+    fields:
+      - { name: ver, type: u8, const: 1 }
+      - {
+          name: flags,
+          type: u8,
+          bits:
+            [paired, clock_valid, advertising, connected, _rsv4, _rsv5, _rsv6, _rsv7],
+          doc: "b0 paired (Smoke X4) · b1 clock_valid · b2 BLE advertising
+            · b3 a central is connected",
+        }
+      - { name: uptime_s, type: u32, doc: "seconds since boot" }
+      - { name: heap_free, type: u32, doc: "free heap bytes now" }
+      - { name: heap_min, type: u32, doc: "lowest free heap since boot" }
+      - { name: storage_used_b, type: u32, doc: "cook filesystem bytes used" }
+      - { name: storage_total_b, type: u32, doc: "cook filesystem capacity" }
+      - { name: stored_sessions, type: u16, doc: "cook files on flash" }
+      - { name: lora_freq_hz, type: u32, doc: "the tuned LoRa frequency" }
+      - { name: lora_rssi, type: i8, doc: "dBm of the last state message" }
+      - { name: lora_snr, type: i8, doc: "dB of the last state message" }
+      - { name: packets_ok, type: u32, doc: "state messages accepted" }
+      - { name: packets_bad, type: u32, doc: "parse + CRC + unknown failures" }
+      - { name: bonds, type: u8, doc: "stored phone bonds" }
+
+  device_config: # read (encrypted): the writable settings, so the app can show
+    # current values before editing them (v1.2, caps b7 admin). Written via the
+    # set_probe / set_device_prefs control ops, not here.
+    size: 87
+    fields:
+      - { name: ver, type: u8, const: 1 }
+      - { name: display_timeout_s, type: u16, doc: "0 = never sleep" }
+      - { name: led_enabled, type: u8 }
+      - { name: buzzer_enabled, type: u8 }
+      - { name: retention_max_sessions, type: u8 }
+      - { name: retention_min_free_pct, type: u8 }
+      - {
+          name: probe_name,
+          type: char,
+          count: 17,
+          rows: 4,
+          doc: "UTF-8, NUL-padded, ≤16 chars each",
+        }
+      - { name: probe_role, type: u8, count: 4, enum: probe_role }
+      - { name: probe_target, type: i16, count: 4, doc: "tenths °F, 0 = none" }
 
   wifi_scan_ctrl: # write (encrypted): start or cancel an AP scan
     size: 2
@@ -588,3 +643,21 @@ control_bodies:
   set_battery_saver: # op 12
     fields:
       - { name: saver, type: u8, enum: battery_saver }
+  set_probe: # op 16 — one probe's label, role and alarm target
+    fields:
+      - { name: index, type: u8, doc: "0..3 (jack 1..4)" }
+      - { name: role, type: u8, enum: probe_role }
+      - {
+          name: name,
+          type: char,
+          count: 17,
+          doc: "UTF-8, NUL-padded within 17 B (≤16 chars)",
+        }
+      - { name: target_f10, type: i16, doc: "tenths °F, 0 = no target" }
+  set_device_prefs: # op 17 — the device settings the OLED once owned alone
+    fields:
+      - { name: display_timeout_s, type: u16, doc: "0 = never sleep" }
+      - { name: led_enabled, type: u8 }
+      - { name: buzzer_enabled, type: u8 }
+      - { name: retention_max_sessions, type: u8 }
+      - { name: retention_min_free_pct, type: u8 }

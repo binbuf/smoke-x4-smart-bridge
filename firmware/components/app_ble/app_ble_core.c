@@ -24,9 +24,11 @@ static uint32_t s_passkey;
 static const app_ble_char_def_t k_chars[APP_BLE_CH_COUNT] = {
     [APP_BLE_CH_DEVICE_INFO] = {0x0001, APP_BLE_PROP_READ, APP_BLE_SEC_OPEN,
                                 BRIDGE_DEVICE_INFO_SIZE, "device_info"},
-    /* The one that can wipe the device. */
+    /* The one that can wipe the device. `encrypted`, not `authenticated`:
+     * pairing is Just Works (no passkey to read on the glass), so a bond —
+     * not MITM — is the strongest link the app can hold. */
     [APP_BLE_CH_DEVICE_CONTROL] = {0x0006, APP_BLE_PROP_WRITE,
-                                   APP_BLE_SEC_AUTHENTICATED,
+                                   APP_BLE_SEC_ENCRYPTED,
                                    BRIDGE_DEVICE_CONTROL_MAX_SIZE,
                                    "device_control"},
     [APP_BLE_CH_LIVE_STATE] = {0x0007, APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY,
@@ -36,17 +38,34 @@ static const app_ble_char_def_t k_chars[APP_BLE_CH_COUNT] = {
                                     APP_BLE_SEC_ENCRYPTED,
                                     BRIDGE_HISTORY_PREVIEW_MAX_SIZE,
                                     "history_preview"},
-    [APP_BLE_CH_RESULT] = {0x0009, APP_BLE_PROP_NOTIFY, APP_BLE_SEC_ENCRYPTED,
-                           BRIDGE_RESULT_MAX_SIZE, "result"},
+    /* Notification carriers. READ as well as NOTIFY: some central stacks
+     * (Android) probe a notification characteristic with a Read Request
+     * after subscribing, and a notify-only declaration answers that with
+     * READ_NOT_PERMITTED. A read here returns an empty value — these carry
+     * live frames, not a readable register (ble-gatt §5.9, §5.11). */
+    [APP_BLE_CH_RESULT] = {0x0009, APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY,
+                           APP_BLE_SEC_ENCRYPTED, BRIDGE_RESULT_MAX_SIZE,
+                           "result"},
     /* v1.1 — full history over BLE. `encrypted`, not `authenticated`: these
      * two read stored cooks and change nothing. A bond is still required — a
      * cook is not public. */
     [APP_BLE_CH_HISTORY_CTRL] = {0x000A, APP_BLE_PROP_WRITE,
                                  APP_BLE_SEC_ENCRYPTED,
                                  BRIDGE_HISTORY_CTRL_SIZE, "history_ctrl"},
-    [APP_BLE_CH_HISTORY_DATA] = {0x000B, APP_BLE_PROP_NOTIFY,
+    [APP_BLE_CH_HISTORY_DATA] = {0x000B,
+                                 APP_BLE_PROP_READ | APP_BLE_PROP_NOTIFY,
                                  APP_BLE_SEC_ENCRYPTED,
                                  BRIDGE_HISTORY_DATA_MAX_SIZE, "history_data"},
+    /* v1.2 — the read-only admin snapshot. `encrypted`: it exposes the
+     * device's own operational state, which a stranger should not read. */
+    [APP_BLE_CH_DEVICE_STATS] = {0x000C, APP_BLE_PROP_READ,
+                                 APP_BLE_SEC_ENCRYPTED, BRIDGE_DEVICE_STATS_SIZE,
+                                 "device_stats"},
+    /* v1.2 — the writable settings, read back so the app can show current
+     * values. `encrypted`: settings are private to a bonded phone. */
+    [APP_BLE_CH_DEVICE_CONFIG] = {0x000D, APP_BLE_PROP_READ,
+                                  APP_BLE_SEC_ENCRYPTED,
+                                  BRIDGE_DEVICE_CONFIG_SIZE, "device_config"},
 };
 
 const app_ble_char_def_t *app_ble_char_def(app_ble_char_t ch) {
@@ -259,6 +278,64 @@ int app_ble_build_live_state(uint8_t *out, size_t cap) {
     return (int)BRIDGE_LIVE_STATE_SIZE;
 }
 
+/* §5.12 — the admin snapshot. The flags byte is built here so it cannot drift
+ * from the values it describes; the glue fills the numbers. */
+int app_ble_build_device_stats(uint8_t *out, size_t cap) {
+    if (g_ble_ops == NULL || g_ble_ops->stats == NULL ||
+        cap < BRIDGE_DEVICE_STATS_SIZE) {
+        return -1;
+    }
+    app_ble_stats_t st;
+    memset(&st, 0, sizeof st);
+    g_ble_ops->stats(&st);
+
+    bridge_device_stats_t s;
+    memset(&s, 0, sizeof s);
+    s.ver = 1;
+    s.flags = st.flags;
+    s.uptime_s = st.uptime_s;
+    s.heap_free = st.heap_free;
+    s.heap_min = st.heap_min;
+    s.storage_used_b = st.storage_used_b;
+    s.storage_total_b = st.storage_total_b;
+    s.stored_sessions = st.stored_sessions;
+    s.lora_freq_hz = st.lora_freq_hz;
+    s.lora_rssi = st.lora_rssi;
+    s.lora_snr = st.lora_snr;
+    s.packets_ok = st.packets_ok;
+    s.packets_bad = st.packets_bad;
+    s.bonds = st.bonds;
+    bridge_device_stats_encode(&s, out);
+    return (int)BRIDGE_DEVICE_STATS_SIZE;
+}
+
+/* §5.13 — the writable settings, read back for the app's editors. */
+int app_ble_build_device_config(uint8_t *out, size_t cap) {
+    if (g_ble_ops == NULL || g_ble_ops->config == NULL ||
+        cap < BRIDGE_DEVICE_CONFIG_SIZE) {
+        return -1;
+    }
+    app_ble_config_t cfg;
+    memset(&cfg, 0, sizeof cfg);
+    g_ble_ops->config(&cfg);
+
+    bridge_device_config_t d;
+    memset(&d, 0, sizeof d);
+    d.ver = 1;
+    d.display_timeout_s = cfg.display_timeout_s;
+    d.led_enabled = cfg.led_enabled;
+    d.buzzer_enabled = cfg.buzzer_enabled;
+    d.retention_max_sessions = cfg.retention_max_sessions;
+    d.retention_min_free_pct = cfg.retention_min_free_pct;
+    for (int i = 0; i < 4; i++) {
+        memcpy(d.probe_name[i], cfg.probe_name[i], sizeof d.probe_name[i]);
+        d.probe_role[i] = cfg.probe_role[i];
+        d.probe_target[i] = cfg.probe_target[i];
+    }
+    bridge_device_config_encode(&d, out);
+    return (int)BRIDGE_DEVICE_CONFIG_SIZE;
+}
+
 /* Pit probe, 1-minute buckets, newest last. The ring holds 240 samples at
  * ~30 s, i.e. 2 h — so two ring entries per bucket, and the bucket takes
  * the newer valid one. No flash is touched (ble-gatt §5.8). */
@@ -306,6 +383,16 @@ int app_ble_core_read(app_ble_char_t ch, uint8_t *out, size_t cap) {
         return app_ble_build_live_state(out, cap);
     case APP_BLE_CH_HISTORY_PREVIEW:
         return app_ble_build_history_preview(out, cap);
+    case APP_BLE_CH_DEVICE_STATS:
+        return app_ble_build_device_stats(out, cap);
+    case APP_BLE_CH_DEVICE_CONFIG:
+        return app_ble_build_device_config(out, cap);
+    case APP_BLE_CH_RESULT:
+    case APP_BLE_CH_HISTORY_DATA:
+        /* Notification carriers, readable so a central stack that probes
+         * them with a Read Request gets an empty answer rather than
+         * READ_NOT_PERMITTED. There is no register behind either. */
+        return 0;
     default:
         return -1;
     }

@@ -48,6 +48,54 @@ void main() {
       await t.close();
     });
 
+    test('a closed session whose sample_count can never be reached is drained '
+        'once and then skipped', () async {
+      final state = FakeBridgeState();
+      const id = 0x1A;
+      state.recordCook(hours: 1, closed: true); // 120 rows
+      final fake = FakePeripheral(state: state);
+      await fake.connect('AA:BB:CC:DD:AA:BB');
+      await fake.bond();
+      await fake.requestMtu(247);
+      final t = BleTransport(fake);
+      await t.start();
+      final cache = InMemorySampleCache();
+
+      // The header claims far more rows than the buffer can ever yield.
+      state.cookHeaders[id] = HistorySession(
+        sessionId: id,
+        startedUnixMs: 1774051200000,
+        endedUnixMs: 1774051200000 + 3600 * 1000,
+        sampleCount: 5000,
+        samplePeriodS: 30,
+        numProbes: 4,
+        flags: 0x03,
+        nameRaw: state.cookHeaders[id]!.nameRaw,
+      );
+      final session = (await t.sessions()).single;
+      expect(session.sampleCount, 5000);
+
+      final first = await SyncEngine().syncSession(
+        t,
+        bridgeId: 'A4F2',
+        session: session,
+        cache: cache,
+      );
+      expect(first.fetched, 120);
+      final requestsAfterFirst = fake.historyRequests;
+
+      // It is now known-complete: no transport read on the next pass.
+      final second = await SyncEngine().syncSession(
+        t,
+        bridgeId: 'A4F2',
+        session: session,
+        cache: cache,
+      );
+      expect(second.skipped, isTrue);
+      expect(fake.historyRequests, requestsAfterFirst);
+      await t.close();
+    });
+
     test('a re-sync only transfers the seconds not yet stored', () async {
       final state = FakeBridgeState();
       const id = 0x1A;
@@ -133,34 +181,37 @@ void main() {
       },
     );
 
-    test('a hole in the device stream is a permanent base-lost gap', () async {
-      final state = FakeBridgeState();
-      const id = 0x1A;
-      state.recordCook(hours: 2); // t = 0, 30, … 7170
-      // The base was lost for ~5 min: the bridge recorded nothing 300..600.
-      state.cooks[id]!.removeWhere((r) => r.t >= 300 && r.t <= 600);
-      final t = await _connected(state);
-      final cache = InMemorySampleCache();
-      final session = (await t.sessions()).single;
+    test(
+      'a hole in the device stream is a permanent Smoke X4-lost gap',
+      () async {
+        final state = FakeBridgeState();
+        const id = 0x1A;
+        state.recordCook(hours: 2); // t = 0, 30, … 7170
+        // The Smoke X4 was lost for ~5 min: the bridge recorded nothing 300..600.
+        state.cooks[id]!.removeWhere((r) => r.t >= 300 && r.t <= 600);
+        final t = await _connected(state);
+        final cache = InMemorySampleCache();
+        final session = (await t.sessions()).single;
 
-      await SyncEngine().syncSession(
-        t,
-        bridgeId: 'A4F2',
-        session: session,
-        cache: cache,
-      );
+        await SyncEngine().syncSession(
+          t,
+          bridgeId: 'A4F2',
+          session: session,
+          cache: cache,
+        );
 
-      final gaps = await cache.gaps('A4F2', id);
-      final hole = gaps.singleWhere((g) => g.reason == GapReason.baseLost);
-      expect(hole.fromT, 270);
-      expect(hole.toT, 630);
-      expect(hole.reason.isPermanent, isTrue);
-      expect(
-        gaps.where((g) => g.reason == GapReason.connectivity),
-        isEmpty,
-        reason: 'a device-side hole must not be presented as recoverable',
-      );
-      await t.close();
-    });
+        final gaps = await cache.gaps('A4F2', id);
+        final hole = gaps.singleWhere((g) => g.reason == GapReason.baseLost);
+        expect(hole.fromT, 270);
+        expect(hole.toT, 630);
+        expect(hole.reason.isPermanent, isTrue);
+        expect(
+          gaps.where((g) => g.reason == GapReason.connectivity),
+          isEmpty,
+          reason: 'a device-side hole must not be presented as recoverable',
+        );
+        await t.close();
+      },
+    );
   });
 }

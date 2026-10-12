@@ -1,6 +1,6 @@
 /* Host tests for app_config_store (F7.1–F7.3): typed round-trips over an
  * in-memory backend, the reference-compatible sx_pair blob, the v0→v1
- * adoption migration, change notifications, and PSK generation. */
+ * adoption migration, and change notifications. */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -85,14 +85,6 @@ static const app_config_backend_t g_backend = {
     .erase_all = mem_erase_all,
     .ctx = &g_mem,
 };
-
-/* Deterministic RNG whose sequence changes as it is consumed, so a factory
- * reset visibly regenerates the PSK. */
-static uint32_t g_rng_state = 0x12345678u;
-static uint32_t fake_rng(void) {
-    g_rng_state = g_rng_state * 1664525u + 1013904223u;
-    return g_rng_state;
-}
 
 /* ── Notification capture ─────────────────────────────────────────────── */
 
@@ -183,7 +175,7 @@ static void test_every_key_round_trips(void) {
 
 static void test_defaults_before_write(void) {
     mem_erase_all(&g_mem);
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_init(&g_backend), APP_CONFIG_OK);
 
     uint8_t u8v = 99;
     CHECK_EQ_INT(app_config_store_get_u8(APP_CONFIG_DEV_RETENTION_MAX_SESSIONS,
@@ -201,12 +193,6 @@ static void test_defaults_before_write(void) {
     CHECK_EQ_INT(app_config_store_get_u32(APP_CONFIG_SESSION_NEXT_ID, &u32v),
                  APP_CONFIG_OK);
     CHECK_EQ_INT(u32v, 1);
-
-    char buf[40];
-    CHECK_EQ_INT(
-        app_config_store_get_str(APP_CONFIG_NET_HOSTNAME, buf, sizeof buf),
-        APP_CONFIG_OK);
-    CHECK(strcmp(buf, "smokebridge") == 0);
 
     /* Type confusion is an error, not a coercion. */
     CHECK_EQ_INT(app_config_store_get_u8(APP_CONFIG_SESSION_NEXT_ID, &u8v),
@@ -264,7 +250,7 @@ static void test_reference_pairing_is_adopted(void) {
         mem_set(&g_mem, "smoke_x", "config", ref_blob, sizeof ref_blob),
         APP_CONFIG_OK);
 
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_init(&g_backend), APP_CONFIG_OK);
     CHECK_EQ_INT(app_config_store_version(), 1);
 
     app_config_pairing_t p;
@@ -275,7 +261,7 @@ static void test_reference_pairing_is_adopted(void) {
 
     /* Idempotent: a second init must not re-adopt over a later unpair. */
     CHECK_EQ_INT(app_config_store_clear_pairing(), APP_CONFIG_OK);
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_init(&g_backend), APP_CONFIG_OK);
     CHECK_EQ_INT(app_config_store_get_pairing(&p), APP_CONFIG_ERR_NOT_FOUND);
 }
 
@@ -301,42 +287,9 @@ static void test_notifications_once_per_write(void) {
     CHECK_EQ_INT(g_notify_count, 2);
 }
 
-static void test_psk_generation(void) {
-    mem_erase_all(&g_mem);
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
-
-    char psk[APP_CONFIG_PSK_LEN + 1];
-    CHECK_EQ_INT(
-        app_config_store_get_str(APP_CONFIG_NET_AP_PSK, psk, sizeof psk),
-        APP_CONFIG_OK);
-    CHECK_EQ_INT((int)strlen(psk), APP_CONFIG_PSK_LEN);
-    for (int i = 0; i < APP_CONFIG_PSK_LEN; i++) {
-        CHECK(strchr("0O1lI", psk[i]) == NULL);
-        CHECK((psk[i] >= '2' && psk[i] <= '9') ||
-              (psk[i] >= 'a' && psk[i] <= 'z') ||
-              (psk[i] >= 'A' && psk[i] <= 'Z'));
-    }
-
-    /* Stable across reboots... */
-    char again[APP_CONFIG_PSK_LEN + 1];
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
-    CHECK_EQ_INT(
-        app_config_store_get_str(APP_CONFIG_NET_AP_PSK, again, sizeof again),
-        APP_CONFIG_OK);
-    CHECK(strcmp(psk, again) == 0);
-
-    /* ...regenerated only on factory reset. */
-    CHECK_EQ_INT(app_config_store_factory_reset(), APP_CONFIG_OK);
-    CHECK_EQ_INT(
-        app_config_store_get_str(APP_CONFIG_NET_AP_PSK, again, sizeof again),
-        APP_CONFIG_OK);
-    CHECK_EQ_INT((int)strlen(again), APP_CONFIG_PSK_LEN);
-    CHECK(strcmp(psk, again) != 0);
-}
-
 static void test_fresh_store_is_stamped_current(void) {
     mem_erase_all(&g_mem);
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_init(&g_backend), APP_CONFIG_OK);
     CHECK_EQ_INT(app_config_store_version(), 1);
     /* No reference data existed, so nothing was adopted. */
     app_config_pairing_t p;
@@ -344,13 +297,12 @@ static void test_fresh_store_is_stamped_current(void) {
 }
 
 int main(void) {
-    CHECK_EQ_INT(app_config_store_init(&g_backend, fake_rng), APP_CONFIG_OK);
+    CHECK_EQ_INT(app_config_store_init(&g_backend), APP_CONFIG_OK);
     test_every_key_round_trips();
     test_defaults_before_write();
     test_pairing_blob_matches_reference_layout();
     test_reference_pairing_is_adopted();
     test_notifications_once_per_write();
-    test_psk_generation();
     test_fresh_store_is_stamped_current();
     return test_summary("test_app_config");
 }

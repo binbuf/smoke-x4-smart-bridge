@@ -731,7 +731,7 @@ static void test_status_strip_shapes(void) {
     st.base_ok = false;
     st.alarm_unacked = true;
     app_ui_render_page_probes(&st, &fb);
-    golden("strip-base-lost-alarm", &fb);
+    golden("strip-smoke-x4-lost-alarm", &fb);
 
     st = cook_state();
     st.net_mode = APP_UI_NET_AP;
@@ -894,8 +894,24 @@ static void test_page_trends_goldens(void) {
 }
 
 /* The Network page is gone on this build; the Bluetooth page replaces it.
- * Its content is exercised by test_all_pages_render below, not by a golden
- * yet — the goldens for the new page are owed (see docs). */
+ * Both link states are byte-golden here, so the advertised name, the
+ * connected/advertising line, and the bond count cannot drift unnoticed. */
+static void test_page_bluetooth_goldens(void) {
+    app_ui_fb_t fb;
+    app_ui_state_t st = cook_state();
+    snprintf(st.bt_name, sizeof st.bt_name, "SmokeBridge-0A1B");
+    st.ble_conns = 1;
+    st.ble_bonds = 2;
+    app_ui_render_page_bluetooth(&st, &fb);
+    golden("page-bluetooth-connected", &fb);
+
+    /* Nothing attached yet: the page must say so and count zero bonds. */
+    st.ble_conns = 0;
+    st.ble_bonds = 0;
+    app_ui_render_page_bluetooth(&st, &fb);
+    golden("page-bluetooth-advertising", &fb);
+}
+
 static void test_page_radio_and_system_goldens(void) {
     app_ui_fb_t fb;
     app_ui_state_t st = cook_state();
@@ -1403,7 +1419,7 @@ static void test_led_patterns(void) {
     CHECK_EQ_INT(app_ui_led_duty(&in, 0), APP_UI_LED_DUTY_MAX);
     CHECK_EQ_INT(app_ui_led_duty(&in, 300), 0);
 
-    /* Precedence: alarm outranks base-lost outranks heartbeat. */
+    /* Precedence: alarm outranks Smoke X4-lost outranks heartbeat. */
     in.base_lost = true;
     in.packet_flash = true;
     CHECK_EQ_INT(app_ui_led_pattern(&in, 0), APP_UI_LED_ALARM);
@@ -1635,6 +1651,7 @@ int main(int argc, char **argv) {
     test_page_trends_goldens();
     test_cook_clock();
 
+    test_page_bluetooth_goldens();
     test_page_radio_and_system_goldens();
     test_overlay_goldens();
     test_render_dispatch();

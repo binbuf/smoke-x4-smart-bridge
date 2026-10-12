@@ -296,7 +296,7 @@ without losing anything.
 | Transport chip + connection sheet | `ConnectionSupervisor`, `TransportChip`, capability flags (§4 matrix) |
 | Mode switcher (BLE / AP / STA) | `app_net` modes; `applyNetwork`; the rollback timer + BLE escape hatch (§5 of research notes) |
 | Live probe board | `buildDashboard()` projection; `ProbeHeroCard`, `ProbeStripRow`, `ProbeCompactCard` |
-| Timer tiles | **new** — a glanceable wrapper over the projection. Consider `ProbeCompactCard` as the base. |
+| Timer tiles | **new** — a glanceable wrapper over the projection. Consider `ProbeCompactCard` as the Smoke X4. |
 | Stopwatch / start-time edit | Cook `startedAtMs`; `CookAnnotation.backdatedTo` |
 | Graph | `features/chart` (fl_chart); keep run-splitting, LTTB, labelled target lines, ≤16 % area fill |
 | Legend tap-to-isolate | `SeriesLegend` (exists, currently unwired — wire it) |

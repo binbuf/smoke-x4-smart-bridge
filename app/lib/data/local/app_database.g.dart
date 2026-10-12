@@ -1647,6 +1647,21 @@ class $SyncStatesTable extends SyncStates
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _completeMeta = const VerificationMeta(
+    'complete',
+  );
+  @override
+  late final GeneratedColumn<bool> complete = GeneratedColumn<bool>(
+    'complete',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("complete" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     bridgeId,
@@ -1655,6 +1670,7 @@ class $SyncStatesTable extends SyncStates
     deviceMinT,
     deviceMaxT,
     lastSyncUnixMs,
+    complete,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1720,6 +1736,12 @@ class $SyncStatesTable extends SyncStates
         ),
       );
     }
+    if (data.containsKey('complete')) {
+      context.handle(
+        _completeMeta,
+        complete.isAcceptableOrUnknown(data['complete']!, _completeMeta),
+      );
+    }
     return context;
   }
 
@@ -1753,6 +1775,10 @@ class $SyncStatesTable extends SyncStates
         DriftSqlType.int,
         data['${effectivePrefix}last_sync_unix_ms'],
       ),
+      complete: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}complete'],
+      )!,
     );
   }
 
@@ -1773,6 +1799,9 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
   final int? deviceMinT;
   final int? deviceMaxT;
   final int? lastSyncUnixMs;
+
+  /// A closed session fully drained from the device. See [SyncState.complete].
+  final bool complete;
   const SyncStateRow({
     required this.bridgeId,
     required this.sessionId,
@@ -1780,6 +1809,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
     this.deviceMinT,
     this.deviceMaxT,
     this.lastSyncUnixMs,
+    required this.complete,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1796,6 +1826,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
     if (!nullToAbsent || lastSyncUnixMs != null) {
       map['last_sync_unix_ms'] = Variable<int>(lastSyncUnixMs);
     }
+    map['complete'] = Variable<bool>(complete);
     return map;
   }
 
@@ -1813,6 +1844,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
       lastSyncUnixMs: lastSyncUnixMs == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSyncUnixMs),
+      complete: Value(complete),
     );
   }
 
@@ -1828,6 +1860,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
       deviceMinT: serializer.fromJson<int?>(json['deviceMinT']),
       deviceMaxT: serializer.fromJson<int?>(json['deviceMaxT']),
       lastSyncUnixMs: serializer.fromJson<int?>(json['lastSyncUnixMs']),
+      complete: serializer.fromJson<bool>(json['complete']),
     );
   }
   @override
@@ -1840,6 +1873,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
       'deviceMinT': serializer.toJson<int?>(deviceMinT),
       'deviceMaxT': serializer.toJson<int?>(deviceMaxT),
       'lastSyncUnixMs': serializer.toJson<int?>(lastSyncUnixMs),
+      'complete': serializer.toJson<bool>(complete),
     };
   }
 
@@ -1850,6 +1884,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
     Value<int?> deviceMinT = const Value.absent(),
     Value<int?> deviceMaxT = const Value.absent(),
     Value<int?> lastSyncUnixMs = const Value.absent(),
+    bool? complete,
   }) => SyncStateRow(
     bridgeId: bridgeId ?? this.bridgeId,
     sessionId: sessionId ?? this.sessionId,
@@ -1859,6 +1894,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
     lastSyncUnixMs: lastSyncUnixMs.present
         ? lastSyncUnixMs.value
         : this.lastSyncUnixMs,
+    complete: complete ?? this.complete,
   );
   SyncStateRow copyWithCompanion(SyncStatesCompanion data) {
     return SyncStateRow(
@@ -1876,6 +1912,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
       lastSyncUnixMs: data.lastSyncUnixMs.present
           ? data.lastSyncUnixMs.value
           : this.lastSyncUnixMs,
+      complete: data.complete.present ? data.complete.value : this.complete,
     );
   }
 
@@ -1887,7 +1924,8 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
           ..write('highWaterT: $highWaterT, ')
           ..write('deviceMinT: $deviceMinT, ')
           ..write('deviceMaxT: $deviceMaxT, ')
-          ..write('lastSyncUnixMs: $lastSyncUnixMs')
+          ..write('lastSyncUnixMs: $lastSyncUnixMs, ')
+          ..write('complete: $complete')
           ..write(')'))
         .toString();
   }
@@ -1900,6 +1938,7 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
     deviceMinT,
     deviceMaxT,
     lastSyncUnixMs,
+    complete,
   );
   @override
   bool operator ==(Object other) =>
@@ -1910,7 +1949,8 @@ class SyncStateRow extends DataClass implements Insertable<SyncStateRow> {
           other.highWaterT == this.highWaterT &&
           other.deviceMinT == this.deviceMinT &&
           other.deviceMaxT == this.deviceMaxT &&
-          other.lastSyncUnixMs == this.lastSyncUnixMs);
+          other.lastSyncUnixMs == this.lastSyncUnixMs &&
+          other.complete == this.complete);
 }
 
 class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
@@ -1920,6 +1960,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
   final Value<int?> deviceMinT;
   final Value<int?> deviceMaxT;
   final Value<int?> lastSyncUnixMs;
+  final Value<bool> complete;
   final Value<int> rowid;
   const SyncStatesCompanion({
     this.bridgeId = const Value.absent(),
@@ -1928,6 +1969,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
     this.deviceMinT = const Value.absent(),
     this.deviceMaxT = const Value.absent(),
     this.lastSyncUnixMs = const Value.absent(),
+    this.complete = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SyncStatesCompanion.insert({
@@ -1937,6 +1979,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
     this.deviceMinT = const Value.absent(),
     this.deviceMaxT = const Value.absent(),
     this.lastSyncUnixMs = const Value.absent(),
+    this.complete = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : bridgeId = Value(bridgeId),
        sessionId = Value(sessionId);
@@ -1947,6 +1990,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
     Expression<int>? deviceMinT,
     Expression<int>? deviceMaxT,
     Expression<int>? lastSyncUnixMs,
+    Expression<bool>? complete,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1956,6 +2000,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
       if (deviceMinT != null) 'device_min_t': deviceMinT,
       if (deviceMaxT != null) 'device_max_t': deviceMaxT,
       if (lastSyncUnixMs != null) 'last_sync_unix_ms': lastSyncUnixMs,
+      if (complete != null) 'complete': complete,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1967,6 +2012,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
     Value<int?>? deviceMinT,
     Value<int?>? deviceMaxT,
     Value<int?>? lastSyncUnixMs,
+    Value<bool>? complete,
     Value<int>? rowid,
   }) {
     return SyncStatesCompanion(
@@ -1976,6 +2022,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
       deviceMinT: deviceMinT ?? this.deviceMinT,
       deviceMaxT: deviceMaxT ?? this.deviceMaxT,
       lastSyncUnixMs: lastSyncUnixMs ?? this.lastSyncUnixMs,
+      complete: complete ?? this.complete,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2001,6 +2048,9 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
     if (lastSyncUnixMs.present) {
       map['last_sync_unix_ms'] = Variable<int>(lastSyncUnixMs.value);
     }
+    if (complete.present) {
+      map['complete'] = Variable<bool>(complete.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2016,6 +2066,7 @@ class SyncStatesCompanion extends UpdateCompanion<SyncStateRow> {
           ..write('deviceMinT: $deviceMinT, ')
           ..write('deviceMaxT: $deviceMaxT, ')
           ..write('lastSyncUnixMs: $lastSyncUnixMs, ')
+          ..write('complete: $complete, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2864,6 +2915,7 @@ typedef $$SyncStatesTableCreateCompanionBuilder =
       Value<int?> deviceMinT,
       Value<int?> deviceMaxT,
       Value<int?> lastSyncUnixMs,
+      Value<bool> complete,
       Value<int> rowid,
     });
 typedef $$SyncStatesTableUpdateCompanionBuilder =
@@ -2874,6 +2926,7 @@ typedef $$SyncStatesTableUpdateCompanionBuilder =
       Value<int?> deviceMinT,
       Value<int?> deviceMaxT,
       Value<int?> lastSyncUnixMs,
+      Value<bool> complete,
       Value<int> rowid,
     });
 
@@ -2913,6 +2966,11 @@ class $$SyncStatesTableFilterComposer
 
   ColumnFilters<int> get lastSyncUnixMs => $composableBuilder(
     column: $table.lastSyncUnixMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get complete => $composableBuilder(
+    column: $table.complete,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2955,6 +3013,11 @@ class $$SyncStatesTableOrderingComposer
     column: $table.lastSyncUnixMs,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get complete => $composableBuilder(
+    column: $table.complete,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SyncStatesTableAnnotationComposer
@@ -2991,6 +3054,9 @@ class $$SyncStatesTableAnnotationComposer
     column: $table.lastSyncUnixMs,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get complete =>
+      $composableBuilder(column: $table.complete, builder: (column) => column);
 }
 
 class $$SyncStatesTableTableManager
@@ -3030,6 +3096,7 @@ class $$SyncStatesTableTableManager
                 Value<int?> deviceMinT = const Value.absent(),
                 Value<int?> deviceMaxT = const Value.absent(),
                 Value<int?> lastSyncUnixMs = const Value.absent(),
+                Value<bool> complete = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncStatesCompanion(
                 bridgeId: bridgeId,
@@ -3038,6 +3105,7 @@ class $$SyncStatesTableTableManager
                 deviceMinT: deviceMinT,
                 deviceMaxT: deviceMaxT,
                 lastSyncUnixMs: lastSyncUnixMs,
+                complete: complete,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3048,6 +3116,7 @@ class $$SyncStatesTableTableManager
                 Value<int?> deviceMinT = const Value.absent(),
                 Value<int?> deviceMaxT = const Value.absent(),
                 Value<int?> lastSyncUnixMs = const Value.absent(),
+                Value<bool> complete = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncStatesCompanion.insert(
                 bridgeId: bridgeId,
@@ -3056,6 +3125,7 @@ class $$SyncStatesTableTableManager
                 deviceMinT: deviceMinT,
                 deviceMaxT: deviceMaxT,
                 lastSyncUnixMs: lastSyncUnixMs,
+                complete: complete,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

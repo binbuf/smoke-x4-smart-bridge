@@ -115,7 +115,7 @@ load-bearing — it is what keeps us a listener rather than a device that can di
 - **design:** [02 §2.7](../design/02-smoke-x-protocol.md)
 
 `GetPacketStatus()` already yields both. Record them per sample as `int8`. Link quality is genuinely
-useful — it tells the user when the bridge is about to lose the base station, and it makes antenna
+useful — it tells the user when the bridge is about to lose the Smoke X4, and it makes antenna
 placement a measurement rather than a guess.
 
 **Done when:** both values reach `bridge_sample_t` and survive the record encode.
@@ -125,7 +125,7 @@ placement a measurement rather than a guess.
 - **blocked-by:** F2.2 · **verify:** H · **board:** no
 - **design:** [02 §2.4](../design/02-smoke-x-protocol.md)
 
-Alternate 915 ↔ 920 MHz every **3.3 s** while the base beacons every 3 s — deliberately offset so the
+Alternate 915 ↔ 920 MHz every **3.3 s** while the Smoke X4 beacons every 3 s — deliberately offset so the
 two never lock into a beat pattern that starves one channel.
 
 **Done when:** a host test confirms the dwell is 3.3 s and both channels are visited.
@@ -227,7 +227,7 @@ recovery. Counters for valid messages, CRC failures, unknown comma counts, and d
 plus an inter-packet interval histogram — cheap, and it turns _"it seems flaky"_ into a number.
 
 The optional re-scan after 60 min with no packets **and** no active cook stays config-gated and
-**default off**: silently re-pairing to a different base station would be worse than staying put.
+**default off**: silently re-pairing to a different Smoke X4 would be worse than staying put.
 
 **Done when:** the watchdog fires and clears on a synthetic packet gap, and the re-scan does not
 engage by default.

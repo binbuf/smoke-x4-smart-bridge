@@ -36,7 +36,7 @@ built one:
 Three pieces of hardware and one app:
 
 ```
-ThermoWorks Smoke X (base station)   →  LoRa, one packet ≈ every 30 s
+ThermoWorks Smoke X4   →  LoRa, one packet ≈ every 30 s
         ↓
 Smoke Bridge (ESP32-S3, custom)      →  BLE GATT + Wi-Fi HTTP/WebSocket, OLED, LED, battery
         ↓
@@ -44,7 +44,7 @@ This Flutter app (phone)
 ```
 
 The Smoke X is a four-probe barbecue thermometer with its own long-range receiver. The **bridge** is
-a custom device that listens to the base station's LoRa broadcasts, records every reading to its own
+a custom device that listens to the Smoke X4's LoRa broadcasts, records every reading to its own
 flash, runs its own alarm rules, and re-publishes everything over Bluetooth and Wi-Fi (and
 optionally MQTT / Home Assistant). The app is the bridge's front end.
 
@@ -190,7 +190,7 @@ The six digits are generated on the bridge and appear only on its OLED; `Passkey
 
 **Hop 2 — bridge ↔ Smoke X over LoRa**
 
-Illustrated "hold SYNC on the base station" instruction → a **non-destructive** listen window (a
+Illustrated "hold SYNC on the Smoke X4" instruction → a **non-destructive** listen window (a
 button labelled Pair must never unpair: the existing binding is preserved) → `heard` →
 `confirmed`, whose payoff screen shows **real probe temperatures**. Failures are named by cause
 (`timeoutNoBeacon`, `timeoutNoState`, `garbled`, `ackFailed` — the last auto-retries twice).
@@ -288,11 +288,11 @@ long-press for a crosshair. Live mode auto-scrolls until the user pans, then sto
 | ≤ 45 s | `live` — full ink, pulse dot animating |
 | ≤ 90 s | `aging` — still live-ish, pulse continues |
 | ≤ 600 s | `stale` — **StaleVeil**: desaturated, dimmed, with "Readings are 4 minutes old" pinned over them; derived values (ETA, gauges) are **removed, not greyed** |
-| > 600 s, or base station lost | `frozen` — "No readings for 4 hours" |
+| > 600 s, or Smoke X4 lost | `frozen` — "No readings for 4 hours" |
 
 A stale number that still looks live is the exact failure this app is built to prevent.
 
-**Other states on this screen:** not paired to a base station ("This bridge hasn't met your Smoke X
+**Other states on this screen:** not paired to a Smoke X4 ("This bridge hasn't met your Smoke X
 yet" — *not* "plug a probe"); paired but nothing plugged in; offline with an empty cache
 ("Can't reach your bridge · Saved cooks are still here. Pull down to try again"); on Bluetooth, a
 capability notice reading "On Bluetooth — live readings only."
@@ -385,7 +385,7 @@ A missing measurement renders "Measuring…" or "Couldn't measure it just now" �
 A transport swap discards the previous reading rather than relabelling it. The poll (20 s) runs
 **only while this tab is visible**.
 
-**Identity card:** device id, address, firmware, last reading, Smoke X base paired/not. When
+**Identity card:** device id, address, firmware, last reading, Smoke X4 paired/not. When
 disconnected it is explicitly framed *"Not connected — these are the last known details"* (the
 board-found bug this fixed: a factory-reset bridge whose old id and IP still read as current).
 **Five taps on the firmware row** opens the diagnostics console — the Android "Build number"
@@ -421,7 +421,7 @@ bridge on this phone at the same moment and offers **[ Set it up again ]**.
 | **Firmware** | yes | Installed version; OTA streaming with device-reported progress; the `409 session_active` refusal is surfaced as copy plus a deliberate "Update anyway, ending this cook" — never an automatic retry. No file picker is wired, so today it explains the web installer / USB route instead |
 | **About** | yes | App version, firmware, bridge id, and the MIT attribution for the reference packet parser (a legal obligation, so it is a committed string) |
 | **Alarms** | **no entry point** | Two visibly different tiers ("On the bridge — these keep working with your phone switched off"; "On this phone — advisory only"), quiet hours, background monitoring, battery exemption, and an alarm log with acknowledge |
-| **Diagnostics** | via the five-tap gate | LoRa/radio rows, base-station re-scan and unpair, raw packet ring, unrecognised-packet log, in-app log, export logs |
+| **Diagnostics** | via the five-tap gate | LoRa/radio rows, Smoke X4 re-scan and unpair, raw packet ring, unrecognised-packet log, in-app log, export logs |
 | **Power** | no (Bridge tab owns these verbs) | Restart / power off / factory reset with dialogs — a second, older implementation of the same verbs |
 
 ### 4.7 Global chrome (rides above every tab)
@@ -556,7 +556,7 @@ out. Only a read that also fails triggers failover.
 | Mechanism | Cadence | Purpose |
 |---|---|---|
 | WebSocket / BLE notify | push | samples, alarms, session events, net mode, power, pairing, OTA phase |
-| Backstop poll | 10 s | catches a missed push; the base station only transmits every ~30 s, so this is not an attempt to read faster than reality |
+| Backstop poll | 10 s | catches a missed push; the Smoke X4 only transmits every ~30 s, so this is not an attempt to read faster than reality |
 | Bridge-tab signal poll | 20 s, visible tab only | signal strength |
 | Ongoing notification | 30 s | the live readout in the shade |
 | Pull-to-refresh | user | **reconnect both radios if offline, then read live now**, and report failure honestly |
@@ -632,8 +632,8 @@ makes people trust it and then get burned.
 
 ### 8.3 Cook plans, presets and food safety
 
-A plan is app-tier only: it never reaches the Smoke X base (the bridge transmits exactly one packet
-per pairing), so app targets drive the app's gauges and advisory alarms, not the base's beeper.
+A plan is app-tier only: it never reaches the Smoke X4 (the bridge transmits exactly one packet
+per pairing), so app targets drive the app's gauges and advisory alarms, not the Smoke X4's beeper.
 
 **`CookPlan`'s constructor is a food-safety gate.** Targets are hazard-classed, and a food target
 below its protein's floor throws — so an unsafe plan is a build-time failure for the preset table and
@@ -648,7 +648,7 @@ food-safety data and is flagged in-code as **needing a named reviewer before it 
 
 | Tier | Owner | Promise |
 |---|---|---|
-| **Device** | the bridge | Runs on the ESP32. Keeps working with the phone switched off, out of range, or flat. Nine rules: base-station alarm, target reached, pit out of band, pit crashing, probe unplugged, base station lost, battery low, storage nearly full, unexpected restart |
+| **Device** | the bridge | Runs on the ESP32. Keeps working with the phone switched off, out of range, or flat. Nine rules: Smoke X4 alarm, target reached, pit out of band, pit crashing, probe unplugged, Smoke X4 lost, battery low, storage nearly full, unexpected restart |
 | **App** | this phone | **Advisory only.** Needs the app running, and never replaces the bridge's alarms: ETA-soon, stall started/ended, lid open, bridge unreachable, phone offline |
 
 Listing them as one list of switches would imply the phone tier can be switched off and the device

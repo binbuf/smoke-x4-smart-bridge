@@ -179,6 +179,7 @@ class DriftSampleCache implements SampleCache {
       deviceMinT: row.deviceMinT,
       deviceMaxT: row.deviceMaxT,
       lastSyncMs: row.lastSyncUnixMs ?? 0,
+      complete: row.complete,
     );
   }
 
@@ -198,6 +199,7 @@ class DriftSampleCache implements SampleCache {
             deviceMinT: Value(state.deviceMinT),
             deviceMaxT: Value(state.deviceMaxT),
             lastSyncUnixMs: Value(state.lastSyncMs),
+            complete: Value(state.complete),
           ),
         );
   }
@@ -210,6 +212,11 @@ class DriftSampleCache implements SampleCache {
       await db.delete(db.syncStates).go();
     });
   }
+
+  /// Drops every cached session header too. Used after a bridge factory reset,
+  /// where the device's own history is gone and the phone's copy would
+  /// otherwise show cooks the bridge no longer has.
+  Future<void> clearSessions() => db.delete(db.sessions).go();
 
   // ── session store ───────────────────────────────────────────────────────
 

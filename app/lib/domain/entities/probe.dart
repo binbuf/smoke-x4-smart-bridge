@@ -1,4 +1,4 @@
-/// The four physical jacks on the Smoke X4 base, 1..4.
+/// The four physical jacks on the Smoke X4, 1..4.
 ///
 /// The slim app treats jacks generically: the BLE contract carries no per-probe
 /// name or role (`history_session` is a lossy projection of the header), so a

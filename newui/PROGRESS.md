@@ -80,7 +80,7 @@ Status: **done** (N2.1–N2.32 all landed; the dev panel widget and boot deep-li
 - Content `app/lib/data/content/`: `catalog_data.dart`, `styles_data.dart`, `fixtures_data.dart` (**generated** by `node app/tool/gen_mock_content.mjs` from `newui/mock-data.js`); hand-written `timelines.dart`, `catalog.dart`, `scenarios.dart`.
 - Models `app/lib/data/model/`: `catalog_entry.dart`, `connection_state.dart`, `cook_state.dart`, `bridge_snapshot.dart` (freezed), `app_settings.dart` (freezed), `alarm.dart`, `alarm_rule.dart`, `connection_mode.dart`, `device_info.dart`, `history_entry.dart`, `mock_event.dart`.
 - Repo `app/lib/data/repository/`: `bridge_repository.dart`, `mock_bridge_repository.dart`, `mock_event_bus.dart`, `prefs_repository.dart`. Providers `app/lib/data/providers.dart`; barrel `app/lib/data/data.dart`; dev control `app/lib/data/dev_panel.dart`.
-- Widgets `app/lib/features/dev/`: `dev_panel.dart` (`DevPanel`, N2.31, release-excluded) and `dev_boot.dart` (`applyDevDeepLink`, N2.32). `app/lib/app/bootstrap.dart` parses `Uri.base` and overrides `initialDevDeepLinkProvider`.
+- Widgets `app/lib/features/dev/`: `dev_panel.dart` (`DevPanel`, N2.31, release-excluded) and `dev_boot.dart` (`applyDevDeepLink`, N2.32). `app/lib/app/bootstrap.dart` parses `Uri.Smoke X4` and overrides `initialDevDeepLinkProvider`.
 - Tests `app/test/data/{content_validation,timeline,mock_repository,settings,dev_panel}_test.dart`; `app/test/features/{dev_panel_widget,dev_boot}_test.dart`.
 
 **Commands that work (repo root)**
@@ -111,7 +111,7 @@ Status: **done** (N2.1–N2.32 all landed; the dev panel widget and boot deep-li
 Status: **done**. `flutter test` green (**201**, was 152); `flutter analyze` clean; format check clean; `dart test test/domain test/data` still green (131).
 
 **Real paths (all under `app/lib/design/`; import the barrel `design/design.dart`)**
-- `tokens.dart` — `SmokeTokens` (ThemeExtension), `SmokeSpacing`, `SmokeRadii`, `SmokeDensity`, `SmokeProfile`. `SmokeTokens.tint(base, alpha)` is the Flutter spelling of `rgba(var(--x-rgb), a)`; `series(jack)`, `statusFill/statusBorder`.
+- `tokens.dart` — `SmokeTokens` (ThemeExtension), `SmokeSpacing`, `SmokeRadii`, `SmokeDensity`, `SmokeProfile`. `SmokeTokens.tint(Smoke X4, alpha)` is the Flutter spelling of `rgba(var(--x-rgb), a)`; `series(jack)`, `statusFill/statusBorder`.
 - `theme.dart` — `SmokeThemeData.build/dark/light({brightness, profile, density, reducedMotion})`; keeps the `SmokeTheme` font/dark-alias façade N0/N2 code uses.
 - `motion.dart` — `SmokeMotion` (quick 120 / standard 220 / value 600 / gauge 800 / pulse 2 s; `effective()` zeroes all but pulse under reduced motion).
 - `text.dart` — `SmokeText` (16 named styles, tabular `tnum` on numerics) + `SmokeTextScale` (hero 96→56, gauge 84→64→dropped at >1.3×).
@@ -640,7 +640,7 @@ Status: **done**. `make app.test` green (**609**; N14 adds 26 — 18 pure + 8 wi
 - **`setupStateProvider` lives above the overlay** (resume on reopen); finish/skip call `reset()`. Finish persists units + `bridgeName` + `paired` and calls `BridgeRepository.connect()`; skip persists `skipped`.
 - **`SheetOverlay` gained `footBuilder`**; the host prefers it over `foot`. `_OverlayPlaceholder`/`_propLine` and the `shell-overlay-copy`/`-props` keys were removed (onboarding was the last placeholder).
 - **Passkey is structural-only**: no code field/parameter; `kPasskeyPlaceholder = '••••••'`. A test asserts no `Text` renders a 6-digit code. N15 owns the real platform passkey flow.
-- Keys: `onboarding-surface`/`-body`/`-foot`/`-step-rail`/`-step-dot-<i>`/`-next`/`-back`/`-skip`/`-welcome`/`-welcome-copy`/`-preflight`/`-perm-<Name>`/`-perm-allow-<Name>`/`-scan`/`-scan-ring`/`-found-bridge`/`-found-sub`/`-troubleshoot-link`/`-troubleshoot`/`-ts-<i>`/`-passkey`/`-passkey-note`/`-sync`/`-listener-notice`/`-skip-base`/`-network`/`-mode-<id>`/`-name`/`-name-field`/`-units`/`-done`/`-done-copy`/`-hop-<Hop>`/`-hop-status-<Hop>`/`-fault`/`-fault-title`/`-fault-body`/`-fault-recover`; Live `live-connect-bridge`. Permission keys use the display name (`-perm-allow-Bluetooth`).
+- Keys: `onboarding-surface`/`-body`/`-foot`/`-step-rail`/`-step-dot-<i>`/`-next`/`-back`/`-skip`/`-welcome`/`-welcome-copy`/`-preflight`/`-perm-<Name>`/`-perm-allow-<Name>`/`-scan`/`-scan-ring`/`-found-bridge`/`-found-sub`/`-troubleshoot-link`/`-troubleshoot`/`-ts-<i>`/`-passkey`/`-passkey-note`/`-sync`/`-listener-notice`/`-skip-Smoke X4`/`-network`/`-mode-<id>`/`-name`/`-name-field`/`-units`/`-done`/`-done-copy`/`-hop-<Hop>`/`-hop-status-<Hop>`/`-fault`/`-fault-title`/`-fault-body`/`-fault-recover`; Live `live-connect-bridge`. Permission keys use the display name (`-perm-allow-Bluetooth`).
 
 **Deviations / gotchas**
 - Default `onboardStatus: paired` means the mock never auto-opens the wizard; tests set `fresh` explicitly.

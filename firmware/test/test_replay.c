@@ -110,7 +110,7 @@ static const smoke_x_ops_t g_ops = {
 static size_t run_replay(uint8_t *out, size_t cap, uint32_t *session_id) {
     memfs_reset();
     cfg_erase_all(NULL);
-    if (app_config_store_init(&g_cfg_backend, cfg_rng) != APP_CONFIG_OK ||
+    if (app_config_store_init(&g_cfg_backend) != APP_CONFIG_OK ||
         cook_store_core_init(&g_vfs, NULL, NULL) != COOK_STORE_OK ||
         smoke_x_ctrl_init(&g_ops, NULL, false, 0) != 0) {
         return 0;

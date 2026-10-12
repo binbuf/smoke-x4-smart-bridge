@@ -106,11 +106,11 @@ class SimState {
     return min(t, last + 1);
   }
 
-  /// Whether the base station has gone quiet (base-lost scenario).
+  /// Whether the Smoke X4 has gone quiet (Smoke X4-lost scenario).
   bool baseLostAt(int vT) => baseLostAfterS != null && vT >= baseLostAfterS!;
 
   /// Samples the live surface may see at the cursor: paired, not stopped,
-  /// and not after the base was lost.
+  /// and not after the Smoke X4 was lost.
   List<SampleRec> liveVisible(int vT) {
     if (!paired) {
       return const [];

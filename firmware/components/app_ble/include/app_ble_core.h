@@ -55,6 +55,9 @@ typedef enum {
     /* v1.1 full history over BLE. */
     APP_BLE_CH_HISTORY_CTRL,    /* 000A */
     APP_BLE_CH_HISTORY_DATA,    /* 000B */
+    /* v1.2 device administration, read-only. */
+    APP_BLE_CH_DEVICE_STATS,    /* 000C */
+    APP_BLE_CH_DEVICE_CONFIG,   /* 000D */
     APP_BLE_CH_COUNT,
 } app_ble_char_t;
 
@@ -105,8 +108,46 @@ typedef struct {
     uint8_t mac[6];
 } app_ble_sysinfo_t;
 
+/* The device telemetry the OLED System/Radio pages show, gathered by the glue
+ * from the components that own each value. `flags` mirrors
+ * device_stats.flags (ble-gatt §5.12). */
+typedef struct {
+    uint8_t flags;
+    uint32_t uptime_s;
+    uint32_t heap_free;
+    uint32_t heap_min;
+    uint32_t storage_used_b;
+    uint32_t storage_total_b;
+    uint16_t stored_sessions;
+    uint32_t lora_freq_hz;
+    int8_t lora_rssi;
+    int8_t lora_snr;
+    uint32_t packets_ok;
+    uint32_t packets_bad;
+    uint8_t bonds;
+} app_ble_stats_t;
+
+/* The writable settings (v1.2), gathered by the glue so the app can show
+ * current values before editing them. `probe_role` carries WIRE probe_role
+ * values (unused 0, pit 1, food 2, ambient 3). */
+typedef struct {
+    uint16_t display_timeout_s;
+    uint8_t led_enabled;
+    uint8_t buzzer_enabled;
+    uint8_t retention_max_sessions;
+    uint8_t retention_min_free_pct;
+    char probe_name[4][17];
+    uint8_t probe_role[4];
+    int16_t probe_target[4];
+} app_ble_config_t;
+
 typedef struct {
     void (*sysinfo)(app_ble_sysinfo_t *out);
+    /* §5.12: the device_stats snapshot. Gathered by the glue from the
+     * components that own each value (heap, storage, radio, bonds). */
+    void (*stats)(app_ble_stats_t *out);
+    /* §5.13: the current writable settings, for device_config read-back. */
+    void (*config)(app_ble_config_t *out);
     /* Push `len` bytes on `ch`. The chunker has already split at the
      * negotiated boundary, so the glue never fragments anything. */
     int (*notify)(app_ble_char_t ch, const uint8_t *buf, size_t len);
@@ -138,6 +179,11 @@ int app_ble_core_init(const app_ble_ops_t *ops);
 
 int app_ble_build_device_info(uint8_t *out, size_t cap);
 int app_ble_build_live_state(uint8_t *out, size_t cap);
+/* §5.12 — the read-only device_stats snapshot (uptime, heap, storage, radio,
+ * bonds). Fixed 39 B. */
+int app_ble_build_device_stats(uint8_t *out, size_t cap);
+/* §5.13 — the current writable settings (device_config read). Fixed 87 B. */
+int app_ble_build_device_config(uint8_t *out, size_t cap);
 /* The pit probe's last 2 h at 1-minute buckets, straight from cook_ring —
  * no flash read, ≤ 120 values (ble-gatt §5.8). A ring shorter than 2 h
  * yields count < 120 rather than padding. */

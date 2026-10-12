@@ -10,7 +10,7 @@
  * on the host. The controller in smoke_x.c wraps these calls with event
  * dispatch, NVS, and history tracking.
  *
- * Sync message (sent by the base station during pairing):
+ * Sync message (sent by the Smoke X4 during pairing):
  *   <?>,<deviceid>,<freq_b0>,<freq_b1>,<freq_b2>,<freq_b3>,
  *   - freq bytes are decimal-encoded little-endian uint32 of the operating
  *     frequency in Hz (e.g. 920000000)
@@ -38,7 +38,7 @@
 unsigned int smoke_x_parser_count_commas(const char *msg);
 
 /*
- * Parse a sync message from the base station. Returns 0 on success, -1 if
+ * Parse a sync message from the Smoke X4. Returns 0 on success, -1 if
  * any field is missing or inputs are NULL. On success `out->frequency` holds
  * the operating frequency in Hz (caller must still validate the range) and
  * `out->device_id` is a null-terminated string.

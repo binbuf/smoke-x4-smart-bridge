@@ -27,7 +27,7 @@ a `SituationProbe`. Pinned by `test/features/situation_is_app_wide_test.dart`.
 ## 2. The freshness ladder was frozen at connect time
 
 The honesty spine ran on `BridgeStatus.lastPacketSAgo` — a *device* counter
-measuring the **base station's** silence, not ours, read once in
+measuring the **Smoke X4's** silence, not ours, read once in
 `BridgeSession.start()` and re-read only when an alarm, session or pairing
 frame happened to arrive. A quiet fourteen-hour cook read it once and reported
 `live` for the duration: no veil, no stopped pulse, a four-hour-old number

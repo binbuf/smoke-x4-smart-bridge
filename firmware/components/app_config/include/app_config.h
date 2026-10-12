@@ -11,9 +11,8 @@
 extern "C" {
 #endif
 
-/* Wires the NVS backend into the store, runs migrations, and generates the
- * AP PSK on first boot. NVS itself must already be initialised (boot step 3).
- * Returns APP_CONFIG_OK on success. */
+/* Wires the NVS backend into the store and runs migrations. NVS itself must
+ * already be initialised (boot step 3). Returns APP_CONFIG_OK on success. */
 int app_config_init(void);
 
 #ifdef __cplusplus

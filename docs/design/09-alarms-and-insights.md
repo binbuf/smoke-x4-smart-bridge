@@ -32,12 +32,12 @@ a 10 s tick.
 
 | Rule              | Default             | Trigger                                                                                     | Severity           |
 | ----------------- | ------------------- | ------------------------------------------------------------------------------------------- | ------------------ |
-| `smoke_x_alarm`   | on                  | The base's own alarm: packet `new_alarm` set, or an alarm-enabled probe outside its min/max | critical           |
+| `smoke_x_alarm`   | on                  | The Smoke X4's own alarm: packet `new_alarm` set, or an alarm-enabled probe outside its min/max | critical           |
 | `target_reached`  | on                  | A `food` probe crosses its configured target upward                                         | critical           |
 | `pit_out_of_band` | on, ±25 °F / 10 min | `pit` probe outside target ± band, sustained                                                | warning            |
 | `pit_crash`       | on                  | `pit` falls > 50 °F below target **and** slope < −10 °F/hr for 10 min — the fire is dying   | critical           |
 | `probe_detached`  | on                  | A probe goes attached → detached during a session                                           | warning            |
-| `base_lost`       | on, 10 min          | No valid state message from the base station                                                | warning            |
+| `base_lost`       | on, 10 min          | No valid state message from the Smoke X4                                                | warning            |
 | `battery_low`     | on, 15 % / 5 %      | Bridge battery, two thresholds                                                              | warning / critical |
 | `storage_low`     | on, 2 % free        | `cooks` partition nearly full                                                               | warning            |
 | `system_fault`    | on                  | A coredump was found at boot — the bridge restarted unexpectedly                            | warning            |

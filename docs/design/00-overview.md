@@ -5,7 +5,7 @@
 **Smoke X4 Smart Bridge** is a monorepo containing:
 
 1. **Firmware** for a Heltec WiFi LoRa 32 V3 (ESP32-S3 + SX1262) that passively receives the
-   915 MHz LoRa transmissions from a ThermoWorks Smoke X2/X4 base station, decodes them,
+   915 MHz LoRa transmissions from a ThermoWorks Smoke X2/X4, decodes them,
    **persists a full multi-day cook history to flash**, and serves that data over Wi-Fi (HTTP +
    WebSocket) and Bluetooth LE.
 2. **A Flutter app** (Android first) that discovers the bridge, provisions its network mode over
@@ -60,7 +60,7 @@ right shape regardless.
 ### In scope (v1.0)
 
 - Smoke X2 **and** X4 support (X4 is the target; X2 falls out of the same parser)
-- Pair / unpair with the base station, survive reboots
+- Pair / unpair with the Smoke X4, survive reboots
 - Persist every received sample to flash, indefinitely, with timestamps
 - Two network modes — **Hosted AP** and **Joined STA** — selectable at boot, from BLE, or from the
   HTTP API (not from the button: see D15)
@@ -111,7 +111,7 @@ right shape regardless.
 
 ```
    ┌───────────────────────── ThermoWorks (untouched) ──────────────────────────┐
-   │  4× probes ──► Smoke X4 base station ──LoRa 915MHz──► stock receiver(s)    │
+   │  4× probes ──► Smoke X4 ──LoRa 915MHz──► stock receiver(s)    │
    │                       Billows ──►                                          │
    └───────────────────────────────┬────────────────────────────────────────────┘
                                    │  (broadcast, every 30 s)
@@ -155,14 +155,14 @@ right shape regardless.
 | Term               | Meaning                                                                                                                                   |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | **Bridge**         | The Heltec board running our firmware                                                                                                     |
-| **Base station**   | The ThermoWorks Smoke X2/X4 unit the probes plug into; the LoRa transmitter                                                               |
+| **Smoke X4**   | The ThermoWorks Smoke X2/X4 unit the probes plug into; the LoRa transmitter                                                               |
 | **Receiver**       | ThermoWorks' own handheld display unit. We coexist with it, we don't replace it                                                           |
-| **Pairing / sync** | The one-time handshake where the base station tells the bridge its device ID and operating frequency                                      |
+| **Pairing / sync** | The one-time handshake where the Smoke X4 tells the bridge its device ID and operating frequency                                      |
 | **Session / cook** | A bounded run of samples with a header, name, marks, and stats                                                                            |
 | **Sample**         | One decoded state message: timestamp + up to 4 temperatures + flags. Nominally every 30 s                                                 |
 | **Mark**           | A user-placed annotation on the timeline ("wrapped", "added wood")                                                                        |
 | **Pit probe**      | The probe measuring cooker ambient temperature, as distinct from a food probe. A role the user assigns; the hardware does not distinguish |
-| **Billows**        | ThermoWorks' fan controller. The base reports whether one is attached and its target temp                                                 |
+| **Billows**        | ThermoWorks' fan controller. The Smoke X4 reports whether one is attached and its target temp                                                 |
 
 ## Attribution
 
