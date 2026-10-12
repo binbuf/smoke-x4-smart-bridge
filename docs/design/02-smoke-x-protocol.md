@@ -39,10 +39,10 @@ forwards raw LoRa frames onward and never transmits anything except the pairing 
 | ------------------------------------------ | --------------------------------------------------------------- | ----- |
 | **X4** pairing/sync channel                | 915.000 MHz                                                     | [K]   |
 | **X2** pairing/sync channel                | 920.000 MHz                                                     | [K]   |
-| Operating channel                          | assigned by the base station during pairing; observed 910.5 MHz | [K]   |
+| Operating channel                          | assigned by the Smoke X4 during pairing; observed 910.5 MHz | [K]   |
 | Valid operating range enforced by firmware | 902–928 MHz                                                     | [K]   |
 
-The operating frequency is **per base station** and is communicated in the sync message. It is not
+The operating frequency is **per Smoke X4** and is communicated in the sync message. It is not
 predictable, so the bridge must persist it.
 
 ## 2.2 Message types
@@ -52,16 +52,16 @@ over the buffer.
 
 | Message               | Commas | Direction                                          | Fields                            |
 | --------------------- | ------ | -------------------------------------------------- | --------------------------------- |
-| Sync (pairing beacon) | **6**  | base → all                                         | 6                                 |
-| Sync ACK              | **2**  | **bridge → base** (only transmission we ever make) | 2                                 |
-| State, X2             | **16** | base → all                                         | 4 header + 2×5 probe + 2 trailing |
-| State, X4             | **26** | base → all                                         | 4 header + 4×5 probe + 2 trailing |
+| Sync (pairing beacon) | **6**  | Smoke X4 → all                                         | 6                                 |
+| Sync ACK              | **2**  | **bridge → Smoke X4** (only transmission we ever make) | 2                                 |
+| State, X2             | **16** | Smoke X4 → all                                         | 4 header + 2×5 probe + 2 trailing |
+| State, X4             | **26** | Smoke X4 → all                                         | 4 header + 4×5 probe + 2 trailing |
 
 No ambiguity: the smallest state message has 16 commas, well clear of the 6-comma sync.
 
-### 2.2.1 Sync message (base → all)
+### 2.2.1 Sync message (Smoke X4 → all)
 
-Broadcast every ~3 s on the model's sync channel while the base station is held in sync/pairing
+Broadcast every ~3 s on the model's sync channel while the Smoke X4 is held in sync/pairing
 mode.
 
 ```
@@ -82,14 +82,14 @@ Captured example:
 
 Frequency decode: `160 | (32<<8) | (69<<16) | (54<<24)` = `910,500,000` Hz = 910.5 MHz.
 
-### 2.2.2 Sync ACK (bridge → base)
+### 2.2.2 Sync ACK (bridge → Smoke X4)
 
 ```
 <device_id>,SUCCESS,
 ```
 
 Sent **once**, on the newly learned operating frequency, immediately after decoding a sync message.
-The base station sees it, stops beaconing, and returns to normal operation.
+The Smoke X4 sees it, stops beaconing, and returns to normal operation.
 
 ```
 |abCDe,SUCCESS,
@@ -97,7 +97,7 @@ The base station sees it, stops beaconing, and returns to normal operation.
 
 **This is the only LoRa transmission the bridge ever makes.** The firmware enforces it (§2.5).
 
-### 2.2.3 State message (base → all)
+### 2.2.3 State message (Smoke X4 → all)
 
 Broadcast every **30 s** on the operating frequency, unconditionally, to every paired receiver.
 
@@ -120,7 +120,7 @@ Captured X2 example:
 | Idx | Name        | Example | Meaning                                                                                                                                                                                                                                                         | Conf.                                                             |
 | --- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --- |
 | 0   | `device_id` | `       | abCDe`                                                                                                                                                                                                                                                          | Matches the sync message. **The reference ignores it** — see §2.6 | [K] |
-| 1   | _unknown_   | `30`    | **Unknown.** Value `30` in every captured packet. Strong hypothesis: **the transmit interval in seconds**, which matches the observed 30 s cadence. Could also be a sequence/battery/protocol field. Worth capturing from a base station with a changed setting | [I]                                                               |
+| 1   | _unknown_   | `30`    | **Unknown.** Value `30` in every captured packet. Strong hypothesis: **the transmit interval in seconds**, which matches the observed 30 s cadence. Could also be a sequence/battery/protocol field. Worth capturing from a Smoke X4 with a changed setting | [I]                                                               |
 | 2   | `units`     | `1`     | `1` → °F, anything else → °C                                                                                                                                                                                                                                    | [K]                                                               |
 | 3   | `new_alarm` | `1`     | Non-zero → an alarm has newly triggered. Distinct from the per-probe `alarm` (which means _alarm enabled_)                                                                                                                                                      | [I]                                                               |
 
@@ -142,7 +142,7 @@ The Billows overloading is explicit in the reference's type — `max_temp` and `
 
 | Idx | Name               | Meaning                                                      | Conf. |
 | --- | ------------------ | ------------------------------------------------------------ | ----- |
-| −2  | `billows_attached` | Non-zero → a Billows fan controller is connected to the base | [K]   |
+| −2  | `billows_attached` | Non-zero → a Billows fan controller is connected to the Smoke X4 | [K]   |
 | −1  | _unknown_          | `0` in all captures                                          | [?]   |
 
 #### Detached-probe values
@@ -231,13 +231,13 @@ Key points:
 
 - **Probe count is learned from the first state message, not from the sync message.** The bridge
   does not know whether it paired with an X2 or an X4 until data arrives.
-- The frequency scan alternates every **3.3 s** while the base beacons every **3 s** — deliberately
+- The frequency scan alternates every **3.3 s** while the Smoke X4 beacons every **3 s** — deliberately
   offset so the two don't lock into a beat pattern that starves one channel.
 - Once `sync_received` is set, further sync messages are ignored until an explicit unpair.
 - Unpair clears `device_id` and `frequency` in NVS and restarts the scan. **It does not affect the
   pairing state of any other receiver**, including ThermoWorks' own.
-- Recovery: if the bridge is paired but has heard nothing for a long time (base off, out of range,
-  or the base was re-synced to a new channel), it stays on the stored frequency. Our firmware adds
+- Recovery: if the bridge is paired but has heard nothing for a long time (Smoke X4 off, out of range,
+  or the Smoke X4 was re-synced to a new channel), it stays on the stored frequency. Our firmware adds
   a **stale-pairing watchdog** the reference lacks — see §2.7.
 
 ## 2.5 Invariants
@@ -247,7 +247,7 @@ These are load-bearing. Violating any of them can disrupt a real cook.
 1. **The bridge transmits exactly one packet per pairing: the sync ACK.** No polling, no keepalive,
    no beacon. Enforced by a `radio_tx_allowed` flag that is only true inside the sync handler, and
    by a unit test asserting no other call path reaches `app_lora_start_tx`.
-2. **Pairing the bridge must not unpair anything else.** The base station supports multiple
+2. **Pairing the bridge must not unpair anything else.** The Smoke X4 supports multiple
    receivers; the ACK simply ends its sync broadcast. Verified by keeping the stock receiver paired
    and running through a full bridge pair/unpair cycle.
 3. **Never transmit on the sync channel after pairing.** The ACK goes out on the _operating_
@@ -270,7 +270,7 @@ Deliberate changes, with reasons:
 | History in a RAM `cJSON` array, capped at 1200         | Append-only binary log on flash                                        | Survives reboot; no practical cap                                                                                                                                      |
 | Unit change detected by `const char*` pointer equality | Explicit enum in the parsed struct                                     | Pointer-identity comparison is a subtle trap for anyone refactoring the parser                                                                                         |
 | `strtok` on a heap copy                                | `strtok_r` on a stack buffer                                           | `strtok` is not reentrant; the parser is called from one task today but that is an accident, not a guarantee. Max payload is ~120 B, so no allocation is needed at all |
-| RSSI/SNR only logged                                   | Recorded per sample and exposed via the API                            | Link quality is genuinely useful — it tells the user when the bridge is about to lose the base station                                                                 |
+| RSSI/SNR only logged                                   | Recorded per sample and exposed via the API                            | Link quality is genuinely useful — it tells the user when the bridge is about to lose the Smoke X4                                                                 |
 
 The parser's shape — pure C, no ESP-IDF headers, host-testable — is exactly right and we keep it.
 `smoke_x_parser.c` ports over with its MIT notice intact.
@@ -280,8 +280,8 @@ The parser's shape — pure C, no ESP-IDF headers, host-testable — is exactly 
 **Stale-pairing watchdog.** If paired but no valid state message has been received for
 `N × 30 s` (default N = 20, i.e. 10 min), raise a `BASE_LOST` event → OLED banner, LED pattern, and
 a push to the app. After 60 min with no packets _and_ no active cook, optionally drop to alternate
-scanning again so a re-synced base can be re-acquired without a user visit. Config-gated, default
-off (silently re-pairing to a different base would be worse than staying put).
+scanning again so a re-synced Smoke X4 can be re-acquired without a user visit. Config-gated, default
+off (silently re-pairing to a different Smoke X4 would be worse than staying put).
 
 **Link quality.** `GetPacketStatus()` already yields RSSI and SNR per packet in the SX1262 driver.
 Record both with each sample (`int8` each). Expose a rolling average in the status API and on the
@@ -339,13 +339,13 @@ Status updated 2026-07-21/22 from the real X4 captures in `protocol/fixtures/lor
 
 | #   | Question                                                                     | How to resolve                                                                      | Status                                                                                                                                                                       |
 | --- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Q1  | What is state header field 1 (`30`)? Transmit interval?                      | Capture across base-station settings changes; check whether it ever differs from 30 | **open, narrowed** — 92 real packets incl. alarm/units/detach events: never left `30`                                                                                        |
+| Q1  | What is state header field 1 (`30`)? Transmit interval?                      | Capture across Smoke X4 settings changes; check whether it ever differs from 30 | **open, narrowed** — 92 real packets incl. alarm/units/detach events: never left `30`                                                                                        |
 | Q2  | What is sync field 0 (`020001`)?                                             | Capture sync from both an X2 and an X4; compare                                     | **partial — ANSWERED for X4: `000000`**, differing from the X2-era `020001`; meaning still unknown                                                                           |
 | Q3  | What is the trailing state field?                                            | ~~Billows capture~~ (resolved by the alarm choreography instead)                    | **ANSWERED** — the trailing field IS `new_alarm` (see Q8); header field **3** is the remaining mystery: rests at `1`, moves to `2` around alarm/menu activity                 |
 | Q4  | What probe `state` values exist besides `0` and `3`?                         | Short the probe jack, open it, exceed range, unplug mid-read                        | **partial** — detach/reattach captured: `state=3` freezes the last temp on the X4 (X2 zeroed it); reattach jumps straight 3→0; shorted-jack state still uncaptured            |
 | Q5  | Is `billows_target` really the Billows channel's `max` field? Which channel? | Attach a Billows, set a target, diff the packet                                     | **blocked** — no Billows                                                                                                                                                     |
 | Q6  | Does an X4 emit the same `30` and `020001` values?                           | First real X4 capture                                                               | **ANSWERED** — `30` yes; sync field0 **no** (`000000`)                                                                                                                       |
-| Q7  | Does the base ever change operating frequency without a re-sync?             | Long soak with the stale-pairing watchdog logging                                   | actionable, slow                                                                                                                                                             |
+| Q7  | Does the Smoke X4 ever change operating frequency without a re-sync?             | Long soak with the stale-pairing watchdog logging                                   | actionable, slow                                                                                                                                                             |
 | Q8  | Is `new_alarm` edge-triggered (one packet) or level?                         | Trigger an alarm and count how many packets carry it                                | **ANSWERED — edge-triggered**: three alarm events → three single-packet pulses, zero sustained runs; alarm bands transmit as whole degrees of the active unit (105→`105`/°C→`37`) |
 
 Bonus findings from the captures, folded into the parser and its corpus test:
@@ -356,7 +356,7 @@ Bonus findings from the captures, folded into the parser and its corpus test:
   reference's "alarm" flag is *armed*, not *ringing*, and the default band is 32–160 °F.
 - **The reference read `new_alarm` from header field 3** — which rests at `1` on a real X4, i.e. it
   would report a permanent alarm. Our parser reads the trailing field and exposes field 3 raw.
-- Broadcast cadence wobbles during base-station menu use (observed 29–76 s against the nominal 30 s).
+- Broadcast cadence wobbles during Smoke X4 menu use (observed 29–76 s against the nominal 30 s).
 
 Each remaining open question becomes a test vector once answered. Until then the parser treats
 unknown fields as opaque and **preserves the raw payload** for the most recent N packets in a debug

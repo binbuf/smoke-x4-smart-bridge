@@ -45,11 +45,10 @@ target_include_directories(test_bridge_event_guard PRIVATE
 )
 add_test(NAME bridge_event_guard COMMAND test_bridge_event_guard)
 
-# Boot sequence + double-reset token (F1.5).
+# Boot sequence skeleton (F1.5).
 add_executable(test_boot_seq
     test_boot_seq.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../main/boot_seq.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../main/double_reset.c
 )
 target_include_directories(test_boot_seq PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../main

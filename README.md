@@ -4,7 +4,7 @@
 
 **Give your ThermoWorks Smoke X2/X4 a memory, a graph, and a phone.**
 
-A small ESP32 board quietly listens to your Smoke X base station, records every cook to flash for
+A small ESP32 board quietly listens to your Smoke X4, records every cook to flash for
 ~54 days, and serves it to an Android app over **Bluetooth**. Your stock receiver keeps working —
 the bridge never transmits except for the single pairing acknowledgement.
 
@@ -24,7 +24,7 @@ active plan is now [`ROADMAP.md`](ROADMAP.md).
 
 ## What it is
 
-- **A listener.** The Smoke X base already shouts probe temperatures over LoRa every 30 seconds so
+- **A listener.** The Smoke X4 already shouts probe temperatures over LoRa every 30 seconds so
   its handheld can display them. The bridge is another set of ears: it decodes the same broadcast,
   writes it to flash permanently, and puts it on your phone. It transmits exactly **one** packet in
   its entire life — the pairing acknowledgement.
@@ -40,8 +40,8 @@ active plan is now [`ROADMAP.md`](ROADMAP.md).
 ```mermaid
 flowchart LR
     subgraph TW["ThermoWorks — untouched"]
-        PR["probes"] --> BASE["Smoke X4<br/>base station"]
-        BASE -->|"LoRa 915/920 MHz<br/>broadcast, every 30 s"| RX["stock handheld<br/>receiver"]
+        PR["probes"] --> SMOKE X4["Smoke X4<br/>Smoke X4"]
+        SMOKE X4 -->|"LoRa 915/920 MHz<br/>broadcast, every 30 s"| RX["stock handheld<br/>receiver"]
     end
 
     subgraph BR["The bridge — Heltec WiFi LoRa 32 V3 · ESP32-S3"]
@@ -57,8 +57,8 @@ flowchart LR
         HIST["History"]
     end
 
-    BASE ==>|"the same broadcast,<br/>nothing subscribed"| SX
-    SX -.->|"one packet, ever:<br/>the pairing ack"| BASE
+    SMOKE X4 ==>|"the same broadcast,<br/>nothing subscribed"| SX
+    SX -.->|"one packet, ever:<br/>the pairing ack"| SMOKE X4
     GATT ==>|"live temps +<br/>full history"| APP
 ```
 
@@ -135,11 +135,11 @@ Pairing has two independent halves:
 1. **Phone ↔ bridge (BLE).** On first run the bridge shows a six-digit passkey on its OLED. The
    phone's OS asks you to confirm it; read the digits off the bridge. The bond is remembered, so
    later connects are silent.
-2. **Bridge ↔ base (LoRa).** On the Smoke X base, hold **SYNC** until the bridge's OLED confirms
+2. **Bridge ↔ Smoke X4 (LoRa).** On the Smoke X4, hold **SYNC** until the bridge's OLED confirms
    the pairing. This is the bridge's single LoRa transmission.
 
 The [ROADMAP](ROADMAP.md) has the known gaps here: the app does not yet show or drive the
-base-pairing state (S1.2), and there is no guided first-run flow (S1.3).
+Smoke X4-pairing state (S1.2), and there is no guided first-run flow (S1.3).
 
 ## Honest limitations
 

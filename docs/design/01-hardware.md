@@ -211,7 +211,7 @@ Design conclusions:
 
 | Region           | Size        | Contents                                                                                                                  |
 | ---------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
-| App slots (×2)   | 2.5 MB each | Estimated app image 1.6–1.9 MB (IDF base + Wi-Fi + BLE/NimBLE + httpd + LittleFS + mbedTLS for OTA). ~30 % headroom       |
+| App slots (×2)   | 2.5 MB each | Estimated app image 1.6–1.9 MB (IDF Smoke X4 + Wi-Fi + BLE/NimBLE + httpd + LittleFS + mbedTLS for OTA). ~30 % headroom       |
 | `www` LittleFS   | 512 KB      | **Reserved, empty in v1** (D13). Would hold a gzipped fallback web UI; the reference's Vue bundle fits in ~200 KB gzipped |
 | `cooks` LittleFS | 2.375 MB    | Cook history. **~155,600 samples ≈ 1,290 h ≈ 54 days of continuous 30 s logging**, before ~10 % filesystem overhead       |
 

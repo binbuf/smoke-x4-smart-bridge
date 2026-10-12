@@ -12,6 +12,7 @@ import '../../design/format.dart';
 import '../../design/primitives.dart';
 import '../../design/tokens.dart';
 import '../../domain/domain.dart';
+import '../common/bridge_app_bar.dart';
 import '../common/connection.dart';
 import 'session_detail_screen.dart';
 
@@ -24,34 +25,7 @@ class HistoryScreen extends StatelessWidget {
     final sessions = controller.sessions;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('History'),
-        actions: [
-          const ConnectionChip(),
-          const SizedBox(width: SmokeSpace.sm),
-          IconButton(
-            tooltip: controller.syncing
-                ? 'Syncing…'
-                : (controller.syncError ?? 'Sync now'),
-            onPressed: controller.connected ? controller.syncNow : null,
-            icon: controller.syncing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
-                  )
-                : Icon(
-                    controller.syncError == null
-                        ? Icons.sync
-                        : Icons.sync_problem,
-                    color: controller.syncError == null
-                        ? null
-                        : SmokePalette.warning,
-                  ),
-          ),
-          const SizedBox(width: SmokeSpace.sm),
-        ],
-      ),
+      appBar: const BridgeAppBar(title: 'History'),
       body: sessions.isEmpty
           ? _HistoryEmpty(controller: controller)
           : RefreshIndicator(
