@@ -1,13 +1,40 @@
-I want to create a mono repo that will extend what the Smoke X4 meat probe wireless system can do.
+We are making a RF gateway for Thermoworks Smoke X4, supporting Billows using a ESP32 LoRa V3 Development Board.
 
-I would like to use this product (ESP32 LoRa V3 Development Board + 3000mAh Battery Set, Integrated WiFi Bluetooth SX1262 CP2102 0.96-inch OLED Display) and this reference repo (docs/reference).
+Your job is to create the design documents at `docs/design/*.md` and tasks at `docs/tasks/*.md` to get us to MVP.
 
-What kind of storage does it have, can we have it store history of a 24 hour cook?
+In `legacy/` we have some semi working app and firmware. We can use it as reference or example but don't take code from it whole sale. Do not use any of its UI/UX or any substantial code other than communication code you may take. 
 
-I want to program it to receive signals from a Smoke X4 bbq probe, there's open source code to do this already, but I want to serve a Flutter mobile app and do something custom.
+We are looking for thinnest vertical slice we can deploy end to end to test out and use core features below.
 
-I would like it to have 2 modes we can select on boot up, either it can host its own wifi and give you a SSID and password to put in so your app can see API for your app, or you can put so you can connect to an existing wifi network and broadcast over that for the app on the same LAN. Would be nice if Flutter can tell the device which mode it should be in after initial bluetooth connection and hand off. I'd like to see the Flutter phone app connect to it over regular wifi or adhoc wifi its hosting and then see a temp graph for a cook up to 15 hours, current temp of probes, and any other meaningful features. Utilize the screen or programmable buttons to help make the device useful (should button switch modes? should screen show wifi info if host or what network its connected to if guest or current status otherwise?)
+We need to rebuild both the Flutter app and the ESP32 firmware. Ensuring it's custom and only has the feature below and doesn't knowingly inherit any of the tech debt from previous iterations. 
 
-This will be a mono repo consisting of the Flutter app (Android first for MVP), and new code after researching the reference project so we can create the custom firware needed for the ESP32 board.
+If the previous code had features, logic, or UI/UX for other stuff that isn't mentioned below, we probably don't want it for our new MVP but you may confirm what we're leaving behind as you conduct your audit. 
 
-After your research and analysis, create a set of design documents at `docs/design` folder with each md file being a main category or topic. Ask any questions needed to help write the design.
+## Features
+
+### ESP32
+
+- Hold PRG to turn off/on
+- Tap PRG to cycle through any information windows or dialog selection
+- Automatically enter bluetooth discovery mode and try to find a device to connect any time it's on and not actively connected to a device.
+  - When connecting show a pairing code on the screen that you enter on your phone to connect
+- Allow as many functions as possible to be controlled by the app since buttons/controls are limited on device.
+  - Forget device
+  - Factory reset
+- As soon as powered on, if synced with Smoke X4, and Smoke X4 is on and sending data, then collect it for use later in the app. All connected probe temps (e.g. 99.9F) should be collected.
+- Support ThermoWorks Billows
+  - Set target temp
+  - Be able to tell its connected, status, etc
+- Collect temperatures periodically from all 4 probes (or whatever is connected)
+- Ensure data structure is highly efficient to be able to store as much data as possible on esp32.
+
+### Flutter app
+
+- Handle all bluetooth discovery and connection to device
+  - Health checks, status updates, syncing, disconnections, lost connection, etc
+- Handle all settings device can't do on its own (Settings tab)
+- Show the 4 probe temps if they're available. Probe 4 is typically the grate probe temp sensor but it can be adjusted
+- Show a graph of all 4 probes (dont show anything if no probe data for that time)
+  - Device should just be collecting data any time its on and Smoke X4 is on so this graph will just show whatever data it's collected. It shouldn't matter if the Flutter app is connected. As long as esp32 is on it collects from Smoke X4 and acts as a gateway then every time app connects or syncs during active connection the data is just relayed to the app. 
+  - Rotate old data out as the esp32 memory fills up. Don't delete from Flutter app though let the user choose when to delete old data.
+
