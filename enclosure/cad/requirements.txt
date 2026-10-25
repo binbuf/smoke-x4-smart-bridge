@@ -1,0 +1,8 @@
+# CAD/render toolchain for enclosure/cad
+# Tested with Python 3.13 and CadQuery 2.8.
+cadquery>=2.4
+numpy>=1.26
+trimesh>=4.0
+matplotlib>=3.8
+pyvista>=0.44
+Pillow>=10.0

@@ -1,0 +1,144 @@
+{
+  "params": {
+    "W": 38.8,
+    "L": 75.0,
+    "T": 22.6,
+    "seam": 10.6,
+    "r_side": 5.5,
+    "r_front": 1.5,
+    "r_back": 3.0,
+    "wall": 1.2,
+    "lid_wall": 1.2,
+    "tongue_step": 1.35,
+    "tongue_h": 3.2,
+    "joint_clear": 0.15,
+    "seam_gap": 0.0,
+    "win_w": 13.2,
+    "win_h": 26.0,
+    "win_cy": 0.0,
+    "win_r": 0.0,
+    "win_chamfer": 0.5,
+    "btn_dx": 8.7,
+    "btn_cy": 30.1,
+    "btn_cap_d": 8.0,
+    "btn_bore": 8.22,
+    "btn_recess": 0.5,
+    "btn_lip_d": 8.45,
+    "btn_len": 3.0,
+    "btn_web_w": 5.0,
+    "btn_web_t": 0.5,
+    "btn_protrude": 0.4,
+    "label_depth": 0.35,
+    "label_size": 2.3,
+    "label_font": "Arial",
+    "board_l": 51.69,
+    "board_w": 25.4,
+    "board_t": 1.12,
+    "board_usb_tip": -1.27,
+    "board_pcb_top": 4.6,
+    "board_pcb_bot": 5.72,
+    "board_switch_x": 2.2,
+    "board_switch_y": 7.9,
+    "board_usb_front": -1.6,
+    "board_switch_dZ": 2.0,
+    "board_cy": 30.1,
+    "bat_l": 65.0,
+    "bat_w": 36.0,
+    "bat_t": 10.3,
+    "bat_y_top": 32.8,
+    "bat_gap_front": 0.3,
+    "bat_gap_back": 0.2,
+    "usb_w": 9.2,
+    "usb_h": 3.4,
+    "usb_z0": 1.6,
+    "ant_x": -9.55,
+    "ant_z": 15.0,
+    "ant_d": 6.5,
+    "ant_seat_d": 10.0,
+    "ant_seat_depth": 0.3,
+    "snap_bump": 0.3,
+    "snap_groove": 0.36
+  },
+  "parts": [
+    {
+      "name": "front",
+      "bbox": {
+        "x0": -19.4,
+        "x1": 19.4,
+        "y0": -37.5,
+        "y1": 37.5,
+        "z0": -0.0,
+        "z1": 10.6
+      },
+      "size": [
+        38.8,
+        75.0,
+        10.6
+      ],
+      "volume_mm3": 5667.0,
+      "volume_cm3": 5.667,
+      "mass_g_petg": 7.2,
+      "mass_g_asa": 6.1,
+      "mass_g_tpu95": 6.9
+    },
+    {
+      "name": "lid",
+      "bbox": {
+        "x0": -19.4,
+        "x1": 19.4,
+        "y0": -37.5,
+        "y1": 37.5,
+        "z0": 7.4,
+        "z1": 22.6
+      },
+      "size": [
+        38.8,
+        75.0,
+        15.2
+      ],
+      "volume_mm3": 6850.2,
+      "volume_cm3": 6.85,
+      "mass_g_petg": 8.7,
+      "mass_g_asa": 7.3,
+      "mass_g_tpu95": 8.3
+    },
+    {
+      "name": "buttons",
+      "bbox": {
+        "x0": -12.925,
+        "x1": 12.925,
+        "y0": 25.875,
+        "y1": 34.325,
+        "z0": -0.4,
+        "z1": 2.6
+      },
+      "size": [
+        25.85,
+        8.45,
+        3.0
+      ],
+      "volume_mm3": 324.3,
+      "volume_cm3": 0.324,
+      "mass_g_petg": 0.4,
+      "mass_g_asa": 0.3,
+      "mass_g_tpu95": 0.4
+    },
+    {
+      "name": "assembly",
+      "bbox": {
+        "x0": -19.4,
+        "x1": 19.4,
+        "y0": -37.5,
+        "y1": 37.5,
+        "z0": 0.0,
+        "z1": 22.6
+      },
+      "size": [
+        38.8,
+        75.0,
+        22.6
+      ],
+      "volume_mm3": 12841.5
+    }
+  ]
+}

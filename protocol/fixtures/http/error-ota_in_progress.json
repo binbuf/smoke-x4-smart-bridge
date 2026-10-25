@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "ota_in_progress",
-    "message": "an OTA update is already running",
-    "detail": { "phase": "writing", "pct": 42 }
-  }
-}

@@ -1,3 +1,0 @@
-dependencies:
-  idf: ">=5.4"
-  joltwallet/littlefs: "^1.16.4"

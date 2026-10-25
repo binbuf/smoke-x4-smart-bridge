@@ -1,3 +1,0 @@
-[submodule "firmware/vendor/esp-idf-sx126x"]
-	path = firmware/vendor/esp-idf-sx126x
-	url = https://github.com/nopnop2002/esp-idf-sx126x.git

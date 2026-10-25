@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "internal",
-    "message": "unexpected error; see coredump if present",
-    "detail": null
-  }
-}
