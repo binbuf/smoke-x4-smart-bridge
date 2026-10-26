@@ -5,14 +5,15 @@
 | Layer | Runs on | What it proves |
 |---|---|---|
 | Pure C host tests | CI, no hardware | Parser, record codec, ring geometry/recovery, sync framing, config validation, UI framebuffer |
-| Flutter unit tests | CI, no device | Models, freshness, gaps, decimation, sync cursor, time estimation, codecs |
-| Flutter widget tests | CI, no device | Live states, History states, settings enabled/disabled, every error copy |
+| Flutter unit tests | CI, no device | Models, freshness, gaps, decimation, sync cursor, time estimation, codecs, formatters |
+| Flutter widget tests | CI, no device | Every UI state in [13 §13.4](13-ui-implementation-contract.md), both themes, 320 dp, semantics and every error copy |
+| UI goldens / screenshots | CI, no device | The approved prototype visual set; intentional changes only |
 | App integration with a BLE fake | CI | Scan → pair → subscribe → sync → live → reconnect, without a radio |
 | Firmware target build | CI | The Heltec image builds with the pinned ESP-IDF |
 | Bench tests | Real board | Radio pairing, OLED, button, deep sleep, BLE, power |
 | Field cook | Real smoker | The product actually works when nobody is watching |
 
-The first four layers must be green before a bench sitting. Bench time is the
+The first five layers must be green before a bench sitting. Bench time is the
 scarce resource; do not use it to discover typos.
 
 ## 10.2 Host test requirements
@@ -52,9 +53,16 @@ scarce resource; do not use it to discover typos.
 - DB: bulk insert, range query, deletion by date, DB survives relaunch.
 - BLE fake: permission denied, Bluetooth off, bond failure, wrong passkey,
   stale bond, MTU 23, MTU 247, notification loss, disconnect.
-- Widgets: Live four probes/sparkline/detached/stale/offline; History empty/
-  one probe/gap/filters/ranges/summary; Settings connected/offline/read-only/
-  units; every error state.
+- Widgets: every state in [13 §13.4](13-ui-implementation-contract.md). At
+  minimum: Live healthy/aging/stale/frozen/detached/no-probes/offline-cache/
+  no-cache/sync/error/Billows; History default/ranges/custom/filters/probe-empty/
+  all-empty/gap/estimated/overwritten/Cooks/Cook view/full-screen; Settings
+  connected/offline/read-only/units/appearance/storage/Bridge details/
+  confirmations; setup and pairing failures.
+- Layout: 320 dp and 390 dp, dark and light, no overflow; chart summary and
+  Summary table are the accessible equivalents.
+- Copy: no banned terms from [12](12-copy-and-label-review.md), no raw exception
+  text, no prototype/simulation copy on product screens.
 - No test may require a real phone or board.
 
 ## 10.3 Bench matrix
@@ -96,12 +104,19 @@ Run in this order; each row is evidence, not a checkbox.
 - [ ] Fresh install → permission primer → scan → pair → live.
 - [ ] Close/reopen app; auto-reconnect; history preserved.
 - [ ] Walk out of range; stale/offline; walk back; reconnect.
-- [ ] History ranges, filters, gaps, pan/zoom, no data, summary sort.
-- [ ] Settings units/display timeout/bridge name; Billows is read-only.
+- [ ] History ranges/filters/custom range, gaps, pan/zoom, Chart help, Summary
+      sort, Cooks and the Cook view, full-screen chart, estimated and overwritten
+      states.
+- [ ] Settings units/appearance/display timeout/bridge name; Billows is
+      status-only.
 - [ ] Re-pair the Smoke X4 from the app; stock receiver unaffected.
 - [ ] Delete 30/90/all; confirm counts and dates.
-- [ ] Factory reset from app; app returns to setup.
-- [ ] Phone reboot; app relaunch; data intact.
+- [ ] Factory reset from app; app returns to setup; saved-history escape works.
+- [ ] Phone reboot; app relaunch; data, tab, filters and theme intact.
+- [ ] Walk the UI state matrix in [13 §13.4](13-ui-implementation-contract.md)
+      on a real phone; no fixture or prototype chrome is reachable.
+- [ ] 320 dp layout, dark/light, and screen-reader summary pass on the target
+      phone.
 
 ### B4 — Billows
 
@@ -172,6 +187,12 @@ finding, not a reason to lower the bar after the fact.
 - [ ] Fresh install, upgrade, and “clear data” paths tested.
 - [ ] App version and bridge firmware version visible in About.
 - [ ] Privacy statement: no cloud, no account.
+- [ ] UI parity with [13](13-ui-implementation-contract.md) verified; screenshots
+      regenerated; 320 dp, dark/light and screen-reader checks pass.
+- [ ] No Experimental lab entry, simulation control, fixture value or
+      prototype-only copy in the release build.
+- [ ] Strings centralized and locale time/date/number formatting used; banned
+      copy terms test green.
 
 ### Product
 
@@ -203,6 +224,10 @@ finding, not a reason to lower the bar after the fact.
 | Settings | widget tests | real writes | — |
 | Four temps | widget tests | legibility | — |
 | History | unit/widget | full sync | overnight |
+| Cooks / Cook view | unit/widget | real archive | overnight |
+| UI state matrix | widget/golden | phone walk | field use |
+| Accessibility / 320 dp | widget/semantics | phone walk | — |
+| Copy baseline | banned-term test | review | — |
 | App retention/delete | DB tests | — | user test |
 | Device rotation | seeded full-ring test | reduced/accelerated partition | long cook (if it wraps) |
 

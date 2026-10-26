@@ -97,8 +97,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const SizedBox(height: 12),
                     InlineNotice(
                       icon: Icons.link_off,
-                      title: 'Some history was overwritten',
-                      message: 'The Bridge reused this time range before it synced. The gap is permanent; the chart does not draw a straight line across it.',
+                      title: 'Some readings were lost before they reached your phone',
+                      message: 'The Bridge overwrote this part of its history before it reached your phone. The readings can’t be recovered, so the chart leaves this period blank.',
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -142,7 +142,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               key: const Key('history.filter.menu'),
               icon: Icons.linear_scale,
               label: probeLabel,
-              tooltip: 'Probes',
+              tooltip: 'Filter by probe',
               items: _probeMenuItems(context, fixture),
               onSelected: (value) {
                 controller.setHistoryProbe(value == 0 ? null : value);
@@ -156,11 +156,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: IconButton(
                 key: const Key('history.filters.reset'),
                 tooltip: 'Reset filters',
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
-                  minimumSize: const Size(38, 38),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
                 onPressed: _resetFilters,
                 icon: const Icon(Icons.restart_alt, size: 19),
               ),
@@ -181,7 +176,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         HistoryRange.custom,
       ])
         PopupMenuItem<HistoryRange>(
-          key: Key('history.range.${historyChipLabel(range).toLowerCase()}'),
+          key: Key('history.range.${historyRangeKey(range)}'),
           value: range,
           child: Row(
             children: [
@@ -298,6 +293,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
         controller.historyProbe != null &&
         !fixture.seriesHasValues(controller.historyProbe! - 1);
     final probeCount = controller.historyProbe == null ? 4 : 1;
+    final dataProbeCount = controller.historyProbe == null
+        ? fixture.series
+              .where(
+                (series) => series.points.any((point) => point.valueF != null),
+              )
+              .length
+        : (fixture.seriesHasValues(controller.historyProbe! - 1) ? 1 : 0);
+    final probeMeta = dataProbeCount == probeCount
+        ? '$probeCount ${probeCount == 1 ? 'probe' : 'probes'}'
+        : '$dataProbeCount of $probeCount ${probeCount == 1 ? 'probe' : 'probes'}';
+    final metaLead = noData
+        ? 'No readings'
+        : widget.historical
+        ? 'Recorded history'
+        : controller.lastSyncedLabel;
 
     final chart = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,9 +332,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
-                        widget.historical
-                            ? 'Recorded'
-                            : controller.lastSavedLabel,
+                        metaLead,
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
@@ -334,13 +342,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ?.copyWith(color: scheme.outline),
                       ),
                       Text(
-                        '$probeCount ${probeCount == 1 ? 'probe' : 'probes'}',
+                        probeMeta,
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
                       if (fixture.estimated)
                         Text(
-                          '· estimated time',
+                          '· times estimated',
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
                                 color: StatusColors.aging(context),
@@ -353,7 +361,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
             IconButton(
-              tooltip: 'Chart help',
+              tooltip: 'How to read this chart',
               visualDensity: VisualDensity.compact,
               onPressed: () => _showChartHelp(context),
               icon: const Icon(Icons.help_outline, size: 19),
@@ -381,10 +389,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
             height: 300,
             child: EmptyState(
               icon: Icons.show_chart,
-              title: noData ? 'No readings yet' : 'No data in this range',
+              title: noData ? 'No readings yet' : 'No readings in this range',
               message: noData
-                  ? 'The Bridge records whenever it is on and synced with the Smoke X4.'
-                  : 'P${controller.historyProbe} has no readings in this range. Try another range or show all probes.',
+                  ? 'The Bridge records whenever it’s on and paired with the Smoke X4.'
+                  : 'Probe ${controller.historyProbe} has no readings in this range. Try another range or show all probes.',
               action: () {
                 if (noData) {
                   controller.setTab(AppTab.live);
@@ -393,7 +401,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   _resetViewport();
                 }
               },
-              actionLabel: noData ? 'Go to Live' : 'Show all probes',
+              actionLabel: noData ? 'View Live' : 'Show all probes',
             ),
           )
         else
@@ -494,26 +502,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 tooltip: 'Sort summary',
                 initialValue: controller.historySort,
                 onSelected: controller.setHistorySort,
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
                     value: HistorySort.probe,
                     child: Text('Probe order'),
                   ),
-                  PopupMenuItem(
+                  const PopupMenuItem(
                     value: HistorySort.hottest,
-                    child: Text('Hottest now'),
+                    child: Text('Hottest'),
                   ),
-                  PopupMenuItem(
+                  const PopupMenuItem(
                     value: HistorySort.highestMax,
-                    child: Text('Highest peak'),
+                    child: Text('Highest'),
                   ),
-                  PopupMenuItem(
+                  const PopupMenuItem(
                     value: HistorySort.recent,
-                    child: Text('Most recent'),
+                    child: Text('Latest reading'),
                   ),
                   PopupMenuItem(
                     value: HistorySort.sinceCookStart,
-                    child: Text('Since cook started'),
+                    enabled: cookReference != null,
+                    child: Text(
+                      cookReference == null
+                          ? 'Since cook start (no cook detected)'
+                          : 'Since cook start',
+                    ),
                   ),
                 ],
                 child: Row(
@@ -565,19 +578,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
       case HistorySort.probe:
         return 'Probe order';
       case HistorySort.hottest:
-        return 'Hottest now';
+        return 'Hottest';
       case HistorySort.highestMax:
-        return 'Highest peak';
+        return 'Highest';
       case HistorySort.recent:
-        return 'Most recent';
+        return 'Latest reading';
       case HistorySort.sinceCookStart:
-        return 'Since cook started';
+        return 'Since cook start';
     }
   }
 
   String _cookSortDetail(CookSession? activeCook, CookSession? cookReference) {
     if (cookReference == null) {
-      return 'No cook detected in the recorded readings.';
+      return 'No cook detected in this history.';
     }
     final elapsed = durationShort(fixtureNow.difference(cookReference.start));
     if (activeCook != null) {
@@ -602,12 +615,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Past cooks',
+                      'Cooks',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      'Detected from recorded readings',
+                      'Grouped automatically from your readings',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
@@ -672,12 +685,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Past cooks',
+                        'Cooks',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'The app groups recorded readings into cooks. Choose one to open its historical graph.',
+                        'Cooks are grouped automatically from your readings. Choose one to open its history.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: scheme.onSurfaceVariant,
                           height: 1.4,
@@ -754,15 +767,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
             const _HelpRow(
               icon: Icons.local_fire_department_outlined,
-              text: 'Use Past cooks to jump to a recorded time range, or choose Custom range to set exact dates and times.',
+              text: 'Use Cooks to jump to a recorded cook, or choose Custom range to set exact dates and times.',
             ),
             const _HelpRow(
               icon: Icons.linear_scale,
-              text: 'A gap means the Bridge has no reading for that time. The line never bridges a gap.',
+              text: 'A gap means no reading was recorded. The chart doesn’t connect across it.',
             ),
             const _HelpRow(
               icon: Icons.straighten,
-              text: 'All visible probes share one temperature scale. Filtering to one probe expands that scale.',
+              text: 'All probes share one scale. Choose one probe to see more detail.',
+            ),
+            const _HelpRow(
+              icon: Icons.schedule,
+              text: 'Times estimated means the Bridge’s clock wasn’t set when these readings were recorded, so the times are approximate.',
             ),
           ],
         ),
@@ -816,7 +833,7 @@ class _PastCookScreenState extends State<PastCookScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: prototypeAppBar(context, widget.controller, 'Past cook'),
+      appBar: prototypeAppBar(context, widget.controller, 'Cook'),
       body: HistoryScreen(
         key: const Key('pastCook.history'),
         controller: _history,
@@ -854,7 +871,7 @@ class _FilterMenuButton<T> extends StatelessWidget {
       onSelected: onSelected,
       itemBuilder: (context) => items,
       child: Container(
-        height: 40,
+        height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 11),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
@@ -976,9 +993,9 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
   void _validate() {
     if (_start.isBefore(widget.memoryRange.start) ||
         _end.isAfter(widget.memoryRange.end)) {
-      _error = 'Choose a range inside the readings in memory.';
+      _error = 'Choose a range within your saved history.';
     } else if (!_valid) {
-      _error = 'The end must be after the start.';
+      _error = 'End time must be after start time.';
     } else {
       _error = null;
     }
@@ -1010,7 +1027,7 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
     final yesterdayStart = today.subtract(const Duration(days: 1));
     final yesterdayEnd = today.subtract(const Duration(minutes: 1));
     final presets = <(String, DateTimeRange)>[
-      ('Entire memory', memory),
+      ('All saved history', memory),
       ('Today', DateTimeRange(start: today, end: memory.end)),
       ('Yesterday', DateTimeRange(start: yesterdayStart, end: yesterdayEnd)),
       (
@@ -1032,7 +1049,7 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
             Text('Custom range', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 4),
             Text(
-              'Pick exact dates and times. It starts with everything the phone has in memory.',
+              'Choose a start and end time. It starts with all the history saved on your phone.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
                 height: 1.4,
@@ -1075,8 +1092,8 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
                   const SizedBox(height: 6),
                   Text(
                     _valid
-                        ? '${durationShort(_end.difference(_start))} of history'
-                        : 'End is before start',
+                        ? '${durationLong(_end.difference(_start))} of history'
+                        : 'End time must be after start time',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: _valid ? scheme.onSurfaceVariant : scheme.error,
                     ),
@@ -1086,7 +1103,7 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
             ),
             const SizedBox(height: 14),
             _RangeField(
-              label: 'START',
+              label: 'Start',
               value: _start,
               use24Hour: widget.use24Hour,
               onPickDate: () => _pickDate(start: true),
@@ -1094,7 +1111,7 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
             ),
             const SizedBox(height: 8),
             _RangeField(
-              label: 'END',
+              label: 'End',
               value: _end,
               use24Hour: widget.use24Hour,
               onPickDate: () => _pickDate(start: false),
@@ -1112,11 +1129,11 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
             ],
             const SizedBox(height: 16),
             Text(
-              'QUICK PICKS',
+              'Quick picks',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
               ),
             ),
             const SizedBox(height: 8),
@@ -1144,7 +1161,7 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
                 Expanded(
                   child: FilledButton(
                     onPressed: _apply,
-                    child: const Text('Use range'),
+                    child: const Text('Apply'),
                   ),
                 ),
               ],
@@ -1220,20 +1237,20 @@ class _SummaryHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.labelSmall?.copyWith(
       color: Theme.of(context).colorScheme.onSurfaceVariant,
-      fontWeight: FontWeight.w800,
-      letterSpacing: 1,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.3,
     );
     return Row(
       children: [
-        SizedBox(width: 64, child: Text('PROBE', style: style)),
-        Expanded(child: Text('CURRENT', style: style)),
+        SizedBox(width: 64, child: Text('Probe', style: style)),
+        Expanded(child: Text('Latest', style: style)),
         SizedBox(
           width: 54,
-          child: Text('MIN', style: style, textAlign: TextAlign.right),
+          child: Text('Min', style: style, textAlign: TextAlign.right),
         ),
         SizedBox(
           width: 54,
-          child: Text('MAX', style: style, textAlign: TextAlign.right),
+          child: Text('Max', style: style, textAlign: TextAlign.right),
         ),
         const SizedBox(width: 20),
       ],
@@ -1263,7 +1280,7 @@ class _SummaryRow extends StatelessWidget {
       button: true,
       selected: selected,
       label: hasData
-          ? 'Probe ${stat.probe}, current ${controller.tempFor(stat.last)}, minimum ${controller.tempFor(stat.min)}, maximum ${controller.tempFor(stat.max)}'
+          ? 'Probe ${stat.probe}, latest ${controller.tempFor(stat.last)}, lowest ${controller.tempFor(stat.min)}, highest ${controller.tempFor(stat.max)}'
           : 'Probe ${stat.probe}, no data in this range',
       child: InkWell(
         onTap: onTap,
@@ -1424,7 +1441,7 @@ class _CookTile extends StatelessWidget {
       subtitle: Text(
         '${timeRangeLabel(cook.start, cook.end, use24Hour: use24Hour)}\n'
         '${durationShort(cook.duration)} · ${cook.probes} probes'
-        '${cook.hasGap ? ' · gap' : ''}',
+        '${cook.hasGap ? ' · missing readings' : ''}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.35),

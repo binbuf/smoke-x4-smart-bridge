@@ -2,7 +2,9 @@
 
 **Exit gate:** the app syncs the full ring, resumes after a disconnect, survives
 an app relaunch, draws gaps honestly, and never deletes data without an explicit
-user action. The bridge rotation and app archive are visibly separate.
+user action. The Bridge rotation and phone archive are visibly separate. History,
+Summary, Cooks and the Cook view match the approved UI contract, including
+empty/offline/estimated/overwritten states.
 
 **Design:** [04](../design/04-data-and-storage.md), [06 §6.6–§6.8](../design/06-app.md)
 
@@ -71,45 +73,62 @@ sentinel).
 
 ---
 
-### A3.3 app: full History chart and decimation
+### A3.3 app: full History chart, Summary and Cooks
 
 - **blocked-by:** A3.2 · **verify:** H/P · **board:** no / phone
-- **design:** [06 §6.6](../design/06-app.md)
+- **design:** [06 §6.6](../design/06-app.md),
+  [13 §13.4](../design/13-ui-implementation-contract.md#history)
 
-Implement range presets (1h/6h/24h/7d/All) plus custom range in one labelled
-filter card, probe filters, crosshair with a pinned tooltip, pinch and
-mouse-wheel/scroll zoom, drag/pan, double-tap fit, zoom controls, `Now`, LTTB and
-min/max envelope, gap splitting with reasons, estimated-time labelling,
-latest-point dots, current/min/max summary sorting and detected past cooks.
-Summary sorting includes `Since cook started`: detect the active cook from the
-newest recorded sample timestamps, fall back to the most recent past cook when
-none is active, and sort probes that have reported since that start. Mark the
-active cook `In progress` in Past cooks so it is not confused with a closed
-session. Past cooks open their historical graph in a dedicated view so the
-History tab keeps its current-cook state. SQL-bucket large ranges; keep the chart
-under a few thousand points. The full-screen chart is a dedicated,
-precision-scrubbing view; it never forces landscape, and fills the screen in
-either orientation.
+Complete the approved History screen:
+
+- range trigger `1 hour`, `6 hours`, `24 hours`, `2 days`, `Custom`; menu
+  `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 2 days`, `Custom range…`;
+- custom range sheet starting with all saved history, exact date/time, validation
+  and quick picks (`All saved history`, `Today`, `Yesterday`, `Last 6 hours`);
+  apply only on `Apply`, and `Cancel` restores the previous range and viewport;
+- probe filter `All probes`/`P1`–`P4`, disabled options labelled `No data`;
+  reset icon only with an active filter; range/probe/sort persist across tabs and
+  resume;
+- crosshair with a pinned tooltip, pinch/scroll zoom, drag/pan, double-tap fit,
+  zoom controls, `Now`, latest-point dots, single-probe area fill;
+- LTTB + min/max envelope, SQL bucketing, gap splitting with reasons
+  (`No signal`, `Bridge off`, `Not synced`), estimated-time label;
+- `Summary` with `Latest`/`Min`/`Max` and no deltas; sort options `Probe order`,
+  `Hottest`, `Highest`, `Latest reading`, `Since cook start`; disabled cook sort
+  shows `No cook detected yet`;
+- `Cooks` card with the latest three detected cooks, `In progress` on the live
+  cook, `View all`, and a dedicated `Cook` view with `Recorded history` and the
+  cook end time instead of `Now`; closing it leaves History unchanged;
+- chart help sheet (`Reading the chart`) and the dedicated full-screen chart,
+  portrait or landscape, with a close action;
+- empty states for no readings at all, no readings in range, no probe data, and
+  offline with no cache.
 
 **Done when.** A 30-day, four-series fake DB renders within one frame budget on
-the target phone; filters, gaps and detached probes are correct; tapping a past
-cook opens the historical view without changing the current History range; no
-fake zeros; a chart with no data in the selected range says so and offers one
-next action.
+the target phone; filters, custom range, gaps, estimated times and detached
+probes are correct; Summary sorting and Cooks work from recorded timestamps;
+tapping a Cook opens the historical view without changing the current History
+range; no fake zeros; a range with no data says so and offers one next action;
+the approved UI is intact at 320 dp.
 
 ---
 
 ### A3.4 app: connection health and stale states
 
 - **blocked-by:** A2.4 · **verify:** H/P · **board:** no / phone
-- **design:** [06 §6.3, §6.8](../design/06-app.md)
+- **design:** [06 §6.3, §6.8](../design/06-app.md),
+  [13 §13.5](../design/13-ui-implementation-contract.md#135-ui-lifecycle-flows)
 
-Implement the 110 s watchdog, stale vs offline, bounded reconnect, app
-resume/pause behavior, pull-to-refresh, and the "Can’t reach the bridge" actionable
-state. Map every platform exception to a named state.
+Implement the 110 s watchdog, BLE-vs-X4 state separation, stale vs offline,
+bounded reconnect, app resume/pause behavior, pull-to-refresh, and the
+`Can’t reach the Bridge` actionable state. Map every platform exception to a
+named state. Offline with cache keeps last-known values dimmed and labelled;
+offline without cache shows no current probe values and one next action.
 
 **Done when.** Walking out of range, killing the app, and power-cycling the
-bridge each produce the intended state and recover without a manual app restart.
+bridge each produce the intended state and recover without a manual app restart;
+no cached value is presented as live; the no-cache state has no fake probe
+readings.
 
 ---
 
@@ -118,27 +137,34 @@ bridge each produce the intended state and recover without a manual app restart.
 - **blocked-by:** A3.1, A3.2 · **verify:** H/P · **board:** no / phone
 - **design:** [04 §4.8](../design/04-data-and-storage.md), [06 §6.7](../design/06-app.md)
 
-Implement the History & storage settings: phone readings/date range/DB size,
-bridge log readings/capacity, one deletion flow for older than 30/90 days or
-everything, and clear bridge log. Confirm with the exact range/count. Never
-delete on generation change, factory reset, or low storage.
+Implement the approved History & storage screen: `History on this phone`
+(readings/date range/storage used), `History on the Bridge` (readings/capacity/
+percentage/oldest/newest), one deletion flow for older than 30/90 days or
+everything, and `Clear history on the Bridge…`. Confirm with the exact range and
+count. Never delete on generation change, factory reset, or low storage. Use
+`readings`, not `records`.
 
 **Done when.** Deletion tests cover boundaries and trim/remove overlapping `gap`
-rows; the UI says what is local vs bridge; nothing deletes automatically.
+rows; the UI says what is local vs Bridge; the two copies stay separate; nothing
+deletes automatically; the approved copy is used.
 
 ---
 
 ### A3.6 app: History/data empty and error states
 
 - **blocked-by:** A3.3, A3.4 · **verify:** H · **board:** no
-- **design:** [06 §6.8](../design/06-app.md)
+- **design:** [06 §6.8](../design/06-app.md),
+  [13 §13.4](../design/13-ui-implementation-contract.md#live)
 
 Implement and test the empty/error states for no history, no history in a
-selected range, no probes, bridge offline with/without cache, sync failure,
-storage unavailable, and protocol mismatch. Each has one next action.
+selected range, no probe data, no probes, Bridge offline with/without cache, no
+X4 data, sync failure, storage unavailable, and protocol mismatch. Each has one
+next action and the exact copy from 12. The no-cache state must not render fake
+probe values.
 
-**Done when.** A widget test covers each row in 06 §6.8; no raw exception text
-is rendered.
+**Done when.** A widget test covers each row in 06 §6.8 and every relevant state
+in 13 §13.4; no raw exception text is rendered; the no-cache and no-X4 notices
+are honest.
 
 ---
 
@@ -158,6 +184,10 @@ On the real bridge and phone:
 5. Delete older than 30 days on a seeded DB; confirm only the intended range.
 6. Force a bridge clear/factory reset; confirm the app keeps old data and starts
    a new segment.
+7. Walk the History states in 13 §13.4: ranges, custom, filters, gaps, estimated,
+   overwritten, empty, offline cache, Cooks and the Cook view.
+8. Check 320 dp, dark/light and screen-reader output on the target phone.
 
 **Done when.** The history report and screenshots are committed; timing for 24 h
-and full-ring sync is recorded, with the negotiated MTU noted.
+and full-ring sync is recorded, with the negotiated MTU noted; the History UI
+matches the approved contract in both themes.

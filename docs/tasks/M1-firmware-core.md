@@ -164,14 +164,20 @@ record count and live values; no allocation on the path.
 ### F1.11 ui: pages, renderer, and display sleep
 
 - **blocked-by:** T0.8, F1.10 · **verify:** H/B · **board:** no / B
-- **design:** [07 §7.1–§7.3, §7.6](../design/07-display-and-controls.md)
+- **design:** [07 §7.1–§7.3, §7.6](../design/07-display-and-controls.md),
+  [13 §13.4](../design/13-ui-implementation-contract.md#bridge-screen-oled)
 
-Implement Vext/I²C/SSD1306, the framebuffer, up to four pages (Probes, Link, Billows,
-Device), passkey overlay, storage-failure overlay, and display timeout. Add
-framebuffer goldens.
+Implement Vext/I²C/SSD1306, the framebuffer, four pages (`Probes`,
+`Connection`, `Billows`, `Bridge`), and the overlays: pairing code, power-off
+countdown, storage failure, resetting, clearing log, off and boot. Add display
+timeout. Use the final labels: `P1 165.2°F`, `App`/`X4`, `Phones paired`,
+`Radio`, `Signal`, `BILLOWS DETECTED/NOT DETECTED`, `SET`, `P4`, `BRIDGE`,
+`Log`, `Readings`, `Memory`, `Attach antenna before power`. Add framebuffer
+goldens.
 
-**Done when.** Host goldens match; the visible pages are legible on the real OLED;
-the panel sleeps and wakes without changing the page.
+**Done when.** Host goldens match every page and overlay; the visible pages are
+legible on the real OLED; the panel sleeps and wakes without changing the page;
+the app's Bridge screen preview and the firmware labels agree.
 
 ---
 

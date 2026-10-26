@@ -216,6 +216,51 @@ class PrototypeController extends ChangeNotifier {
     return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
   }
 
+  /// The BLE link state, separate from Smoke X4 telemetry freshness.
+  String get bridgeConnectedLabel {
+    if (isConnected) return 'Bridge connected · $bridgeConnectedForLabel';
+    switch (phase) {
+      case ConnectionPhase.reconnecting:
+        return 'Reconnecting… attempt 2 of 6';
+      case ConnectionPhase.blocked:
+        return 'Blocked · $bridgeLinkDetail';
+      case ConnectionPhase.setup:
+        return 'Bridge not connected';
+      case ConnectionPhase.failed:
+      case ConnectionPhase.offline:
+        final age = bridgeLastContactAge;
+        if (age == null) return 'Bridge not connected';
+        return 'Bridge disconnected · last connected ${_proseDuration(age)} ago';
+      case ConnectionPhase.live:
+      case ConnectionPhase.stale:
+      case ConnectionPhase.syncing:
+        return 'Bridge connected · $bridgeConnectedForLabel';
+    }
+  }
+
+  /// The Smoke X4 telemetry state. `Receiving readings` is only valid inside
+  /// the 90 s fresh window; otherwise the text names the age.
+  String get telemetryStatusLabel {
+    if (phase == ConnectionPhase.setup) return 'No readings yet';
+    if (isConnected) {
+      final age = smokeXLastPacketAge;
+      if (age == null) return 'No readings yet';
+      if (smokeXReceiving && age <= const Duration(seconds: 90)) {
+        return 'Receiving readings · updated ${_shortDuration(age)} ago';
+      }
+      if (age <= const Duration(minutes: 10)) {
+        return 'No readings for ${_proseDuration(age)}';
+      }
+      return 'Smoke X4 signal lost · ${_proseDuration(age)} ago';
+    }
+    if (offlineCache) {
+      final age = bridgeLastContactAge;
+      if (age == null) return 'Showing saved readings';
+      return 'Showing saved readings · last reading ${_proseDuration(age)} ago';
+    }
+    return 'No readings yet';
+  }
+
   Duration? get smokeXLastPacketAge {
     if (!isConnected) {
       final bridgeAge = bridgeLastContactAge;
@@ -234,10 +279,15 @@ class PrototypeController extends ChangeNotifier {
     }
   }
 
-  bool get smokeXReceiving =>
-      isConnected &&
-      phase != ConnectionPhase.stale &&
-      smokeXStatus == SmokeXStatus.pairedLive;
+  bool get smokeXReceiving {
+    if (!isConnected ||
+        phase == ConnectionPhase.stale ||
+        smokeXStatus != SmokeXStatus.pairedLive) {
+      return false;
+    }
+    final age = smokeXLastPacketAge;
+    return age != null && age <= const Duration(seconds: 90);
+  }
 
   String get bridgeLinkStatusLabel {
     switch (phase) {
@@ -264,7 +314,7 @@ class PrototypeController extends ChangeNotifier {
     if (isConnected) {
       final age = bridgeLastContactAge;
       if (age == null) return 'No contact yet';
-      return 'Last contact ${_shortDuration(age)} ago';
+      return 'Updated ${_shortDuration(age)} ago';
     }
     return bridgeLinkDetail;
   }
@@ -295,12 +345,12 @@ class PrototypeController extends ChangeNotifier {
       case ConnectionPhase.live:
       case ConnectionPhase.stale:
       case ConnectionPhase.syncing:
-        return 'Connected for ${_shortDuration(bridgeConnectedFor)} · last contact ${_shortDuration(bridgeLastContactAge!)} ago';
+        return 'Connected for ${_shortDuration(bridgeConnectedFor)} · updated ${_shortDuration(bridgeLastContactAge!)} ago';
       case ConnectionPhase.reconnecting:
-        return 'Attempt 2 of 6 · next try in 4 s';
+        return 'Attempt 2 of 6 · next try in 4 sec';
       case ConnectionPhase.failed:
       case ConnectionPhase.offline:
-        return 'Last connected ${_shortDuration(bridgeLastContactAge!)} ago';
+        return 'Last connected ${_proseDuration(bridgeLastContactAge!)} ago';
       case ConnectionPhase.blocked:
         switch (blockReason) {
           case BlockReason.bluetoothOff:
@@ -320,30 +370,30 @@ class PrototypeController extends ChangeNotifier {
 
   String get smokeXLinkStatusLabel {
     if (!isConnected) return 'Last known';
-    if (phase == ConnectionPhase.stale) return 'No recent data';
-    switch (smokeXStatus) {
-      case SmokeXStatus.pairedLive:
-        return 'Receiving';
-      case SmokeXStatus.pairedLost:
-        return 'No recent data';
-      case SmokeXStatus.unpaired:
-        return 'Not paired';
+    if (smokeXStatus == SmokeXStatus.unpaired) return 'Not paired';
+    final age = smokeXLastPacketAge;
+    if (age != null && age <= const Duration(seconds: 90)) {
+      return 'Receiving readings';
     }
+    if (age != null && age <= const Duration(minutes: 10)) {
+      return 'No readings';
+    }
+    return 'Signal lost';
   }
 
   String get smokeXLinkDetail {
     final age = smokeXLastPacketAge;
-    if (age == null) return 'No data received yet';
+    if (age == null) return 'No readings yet';
     if (!isConnected) {
-      return 'Last data ${_shortDuration(age)} ago · last known';
+      return 'Last reading ${_proseDuration(age)} ago · last known';
     }
-    return 'Last data ${_shortDuration(age)} ago · 915 MHz';
+    return 'Updated ${_shortDuration(age)} ago';
   }
 
-  String get lastSavedLabel {
-    if (isOffline) return 'Saved 2h ago';
-    if (phase == ConnectionPhase.stale) return 'Saved 4m ago';
-    return 'Saved 2m ago';
+  String get lastSyncedLabel {
+    if (isOffline) return 'Synced 2 hr ago';
+    if (phase == ConnectionPhase.stale) return 'Synced 4 min ago';
+    return 'Synced 2 min ago';
   }
 
   ProbeHealth get effectiveProbeHealth {
@@ -405,7 +455,7 @@ class PrototypeController extends ChangeNotifier {
       ),
       ConnectionEvent(
         title: 'Smoke X4 paired',
-        detail: '915 MHz · pairing confirmed by the Bridge',
+        detail: 'The Bridge confirmed the pairing',
         time: now.subtract(bridgeConnectedFor).add(const Duration(minutes: 4)),
         kind: ConnectionEventKind.smokeXPaired,
       ),
@@ -415,8 +465,8 @@ class PrototypeController extends ChangeNotifier {
         ConnectionEvent(
           title: 'Billows detected',
           detail: billowsDetected
-              ? 'Connected to the Smoke X4 · fan data is arriving'
-              : 'Connected earlier this session · no fan data now',
+              ? 'The Smoke X4 reports Billows attached'
+              : 'Attached earlier this session · not detected now',
           time: billowsDetected
               ? now.subtract(const Duration(seconds: 12))
               : now.subtract(const Duration(minutes: 12)),
@@ -427,7 +477,7 @@ class PrototypeController extends ChangeNotifier {
     if (billowsLostThisSession) {
       events.add(
         ConnectionEvent(
-          title: 'Billows connection lost',
+          title: 'Billows lost',
           detail: 'Was paired through the Smoke X4 · check fan power',
           time: now.subtract(const Duration(minutes: 12)),
           kind: ConnectionEventKind.billowsLost,
@@ -437,7 +487,7 @@ class PrototypeController extends ChangeNotifier {
     if (phase == ConnectionPhase.offline || phase == ConnectionPhase.failed) {
       events.add(
         ConnectionEvent(
-          title: 'Bridge connection lost',
+          title: 'Bridge disconnected',
           detail: 'Recording continues on the Bridge',
           time: now.subtract(bridgeLastContactAge ?? const Duration(hours: 2)),
           kind: ConnectionEventKind.bridgeLost,
@@ -481,23 +531,23 @@ class PrototypeController extends ChangeNotifier {
     return value.toStringAsFixed(1);
   }
 
-  String tempFor(double? fahrenheit) => '${valueFor(fahrenheit)} $unitSuffix';
+  String tempFor(double? fahrenheit) => '${valueFor(fahrenheit)}$unitSuffix';
 
   String get connectionTitle {
     switch (phase) {
       case ConnectionPhase.live:
-        return 'Connected';
+        return 'Bridge connected';
       case ConnectionPhase.stale:
-        return 'No new readings';
+        return 'No readings';
       case ConnectionPhase.syncing:
-        return 'Syncing';
+        return 'Syncing saved readings';
       case ConnectionPhase.reconnecting:
         return 'Reconnecting…';
       case ConnectionPhase.failed:
         return 'Can’t reach the Bridge';
       case ConnectionPhase.offline:
         return offlineCache
-            ? 'Showing last saved readings'
+            ? 'Showing saved readings'
             : 'Can’t reach the Bridge';
       case ConnectionPhase.blocked:
         switch (blockReason) {
@@ -512,7 +562,7 @@ class PrototypeController extends ChangeNotifier {
             return 'Connection blocked';
         }
       case ConnectionPhase.setup:
-        return 'Not connected';
+        return 'Bridge not connected';
     }
   }
 
@@ -520,22 +570,22 @@ class PrototypeController extends ChangeNotifier {
     switch (phase) {
       case ConnectionPhase.live:
         if (!smokeXLiveHint) {
-          return 'Bridge connected · waiting for the Smoke X4';
+          return 'Waiting for Smoke X4 readings';
         }
-        return 'Updated 4s ago · battery $batteryPercent%';
+        return 'Receiving readings · updated 4s ago · battery $batteryPercent%';
       case ConnectionPhase.stale:
-        return 'Last reading 4m ago · the Bridge still answers';
+        return 'No readings for 4 min · the Bridge still answers';
       case ConnectionPhase.syncing:
         return syncState == SyncState.backfill
-            ? 'Loading older history · ${slowLink ? 'slow Bluetooth link' : 'in the background'}'
-            : 'Catching up the last 24 hours · $syncProgressPercent%';
+            ? 'Loading saved readings · ${slowLink ? 'slow connection' : 'in the background'}'
+            : 'Syncing the last 24 hours · $syncProgressPercent%';
       case ConnectionPhase.reconnecting:
-        return 'Attempt 2 of 6 · next try in 4 s';
+        return 'Attempt 2 of 6 · next try in 4 sec';
       case ConnectionPhase.failed:
         return 'Tap to retry. Recording continues on the Bridge.';
       case ConnectionPhase.offline:
         return offlineCache
-            ? 'Last sync 2 h ago'
+            ? 'Last reading 2 hr ago'
             : 'Nothing has been saved on this phone yet';
       case ConnectionPhase.blocked:
         switch (blockReason) {
@@ -560,27 +610,26 @@ class PrototypeController extends ChangeNotifier {
   String get smokeXLabel {
     if (smokeXStatus == SmokeXStatus.unpaired) return 'Not paired';
     if (!isConnected) return 'Paired · last known';
-    switch (smokeXStatus) {
-      case SmokeXStatus.pairedLive:
-        return phase == ConnectionPhase.stale
-            ? 'Paired · no recent data'
-            : 'Paired · receiving';
-      case SmokeXStatus.pairedLost:
-        return 'Paired · no recent data';
-      case SmokeXStatus.unpaired:
-        return 'Not paired';
-    }
+    final age = smokeXLastPacketAge;
+    if (smokeXStatus == SmokeXStatus.pairedLost) return 'Signal lost';
+    if (age != null && age <= const Duration(seconds: 90)) return 'Receiving';
+    return 'No readings';
   }
 
   String get smokeXSubtitle {
-    switch (smokeXStatus) {
-      case SmokeXStatus.pairedLive:
-        return 'Last data 12s ago · 915 MHz';
-      case SmokeXStatus.pairedLost:
-        return 'Last data 14m ago. Put the Smoke X4 in SYNC.';
-      case SmokeXStatus.unpaired:
-        return 'No data received. Put the Smoke X4 in SYNC.';
+    final age = smokeXLastPacketAge;
+    if (age == null) return 'No readings yet. Put the Smoke X4 in SYNC mode.';
+    if (!isConnected) {
+      return 'Last reading ${_proseDuration(age)} ago · last known';
     }
+    if (smokeXStatus == SmokeXStatus.pairedLost ||
+        age > const Duration(minutes: 10)) {
+      return 'No readings for ${_proseDuration(age)}. Put the Smoke X4 in SYNC mode.';
+    }
+    if (age <= const Duration(seconds: 90)) {
+      return 'Updated ${_shortDuration(age)} ago';
+    }
+    return 'No readings for ${_proseDuration(age)}';
   }
 
   String get billowsAttachmentLabel {
@@ -594,20 +643,32 @@ class PrototypeController extends ChangeNotifier {
     }
   }
 
+  String get billowsLastDetectedLabel {
+    if (billowsDetected) {
+      final age = smokeXLastPacketAge ?? bridgeLastContactAge;
+      if (age != null) return _ageLabel(age);
+    }
+    if (billowsLostThisSession) {
+      return _ageLabel(const Duration(minutes: 12));
+    }
+    return 'Not detected';
+  }
+
   String get billowsSettingsSubtitle {
     if (!billowsSeenThisSession) {
       return 'Not detected · appears automatically when connected';
     }
-    return 'Read-only · $billowsAttachmentLabel';
+    return 'Status only · $billowsAttachmentLabel';
   }
 
   String get billowsSourceLabel {
-    return 'Read-only · Smoke X4 channel 4';
+    return 'Smoke X4 (channel 4)';
   }
 
   String get displayTimeoutLabel {
     if (displayTimeoutSeconds == 0) return 'Never';
-    return '$displayTimeoutSeconds s';
+    if (displayTimeoutSeconds < 60) return '$displayTimeoutSeconds sec';
+    return '${displayTimeoutSeconds ~/ 60} min';
   }
 
   String get themeModeLabel {
@@ -786,6 +847,19 @@ class PrototypeController extends ChangeNotifier {
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
     return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
+  }
+
+  String _ageLabel(Duration duration) {
+    if (duration.inSeconds < 60) return '${duration.inSeconds}s ago';
+    return '${_proseDuration(duration)} ago';
+  }
+
+  String _proseDuration(Duration duration) {
+    if (duration.inSeconds < 60) return '${duration.inSeconds} sec';
+    if (duration.inMinutes < 60) return '${duration.inMinutes} min';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    return minutes == 0 ? '$hours hr' : '$hours hr $minutes min';
   }
 
   void reset({bool keepTheme = true}) {

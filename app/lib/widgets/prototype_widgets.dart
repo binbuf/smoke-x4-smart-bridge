@@ -70,7 +70,7 @@ class ConnectionBanner extends StatelessWidget {
       ConnectionPhase.offline => 'Retry',
       ConnectionPhase.reconnecting => 'Retry now',
       ConnectionPhase.stale => 'Read now',
-      ConnectionPhase.blocked => 'Settings',
+      ConnectionPhase.blocked => 'Open settings',
       _ => null,
     };
 
@@ -124,9 +124,7 @@ class ConnectionBanner extends StatelessWidget {
 
   void _showBlockedHelp(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Simulated: opening the relevant Android settings.'),
-      ),
+      const SnackBar(content: Text('Opening the relevant Android settings.')),
     );
   }
 }
@@ -300,6 +298,12 @@ class ProbeCard extends StatelessWidget {
                         size: 14,
                         color: StatusColors.aging(context),
                       ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -320,7 +324,7 @@ class ProbeCard extends StatelessWidget {
                             ),
                           ),
                           TextSpan(
-                            text: ' ${controller.unitSuffix}',
+                            text: controller.unitSuffix,
                             style: theme.textTheme.titleSmall?.copyWith(
                               color: scheme.onSurfaceVariant,
                               fontWeight: FontWeight.w600,
@@ -358,20 +362,12 @@ class ProbeCard extends StatelessWidget {
                 const SizedBox(height: 5),
                 Row(
                   children: [
-                    Text(
-                      history.any((point) => point.valueF != null) ? '1h' : '',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const Spacer(),
                     if (status != null)
-                      Flexible(
+                      Expanded(
                         child: Text(
                           status,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: connected
                                 ? statusColor
@@ -380,12 +376,17 @@ class ProbeCard extends StatelessWidget {
                           ),
                         ),
                       )
-                    else if (delta != null)
+                    else
                       Text(
-                        _deltaLabel(delta),
+                        history.any((point) => point.valueF != null)
+                            ? (delta == null
+                                  ? '1h'
+                                  : '1h · ${_deltaLabel(delta)}')
+                            : '',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
+                          color: muted
+                              ? scheme.onSurfaceVariant.withValues(alpha: 0.6)
+                              : scheme.onSurfaceVariant,
                         ),
                       ),
                   ],
@@ -407,31 +408,45 @@ class ProbeCard extends StatelessWidget {
         ? ''
         : delta.abs() < 0.05
         ? ', flat in the last hour'
-        : ', ${delta > 0 ? 'up' : 'down'} ${_deltaLabel(delta.abs()).replaceAll('+', '')} in the last hour';
+        : ', ${delta > 0 ? 'up' : 'down'} ${_deltaValue(delta.abs()).toStringAsFixed(1)} degrees in the last hour';
     final state = status ?? 'updated live';
     return 'Probe ${probe.number}, $temp, $state$trend. Tap for History.';
   }
 
   String? _statusText() {
-    if (!probe.connected) return 'Not connected';
+    if (!probe.connected) {
+      if (controller.probePresence == ProbePresence.none) return null;
+      return 'Not connected';
+    }
+    // The Live connection card already names the global offline/saved state;
+    // do not repeat it on all four tiles.
+    if (!controller.isConnected) return null;
     switch (probe.health) {
       case ProbeHealth.live:
         return null;
       case ProbeHealth.aging:
-        return '62s ago';
+        return 'Updated 62s ago';
       case ProbeHealth.stale:
-        return 'No new 4m';
+        return 'No readings for 4 min';
       case ProbeHealth.frozen:
-        return 'No new 12m';
+        return 'No readings for 12 min';
     }
   }
 
-  String _deltaLabel(double fahrenheitDelta) {
-    final value = controller.units == Units.fahrenheit
+  double _deltaValue(double fahrenheitDelta) {
+    return controller.units == Units.fahrenheit
         ? fahrenheitDelta
         : fahrenheitDelta * 5 / 9;
-    final sign = value > 0 ? '+' : '';
-    return '$sign${value.toStringAsFixed(1)}°';
+  }
+
+  String _deltaLabel(double fahrenheitDelta) {
+    final value = _deltaValue(fahrenheitDelta);
+    final sign = value > 0
+        ? '+'
+        : value < 0
+        ? '-'
+        : '±';
+    return '$sign${value.abs().toStringAsFixed(1)}${controller.unitSuffix}';
   }
 }
 
@@ -473,11 +488,11 @@ class SettingsGroup extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
           child: Text(
-            title.toUpperCase(),
+            title,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w800,
-              letterSpacing: 1.3,
+              letterSpacing: 0.6,
             ),
           ),
         ),

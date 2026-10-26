@@ -1,6 +1,7 @@
 # Smoke X4 Smart Bridge — Design Set (MVP)
 
-**Status:** implementation-ready · Billows is observation-only per
+**Status:** implementation-ready · UI/UX baseline approved and implemented in the
+prototype · Billows is observation-only per
 [`../billows-decision.md`](../billows-decision.md) · **Date:** 2026-10-26
 
 This directory is the design baseline for the **new** firmware and Flutter app. It
@@ -35,7 +36,8 @@ session model, or notification stack** in this MVP.
 | [09 — Legacy Audit](09-legacy-audit.md) | What is kept, what is left behind, and which defects are not inherited |
 | [10 — Test & Release](10-test-and-release.md) | Test layers, bench matrix, soak, release checklist |
 | [11 — UI/UX Refresh](11-ui-ux-refresh-proposal.md) | Approved Live/History/Settings refresh, naming and interaction decisions |
-| [12 — Copy & Label Review](12-copy-and-label-review.md) | Proposed copy, terminology, formatting and lab/OLED label changes (proposal) |
+| [12 — Copy & Label Review](12-copy-and-label-review.md) | Final copy baseline, state vocabulary, formatting rules and the remaining release copy gaps |
+| [13 — UI/UX Implementation Contract](13-ui-implementation-contract.md) | Prototype-to-production screen map, state inventory, lifecycle flows, view-model seam and UI acceptance |
 
 Task plans live in [`../tasks/`](../tasks/README.md). Bench evidence lives in
 [`../hardware-verified.md`](../hardware-verified.md); the Billows scope decision
@@ -65,6 +67,7 @@ lives in [`../billows-decision.md`](../billows-decision.md).
 | **D18** | **History is a first-class archive.** | Range and probe filters, crosshair, zoom/pan, summary sorting and day groups make the continuous log usable without inventing cook sessions. |
 | **D19** | **Settings is object-based.** | Units are top-level and immediate; destructive actions live with the object they affect; there is no `Actions` screen or save-all bar. |
 | **D20** | **Prototype chrome is lab-only.** | Theme switches, simulation buttons and fake OS prompts belong in the scenario lab, not on product screens. |
+| **D21** | **The approved prototype is the production UI contract.** | Production keeps the prototype's screens, widgets, theme, copy and interaction states and replaces only the state source with real business logic. See [13](13-ui-implementation-contract.md). |
 
 ## Open decisions
 
@@ -101,4 +104,6 @@ undecided about the product:
 3. [05 — BLE Contract](05-ble-contract.md)
 4. [03 — Firmware](03-firmware-architecture.md) and [06 — App](06-app.md)
 5. [07 — Display](07-display-and-controls.md), [08 — Billows](08-billows.md)
-6. [10 — Test & Release](10-test-and-release.md), then the task plan
+6. [12 — Copy](12-copy-and-label-review.md) and
+   [13 — UI/UX Contract](13-ui-implementation-contract.md)
+7. [10 — Test & Release](10-test-and-release.md), then the task plan

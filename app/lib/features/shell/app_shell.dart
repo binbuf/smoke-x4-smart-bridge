@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../prototype/lab_gate.dart';
 import '../../prototype/prototype_controller.dart';
 import '../../prototype/scenario_lab.dart';
 import '../../widgets/prototype_app_bar.dart';
@@ -8,14 +8,6 @@ import '../../widgets/prototype_widgets.dart';
 import '../history/history_screen.dart';
 import '../live/live_screen.dart';
 import '../settings/settings_screen.dart';
-
-/// Debug builds get the scenario lab entry point in the app-bar menu. Release
-/// builds hide it unless explicitly enabled with
-/// `--dart-define=ENABLE_EXPERIMENTAL_LAB=true`.
-const bool _showExperimentalLab = bool.fromEnvironment(
-  'ENABLE_EXPERIMENTAL_LAB',
-  defaultValue: kDebugMode,
-);
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.controller});
@@ -36,7 +28,7 @@ class AppShell extends StatelessWidget {
             titles[tab.index],
             highlightedTitle: false,
             actions: [
-              if (_showExperimentalLab)
+              if (experimentalLabEnabled)
                 PopupMenuButton<String>(
                   key: const Key('nav.experimental'),
                   tooltip: 'App menu',

@@ -56,9 +56,13 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             )
             .where((group) => group.entries.isNotEmpty)
             .toList();
+        final scenarioCount = filtered.fold<int>(
+          0,
+          (sum, group) => sum + group.entries.length,
+        );
 
         return Scaffold(
-          appBar: prototypeAppBar(context, controller, 'Scenario lab'),
+          appBar: prototypeAppBar(context, controller, 'Experimental lab'),
           body: ListView(
             children: [
               ContentWidth(
@@ -130,7 +134,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
                                       .popUntil((route) => route.isFirst);
                                 },
                                 icon: const Icon(Icons.restart_alt, size: 18),
-                                label: const Text('Reset prototype'),
+                                label: const Text('Reset lab state'),
                               ),
                               OutlinedButton.icon(
                                 onPressed: () {
@@ -155,16 +159,41 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${filtered.fold<int>(0, (sum, group) => sum + group.entries.length)} scenarios',
+                      '$scenarioCount ${scenarioCount == 1 ? 'scenario' : 'scenarios'}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
+                    if (filtered.isEmpty) ...[
+                      const SizedBox(height: 12),
+                      SectionCard(
+                        child: Column(
+                          children: [
+                            const Icon(Icons.search_off, size: 28),
+                            const SizedBox(height: 8),
+                            Text(
+                              _query.trim().isEmpty
+                                  ? 'No scenarios available'
+                                  : 'No scenarios match “${_query.trim()}”',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: () {
+                                _search.clear();
+                                setState(() => _query = '');
+                              },
+                              child: const Text('Clear search'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     for (final group in filtered) _GroupCard(group: group),
                     const SizedBox(height: 24),
                     Center(
                       child: Text(
-                        'Prototype UI · BLE, database, sync, and permissions are not implemented',
+                        'Prototype only. Bluetooth, storage, sync, and permissions are simulated',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -184,13 +213,13 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
     return [
       _LabGroup(
         title: 'Setup & permissions',
-        description: 'First run, scanning, pairing, and named failures',
+        description: 'First run, scanning, pairing, and error states',
         entries: [
           _entry(
             context,
             icon: Icons.bluetooth_searching,
             title: 'No Bridge yet',
-            subtitle: 'First launch, no saved Bridge. Find Bridge or open device log.',
+            subtitle: 'First launch, no saved Bridge. Find bridge or open history on this phone.',
             onTap: () {
               controller.hasSavedBridge = false;
               controller.hasSavedData = false;
@@ -259,8 +288,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.devices_other,
             title: 'Scan results',
-            subtitle:
-                'Remembered Bridge first, RSSI, probe preview, and legacy row.',
+            subtitle: 'Last Bridge first, signal words, probe preview, and legacy row.',
             onTap: () => _openSetup(context, SetupStep.results),
           ),
           _entry(
@@ -273,8 +301,9 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.pin_outlined,
-            title: 'Passkey instruction',
-            subtitle: 'Look at the OLED, then the simulated Android prompt.',
+            title: 'Pairing code instruction',
+            subtitle:
+                'Look at the Bridge screen, then the simulated Android prompt.',
             onTap: () => _openSetup(context, SetupStep.passkey),
           ),
           _entry(
@@ -328,9 +357,8 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.folder_open_outlined,
-            title: 'Device log (orphaned)',
-            subtitle:
-                'Device log after a forget/reset, with explicit deletion.',
+            title: 'History on this phone (after forgetting the Bridge)',
+            subtitle: 'History on this phone after a forget/reset, with explicit deletion.',
             onTap: () {
               controller
                 ..hasSavedBridge = false
@@ -344,7 +372,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
       ),
       _LabGroup(
         title: 'Live & connection',
-        description: 'Every freshness, probe, Billows, sync, and link state',
+        description: 'Freshness, probe, Billows, sync, and link states',
         entries: [
           _entry(
             context,
@@ -375,7 +403,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.timer_off_outlined,
             title: 'Live · frozen',
-            subtitle: 'No readings for 12m; no derived values.',
+            subtitle: 'No readings for 12 min; no derived values.',
             onTap: () => _openLive(
               context,
               health: ProbeHealth.frozen,
@@ -399,7 +427,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.sensors_off_outlined,
-            title: 'Bridge connected · no Smoke X4',
+            title: 'Smoke X4 not sending',
             subtitle: 'The Bridge answers but has not heard the transmitter.',
             onTap: () => _openLive(context, smokeX: false),
           ),
@@ -444,7 +472,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.link_off,
-            title: 'Lost the Bridge',
+            title: 'Can’t reach the Bridge',
             subtitle: 'All retries failed; tap to retry or forget.',
             onTap: () => _openLive(context, phase: ConnectionPhase.failed),
           ),
@@ -487,7 +515,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.error_outline,
-            title: 'Sync failed',
+            title: 'History sync failed',
             subtitle: 'Named catch-up failure with retry; live can continue.',
             onTap: () => _openLive(
               context,
@@ -499,7 +527,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.air,
             title: 'Billows · detected',
-            subtitle: 'Read-only status; CH 4 set temp mirrors the Smoke X4.',
+            subtitle: 'Billows status; set temp mirrors the Smoke X4.',
             onTap: () => _openLive(
               context,
               billowsAttachment: BillowsAttachment.attached,
@@ -608,7 +636,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.cloud_off_outlined,
             title: 'History · offline cache',
-            subtitle: 'Cached history labelled "Showing saved readings".',
+            subtitle: 'Cached history labelled “Showing saved readings”.',
             onTap: () =>
                 _openHistory(context, HistoryRange.sixHours, offline: true),
           ),
@@ -639,7 +667,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.link_off,
-            title: 'History · data missing from Bridge',
+            title: 'History overwritten before sync',
             subtitle: 'Permanent gap marker and explanation.',
             onTap: () =>
                 _openHistory(context, HistoryRange.twoDays, missing: true),
@@ -648,7 +676,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
       ),
       _LabGroup(
         title: 'Settings',
-        description: 'Bridge, preferences, Billows, history and about',
+        description: 'Bridge, preferences, Billows, history, and About',
         entries: [
           _entry(
             context,
@@ -660,7 +688,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.lock_outline,
-            title: 'Settings · offline read-only',
+            title: 'Settings · offline',
             subtitle: 'Last read values, disabled with a reason.',
             onTap: () => _openSettings(context, offline: true),
           ),
@@ -695,8 +723,8 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.air,
-            title: 'Billows settings · read-only',
-            subtitle: 'CH 4 set temp mirrored from the Smoke X4.',
+            title: 'Billows settings · status only',
+            subtitle: 'Set temp mirrored from the Smoke X4.',
             onTap: () {
               controller.phase = ConnectionPhase.live;
               _push(context, BillowsSettingsScreen(controller: controller));
@@ -719,7 +747,8 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.sd_storage_outlined,
             title: 'History & storage',
-            subtitle: 'Device log and Bridge log, with explicit deletion.',
+            subtitle:
+                'History on this phone and the Bridge, with explicit deletion.',
             onTap: () {
               controller
                 ..phase = ConnectionPhase.live
@@ -733,7 +762,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.lock_outline,
             title: 'History & storage · offline',
-            subtitle: 'Bridge log read-only; phone deletion still works.',
+            subtitle: 'Bridge history unavailable offline; phone deletion still works.',
             onTap: () {
               controller.phase = ConnectionPhase.offline;
               _push(context, HistoryStorageScreen(controller: controller));
@@ -772,7 +801,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.folder_open_outlined,
-            title: 'Device log screen',
+            title: 'History on this phone screen',
             subtitle: 'The only path to history after the Bridge is forgotten.',
             onTap: () {
               controller.hasSavedData = true;
@@ -785,21 +814,20 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
       ),
       _LabGroup(
         title: 'Confirmations & results',
-        description: 'Destructive sheets and the expected disconnect outcomes',
+        description: 'Destructive confirmations and their outcomes',
         entries: [
           _entry(
             context,
             icon: Icons.link_off,
             title: 'Forget this phone',
-            subtitle:
-                'Pairing removed; Bridge keeps recording; device log kept.',
+            subtitle: 'Pairing removed; Bridge keeps recording; history on this phone kept.',
             onTap: () => _openConfirm(context, DestructiveKind.forgetPhone),
           ),
           _entry(
             context,
             icon: Icons.sd_card_alert_outlined,
-            title: 'Clear Bridge log',
-            subtitle: 'Erases the Bridge log; keeps pairing and device log.',
+            title: 'Clear history on the Bridge',
+            subtitle: 'Erases the Bridge history; keeps pairing and history on this phone.',
             onTap: () =>
                 _openConfirm(context, DestructiveKind.clearBridgeHistory),
           ),
@@ -820,7 +848,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.delete_forever_outlined,
-            title: 'Delete all device log',
+            title: 'Delete all history on this phone',
             subtitle: 'Explicit user action only; never automatic.',
             onTap: () => _openConfirm(context, DestructiveKind.deleteAll),
           ),
@@ -848,7 +876,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
         ],
       ),
       _LabGroup(
-        title: 'Device OLED',
+        title: 'Bridge screen (OLED)',
         description:
             'The other UI surface: pages, pairing code, power, storage',
         entries: [
@@ -874,14 +902,14 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.monitor,
             title: 'Page 2 · link',
-            subtitle: 'BLE advertising/connected and Smoke X4 pairing.',
+            subtitle: 'App connected or ready to pair, and Smoke X4 pairing.',
             onTap: () => _openDevice(context, page: 2),
           ),
           _entry(
             context,
             icon: Icons.monitor,
             title: 'Page 3 · Billows',
-            subtitle: 'Detected, CH 4 set temp mirrored, read-only.',
+            subtitle: 'Detected, set temp mirrored, status only.',
             onTap: () => _openDevice(context, page: 3),
           ),
           _entry(
@@ -906,8 +934,8 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.pin_outlined,
-            title: 'Passkey overlay',
-            subtitle: 'Six digits on the OLED during pairing.',
+            title: 'Pairing code overlay',
+            subtitle: 'Six digits on the Bridge screen during pairing.',
             onTap: () =>
                 _openDevice(context, page: 1, overlay: DeviceOverlay.passkey),
           ),
@@ -939,7 +967,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.delete_sweep_outlined,
             title: 'Clear history progress',
-            subtitle: 'CLEARING LOG… keeps pairing and config.',
+            subtitle: 'CLEARING LOG… keeps pairing and settings.',
             onTap: () =>
                 _openDevice(context, page: 1, overlay: DeviceOverlay.clearing),
           ),

@@ -1,13 +1,16 @@
 # M0 — Contract & Harness
 
 **Exit gate:** the protocol contract and generated codecs build; host tests run
-in CI; the app has a BLE fake; the board identity is confirmed; the deep-sleep
-wake question has an answer. No product feature is expected yet, but every later
-task has a place to land.
+in CI; the app has a BLE fake; the approved prototype UI is preserved as the
+production baseline; the board identity is confirmed; the deep-sleep wake
+question has an answer. No product feature is expected yet, but every later task
+has a place to land.
 
 **Design:** [00](../design/00-product.md), [01](../design/01-hardware.md),
 [02](../design/02-smoke-x-protocol.md), [04](../design/04-data-and-storage.md),
-[05](../design/05-ble-contract.md), [10](../design/10-test-and-release.md)
+[05](../design/05-ble-contract.md),
+[13](../design/13-ui-implementation-contract.md),
+[10](../design/10-test-and-release.md)
 
 ---
 
@@ -94,14 +97,40 @@ contains no Wi-Fi/HTTP/OTA components.
 ### T0.5 App skeleton
 
 - **blocked-by:** T0.1 · **verify:** H · **board:** no
-- **design:** [06 §6.2](../design/06-app.md)
+- **design:** [06 §6.2](../design/06-app.md),
+  [13 §13.3](../design/13-ui-implementation-contract.md#133-production-ownership)
 
-Create the Flutter app: Android-only, Material 3 shell with Live/History/Settings
-placeholders, a `BridgeController`, a repository seam, and a DB open path. Add
+Create the production Flutter app: Android-only, Material 3 shell with
+Live/History/Settings, a `BridgeController`, a repository seam, and a DB open
+path. Start from the approved prototype UI, not from placeholder tabs. Add
 `flutter analyze` and a first widget test.
 
-**Done when.** `flutter analyze` and `flutter test` pass; the app launches to an
-empty Live tab on an emulator/device.
+**Done when.** `flutter analyze` and `flutter test` pass; the app launches to a
+Live tab that renders the approved shell; no `prototype/` fixture is imported by
+the production entrypoint.
+
+---
+
+### T0.5a UI baseline and view-model seam
+
+- **blocked-by:** T0.5 · **verify:** H · **board:** no
+- **design:** [13 §13.2–13.4, §13.7](../design/13-ui-implementation-contract.md),
+  [06 §6.2](../design/06-app.md)
+
+Promote the prototype UI into the production tree:
+
+- keep `features/`, `widgets/` and `theme/` as the visual contract;
+- introduce immutable `LiveViewState`, `HistoryViewState`, `SetupViewState`,
+  `SettingsViewState` and `BridgeDetailsViewState` objects;
+- replace direct `PrototypeController` reads in widgets with view state;
+- keep the scenario lab and fixture data behind a debug/test adapter, gated by
+  `kDebugMode` or `ENABLE_EXPERIMENTAL_LAB`;
+- move reusable formatters to the production formatter layer;
+- make the screenshot generator run against the production screens.
+
+**Done when.** Production screens render from view models, the widget suite still
+covers the approved states, the lab is not reachable from the release entrypoint,
+and `flutter analyze`/`flutter test`/screenshot generation pass.
 
 ---
 
@@ -130,11 +159,13 @@ Add CI jobs:
 1. protocol generate + drift check,
 2. C host tests,
 3. firmware build,
-4. Flutter analyze/test,
-5. no-network/no-OTA dependency guard (fail if `http`, `web_socket`, MQTT, or
+4. Flutter analyze/test, including the UI state matrix and layout tests,
+5. UI screenshot/golden check against the approved baseline,
+6. no-network/no-OTA dependency guard (fail if `http`, `web_socket`, MQTT, or
    OTA packages are added to the app/firmware).
 
-**Done when.** A pull request runs all five and fails on drift.
+**Done when.** A pull request runs all six and fails on protocol drift, a UI
+regression or a forbidden dependency.
 
 ---
 

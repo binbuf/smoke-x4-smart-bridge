@@ -1,9 +1,9 @@
 # M2 — BLE + App Slice (V0)
 
 **Exit gate (V0):** a factory-fresh phone scans the bridge, pairs with the code
-on the OLED, sees four live temperatures, and shows the last 15 minutes in
-History from the bridge's log. A disconnect/reconnect and a power cycle work.
-This is the first deployable end-to-end build.
+on the OLED, sees four live temperatures, and shows the last 15 minutes in the
+full History shell from the bridge's log. A disconnect/reconnect, offline-cache
+state and a power cycle work. This is the first deployable end-to-end build.
 
 **Design:** [05](../design/05-ble-contract.md), [06](../design/06-app.md),
 [04 §4.5](../design/04-data-and-storage.md)
@@ -99,42 +99,67 @@ on a real phone sees the bridge; a denied permission produces the named state.
 
 ### A2.2 app: setup and passkey flow
 
-- **blocked-by:** A2.1, F2.4 · **verify:** H/P · **board:** no / phone
-- **design:** [06 §6.4](../design/06-app.md)
+- **blocked-by:** A2.1, T0.5a, F2.4 · **verify:** H/P · **board:** no / phone
+- **design:** [06 §6.4](../design/06-app.md),
+  [13 §13.4](../design/13-ui-implementation-contract.md#setup)
 
-Implement the setup route: permission primer, Bluetooth-off state, scan list,
-info read, passkey instruction, OS bond, stale-bond heal, wrong-code retry, and
-success → Live. Do not show a code in the app.
+Implement the approved setup route end to end: `Connect your Bridge`, permission
+primer only when needed, Bluetooth-off, denied/blocked, unsupported phone,
+scanning, no results, results (remembered first, signal words, preview,
+protocol-mismatch row), info read, passkey instruction, OS bond, pairing
+progress, wrong-code/timeout/stale-bond/bond-full recovery, first sync, and
+success → Live. Include the `History on this phone` escape when saved history
+exists and after forget/reset. Do not show a real code in the app.
 
-**Done when.** A fresh phone reaches Live through named steps; wrong code,
-timeout, stale bond, and bond-full states are widget-tested.
+Production finishes the copy gaps in [12 C1](../design/12-copy-and-label-review.md#123-remaining-copyux-gaps-before-release):
+unsupported/protocol-mismatch must offer `Update app`, `View history on this
+phone` and `Learn more` where applicable.
+
+**Done when.** A fresh phone reaches Live through named steps; every setup state
+in 13 §13.4 is widget-tested with the approved copy; wrong code, timeout, stale
+bond, bond-full, permission and protocol-mismatch states are reachable; V0 says
+`Loading recent readings` / `last 15 minutes` rather than the 24-hour copy until
+M3 can deliver it; no simulation control or fake OS prompt is on a product
+screen.
 
 ---
 
 ### A2.3 app: Live screen
 
-- **blocked-by:** T0.5, A2.1, F2.2 · **verify:** H/P · **board:** no / phone
-- **design:** [06 §6.5](../design/06-app.md)
+- **blocked-by:** T0.5a, A2.1, F2.2 · **verify:** H/P · **board:** no / phone
+- **design:** [06 §6.5](../design/06-app.md),
+  [13 §13.4](../design/13-ui-implementation-contract.md#live)
 
-Implement the Live connection-chain card (phone → Bridge → Smoke X4) with two
-LED-style rows, last Bridge contact/session time and last Smoke X4 data age. Then
-add four probe tiles in probe order, per-probe last-hour sparklines, detached and
-stale states, and the Billows read-only card. The Billows card is hidden when
-`caps.billows_observe = 0` **and whenever Billows is not detected**, so V0 does
-not depend on M5. Do not add a “Connected” pill to the Billows card. No zero for
-absent data. Add the freshness calculation and widget tests. The aggregate
-preview graph and the app-bar status chip are not part of Live.
+Implement the approved Live screen as one status surface:
+
+- connection chain `App → Bridge → Smoke X4` with the two-row status block:
+  `Bridge connected · 2h 14m` + signal meter, then `Receiving readings · updated
+  12s ago` only inside the 90 s window; `No readings for 4 min` / `Smoke X4
+  signal lost · 10 min ago`; offline `Bridge disconnected · last connected 2h
+  ago` + `Showing saved readings · last reading 20 min ago` when cached;
+- four probe tiles in order with `P1`–`P4`, large values, last-hour sparklines,
+  signed footer (`1h · +3.8°F`), `No history yet`, detached `—`/`Not connected`;
+- inline notices: no X4 data + `Troubleshoot`, sync progress/failure, not
+  recording, no probes, Billows lost;
+- Billows card only when detected, with `Set temp`, `Last detected`, `Set on the
+  Smoke X4.` and no Connected/read-only pill; hidden when
+  `caps.billows_observe = 0` or Billows has never been detected;
+- pull-to-refresh reads `live` and runs a forward sync; no `Sync now` on Live;
+- offline without cache must not render fixture values as current; show one
+  no-cache status and one next action.
 
 **Done when.** Live renders the full chain, four numbered probes, a sparkline
-where history exists, and every freshness state from a fake; a real phone shows
-live values at the sample cadence.
+where history exists, and every state in 13 §13.4 from a fake; a real phone shows
+live values at the sample cadence; the detached/no-cache/Billows-loss states pass
+widget tests.
 
 ---
 
 ### A2.4 app: link procedures and time sync
 
-- **blocked-by:** A2.1, F2.3, F2.4 · **verify:** H/P · **board:** no / phone
-- **design:** [06 §6.3](../design/06-app.md), [05 §5.12](../design/05-ble-contract.md)
+- **blocked-by:** A2.1, T0.5a, F2.3, F2.4 · **verify:** H/P · **board:** no / phone
+- **design:** [06 §6.3](../design/06-app.md), [05 §5.12](../design/05-ble-contract.md),
+  [13 §13.5](../design/13-ui-implementation-contract.md#135-ui-lifecycle-flows)
 
 Implement connect → read info → MTU → pair → subscribe → read live → set_time
 → sync. `config`/`stats` reads are added with F4.1/M4; V0 needs only info/live/
@@ -149,15 +174,18 @@ recovers from a dropped link.
 ### A2.5 app: recent History (V0)
 
 - **blocked-by:** A2.4, F2.5 · **verify:** H/P · **board:** no / phone
-- **design:** [06 §6.6](../design/06-app.md)
+- **design:** [06 §6.6](../design/06-app.md),
+  [13 §13.4](../design/13-ui-implementation-contract.md#history)
 
-Implement the History tab with four series, a 15-minute recent query from the
-in-memory/DB cache, gap splitting, and an empty state. Full range chips, probe
-filters, crosshair, summary and decimation are M3; V0 may show only the last
-15 minutes.
+Mount the approved History UI from the prototype: filter card, chart shell,
+Summary, Cooks card and empty/offline states. V0 only has the last 15 minutes of
+data, so range selections beyond that legitimately show the same recent data or
+an honest no-data state. Full sync, decimation, cook detection and deletion land
+in M3; do not build a second simplified History screen.
 
 **Done when.** A fake sync of 30 records draws four series with a gap; a real
-phone shows the last 15 minutes after pairing.
+phone shows the last 15 minutes after pairing; the full History shell and its
+empty/offline states are present with no placeholder chart.
 
 ---
 
@@ -170,18 +198,23 @@ On a factory-fresh install and a real board:
 
 1. Power on; confirm advertising and the OLED page.
 2. Scan, pair with the OLED code, reach Live.
-3. See four live temperatures update at ~30 s.
-4. See the last 15 minutes in History.
-5. Disconnect by walking away; confirm stale/reconnect.
-6. Stop the Smoke X4 (or move it out of range); confirm the bridge stays
-   connected and the app shows stale, not fake live data.
+3. See four live temperatures update at ~30 s; probe tiles show sparklines and
+   the approved footer.
+4. See the last 15 minutes in the full History shell.
+5. Disconnect by walking away; confirm stale/reconnect and the offline-cache
+   label.
+6. Stop the Smoke X4 (or move it out of range); confirm the Bridge stays
+   connected, Live says `No readings`/`Smoke X4 signal lost`, and the app does
+   not show fake live data.
 7. Power-cycle the bridge; confirm auto-reconnect and history.
 8. Confirm the stock receiver still works.
+9. Walk the setup and Live states in [13 §13.4](../design/13-ui-implementation-contract.md#134-complete-state-inventory)
+   on the phone; no prototype chrome is visible.
 
 Record phone model, Android version, MTU, timings, and any failure. Commit the
 V0 evidence.
 
-**Done when.** All eight pass or every failure has a named follow-up task.
+**Done when.** All nine pass or every failure has a named follow-up task.
 
 ---
 

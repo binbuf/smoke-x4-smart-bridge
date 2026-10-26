@@ -1,8 +1,9 @@
 # M6 — Field Hardening & Release
 
 **Exit gate:** a 24-hour soak and a real overnight cook pass; the release
-checklist is complete; a new user can follow the README from a blank phone and
-board to live data; known limitations are written down.
+checklist and UI/UX acceptance in 13 §13.10 are complete; a new user can follow
+the README from a blank phone and board to live data; known limitations are
+written down.
 
 **Design:** [10](../design/10-test-and-release.md)
 
@@ -65,15 +66,21 @@ does; a field cook that changes an assumption changes a task.
 
 ### V6.4 App release build
 
-- **blocked-by:** A4.4, V6.1 · **verify:** H/P · **board:** no / phone
-- **design:** [10 §10.5](../design/10-test-and-release.md)
+- **blocked-by:** A4.4, A4.5, V6.1 · **verify:** H/P · **board:** no / phone
+- **design:** [10 §10.5](../design/10-test-and-release.md),
+  [13 §13.7, §13.10](../design/13-ui-implementation-contract.md)
 
 Set the version, icon, package id, release signing (or a documented debug-only
-bench build), and Android manifest. Remove debug-only UI. Run `flutter analyze`
-and `flutter test`. Install a fresh APK and upgrade an existing install.
+bench build), and Android manifest. Remove debug-only UI and gate the
+Experimental lab on `kDebugMode` or `ENABLE_EXPERIMENTAL_LAB`; verify the About
+long-press cannot open it in release. Run `flutter analyze`, `flutter test`, the
+copy lint and the screenshot generator. Walk the UI parity/a11y checklist in
+13 §13.10. Install a fresh APK and upgrade an existing install.
 
-**Done when.** A release APK installs and completes the V0/V3 flows; the manifest
-contains no unused network/notification/foreground-service permissions.
+**Done when.** A release APK installs and completes the V0/V3 flows; no lab,
+simulation control, fixture value or prototype-only copy is reachable; the
+manifest contains no unused network/notification/foreground-service permissions;
+UI parity, 320 dp, dark/light and accessibility checks pass.
 
 ---
 
@@ -103,8 +110,11 @@ Write/refresh:
   limitations, attribution.
 - `docs/hardware-verified.md`: dated bench results.
 - `docs/billows-decision.md`: observation-only decision and evidence.
+- `docs/design/12-copy-and-label-review.md` and
+  `docs/design/13-ui-implementation-contract.md`: mark the remaining production
+  copy/UI gaps closed or explicitly descoped.
 - release notes per 10 §10.7.
-- a one-page "new user" path: power, fit antenna, pair, live, history.
+- a one-page "new user" path: power, attach antenna, pair, live, history, Cooks.
 
 **Done when.** A person who has never seen the repo can follow the README from a
 blank phone/board to live data without external prose.
@@ -114,9 +124,10 @@ blank phone/board to live data without external prose.
 ### V6.7 Final acceptance audit
 
 - **blocked-by:** V6.3, V6.4, V6.5, V6.6 · **verify:** H/B/P/C · **board:** yes
-- **design:** [10 §10.6](../design/10-test-and-release.md)
+- **design:** [10 §10.6](../design/10-test-and-release.md),
+  [13 §13.10](../design/13-ui-implementation-contract.md#1310-definition-of-done)
 
-Walk the acceptance matrix row by row. For each:
+Walk the acceptance matrix and the UI/UX definition of done row by row. For each:
 
 - mark pass/fail by observation,
 - link the evidence,
@@ -127,5 +138,8 @@ Confirm the release notes match the capability bits (`billows_control`,
 the Billows copy says "Set the target on the Smoke X4." Confirm
 `docs/billows-decision.md` records the observation-only decision and owner
 acceptance; without it, release is blocked, not merely worded differently.
+Confirm the UI parity, copy lint, dark/light, 320 dp and accessibility evidence
+is committed and no prototype-only surface is reachable.
 
-**Done when.** Every row is pass, fail, or explicitly descoped; nothing is blank.
+**Done when.** Every row is pass, fail, or explicitly descoped; nothing is blank;
+the UI/UX contract has evidence for every screen and lifecycle state.

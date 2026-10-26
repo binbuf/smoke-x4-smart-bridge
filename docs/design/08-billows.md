@@ -94,7 +94,7 @@ must not offer a control affordance when it is `0`.
 |---|---|
 | Attached, target known | `Billows detected · Target 225 °F · Set on the Smoke X4` |
 | Attached, target unknown | `Billows detected · Target — · Set on the Smoke X4` |
-| Detected earlier, now missing | `Billows disconnected` (one notice, not repeated per screen) |
+| Detected earlier, now missing | `Billows not detected` (one notice, not repeated per screen) |
 | Never detected | No Billows card/page; no empty placeholder |
 
 ## 8.5 Target field validation (B5.0)

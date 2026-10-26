@@ -46,22 +46,23 @@ String clockLabel(DateTime time, {bool use24Hour = false}) {
 }
 
 String chartTime(DateTime time, Duration span, {bool use24Hour = false}) {
-  if (span.inHours <= 24 && time.hour != 0) {
+  if (span.inHours <= 24) {
+    if (time.hour == 0 && time.minute == 0) return shortDate(time);
     return clockLabel(time, use24Hour: use24Hour);
   }
-  return shortDate(time);
+  return '${shortDate(time)} ${clockLabel(time, use24Hour: use24Hour)}';
 }
 
 String historyRangeLabel(HistoryRange range) {
   switch (range) {
     case HistoryRange.oneHour:
-      return '1 h';
+      return 'Last hour';
     case HistoryRange.sixHours:
-      return '6 h';
+      return 'Last 6 hours';
     case HistoryRange.twentyFourHours:
-      return '24 h';
+      return 'Last 24 hours';
     case HistoryRange.twoDays:
-      return '2 d';
+      return 'Last 2 days';
     case HistoryRange.custom:
       return 'Custom';
   }
@@ -70,15 +71,30 @@ String historyRangeLabel(HistoryRange range) {
 String historyChipLabel(HistoryRange range) {
   switch (range) {
     case HistoryRange.oneHour:
-      return '1H';
+      return '1 hour';
     case HistoryRange.sixHours:
-      return '6H';
+      return '6 hours';
     case HistoryRange.twentyFourHours:
-      return '24H';
+      return '24 hours';
     case HistoryRange.twoDays:
-      return '2D';
+      return '2 days';
     case HistoryRange.custom:
-      return 'CUSTOM';
+      return 'Custom';
+  }
+}
+
+String historyRangeKey(HistoryRange range) {
+  switch (range) {
+    case HistoryRange.oneHour:
+      return '1h';
+    case HistoryRange.sixHours:
+      return '6h';
+    case HistoryRange.twentyFourHours:
+      return '24h';
+    case HistoryRange.twoDays:
+      return '2d';
+    case HistoryRange.custom:
+      return 'custom';
   }
 }
 
@@ -99,9 +115,9 @@ String historyWindowLabel(
           start.month == end.month &&
           start.day == end.day;
       if (sameDay) {
-        return '${shortDate(start)} · ${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
+        return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
       }
-      return '${shortDate(start)} ${clockLabel(start, use24Hour: use24Hour)} – ${shortDate(end)} ${clockLabel(end, use24Hour: use24Hour)}';
+      return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${shortDate(end)}, ${clockLabel(end, use24Hour: use24Hour)}';
   }
 }
 
@@ -121,6 +137,28 @@ String durationShort(Duration duration) {
   final hours = value.inHours;
   final minutes = value.inMinutes % 60;
   return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
+}
+
+String durationLong(Duration duration) {
+  final value = duration.abs();
+  if (value.inMinutes < 1) {
+    return '${value.inSeconds} ${value.inSeconds == 1 ? 'second' : 'seconds'}';
+  }
+  if (value.inHours < 1) {
+    return '${value.inMinutes} ${value.inMinutes == 1 ? 'minute' : 'minutes'}';
+  }
+  if (value.inDays >= 1) {
+    final days = value.inDays;
+    final hours = value.inHours % 24;
+    final dayLabel = '$days ${days == 1 ? 'day' : 'days'}';
+    if (hours == 0) return dayLabel;
+    return '$dayLabel, $hours ${hours == 1 ? 'hour' : 'hours'}';
+  }
+  final hours = value.inHours;
+  final minutes = value.inMinutes % 60;
+  final hourLabel = '$hours ${hours == 1 ? 'hour' : 'hours'}';
+  if (minutes == 0) return hourLabel;
+  return '$hourLabel, $minutes ${minutes == 1 ? 'minute' : 'minutes'}';
 }
 
 String dayLabel(DateTime day, {DateTime? relativeTo}) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../prototype/formatters.dart';
+import '../../prototype/lab_gate.dart';
 import '../../prototype/prototype_controller.dart';
 import '../../prototype/scenario_lab.dart';
 import '../../theme/app_theme.dart';
@@ -43,9 +44,9 @@ class SettingsScreen extends StatelessWidget {
                       SettingsTile(
                         key: const Key('settings.history.logs'),
                         icon: Icons.sd_storage_outlined,
-                        title: 'Device & Bridge logs',
+                        title: 'Storage',
                         subtitle:
-                            '${commaInt(controller.phoneRecords)} device · ${commaInt(controller.bridgeRecords)} Bridge readings',
+                            '${commaInt(controller.phoneRecords)} readings on this phone · ${commaInt(controller.bridgeRecords)} on the Bridge',
                         onTap: () => _push(
                           context,
                           HistoryStorageScreen(controller: controller),
@@ -74,16 +75,18 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       SettingsTile(
                         icon: Icons.info_outline,
-                        title: 'About',
-                        subtitle: 'App 0.1.0 · firmware ${controller.firmware}',
+                        title: 'About this app',
+                        subtitle: 'App 0.1.0 · Firmware ${controller.firmware}',
                         onTap: () => _push(
                           context,
                           AboutScreen(
                             controller: controller,
-                            onOpenLab: () => _push(
-                              context,
-                              ScenarioLabScreen(controller: controller),
-                            ),
+                            onOpenLab: experimentalLabEnabled
+                                ? () => _push(
+                                    context,
+                                    ScenarioLabScreen(controller: controller),
+                                  )
+                                : null,
                           ),
                         ),
                       ),
@@ -92,7 +95,7 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   Center(
                     child: Text(
-                      'Smoke X4 Smart Bridge · Local only',
+                      'Smoke X4 Smart Bridge · No account needed',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
@@ -160,7 +163,7 @@ class _BridgeStatusHeader extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text(
-                        'Bridge ${controller.deviceId} · Bluetooth',
+                        'Bridge ${controller.deviceId}',
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
@@ -262,8 +265,8 @@ class _UnitsTile extends StatelessWidget {
                     ),
                     Text(
                       controller.isConnected
-                          ? 'Every reading, target and the Bridge OLED'
-                          : 'The Bridge OLED updates when you reconnect',
+                          ? 'All temperatures, including the Bridge screen.'
+                          : 'The Bridge screen will update when you reconnect.',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),

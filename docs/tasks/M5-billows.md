@@ -67,22 +67,28 @@ transmit path exists.
 
 - **blocked-by:** B5.0, B5.1 · **verify:** H/P · **board:** no / phone
 - **design:** [06 §6.5, §6.7](../design/06-app.md),
-  [08 §8.4, §8.6](../design/08-billows.md)
+  [08 §8.4, §8.6](../design/08-billows.md),
+  [13 §13.4](../design/13-ui-implementation-contract.md#live)
 
-Implement:
+Implement the approved status-only surfaces:
 
-- a Live Billows card only when **detected**, with no “Connected” pill;
-- target read-only when `billows_target_f10 != 0`, otherwise `—`;
-- the source line “Set on the Smoke X4”;
-- one `Billows disconnected` notice if it was detected earlier this session and
-  is now missing;
-- Settings > Bridge > Billows showing detection/last-seen only;
+- a Live Billows card only when **detected**, with no `Connected` pill and no
+  `Read-only` label;
+- `Set temp` when `billows_target_f10 != 0`, otherwise `—`;
+- `Last detected` with an age (`12s ago`), not a bare `Detected`;
+- the source line `Set on the Smoke X4.`;
+- offline `Last observed state`, `Set temp (last known)` and a last-detected age;
+- one `Billows not detected` notice with `View connection log` if it was detected
+  earlier this session and is now missing;
+- Settings → Bridge → Billows showing status/last-seen only, with the focused
+  connection log;
 - no mode switch, no target editor, no Set target action, no fan-speed claim;
 - no control UI even if a future firmware sets a control bit this build does not
   implement.
 
-**Done when.** Fake and real states render correctly; no UI path can send
-`set_billows_target`.
+**Done when.** Fake and real states render correctly with the approved copy; no
+UI path can send `set_billows_target`; the card is absent when Billows has never
+been detected.
 
 ---
 

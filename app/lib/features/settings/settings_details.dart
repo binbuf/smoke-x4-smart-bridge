@@ -40,11 +40,11 @@ class BillowsSettingsScreen extends StatelessWidget {
                     InlineNotice(
                       icon: Icons.lock_outline,
                       title: controller.isConnected
-                          ? 'Read-only fan status'
-                          : 'Last observed Billows state',
+                          ? 'Billows status'
+                          : 'Last observed state',
                       message: controller.isConnected
-                          ? 'Billows is detected automatically through the Smoke X4. Its set temperature is the channel 4 set temp on the Smoke X4; the app never changes it.'
-                          : 'Reconnect to refresh the channel 4 set temp from the Smoke X4.',
+                          ? 'Billows reports through the Smoke X4. Its set temperature comes from the Smoke X4; this app shows it for reference.'
+                          : 'Reconnect to refresh the Billows status and set temperature.',
                     ),
                     const SizedBox(height: 16),
                     SectionCard(
@@ -55,7 +55,9 @@ class BillowsSettingsScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  'Current state',
+                                  controller.isConnected
+                                      ? 'Status'
+                                      : 'Last observed status',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium,
@@ -73,28 +75,24 @@ class BillowsSettingsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           KeyValueRow(
-                            label: 'Last seen',
-                            value: controller.billowsDetected
-                                ? '12s ago'
-                                : controller.billowsLostThisSession
-                                ? 'Earlier this session'
-                                : 'Not this session',
+                            label: 'Last detected',
+                            value: controller.billowsLastDetectedLabel,
                           ),
                           KeyValueRow(
-                            label: 'CH 4 set temp',
+                            label: 'Set temp',
                             value: controller.smokeXChannel4SetKnown
                                 ? controller.tempFor(
                                     controller.smokeXChannel4SetF.toDouble(),
                                   )
-                                : '— (not validated)',
+                                : '—',
                           ),
                           KeyValueRow(
-                            label: 'Source',
+                            label: 'Set on',
                             value: controller.billowsSourceLabel,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Detected means the Smoke X4 is receiving Billows data. The target is simply the Smoke X4 channel 4 set temp, so it can be changed only on the Smoke X4. It does not mean the fan is running.',
+                            'Detected means the Smoke X4 is receiving Billows data. The set temp can only be changed on the Smoke X4. Detection doesn’t mean the fan is running.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
@@ -127,7 +125,7 @@ class BillowsSettingsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Billows is paired through the Smoke X4, so detection and drops sit in the same timeline as the Bridge.',
+                            'Billows events appear here with the Bridge’s connection events.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
@@ -212,13 +210,12 @@ class AboutScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        KeyValueRow(label: 'App version', value: '0.1.0'),
                         KeyValueRow(
-                          label: 'Bridge firmware',
+                          label: 'Firmware',
                           value: controller.firmware,
                         ),
                         KeyValueRow(
-                          label: 'Protocol',
+                          label: 'Bridge protocol',
                           value: controller.protocol,
                         ),
                         KeyValueRow(
@@ -229,7 +226,10 @@ class AboutScreen extends StatelessWidget {
                           label: 'Bluetooth name',
                           value: 'SmokeX4-${controller.deviceId}',
                         ),
-                        KeyValueRow(label: 'Model', value: 'heltec3'),
+                        const KeyValueRow(
+                          label: 'Hardware',
+                          value: 'Heltec WiFi LoRa 32 V3',
+                        ),
                       ],
                     ),
                   ),
@@ -245,7 +245,7 @@ class AboutScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Firmware updates are USB only in this build. There is no OTA path.',
+                        'Firmware updates require a USB connection to a computer. This app can’t update the Bridge over Bluetooth.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 18),
@@ -265,7 +265,7 @@ class AboutScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Smoke X protocol decoding derives from G-Two/smoke-x-receiver (MIT © 2022 G-Two). Not affiliated with or endorsed by ThermoWorks. Smoke X is a trademark of its owner.',
+                        'Smoke X protocol decoding is based on G-Two/smoke-x-receiver (MIT © 2022 G-Two). Not affiliated with or endorsed by ThermoWorks. Smoke X is a trademark of its owner.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: scheme.onSurfaceVariant,
                           height: 1.45,
@@ -304,7 +304,7 @@ class RePairScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Put the Smoke X4 in SYNC',
+                        'Re-pair the Smoke X4',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 14),
@@ -318,11 +318,11 @@ class RePairScreen extends StatelessWidget {
                       ),
                       const _NumberedStep(
                         number: '3',
-                        text: 'The Bridge scans 915/920 MHz and confirms the pairing.',
+                        text: 'The Bridge confirms the pairing.',
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'This clears the old radio pairing only. The Bridge log, phone pairings, and settings are kept.',
+                        'This clears the old radio pairing only. History on the Bridge, phone pairings, and settings are kept.',
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
@@ -335,13 +335,15 @@ class RePairScreen extends StatelessWidget {
                     controller.startRePair();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Re-pairing started (simulated).'),
+                        content: Text(
+                          'Re-pairing started. Put the Smoke X4 in SYNC mode.',
+                        ),
                       ),
                     );
                     Navigator.of(context).pop();
                   },
                   icon: const Icon(Icons.sync),
-                  label: const Text('Start re-pair'),
+                  label: const Text('Start re-pairing'),
                 ),
               ],
             ),
@@ -406,15 +408,15 @@ class SavedDataScreen extends StatelessWidget {
         final scheme = Theme.of(context).colorScheme;
         final empty = controller.savedDataEmpty || controller.phoneRecords == 0;
         return Scaffold(
-          appBar: prototypeAppBar(context, controller, 'Device log'),
+          appBar: prototypeAppBar(context, controller, 'History on this phone'),
           body: ListView(
             children: [
               ContentWidth(
                 child: empty
                     ? const EmptyState(
                         icon: Icons.folder_off_outlined,
-                        title: 'No device log',
-                        message: 'There is no history stored on this device yet. The Bridge records whenever it is on and synced.',
+                        title: 'No history on this phone',
+                        message: 'There is no history on this phone yet. The Bridge records whenever it’s on and paired with the Smoke X4.',
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,7 +426,7 @@ class SavedDataScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'On this device',
+                                  'On this phone',
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineSmall,
@@ -439,12 +441,12 @@ class SavedDataScreen extends StatelessWidget {
                                   value: controller.savedDataRange,
                                 ),
                                 KeyValueRow(
-                                  label: 'Database',
+                                  label: 'Storage used',
                                   value: controller.savedDataSize,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'This data is not tied to a live Bridge. It stays until you delete it.',
+                                  'This history is stored on your phone, not on the Bridge. It stays until you delete it.',
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: scheme.onSurfaceVariant,
@@ -456,8 +458,8 @@ class SavedDataScreen extends StatelessWidget {
                           const SizedBox(height: 16),
                           InlineNotice(
                             icon: Icons.info_outline,
-                            title: 'The Bridge is not required',
-                            message: 'You can review or delete this history even after forgetting the Bridge or resetting it.',
+                            title: 'The Bridge isn’t needed',
+                            message: 'You can review or delete this history even after forgetting or resetting the Bridge.',
                           ),
                           const SizedBox(height: 20),
                           OutlinedButton.icon(
@@ -467,7 +469,9 @@ class SavedDataScreen extends StatelessWidget {
                             ),
                             onPressed: () => deleteSavedData(context),
                             icon: const Icon(Icons.delete_outline),
-                            label: const Text('Delete all device log readings'),
+                            label: const Text(
+                              'Delete history from this phone…',
+                            ),
                           ),
                         ],
                       ),
@@ -482,20 +486,20 @@ class SavedDataScreen extends StatelessWidget {
   Future<void> deleteSavedData(BuildContext context) async {
     final confirmed = await showLossSheet(
       context,
-      title: 'Delete all device log readings?',
-      intro: 'This deletes every reading stored on this device. It cannot be undone.',
+      title: 'Delete all history from this phone?',
+      intro: 'This deletes every reading stored on this phone. It can’t be undone.',
       bullets: [
         '${commaInt(controller.phoneRecords)} readings',
         controller.savedDataRange,
-        'The Bridge is not changed and keeps recording.',
+        'The Bridge isn’t changed and keeps recording.',
       ],
-      keepNote: 'This is the only copy of the device log.',
+      keepNote: 'This is the only copy of this history.',
       confirmLabel: 'Delete ${commaInt(controller.phoneRecords)} readings',
     );
     if (confirmed == true && context.mounted) {
       controller.deleteLocalData('all');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device log deleted (simulated).')),
+        const SnackBar(content: Text('History deleted from this phone.')),
       );
     }
   }
@@ -537,7 +541,7 @@ class PowerOffScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Recording stops while the Bridge sleeps. Hold PRG for 1.5 s to turn it back on.',
+                'The Bridge isn’t recording. Hold PRG for 1.5 seconds to turn it back on.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -551,7 +555,7 @@ class PowerOffScreen extends StatelessWidget {
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 icon: const Icon(Icons.power_settings_new),
-                label: const Text('Simulate hold PRG to wake'),
+                label: const Text('Hold PRG for 1.5 seconds'),
               ),
             ],
           ),
@@ -633,13 +637,13 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
       case DestructiveKind.forgetPhone:
         return 'Forget this phone';
       case DestructiveKind.clearBridgeHistory:
-        return 'Clear Bridge log';
+        return 'Clear history on the Bridge';
       case DestructiveKind.delete30:
-        return 'Delete device log older than 30 days';
+        return 'Delete history older than 30 days';
       case DestructiveKind.delete90:
-        return 'Delete device log older than 90 days';
+        return 'Delete history older than 90 days';
       case DestructiveKind.deleteAll:
-        return 'Delete all device log readings';
+        return 'Delete all history from this phone';
       case DestructiveKind.factoryReset:
         return 'Factory reset';
       case DestructiveKind.powerOff:
@@ -655,9 +659,9 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
           title: 'Forget this phone?',
           intro: 'This removes the Bluetooth pairing for this phone. The Bridge keeps recording.',
           bullets: const [
-            'This phone is removed from the Bridge’s paired phones.',
-            'The Bridge is removed from this app.',
-            'Device log stays on this phone until you delete it.',
+            'The Bridge forgets this phone.',
+            'This app forgets the Bridge.',
+            'History on this phone stays until you delete it.',
           ],
           keepNote:
               'You can pair again later. Other paired phones are not affected.',
@@ -671,20 +675,20 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
       case DestructiveKind.clearBridgeHistory:
         final confirmed = await showLossSheet(
           context,
-          title: 'Clear Bridge log?',
-          intro: 'The Bridge erases its rolling log. This cannot be undone on the Bridge.',
+          title: 'Clear history on the Bridge?',
+          intro: 'The Bridge erases its saved readings. This can’t be undone.',
           bullets: [
-            '${commaInt(widget.controller.bridgeRecords)} readings in the Bridge log',
+            '${commaInt(widget.controller.bridgeRecords)} readings in history on the Bridge',
             'The Bridge keeps its pairings and settings',
-            'Device log is kept',
+            'History on this phone is kept',
           ],
-          keepNote: 'The Bridge starts a new log segment.',
-          confirmLabel: 'Clear Bridge log',
+          keepNote: 'The Bridge starts recording a new log.',
+          confirmLabel: 'Clear history',
         );
         if (confirmed == true && mounted) {
           widget.controller.clearBridgeHistory();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Bridge log cleared (simulated).')),
+            const SnackBar(content: Text('History on the Bridge cleared.')),
           );
         }
         break;
@@ -709,38 +713,40 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
         final confirmed = await showLossSheet(
           context,
           title: scope == 'all'
-              ? 'Delete all device log readings?'
-              : 'Delete device log older than $scope days?',
-          intro:
-              'This deletes ${commaInt(count)} readings from this phone. It cannot be undone.',
+              ? 'Delete all history from this phone?'
+              : 'Delete history older than $scope days?',
+          intro: scope == 'all'
+              ? 'All readings stored on this phone will be deleted. This can’t be undone.'
+              : 'Only readings older than $scope days will be deleted. This can’t be undone.',
           bullets: [
             'Date range: $range',
-            'This does not change the Bridge',
-            'No data is deleted automatically',
+            'This doesn’t change the Bridge',
+            scope == 'all'
+                ? 'All readings on this phone are deleted'
+                : 'Only the selected readings are deleted',
           ],
           confirmLabel: 'Delete ${commaInt(count)} readings',
         );
         if (confirmed == true && mounted) {
           widget.controller.deleteLocalData(scope);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Data deleted (simulated).')),
+            const SnackBar(content: Text('History deleted from this phone.')),
           );
         }
         break;
       case DestructiveKind.factoryReset:
         final confirmed = await showLossSheet(
           context,
-          title: 'Factory reset Bridge?',
-          intro:
-              'The Bridge wipes its pairings, settings, and log, then reboots.',
+          title: 'Factory reset this Bridge?',
+          intro: 'The Bridge erases its pairings, settings, and saved readings, then restarts.',
           bullets: const [
             'All paired phones, including this one',
-            'Bridge settings and display preferences',
-            'The Bridge log and its clock',
-            'The Bridge starts advertising as new',
+            'Bridge settings and screen preferences',
+            'Saved readings and the clock',
+            'The Bridge becomes available to pair as a new device',
           ],
-          keepNote: 'Device log is kept. Delete it from Device log on the setup screen.',
-          confirmLabel: 'Factory reset Bridge',
+          keepNote: 'History on this phone is kept.',
+          confirmLabel: 'Factory reset',
         );
         if (confirmed == true && mounted) {
           widget.controller.factoryReset();
@@ -750,15 +756,14 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
       case DestructiveKind.powerOff:
         final confirmed = await showLossSheet(
           context,
-          title: 'Power off Bridge?',
-          intro: 'The Bridge stops recording until you hold PRG for 1.5 s to wake it.',
+          title: 'Power off the Bridge?',
+          intro: 'The Bridge stops recording until you turn it back on.',
           bullets: const [
-            'Recording stops while the Bridge sleeps',
-            'The Bridge stops recording while it is off',
-            'This phone keeps its history',
+            'Recording stops while the Bridge is off',
+            'History on this phone is kept',
           ],
-          keepNote: 'Hold PRG for 1.5 s to turn the Bridge back on.',
-          confirmLabel: 'Power off Bridge',
+          keepNote: 'Hold PRG for 1.5 seconds to turn the Bridge back on.',
+          confirmLabel: 'Power off',
           destructive: false,
         );
         if (confirmed == true && mounted) {
@@ -794,9 +799,9 @@ Future<void> showForgetFlow(
     title: 'Forget this phone?',
     intro: 'This removes the Bluetooth pairing for this phone. The Bridge keeps recording.',
     bullets: const [
-      'This phone is removed from the Bridge’s paired phones.',
-      'The Bridge is removed from this app.',
-      'Device log stays on this phone until you delete it.',
+      'The Bridge forgets this phone.',
+      'This app forgets the Bridge.',
+      'History on this phone stays until you delete it.',
     ],
     keepNote: 'You can pair again later. Other paired phones are not affected.',
     confirmLabel: 'Forget phone',
@@ -821,20 +826,20 @@ Future<void> clearBridgeHistory(
 ) async {
   final confirmed = await showLossSheet(
     context,
-    title: 'Clear Bridge log?',
-    intro: 'The Bridge erases its rolling log. This cannot be undone on the Bridge.',
+    title: 'Clear history on the Bridge?',
+    intro: 'The Bridge erases its saved readings. This can’t be undone.',
     bullets: [
-      '${commaInt(controller.bridgeRecords)} readings in the Bridge log',
+      '${commaInt(controller.bridgeRecords)} readings in history on the Bridge',
       'The Bridge keeps its pairings and settings',
-      'Device log is kept',
+      'History on this phone is kept',
     ],
-    keepNote: 'The Bridge starts a new log segment.',
-    confirmLabel: 'Clear Bridge log',
+    keepNote: 'The Bridge starts recording a new log.',
+    confirmLabel: 'Clear history',
   );
   if (confirmed == true && context.mounted) {
     controller.clearBridgeHistory();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Bridge log cleared (simulated).')),
+      const SnackBar(content: Text('History on the Bridge cleared.')),
     );
   }
 }
@@ -857,22 +862,25 @@ Future<void> deleteLocalData(
   final confirmed = await showLossSheet(
     context,
     title: scope == 'all'
-        ? 'Delete all device log readings?'
-        : 'Delete device log older than $scope days?',
-    intro:
-        'This deletes ${commaInt(count)} readings from this phone. It cannot be undone.',
+        ? 'Delete all history from this phone?'
+        : 'Delete history older than $scope days?',
+    intro: scope == 'all'
+        ? 'All readings stored on this phone will be deleted. This can’t be undone.'
+        : 'Only readings older than $scope days will be deleted. This can’t be undone.',
     bullets: [
       'Date range: $range',
-      'This does not change the Bridge',
-      'No data is deleted automatically',
+      'This doesn’t change the Bridge',
+      scope == 'all'
+          ? 'All readings on this phone are deleted'
+          : 'Only the selected readings are deleted',
     ],
     confirmLabel: 'Delete ${commaInt(count)} readings',
   );
   if (confirmed == true && context.mounted) {
     controller.deleteLocalData(scope);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Data deleted (simulated).')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('History deleted from this phone.')),
+    );
   }
 }
 
@@ -882,16 +890,14 @@ Future<void> powerOff(
 ) async {
   final confirmed = await showLossSheet(
     context,
-    title: 'Power off Bridge?',
-    intro:
-        'The Bridge stops recording until you hold PRG for 1.5 s to wake it.',
+    title: 'Power off the Bridge?',
+    intro: 'The Bridge stops recording until you turn it back on.',
     bullets: const [
-      'Recording stops while the Bridge sleeps',
-      'The Bridge stops recording while it is off',
-      'This phone keeps its history',
+      'Recording stops while the Bridge is off',
+      'History on this phone is kept',
     ],
-    keepNote: 'Hold PRG for 1.5 s to turn the Bridge back on.',
-    confirmLabel: 'Power off Bridge',
+    keepNote: 'Hold PRG for 1.5 seconds to turn the Bridge back on.',
+    confirmLabel: 'Power off',
     destructive: false,
   );
   if (confirmed == true && context.mounted) {
@@ -909,17 +915,16 @@ Future<void> factoryReset(
 ) async {
   final confirmed = await showLossSheet(
     context,
-    title: 'Factory reset Bridge?',
-    intro: 'The Bridge wipes its pairings, settings, and log, then reboots.',
+    title: 'Factory reset this Bridge?',
+    intro: 'The Bridge erases its pairings, settings, and saved readings, then restarts.',
     bullets: const [
       'All paired phones, including this one',
-      'Bridge settings and display preferences',
-      'The Bridge log and its clock',
-      'The Bridge starts advertising as new',
+      'Bridge settings and screen preferences',
+      'Saved readings and the clock',
+      'The Bridge becomes available to pair as a new device',
     ],
-    keepNote:
-        'Device log is kept. Delete it from Device log on the setup screen.',
-    confirmLabel: 'Factory reset Bridge',
+    keepNote: 'History on this phone is kept.',
+    confirmLabel: 'Factory reset',
   );
   if (confirmed == true && context.mounted) {
     controller.factoryReset();

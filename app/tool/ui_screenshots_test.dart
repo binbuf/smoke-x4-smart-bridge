@@ -100,6 +100,9 @@ void main() {
       tester,
       'live_billows_detected',
       AppShell(controller: controller),
+      interact: (tester) async {
+        await tester.drag(find.byType(ListView).first, const Offset(0, -320));
+      },
     );
     controller.dispose();
   });
@@ -109,7 +112,14 @@ void main() {
       ..billowsAttachment = BillowsAttachment.detached
       ..billowsSeenThisSession = true
       ..smokeXChannel4SetKnown = false;
-    await shot(tester, 'live_billows_lost', AppShell(controller: controller));
+    await shot(
+      tester,
+      'live_billows_lost',
+      AppShell(controller: controller),
+      interact: (tester) async {
+        await tester.drag(find.byType(ListView).first, const Offset(0, -320));
+      },
+    );
     controller.dispose();
   });
 
@@ -167,7 +177,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('history past cooks dark', (tester) async {
+  testWidgets('history cooks dark', (tester) async {
     final controller = PrototypeController()
       ..tab = AppTab.history
       ..historyRange = HistoryRange.twoDays;
@@ -182,7 +192,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('past cook dark', (tester) async {
+  testWidgets('cook dark', (tester) async {
     final controller = PrototypeController();
     await shot(
       tester,
@@ -295,7 +305,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('scenario lab dark', (tester) async {
+  testWidgets('experimental lab dark', (tester) async {
     final controller = PrototypeController();
     await shot(
       tester,
@@ -334,7 +344,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('device log dark', (tester) async {
+  testWidgets('history on phone dark', (tester) async {
     final controller = PrototypeController()..hasSavedData = true;
     await shot(
       tester,
@@ -344,7 +354,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('billows settings read-only dark', (tester) async {
+  testWidgets('billows settings dark', (tester) async {
     final controller = PrototypeController();
     await shot(
       tester,
