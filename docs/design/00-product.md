@@ -25,9 +25,9 @@ The app is a monitor and a remote control, not the recording authority:
   freshness, bridge/Billows status.
 - **History** — all four probes over the whole locally stored history, with
   gaps rendered as gaps and tools for exploring the archive.
-- **Settings** — units, bridge display timeout, Billows target (if supported),
-  connection controls, data deletion, and the device actions the bridge cannot
-  expose with one button.
+- **Settings** — units, bridge display timeout, connection controls, data
+  deletion, and the device actions the bridge cannot expose with one button.
+  Billows detection/last-seen is read-only; there is no target setter.
 
 ## 0.2 Who it is for and where it is used
 
@@ -46,8 +46,8 @@ The product is successful when a user can:
    History without doing anything else.
 4. Change the temperature unit or the bridge display timeout from the phone.
 5. Forget the phone or factory-reset the bridge from the phone when needed.
-6. See whether a Billows is attached and, if the control path is supported, set
-   its target from the app.
+6. See whether a Billows is attached and, when the RF field is validated, the
+   target set on the Smoke X4. Set the target on the Smoke X4.
 
 ## 0.3 The thin vertical slice (V0)
 
@@ -76,10 +76,9 @@ The MVP is V0 plus:
 - Automatic data rotation on the bridge and user-controlled deletion on the
   phone.
 - Battery/deep-sleep behaviour and a 24-hour soak.
-- Billows observation; Billows setpoint control **only if** the feasibility gate
-  in [08](08-billows.md) selects a safe path. Observation-only (option C) is a
-  scope cut that requires explicit owner sign-off; it is not silently counted as
-  the "set target" feature.
+- Billows observation only: attached/not attached and a validated observed
+  target. Setpoint control is out of scope; the Smoke X4 receiver itself cannot
+  change set points, so the bridge cannot either. See [08](08-billows.md).
 
 An MVP is not "feature-complete" until it has been used for one real overnight
 cook with the phone left away from the bridge for several hours.
@@ -99,13 +98,13 @@ design/task.
 | App can factory reset | Authenticated control op wipes config, all bonds, and bridge history, then reboots. The app states what is lost before sending, treats the disconnect as success, and keeps local history until the user deletes it. | [05](05-ble-contract.md), [06](06-app.md) | F4.3, A4.3, V4.1 |
 | Re-pair a re-synced Smoke X4 | Settings → Connection shows paired/unpaired and a Re-pair action; it clears the old radio pairing, keeps the log/bonds, and restarts the scan. | [02](02-smoke-x-protocol.md), [06](06-app.md) | F1.4, F4.2, A4.2, V4.1 |
 | Record whenever on, synced, and Smoke X4 is sending | With no phone present, samples continue into flash; unplug/replug resumes into the same rolling log with only the last record at risk. | [03](03-firmware-architecture.md), [04](04-data-and-storage.md) | F1.5–F1.8, V1.1 |
-| Collect all connected probe temps | Four probes in jack order, tenths °F internally; detached = null; partial connections are represented without inventing data. | [02](02-smoke-x-protocol.md), [04](04-data-and-storage.md) | F1.3, F1.6 |
-| Billows: set target temp | **Gated.** If a safe control path is selected, the app writes a target and the firmware acknowledges/controls; otherwise the app displays the observed target read-only and the scope decision is recorded. | [08](08-billows.md) | B5.0–B5.2, A5.1, V5.1 |
-| Billows: connected/status | App and OLED show attached/not attached and the last observed target if the field is validated; no fan speed is invented. | [08](08-billows.md) | B5.1 |
+| Collect all connected probe temps | Four probes in probe order, tenths °F internally; detached = null; partial connections are represented without inventing data. | [02](02-smoke-x-protocol.md), [04](04-data-and-storage.md) | F1.3, F1.6 |
+| Billows: set target temp | **Out of scope.** The app has no target setter. It shows "Set on the Smoke X4." Public ThermoWorks docs say a Smoke X4 receiver cannot change set points or the Billows; only Signals with its app can. | [08](08-billows.md), [decision](../billows-decision.md) | none |
+| Billows: connected/status | App and OLED show attached/not attached and the observed target when the field is validated; otherwise `—`. No fan speed or duty is invented. | [08](08-billows.md) | B5.0, B5.1, A5.1, V5.1 |
 | Periodic collection, efficient storage | 30 s samples; 18 B each; ~117 days in a 5.875 MB partition; ring rotates oldest first; app stores every synced sample. | [04](04-data-and-storage.md) | F1.6–F1.8, V6.1 |
 | App handles discovery/connection/health | Auto-connect to remembered device, explicit states for scanning/connecting/bonding/syncing/live/stale/reconnecting/failed; reconnect with bounded backoff. | [06](06-app.md) | A2.1–A2.4, A3.4 |
-| Settings the device cannot do | Units, bridge display timeout, bridge name, Billows target, forget, factory reset, power off. | [06](06-app.md), [07](07-display-and-controls.md) | F4.1, A4.1–A4.4 |
-| Show four probe temps | Live cards in jack order, large values, per-probe last-hour sparkline, detached state, freshness; no zero for absent data. No probe names, roles or tags in the MVP. | [06](06-app.md) | A2.3 |
+| Settings the device cannot do | Units, bridge display timeout, bridge name, forget, factory reset, power off. Billows target is not a setting. | [06](06-app.md), [07](07-display-and-controls.md) | F4.1, A4.1–A4.4 |
+| Show four probe temps | Live cards in probe order, large values, per-probe last-hour sparkline, detached state, freshness; no zero for absent data. No probe names, roles or tags in the MVP. | [06](06-app.md) | A2.3 |
 | History all four probes; no data means no line | Four series, gaps at >90 s, LTTB/min-max decimation, range and probe filters, crosshair, pan/zoom, summary, gap reasons, cached data available offline. | [06](06-app.md), [04](04-data-and-storage.md) | A3.3 |
 | Device records regardless of app; app catches up | Sync cursor is sequence-based; connect triggers catch-up; live notifications append; periodic catch-up every 60 s while connected. | [04](04-data-and-storage.md) | F2.5, F3.1, A3.2 |
 | Rotate old data out on ESP32; never auto-delete in app | Bridge ring wraps oldest sectors; app only deletes through an explicit user action, with a confirmation that says what is lost. | [04](04-data-and-storage.md), [06](06-app.md) | F1.7, A3.5 |
@@ -122,6 +121,8 @@ design/task.
 - X2-specific UI or acceptance.
 - Battery saver profiles, battery calibration UI, charger status.
 - A local web UI or debug HTTP server.
+- Billows setpoint control, Billows mode, and any Billows/fan transmit path. The
+  MVP is observation-only; post-MVP RF work is receive-only.
 
 These are not "future roadmap" promises. They are removed so the kept path can
 be made trustworthy. If a need appears after field use, it gets its own design
@@ -146,8 +147,8 @@ decision.
 - The board is the **Heltec WiFi LoRa 32 V3** (ESP32-S3FN8, 8 MB flash, SX1262,
   SSD1306). If it is not, [01](01-hardware.md) must be revised before M0 exits.
 - A real Smoke X4 and probes are available for bench work. A Billows may not be;
-  [08](08-billows.md) is written so observation can land without one but control
-  cannot be claimed without one.
+  [08](08-billows.md) is written so attached/status can land without one. Target
+  display waits for a real Billows capture; it is never guessed.
 - The phone is Android 12+ with BLE and a working OS passkey dialog. Android 7–11
   need the legacy location-permission path; that is a task detail, not a product
   change.

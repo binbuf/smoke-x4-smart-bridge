@@ -9,9 +9,33 @@ AppBar prototypeAppBar(
   PrototypeController controller,
   String title, {
   List<Widget> actions = const [],
+  bool highlightedTitle = true,
 }) {
+  final scheme = Theme.of(context).colorScheme;
+  final text = Text(
+    title,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: Theme.of(context).textTheme.titleMedium
+        ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 0.2),
+  );
   return AppBar(
-    title: Text(title),
+    centerTitle: true,
+    titleSpacing: 0,
+    title: highlightedTitle
+        ? Card(
+            elevation: 0,
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            color: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: text,
+            ),
+          )
+        : text,
     actions: [...actions, const SizedBox(width: 8)],
   );
 }

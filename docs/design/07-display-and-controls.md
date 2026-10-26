@@ -1,7 +1,8 @@
 # 07 — Display & Controls
 
-The bridge has one button and a 128×64 OLED. That is enough for four pages, a
-passkey overlay, and a power-off confirmation. Everything else is in the app.
+The bridge has one button and a 128×64 OLED. That is enough for up to four pages,
+a passkey overlay, and a power-off confirmation. The Billows page appears only
+after a Billows has been detected. Everything else is in the app.
 
 ## 7.1 Display
 
@@ -36,7 +37,7 @@ resets to page 1 on boot. The passkey and power-off overlays pre-empt the page.
 └─────────────────────┘
 ```
 
-- Four lines in jack order. No names or roles in the MVP; identity is `P1`–`P4`.
+- Four lines in probe order. No names or roles in the MVP; identity is `P1`–`P4`.
 - One-decimal temperature.
 - Detached: `---`, never `0.0`.
 - If a probe is invalid (not detached, but no usable reading): `ERR`.
@@ -83,25 +84,23 @@ on the bench.
 
 ```
 ┌─────────────────────┐
-│BILLOWS  connected    │
-│Target      225 °F   │
+│BILLOWS   detected    │
+│CH 4 SET    225 °F   │
 │Pit         224.6    │
-│Mode      monitor   │
 │                     │
 │Set on the Smoke X4  │
 └─────────────────────┘
 ```
 
-- `connected` / `not connected` from the Smoke X4. In inline-control mode the
-  adapter is disconnected, so `attached` may be false while the bridge drives
-  the fan; the `Mode control` line is the primary truth.
-- `Target` only when the field is validated; otherwise `Target —`.
+- `detected` / `not detected` from the Smoke X4. The page is only shown when a
+  Billows has been detected; do not invent a "connected" state for a device
+  whose fan output is not observable.
+- `CH 4 SET` is the Smoke X4 channel 4 set temp, only when validated; otherwise
+  `CH 4 SET —`.
 - `Pit` is probe 4 (the fan channel) if connected, else `—`.
-- `Mode` is `monitor` or `control` when the bridge has a control path.
-- When `caps.billows_control = 0`, the last line says "Set on the Smoke X4".
-  When control is supported, it says "Set in the app". Never promise a control
-  the capability bit does not set.
-- Never show a fan speed or "running" state that is not measured.
+- The last line always says "Set on the Smoke X4". There is no control mode and
+  no app-set target in the MVP.
+- Never show a fan speed, duty, or "running" state that is not measured.
 
 ### Page 4 — Device
 
@@ -219,7 +218,7 @@ One button, GPIO0, active LOW, sampled at 20 ms with a 30 ms debounce.
 | **Hold from sleep** | ≥ 1.5 s | Power on. The boot path confirms the hold; an early release returns to sleep. |
 
 There is no double-tap, long-press ladder, menu, or on-device setting. The
-button never changes pairing, units, history, or Billows mode.
+button never changes pairing, units, history, or Billows state.
 
 ### Dialog selection
 
@@ -282,7 +281,7 @@ notified of alarms; the Smoke X4's own alarm remains the alarm.
   framebuffer.
 - Host tests compare framebuffer bytes against committed goldens for:
   four probes, detached probe, unpaired link page, paired link page, passkey,
-  power-off countdown, storage failure, and Billows connected/not connected.
+  power-off countdown, storage failure, and Billows detected/not detected.
 - A small host tool converts a framebuffer to PNG for human review; the `.fb`
   bytes are the gate, the PNG is for eyes.
 - The display must be legible at arm's length through the case window. Test in
@@ -292,7 +291,7 @@ notified of alarms; the Smoke X4's own alarm remains the alarm.
 
 ## 7.7 Bench verification
 
-- [ ] Tap cycles all four pages, with no perceptible lag.
+- [ ] Tap cycles all visible pages (Billows only after detection), with no perceptible lag.
 - [ ] A waking tap does not change the page.
 - [ ] Hold shows the countdown; early release cancels; commit sleeps the board.
 - [ ] Hold from sleep boots to page 1; early release goes back to sleep.

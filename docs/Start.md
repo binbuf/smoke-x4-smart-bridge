@@ -1,14 +1,14 @@
-We are making a RF gateway for Thermoworks Smoke X4, supporting Billows using a ESP32 LoRa V3 Development Board.
+We are making an RF Bridge for the ThermoWorks Smoke X4, supporting Billows with an ESP32 LoRa V3 Development Board.
 
 Your job is to create the design documents at `docs/design/*.md` and tasks at `docs/tasks/*.md` to get us to MVP.
 
-In `legacy/` we have some semi working app and firmware. We can use it as reference or example but don't take code from it whole sale. Do not use any of its UI/UX or any substantial code other than communication code you may take. 
+In `legacy/` we have some semi working app and firmware. We can use it as reference or example but don't take code from it whole sale. Do not use any of its UI/UX or any substantial code other than communication code you may take.
 
 We are looking for thinnest vertical slice we can deploy end to end to test out and use core features below.
 
-We need to rebuild both the Flutter app and the ESP32 firmware. Ensuring it's custom and only has the feature below and doesn't knowingly inherit any of the tech debt from previous iterations. 
+We need to rebuild both the Flutter app and the ESP32 firmware. Ensuring it's custom and only has the feature below and doesn't knowingly inherit any of the tech debt from previous iterations.
 
-If the previous code had features, logic, or UI/UX for other stuff that isn't mentioned below, we probably don't want it for our new MVP but you may confirm what we're leaving behind as you conduct your audit. 
+If the previous code had features, logic, or UI/UX for other stuff that isn't mentioned below, we probably don't want it for our new MVP but you may confirm what we're leaving behind as you conduct your audit.
 
 ## Features
 
@@ -35,6 +35,6 @@ If the previous code had features, logic, or UI/UX for other stuff that isn't me
 - Handle all settings device can't do on its own (Settings tab)
 - Show the 4 probe temps if they're available. Probe 4 is typically the grate probe temp sensor but it can be adjusted
 - Show a graph of all 4 probes (dont show anything if no probe data for that time)
-  - Device should just be collecting data any time its on and Smoke X4 is on so this graph will just show whatever data it's collected. It shouldn't matter if the Flutter app is connected. As long as esp32 is on it collects from Smoke X4 and acts as a gateway then every time app connects or syncs during active connection the data is just relayed to the app. 
+  - Device should just be collecting data any time its on and Smoke X4 is on so this graph will just show whatever data it's collected. It shouldn't matter if the Flutter app is connected. As long as the ESP32 is on, it collects from the Smoke X4 and acts as a Bridge; every time the app connects or syncs during an active connection, the data is relayed to the app.
   - Rotate old data out as the esp32 memory fills up. Don't delete from Flutter app though let the user choose when to delete old data.
 

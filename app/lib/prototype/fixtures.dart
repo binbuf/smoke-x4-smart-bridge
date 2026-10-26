@@ -49,6 +49,109 @@ class HistoryFixture {
       series[probe].points.any((point) => point.valueF != null);
 }
 
+/// A detectable cook in the recorded archive. Cooks are inferred from the
+/// readings themselves (continuous runs separated by long idle periods), not
+/// named or scheduled by the user.
+class CookSession {
+  const CookSession({
+    required this.start,
+    required this.end,
+    required this.probes,
+    required this.hasGap,
+  });
+
+  final DateTime start;
+  final DateTime end;
+  final int probes;
+  final bool hasGap;
+
+  Duration get duration => end.difference(start);
+}
+
+/// Stable archive data for the prototype. The production app derives the same
+/// shape from recorded samples; the mockup keeps it deterministic so every
+/// review sees the same past-cook list.
+List<CookSession> buildCookSessions() {
+  CookSession session(
+    DateTime start,
+    DateTime end, {
+    int probes = 4,
+    bool hasGap = false,
+  }) {
+    return CookSession(start: start, end: end, probes: probes, hasGap: hasGap);
+  }
+
+  return [
+    session(
+      DateTime(2026, 10, 25, 9, 10),
+      DateTime(2026, 10, 25, 18, 30),
+      hasGap: true,
+    ),
+    session(
+      DateTime(2026, 10, 25, 1, 40),
+      DateTime(2026, 10, 25, 7, 5),
+      probes: 3,
+    ),
+    session(DateTime(2026, 10, 24, 10, 5), DateTime(2026, 10, 24, 19, 20)),
+    session(
+      DateTime(2026, 10, 23, 16, 30),
+      DateTime(2026, 10, 24, 8, 10),
+      hasGap: true,
+    ),
+    session(DateTime(2026, 10, 22, 11, 5), DateTime(2026, 10, 22, 20, 30)),
+    session(
+      DateTime(2026, 10, 20, 8, 45),
+      DateTime(2026, 10, 20, 18, 20),
+      probes: 3,
+    ),
+    session(
+      DateTime(2026, 10, 19, 17, 40),
+      DateTime(2026, 10, 20, 7, 15),
+      hasGap: true,
+    ),
+    session(DateTime(2026, 10, 17, 9, 30), DateTime(2026, 10, 17, 19, 10)),
+    session(
+      DateTime(2026, 10, 14, 10, 15),
+      DateTime(2026, 10, 14, 20, 5),
+      probes: 2,
+    ),
+    session(DateTime(2026, 10, 11, 8, 20), DateTime(2026, 10, 11, 17, 45)),
+    session(DateTime(2026, 10, 8, 12, 10), DateTime(2026, 10, 8, 21, 30)),
+    session(
+      DateTime(2026, 10, 4, 9, 0),
+      DateTime(2026, 10, 4, 18, 15),
+      probes: 3,
+    ),
+    session(DateTime(2026, 10, 1, 10, 30), DateTime(2026, 10, 1, 19, 40)),
+  ];
+}
+
+/// The fixture clock used by History and cook detection. Production replaces it
+/// with the newest synced sample from the Bridge.
+final DateTime fixtureNow = DateTime(2026, 10, 25, 18, 30);
+
+CookSession? latestCookSession() {
+  final cooks = buildCookSessions();
+  return cooks.isEmpty ? null : cooks.first;
+}
+
+/// A cook is in progress while the newest recorded reading is still inside its
+/// session. A long idle period ends the cook and turns it into a past cook.
+CookSession? currentCookSession() {
+  final latest = latestCookSession();
+  if (latest == null) return null;
+  final sinceEnd = fixtureNow.difference(latest.end);
+  if (sinceEnd.isNegative && sinceEnd.inMinutes.abs() > 5) return null;
+  if (sinceEnd.inMinutes > 15) return null;
+  return latest;
+}
+
+bool isCookInProgress(CookSession cook) {
+  final current = currentCookSession();
+  if (current == null) return false;
+  return current.start == cook.start && current.end == cook.end;
+}
+
 class ProbeRangeStats {
   const ProbeRangeStats({
     required this.probe,
@@ -117,6 +220,7 @@ HistoryFixture buildHistoryFixture(
   bool oneProbe = false,
   bool estimated = false,
   bool missingFromBridge = false,
+  bool hasGap = true,
   DateTime? customStart,
   DateTime? customEnd,
 }) {
@@ -144,17 +248,11 @@ HistoryFixture buildHistoryFixture(
       gapPosition = 0.52;
       gapWidth = 0.04;
       break;
-    case HistoryRange.sevenDays:
-      span = const Duration(days: 7);
-      count = 84;
-      gapPosition = 0.61;
+    case HistoryRange.twoDays:
+      span = const Duration(days: 2);
+      count = 96;
+      gapPosition = 0.48;
       gapWidth = 0.04;
-      break;
-    case HistoryRange.all:
-      span = const Duration(days: 44, hours: 6);
-      count = 120;
-      gapPosition = 0.24;
-      gapWidth = 0.03;
       break;
     case HistoryRange.custom:
       final start = customStart ?? now.subtract(const Duration(hours: 24));
@@ -173,17 +271,22 @@ HistoryFixture buildHistoryFixture(
       : now.subtract(span);
   final end = range == HistoryRange.custom ? (customEnd ?? now) : now;
   final effectiveSpan = end.difference(start);
-  final gapStart = start.add(
-    Duration(
-      milliseconds: (effectiveSpan.inMilliseconds * gapPosition).round(),
-    ),
-  );
-  final gapEnd = start.add(
-    Duration(
-      milliseconds: (effectiveSpan.inMilliseconds * (gapPosition + gapWidth))
-          .round(),
-    ),
-  );
+  final gapStart = hasGap
+      ? start.add(
+          Duration(
+            milliseconds: (effectiveSpan.inMilliseconds * gapPosition).round(),
+          ),
+        )
+      : start;
+  final gapEnd = hasGap
+      ? start.add(
+          Duration(
+            milliseconds:
+                (effectiveSpan.inMilliseconds * (gapPosition + gapWidth))
+                    .round(),
+          ),
+        )
+      : start;
 
   const bases = [165.0, 164.0, 151.0, 224.0];
   const amplitudes = [12.0, 10.0, 15.0, 18.0];
@@ -200,11 +303,9 @@ HistoryFixture buildHistoryFixture(
       final time = start.add(
         Duration(milliseconds: (effectiveSpan.inMilliseconds * ratio).round()),
       );
-      final inGap = time.isAfter(gapStart) && time.isBefore(gapEnd);
+      final inGap = hasGap && time.isAfter(gapStart) && time.isBefore(gapEnd);
       final drift =
-          (range == HistoryRange.all ||
-              range == HistoryRange.sevenDays ||
-              range == HistoryRange.custom)
+          (range == HistoryRange.twoDays || range == HistoryRange.custom)
           ? math.sin(ratio * math.pi * 2) * 4
           : 0.0;
       final value =

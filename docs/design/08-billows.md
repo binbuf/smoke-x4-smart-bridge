@@ -1,121 +1,177 @@
 # 08 — Billows
 
+**Decision:** the MVP is **observation only**. Billows setpoint control is out of
+scope. The signed record is [`../billows-decision.md`](../billows-decision.md).
+
 ## 8.1 What a Billows is
 
 The ThermoWorks Billows is a 12 V variable-airflow fan used to hold a smoker at a
 target temperature. It connects to a compatible ThermoWorks controller. On a
-Smoke X4 it uses **channel 4**; the Smoke X4's fan mode interprets channel 4 as
-the pit/air probe and runs its own control loop.
+Smoke X4 it uses **channel 4**; the Smoke X4 interprets channel 4 as the pit/air
+probe and runs its own fan-control loop.
 
-From the ThermoWorks instructions:
+From ThermoWorks' instructions:
 
 - The fan is powered by 12 V through a fan adapter; the adapter plugs into the
   Smoke X4.
 - The air probe must be in channel 4 or the fan will not run.
 - The set temperature is adjusted **on the Smoke X4** with CH/SET/up/down.
-- Fan mode automatically sets high/low alarms at ±25 °F around the setpoint.
+- Fan mode automatically sets high/low alarms at ±25 °F around the setpoint, and
+  those alarms cannot be adjusted in fan mode.
 - The fan's actual on/off duty is not exposed as a number.
 
 The Smoke X4 state broadcast exposes:
 
 - `billows_attached` — trailing field, non-zero when a Billows is connected.
-- Probe 4's `max`/`min` — alarm setpoints; one of them may carry the fan target
-  in fan mode, but the relation is unproven.
+- Probe 4's `max`/`min` — the fan-mode setpoint relation is still unproven; one of
+  them may carry the target, or the target may be derivable from them. This is a
+  **decode** question, not a control question.
 
-The ±25 °F alarm behavior makes the naive "target = max" reading suspect:
-if `max` is the high alarm it is `target + 25`, and if `max` is the target then
-the ±25 alarms are not in the packet. B5.0 must capture both setpoints at two
-targets and derive the relation. See [02 §2.6](02-smoke-x-protocol.md) and
-Q4/Q5 in [02 §2.10](02-smoke-x-protocol.md).
+## 8.2 What the bridge can and cannot do
 
-## 8.2 The requirement
+The bridge is a listener. It receives the same one-way state broadcast the stock
+receiver receives. It transmits exactly one packet in its lifetime: the pairing
+ACK. It has no channel to the Smoke X4's buttons, UI, or fan-control firmware.
 
-The brief says:
-
-> Support ThermoWorks Billows
-> - Set target temp
-> - Be able to tell its connected, status, etc
-
-Those are two different claims:
-
-| Claim | What it needs | Confidence today |
+| Claim | What it needs | MVP status |
 |---|---|---|
-| Show attached/status | Decode the broadcast | High for attached; target needs validation |
-| Set target | A control path to the fan/base | **Unknown; no proven path** |
+| Show attached/status | Decode the broadcast | **Supported** |
+| Show the target set on the Smoke X4 | Validate the probe-4 field relation | **Supported when validated; otherwise `—`** |
+| Set the target from the app | A command path to the Smoke X4 | **Not possible with the documented product; out of scope** |
+| Show fan duty/output | A telemetry field that does not exist today | **Not supported; post-MVP RF survey only** |
 
-The design does not pretend the second exists. It defines a gate, two candidate
-implementations, and a scope decision if neither is safe.
+## 8.3 Why "set target" is not an MVP feature
 
-## 8.3 Why the obvious RF approach may not exist
+ThermoWorks documents the limitation directly. From
+[Signals vs Smoke X4](https://help.thermoworks.com/knowledge-base/signals-vs-smoke-x4/):
 
-The bridge is a listener. The only LoRa packet it has ever sent is the pairing
-ACK. The Smoke X4 base has a receiver (it hears that ACK during sync), but no
-capture has shown a **command** from the handheld receiver to the base. In the
-standard product the setpoint is entered on the base's own buttons and the base
-drives the fan through the wired adapter. The handheld receiver may be
-display-only.
+> While Smoke X includes control circuitry to run the optional Billows fan, you
+> cannot change the temperature set points or the Billows fan via a Smoke X
+> Receiver, as you can when you are using Signals with the ThermoWorks app.
 
-If that is true, there is no RF command to emulate, and any claim that the app
-"sets the target over LoRa" would be fiction. A passive capture campaign is
-therefore the first task, not an implementation detail.
+The [Smoke X4 receiver instructions](https://www.manualslib.com/manual/1976553/Thermoworks-Smoke-X4.html)
+confirm the receiver only has power/backlight, VOL, and SYNC controls; it displays
+temperatures and alarm settings and updates every 30 s. It has no CH/SET/up/down.
+The [Billows Smoke X setup guide](https://help.thermoworks.com/knowledge-base/billows-set-up-smoke-x/)
+puts set-temperature entry on the Smoke X base itself.
 
-## 8.4 The decision gate (B5.0)
+The difference is product-level, not a firmware bug the bridge can bypass:
 
-**B5.0 must run before any "set target" code is written.** Its result is recorded
-in [`docs/billows-decision.md`](../billows-decision.md). It has three outcomes:
+- **Signals** has Wi-Fi/Bluetooth and the ThermoWorks app, so the app can change
+  the Billows set temperature remotely.
+- **Smoke X4** is RF-only between base and receiver. Its receiver is a display,
+  not a remote control.
+
+The bridge is another display. Without a documented or observed command frame,
+there is nothing to emulate. The existing G-Two reference and the real captures
+show only the sync ACK as bridge→Smoke X4 traffic.
+
+The control options remain documented in [§8.7](#87-deferred-control-options-post-mvp)
+for a future decision, but the MVP does not implement them.
+
+## 8.4 MVP behaviour: observation only
+
+The MVP shall:
+
+- Decode `billows_attached` and expose it in `live.flags`.
+- Decode the candidate target field and expose `live.billows_target_f10` only
+  when B5.0 has validated the relation; otherwise return `0` (unknown).
+- Show a Billows card on Live and a page on the OLED **only when a Billows has
+  been detected**; no zero or fake target when absent.
+- Say "Set on the Smoke X4" wherever the target is shown.
+- Never claim the fan is running, the duty cycle, or the bridge output.
+- Advertise `caps.billows_observe = 1` and `caps.billows_control = 0`.
+- Keep `set_billows_target` reserved and always answer `unsupported`.
+- Keep the only LoRa TX path the pairing ACK. No Billows TX path exists.
+
+The app and OLED must render from the capability bits, not from a build-time
+assumption. A future control build may set `billows_control = 1`; this MVP app
+must not offer a control affordance when it is `0`.
+
+### Copy
+
+| Context | Copy |
+|---|---|
+| Attached, target known | `Billows detected · Target 225 °F · Set on the Smoke X4` |
+| Attached, target unknown | `Billows detected · Target — · Set on the Smoke X4` |
+| Detected earlier, now missing | `Billows disconnected` (one notice, not repeated per screen) |
+| Never detected | No Billows card/page; no empty placeholder |
+
+## 8.5 Target field validation (B5.0)
+
+The target relation is captured passively; no setpoint is changed during a cook.
+
+1. Attach a Billows to a real X4 with the air probe at room temperature and the
+   fan unobstructed. No cook is required.
+2. Capture state packets at 225, 250, and 275 °F, changing the target on the
+   Smoke X4 base between captures.
+3. Record probe 4's `max` and `min` at each target. Derive whether the target is
+   `max`, `max − 25`, the midpoint, or another relation.
+4. Detach the Billows and confirm `billows_attached` clears.
+5. Store the captures in `protocol/fixtures/lora/` and record the result in
+   [`../billows-decision.md`](../billows-decision.md) and
+   [`../hardware-verified.md`](../hardware-verified.md).
+
+If the relation is not confirmed, the target stays unknown. The attached flag is
+independently useful and ships regardless.
+
+There is no requirement to press receiver buttons or hunt for a command frame in
+the MVP. That is post-MVP research ([§8.9](#89-post-mvp-passive-rf-survey)).
+
+## 8.6 Contract
+
+The BLE contract reserves the fields so observation can ship and control can be
+added later without a wire break:
+
+- `info.caps` b0 `billows_observe` (1), b1 `billows_control` (**0 in the MVP**).
+- `live.flags` b2 `billows_attached`; b3 `billows_output` is **reserved and
+  always 0** in the MVP.
+- `live.billows_target_f10` — observed target, `0` = unknown.
+- `config.billows_mode` and `config.billows_target_f10` — **reserved for a future
+  control build**; the MVP writes neither and the app does not show a control UI.
+- `control` op 6 `set_billows_target` — reserved; always returns `unsupported`
+  while `caps.billows_control = 0`.
+
+### Semantics
+
+- `billows_attached` means the Smoke X4 reports a fan on channel 4. It does not
+  mean the fan is currently blowing.
+- `billows_target_f10` is the **observed** target set on the Smoke X4. Label the
+  source as the Smoke X4; never present it as a bridge command.
+- `billows_output` is always false in the MVP. The app must not interpret it as
+  "fan off"; the Smoke X4's output is not observable.
+- `billows_target_f10 = 0` means unknown. The UI shows `—`; it does not guess
+  225 °F or `max`.
+- `billows_mode` is not a user setting in the MVP. A write that requests
+  `control` is refused with `unsupported`.
+
+## 8.7 Deferred control options (post-MVP)
+
+Nothing in this section is in the MVP. It is kept so a future decision does not
+start from zero. Reopening it requires a new decision record, a real Billows, and
+the safety/legal review below.
 
 ### A. A safe RF command exists
 
-Evidence: a capture of the receiver or another controller transmitting a
-well-formed command that changes the Smoke X4 setpoint, with a repeatable
-before/after state change.
+This requires a capture of a well-formed command that changes the Smoke X4
+setpoint, with a repeatable before/after state change. Public documentation and
+all captures so far show no such frame. If one is ever found:
 
-Work:
+- implement only the exact target-set operation, with a hard allow-list and
+  range check;
+- never transmit during a cook except that operation;
+- re-verify the stock receiver and the Smoke X4's own fan mode;
+- review legal/regulatory implications before shipping.
 
-0. With a Billows attached, capture the state packets at setpoints 225, 250, and
-   275 °F. Record probe 4's `max` and `min` at each. Derive whether the target is
-   `max`, `max - 25`, the midpoint, or something else. Do this before any
-   observation UI promises a target. Never change a setpoint mid-cook just to
-   capture; this is part of the M5 bench sitting. No cook is required, and the
-   fan should be left unobstructed.
-1. Capture with an SX1262 or SDR on the operating frequency while pressing every
-   receiver button (CH, SET, up/down, alarm, mute) and while changing the target
-   on the base.
-2. Diff the packets. If the receiver transmits nothing, option A is dead.
-3. If a command exists, decode the target opcode and value; confirm it is not a
-   general-purpose arbitrary-transmit protocol.
-4. Implement only the target-set operation, with a hard allow-list and range
-   check. Never transmit during a cook except this exact operation.
-5. Re-verify that the stock receiver and the Smoke X4's own fan mode still work.
-6. Review legal/regulatory implications (ISM band, duty cycle, product
-   certification) before shipping.
+### B. Inline fan controller
 
-This is the cleanest user experience if it exists: the Smoke X4 keeps owning the
-fan loop and its ±25 °F alarms.
+The bridge drives the 12 V fan directly; the Smoke X4 fan adapter is
+disconnected. This is a hardware product change, not a firmware checkbox. It
+needs a fuse, high-side switch, flyback/snubber, keyed connector, separate
+enclosure, thermal separation, and a fail-off controller. The ESP32 must never
+see 12 V on a GPIO.
 
-### B. No RF command; an inline fan controller is acceptable
-
-The bridge controls the fan directly:
-
-- The Smoke X4 fan adapter is **disconnected** from the fan. The bridge's
-  controller is the only thing driving the 12 V fan.
-- The bridge uses probe 4 (channel 4) as the pit sensor and runs a closed-loop
-  controller.
-- The app sets the target over BLE.
-- The Smoke X4 still broadcasts temperatures; its own fan mode is not used.
-
-This is feasible with a small high-side switch, but it is a **hardware product
-change**, not a firmware checkbox:
-
-- 12 V load, fuse, high-side MOSFET, gate drive, flyback/snubber, connectors,
-  enclosure, and thermal separation from the smoker.
-- The ESP32 must be isolated from the 12 V rail; never connect 12 V to a GPIO.
-- A fan stuck on is a fire/safety risk. The controller must fail off.
-- The fan's own electronics may not accept slow PWM on the 12 V rail; the
-  conservative implementation is on/off switching with a duty window, not a
-  high-frequency PWM.
-
-The control algorithm, if this path is chosen:
+The control algorithm, if this path is ever chosen:
 
 ```
 every 1 s:
@@ -129,86 +185,22 @@ every 1 s:
   apply duty over a 10 s window (on/off, minimum 1 s on)
 ```
 
-The 30 s Smoke X4 cadence is slow for tight control. The fan's own thermal mass
-and the smoker's inertia make a 30 s sensor update usable but not precise.
-Document the expected ±10–15 °F band; do not promise ±1 °F.
+The 30 s Smoke X4 cadence is slow for tight control. Document a realistic
+±10–15 °F band; do not promise ±1 °F.
 
-### C. Neither is safe/available: observation only
-
-If A does not exist and B is not approved (cost, enclosure, safety, or schedule),
-the MVP ships:
-
-- attached/not attached,
-- observed target (if validated),
-- no setpoint control.
-
-The app shows the target read-only and says why. This is a **scope reduction
-that must be explicitly accepted**; it is not silently shipped as if the feature
-exists. The task plan marks the setpoint acceptance line as blocked until this
-decision is recorded.
-
-## 8.5 Recommendation
-
-1. Run **B5.0** in M5, after the core bridge/app is usable. It is not a V0–V4
-   dependency; it is cheap and settles the question.
-2. Implement **observation** regardless of the outcome; it is useful and does
-   not depend on the control path.
-3. If A exists, implement A. It preserves the Smoke X4's own control loop and
-   avoids new power hardware.
-4. If A does not exist, do not smuggle in a half-working RF guess. Decide
-   whether B is in the MVP. If it is, treat it as a hardware milestone with its
-   own enclosure and safety review. If not, ship C with a named decision.
-
-The project should not claim "set target" in release notes until one of these is
-true and tested on a real fan.
-
-## 8.6 Contract
-
-The BLE contract reserves the fields now so observation can ship and control can
-be added without a wire break:
-
-- `info.caps` b0 `billows_observe`, b1 `billows_control`.
-- `live.flags` b2 `billows_attached`, b3 `billows_output`.
-- `live.billows_target_f10`.
-- `config.billows_mode` (observe/control/disabled) and
-  `config.billows_target_f10`.
-- `control` op 6 `set_billows_target`, refused with `unsupported` when
-  `caps.billows_control = 0`.
-
-The app must render from the capabilities, not from a build-time assumption.
-
-### Semantics
-
-- `billows_attached` means the Smoke X4 reports a fan on channel 4. It does not
-  mean the fan is currently blowing. In inline-control mode the Smoke X4 fan
-  adapter is disconnected, so this bit may be false even while the bridge drives
-  the fan; the UI must show the control mode as the primary truth.
-- `billows_output` is only set when the **bridge** is driving an output. In
-  observe mode or RF-control mode it is false, and the app must not interpret
-  false as "fan off" — the Smoke X4's output is not observable.
-- `billows_target_f10` is the **derived** observed target in observe mode, or
-  the bridge's commanded target in control mode. Label the source in the UI.
-- `billows_mode = control` is refused if the firmware has no control path.
-- If the target relation is not validated, `billows_target_f10 = 0` and the UI
-  shows `—`; it does not guess 225 °F or `max`.
-
-## 8.7 Safety requirements for any control path
-
-These apply to A and B, with B carrying the electrical ones:
+### Safety requirements if A or B is ever reopened
 
 1. **Fail off.** No valid pit reading for 120 s, invalid target, boot, crash, or
    brownout → fan output off.
-2. **Never drive both controllers.** If the bridge controls the fan, the Smoke
-   X4 fan adapter's control path must be disconnected. Two control loops
-   fighting over one fan is not a supported configuration.
+2. **Never drive both controllers.** Disconnect the Smoke X4 fan adapter if the
+   bridge drives the fan.
 3. **Range check.** Target 32–572 °F; reject NaN/negative/out-of-range.
-4. **No arbitrary transmit.** If A is implemented, only the exact target-set
-   frame, only on the paired operating frequency, only within 902–928 MHz.
-5. **No control while unpaired.** The bridge must know the Smoke X4 channel and
-   be receiving valid probe 4 data.
-6. **Visible state.** The OLED and app show `control`, target, and the bridge's
+4. **No arbitrary transmit.** If A is implemented, only the validated frame, only
+   on the paired frequency, only within 902–928 MHz.
+5. **No control while unpaired.** The bridge must know the channel and be
+   receiving valid probe-4 data.
+6. **Visible state.** The OLED and app show control mode, target, and the bridge's
    own output when it has one. They never claim to know the Smoke X4's fan duty.
-   A silent controller is not acceptable.
 7. **Hardware protection.** Fuse, high-side switch, flyback/snubber, strain
    relief, and a connector keyed so 12 V cannot be plugged into the board.
 8. **Bench first.** A real fan, a real smoker, and a supervised cook before an
@@ -216,10 +208,10 @@ These apply to A and B, with B carrying the electrical ones:
 
 ## 8.8 Test plan
 
-### Observation (no control)
+### Observation (MVP)
 
-Bench only; the air probe is at room temperature and the fan is left
-unobstructed. No cook is required.
+Bench only; the air probe is at room temperature and the fan is left unobstructed.
+No cook is required.
 
 - [ ] Attach a Billows to a real Smoke X4; confirm `billows_attached` flips.
 - [ ] Detach it; confirm the flag clears and the target becomes unknown.
@@ -229,89 +221,54 @@ unobstructed. No cook is required.
 - [ ] Flip °F/°C; confirm the target converts correctly.
 - [ ] Confirm the app and OLED show the target read-only when
       `caps.billows_control = 0`.
-- [ ] Confirm no "fan running" claim is made.
+- [ ] Confirm no "fan running" or duty claim is made.
+- [ ] Confirm the only LoRa TX path is the pairing ACK.
 
-### RF control (only if A)
+### Control (not in MVP)
 
-- [ ] Passive capture shows a repeatable command frame.
-- [ ] Decode target values across 200/225/250/275 °F.
-- [ ] The bridge sends only that frame; a host test asserts no other TX path.
-- [ ] The stock receiver and the Smoke X4's own fan mode still work.
-- [ ] The target survives a bridge reboot; the app reads it back.
-- [ ] A malformed/out-of-range target is refused without transmitting.
+Do not run these until A or B is separately approved.
 
-### Inline controller (only if B)
+- [ ] A: passive capture shows a repeatable command frame.
+- [ ] A: decode target values across 200/225/250/275 °F.
+- [ ] A: a host test asserts no other TX path.
+- [ ] B: 12 V fan runs from the bridge's switch; no 12 V reaches the ESP32.
+- [ ] B: fan is off at boot, on invalid probe, on target invalid, and on brownout.
+- [ ] B: a supervised cook, then an unattended cook with the phone away.
 
-- [ ] 12 V fan runs from the bridge's switch; no 12 V reaches the ESP32.
-- [ ] Fan is off at boot, on invalid probe, on target invalid, and on brownout.
-- [ ] Target holds within ±15 °F over a 2 h bench run with a real probe.
-- [ ] A disconnected probe turns the fan off within 120 s.
-- [ ] The switch and wiring stay below their thermal ratings.
-- [ ] The enclosure keeps mains/12 V separated from the board and the user.
-- [ ] A supervised cook, then an unattended cook with the phone away.
+## 8.9 Post-MVP passive RF survey
 
-## 8.9 If B is chosen: inline controller reference design
+The useful follow-up is **receive-only**: learn whether the Smoke X4 broadcast,
+the fan adapter, or the Billows emits anything else we can display.
 
-This is a reference, not a build instruction. It exists so the cost and safety
-work are visible before someone approves "set target" as a firmware task.
+Candidate questions:
 
-### Minimum bill of materials
+- Does the state packet carry a distinct fan-mode flag or duty/status field?
+- Does the target appear in more than one probe field, or in the trailing bytes?
+- Does the fan adapter or Billows emit any RF at all, and on what frequency?
+- Do base-side menu actions change the state packet beyond the known fields?
+- Is there any receiver→base traffic in a passive capture? (Public docs say the
+  receiver has no setpoint controls, so this is expected to be empty.)
 
-| Part | Requirement |
-|---|---|
-| High-side or low-side switch | Logic-level MOSFET / load switch rated for 12 V and the fan's inrush; gate pulled to the off state |
-| Fuse | Inline on the 12 V feed, sized above steady current and below wiring rating |
-| Flyback/snubber | Across the fan/load if the fan is inductive or generates back-EMF |
-| 12 V input | The existing Billows 12 V adapter or battery bank; do not derive 12 V from the ESP32 |
-| Fan connector | Keyed/relieved; cannot be plugged into the board |
-| Enclosure | Separate from the bridge or a new case; keeps 12 V and mains away from the user and the ESP32 |
-| Grounding | ESP32 ground and 12 V return meet only at the intended switch point; no 12 V on GPIO |
+Rules:
 
-### Wiring concept (low-side example)
-
-```
-12V+ ── fuse ──────────────► Billows fan +
-12V- ──────────────► MOSFET drain
-                         MOSFET source ──► 12V- / ground
-ESP32 GPIO ── 10k pulldown ──► MOSFET gate
-ESP32 GND ──────────────────── 12V- (common)
-```
-
-A high-side switch is preferable if the fan's USB-C shell/ground must stay at
-0 V; it needs a gate driver or a P-channel + NPN level shifter. The chosen
-topology must be reviewed against the fan's actual input before connection.
-
-### Control behavior
-
-- On/off only; do not PWM the 12 V rail unless the fan is proven to accept it.
-- 1 s control tick; a 10 s duty window with a minimum 1 s on-time.
-- PI or bang-bang with a deadband; the exact loop is tuned on a real smoker.
-- The app's target is the setpoint; probe 4 is the feedback.
-- The OLED/app show `control`, target, and output state.
-- Fail-off rules in §8.7 are mandatory.
-
-### What this changes about the product
-
-The bridge is no longer only a gateway for Billows; it becomes the fan
-controller. The Smoke X4's own fan mode is not used. This must be stated in the
-UI, the README, and the release notes. It is a legitimate MVP choice only if the
-owner accepts the extra hardware and safety work.
+- Receive only. No transmitter, no replay, no fuzzing.
+- Do not change setpoints mid-cook just to capture.
+- Record captures and findings in `protocol/fixtures/lora/` and a short report.
+- If no additional field exists, close the question and keep observation as-is.
 
 ## 8.10 Open questions
 
-| # | Question | Needed for |
-|---|---|---|
-| BQ1 | Does the receiver transmit anything besides the sync ACK? | Option A |
-| BQ2 | What changes in the state packet when the target changes? | Observation target |
-| BQ3 | Is the target probe 4 `max` on an X4? | Observation target |
-| BQ4 | Is the fan adapter's control input a simple PWM/analog/on-off signal? | Option B |
-| BQ5 | What is the fan's inrush/steady current? | Option B hardware |
-| BQ6 | Can the bridge control the fan while the Smoke X4 remains connected to the adapter? | Option B wiring |
-| BQ7 | Does the Smoke X4 re-assert its own target and fight the bridge? | Option B control |
-| BQ8 | Does a target change require the Smoke X4 to be in fan mode? | A and B |
+| # | Question | Needed for | Status |
+|---|---|---|---|
+| BQ1 | Does the receiver transmit anything besides the sync ACK? | Any future RF control | **Answered by product docs: no setpoint controls on the receiver. Passive confirmation is post-MVP.** |
+| BQ2 | What changes in the state packet when the target changes? | Observation target | B5.0 passive capture |
+| BQ3 | Is the target probe 4 `max`, `max − 25`, midpoint, or another field? | Observation target | B5.0 passive capture |
+| BQ4 | Does the state packet expose fan duty or a fan-running flag? | Extra observation | Post-MVP passive survey |
+| BQ5 | Does the fan adapter or Billows emit any RF telemetry? | Extra observation | Post-MVP passive survey |
+| BQ6 | What is the fan's inrush/steady current? | Future inline controller | Deferred with option B |
 
-Until these are answered, the honest product statement is:
+Until BQ2/BQ3 are answered, the honest product statement is:
 
-> **Billows:** attached/status and observed target are supported. App setpoint
-> control is available only on builds where the control path has been validated
-> and the capability bit is set.
+> **Billows:** the bridge shows whether a Billows is attached and, when the RF
+> field is validated, the target set on the Smoke X4. Set the target on the
+> Smoke X4. App control is not supported.

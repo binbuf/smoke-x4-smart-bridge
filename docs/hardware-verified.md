@@ -56,16 +56,16 @@ and an artifact link. Do not leave a row silently blank.
 ## Billows
 
 See [`billows-decision.md`](billows-decision.md). These rows are filled during
-the M5 bench work, not in V0. No cook is required for the capture or observation
-rows; only the B5.2 inline-controller run needs one.
+the M5 bench work, not in V0. The MVP is observation-only; no cook is required.
 
 | Check | Result | Evidence |
 |---|---|---|
-| M5 bench capture: `billows_attached`, probe 4 `max`/`min` at the displayed setpoint | ⏳ | |
-| Attach/detach changes `billows_attached` (controlled) | ⏳ | |
-| Raw `max`/`min` at two known setpoints; target relation confirmed (controlled) | ⏳ | |
-| °F/°C target conversion (controlled) | ⏳ | |
-| Control path (only if A/B; B needs a supervised cook) | ⏳ | |
+| B5.0 passive capture: `billows_attached`, probe 4 `max`/`min` at 225/250/275 °F | ⏳ | |
+| Attach/detach changes `billows_attached` | ⏳ | |
+| Raw `max`/`min` at three known targets; relation confirmed or marked unknown | ⏳ | |
+| °F/°C target conversion | ⏳ | |
+| App/OLED show target read-only, `—` when unknown, and "Set on the Smoke X4" | ⏳ | |
+| No Billows TX path; only the pairing ACK is transmitted | ⏳ | |
 
 ## Soak and field
 

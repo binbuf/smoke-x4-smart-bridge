@@ -5,12 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:smoke_bridge/features/device/device_preview_screen.dart';
+import 'package:smoke_bridge/features/history/history_full_screen.dart';
 import 'package:smoke_bridge/features/history/history_screen.dart';
 import 'package:smoke_bridge/features/settings/bridge_details.dart';
 import 'package:smoke_bridge/features/settings/settings_details.dart';
 import 'package:smoke_bridge/features/settings/settings_views.dart';
 import 'package:smoke_bridge/features/setup/setup_screen.dart';
 import 'package:smoke_bridge/features/shell/app_shell.dart';
+import 'package:smoke_bridge/prototype/fixtures.dart';
 import 'package:smoke_bridge/prototype/prototype_controller.dart';
 import 'package:smoke_bridge/prototype/scenario_lab.dart';
 import 'package:smoke_bridge/theme/app_theme.dart';
@@ -92,15 +94,22 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('live billows control', (tester) async {
-    final controller = PrototypeController()
-      ..billowsControlCapability = true
-      ..billowsMode = BillowsMode.control;
+  testWidgets('live billows detected', (tester) async {
+    final controller = PrototypeController();
     await shot(
       tester,
-      'live_billows_control',
+      'live_billows_detected',
       AppShell(controller: controller),
     );
+    controller.dispose();
+  });
+
+  testWidgets('live billows lost', (tester) async {
+    final controller = PrototypeController()
+      ..billowsAttachment = BillowsAttachment.detached
+      ..billowsSeenThisSession = true
+      ..smokeXChannel4SetKnown = false;
+    await shot(tester, 'live_billows_lost', AppShell(controller: controller));
     controller.dispose();
   });
 
@@ -132,26 +141,53 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('history custom range dark', (tester) async {
+    final controller = PrototypeController()..tab = AppTab.history;
+    await shot(
+      tester,
+      'history_custom_range_dark',
+      AppShell(controller: controller),
+      interact: (tester) async {
+        await tester.tap(find.byKey(const Key('history.range.menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('history.range.custom')));
+        await tester.pumpAndSettle();
+      },
+    );
+    controller.dispose();
+  });
+
   testWidgets('history all dark', (tester) async {
     final controller = PrototypeController()
       ..tab = AppTab.history
-      ..historyRange = HistoryRange.all
+      ..historyRange = HistoryRange.custom
       ..historyEstimated = true;
+    controller.historyCustomRange = controller.entireHistoryRange;
     await shot(tester, 'history_all_dark', AppShell(controller: controller));
     controller.dispose();
   });
 
-  testWidgets('history days dark', (tester) async {
+  testWidgets('history past cooks dark', (tester) async {
     final controller = PrototypeController()
       ..tab = AppTab.history
-      ..historyRange = HistoryRange.sevenDays;
+      ..historyRange = HistoryRange.twoDays;
     await shot(
       tester,
-      'history_days_dark',
+      'history_cooks_dark',
       AppShell(controller: controller),
       interact: (tester) async {
         await tester.drag(find.byType(ListView).first, const Offset(0, -520));
       },
+    );
+    controller.dispose();
+  });
+
+  testWidgets('past cook dark', (tester) async {
+    final controller = PrototypeController();
+    await shot(
+      tester,
+      'past_cook_dark',
+      PastCookScreen(controller: controller, cook: buildCookSessions().first),
     );
     controller.dispose();
   });
@@ -298,23 +334,21 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('phone history dark', (tester) async {
+  testWidgets('device log dark', (tester) async {
     final controller = PrototypeController()..hasSavedData = true;
     await shot(
       tester,
-      'phone_history_dark',
+      'device_log_dark',
       SavedDataScreen(controller: controller),
     );
     controller.dispose();
   });
 
-  testWidgets('billows settings control dark', (tester) async {
-    final controller = PrototypeController()
-      ..billowsControlCapability = true
-      ..billowsMode = BillowsMode.control;
+  testWidgets('billows settings read-only dark', (tester) async {
+    final controller = PrototypeController();
     await shot(
       tester,
-      'billows_settings_control_dark',
+      'billows_settings_dark',
       BillowsSettingsScreen(controller: controller),
     );
     controller.dispose();
@@ -336,12 +370,13 @@ void main() {
   testWidgets('history standalone full screen dark', (tester) async {
     final controller = PrototypeController()
       ..tab = AppTab.history
-      ..historyRange = HistoryRange.all
+      ..historyRange = HistoryRange.custom
       ..historyEstimated = true;
+    controller.historyCustomRange = controller.entireHistoryRange;
     await shot(
       tester,
       'history_fullscreen_dark',
-      HistoryScreen(controller: controller, fullScreen: true),
+      HistoryFullScreenScreen(controller: controller),
     );
     controller.dispose();
   });

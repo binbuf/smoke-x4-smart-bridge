@@ -189,8 +189,8 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.bluetooth_searching,
-            title: 'No bridge yet',
-            subtitle: 'First launch, no saved bridge. Find bridge or open phone history.',
+            title: 'No Bridge yet',
+            subtitle: 'First launch, no saved Bridge. Find Bridge or open device log.',
             onTap: () {
               controller.hasSavedBridge = false;
               controller.hasSavedData = false;
@@ -252,7 +252,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.search_off,
             title: 'No results',
-            subtitle: 'Retry, Bluetooth settings, and the asleep-bridge hint.',
+            subtitle: 'Retry, Bluetooth settings, and the asleep-Bridge hint.',
             onTap: () => _openSetup(context, SetupStep.noResults),
           ),
           _entry(
@@ -260,14 +260,14 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             icon: Icons.devices_other,
             title: 'Scan results',
             subtitle:
-                'Remembered bridge first, RSSI, probe preview, and legacy row.',
+                'Remembered Bridge first, RSSI, probe preview, and legacy row.',
             onTap: () => _openSetup(context, SetupStep.results),
           ),
           _entry(
             context,
             icon: Icons.system_update_alt,
             title: 'Protocol mismatch',
-            subtitle: '“This bridge needs a newer app.”',
+            subtitle: '“This Bridge needs a newer app.”',
             onTap: () => _openSetup(context, SetupStep.protocolMismatch),
           ),
           _entry(
@@ -303,7 +303,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             icon: Icons.link_off,
             title: 'Pairing out of date',
             subtitle:
-                'The bridge was reset; forget the old pairing and re-pair.',
+                'The Bridge was reset; forget the old pairing and re-pair.',
             onTap: () => _openSetup(context, SetupStep.bondStale),
           ),
           _entry(
@@ -328,9 +328,9 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.folder_open_outlined,
-            title: 'Phone history (orphaned)',
+            title: 'Device log (orphaned)',
             subtitle:
-                'Phone history after a forget/reset, with explicit deletion.',
+                'Device log after a forget/reset, with explicit deletion.',
             onTap: () {
               controller
                 ..hasSavedBridge = false
@@ -364,7 +364,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.schedule,
             title: 'Live · stale',
-            subtitle: 'Last reading 4m ago; the bridge still answers.',
+            subtitle: 'Last reading 4m ago; the Bridge still answers.',
             onTap: () => _openLive(
               context,
               health: ProbeHealth.stale,
@@ -393,14 +393,14 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.signal_cellular_off,
             title: 'Live · no probes',
-            subtitle: 'All four jacks absent; no invented zeros.',
+            subtitle: 'All four probes absent; no invented zeros.',
             onTap: () => _openLive(context, presence: ProbePresence.none),
           ),
           _entry(
             context,
             icon: Icons.sensors_off_outlined,
             title: 'Bridge connected · no Smoke X4',
-            subtitle: 'The bridge answers but has not heard the transmitter.',
+            subtitle: 'The Bridge answers but has not heard the transmitter.',
             onTap: () => _openLive(context, smokeX: false),
           ),
           _entry(
@@ -444,7 +444,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.link_off,
-            title: 'Lost the bridge',
+            title: 'Lost the Bridge',
             subtitle: 'All retries failed; tap to retry or forget.',
             onTap: () => _openLive(context, phase: ConnectionPhase.failed),
           ),
@@ -498,49 +498,45 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.air,
-            title: 'Billows · observe only',
-            subtitle: 'Target read-only; “Set the target on the Smoke X4.”',
+            title: 'Billows · detected',
+            subtitle: 'Read-only status; CH 4 set temp mirrors the Smoke X4.',
             onTap: () => _openLive(
               context,
-              billowsMode: BillowsMode.observe,
-              billowsControl: false,
-              billowsAttachment: BillowsAttachment.attached,
-            ),
-          ),
-          _entry(
-            context,
-            icon: Icons.air,
-            title: 'Billows · control available',
-            subtitle: 'Capability set; Set target is visible.',
-            onTap: () => _openLive(
-              context,
-              billowsMode: BillowsMode.control,
-              billowsControl: true,
               billowsAttachment: BillowsAttachment.attached,
             ),
           ),
           _entry(
             context,
             icon: Icons.link_off,
-            title: 'Billows · detached',
-            subtitle: 'Attached flag false; no invented fan state.',
+            title: 'Billows · lost this session',
+            subtitle:
+                'Detected earlier, now missing; Live shows a loss notice.',
             onTap: () => _openLive(
               context,
-              billowsMode: BillowsMode.observe,
-              billowsControl: false,
               billowsAttachment: BillowsAttachment.detached,
-              billowsTargetKnown: false,
+              smokeXChannel4SetKnown: false,
             ),
           ),
           _entry(
             context,
-            icon: Icons.power_off,
-            title: 'Billows · disabled',
-            subtitle: 'Observation turned off in Settings.',
+            icon: Icons.air,
+            title: 'Billows · not detected',
+            subtitle: 'Never seen this session; Live stays quiet.',
             onTap: () => _openLive(
               context,
-              billowsMode: BillowsMode.disabled,
-              billowsControl: false,
+              billowsAttachment: BillowsAttachment.unknown,
+              billowsSeen: false,
+            ),
+          ),
+          _entry(
+            context,
+            icon: Icons.air,
+            title: 'Billows · lost mid-session',
+            subtitle: 'Detected earlier; the fan link now has an issue.',
+            onTap: () => _openLive(
+              context,
+              billowsAttachment: BillowsAttachment.detached,
+              billowsSeen: true,
             ),
           ),
         ],
@@ -574,16 +570,20 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.show_chart,
-            title: 'History · 7 days',
+            title: 'History · 2 days',
             subtitle: 'Larger range uses bucketed points.',
-            onTap: () => _openHistory(context, HistoryRange.sevenDays),
+            onTap: () => _openHistory(context, HistoryRange.twoDays),
           ),
           _entry(
             context,
             icon: Icons.show_chart,
-            title: 'History · all history',
-            subtitle: 'Entire local archive; pan and reset.',
-            onTap: () => _openHistory(context, HistoryRange.all),
+            title: 'History · entire archive',
+            subtitle: 'Custom range covering everything in memory.',
+            onTap: () => _openHistory(
+              context,
+              HistoryRange.custom,
+              customRange: controller.entireHistoryRange,
+            ),
           ),
           _entry(
             context,
@@ -600,7 +600,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.folder_off_outlined,
             title: 'History · empty',
-            subtitle: '“No readings yet” with a bridge-status action.',
+            subtitle: '“No readings yet” with a Bridge-status action.',
             onTap: () =>
                 _openHistory(context, HistoryRange.oneHour, hasData: false),
           ),
@@ -639,10 +639,10 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.link_off,
-            title: 'History · data missing from bridge',
+            title: 'History · data missing from Bridge',
             subtitle: 'Permanent gap marker and explanation.',
             onTap: () =>
-                _openHistory(context, HistoryRange.sevenDays, missing: true),
+                _openHistory(context, HistoryRange.twoDays, missing: true),
           ),
         ],
       ),
@@ -668,7 +668,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.bluetooth,
             title: 'Bridge details',
-            subtitle: 'Status, sync, technical details and bridge actions.',
+            subtitle: 'Status, sync, technical details and Bridge actions.',
             onTap: () {
               controller
                 ..phase = ConnectionPhase.live
@@ -695,36 +695,23 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.air,
-            title: 'Billows settings · monitor only',
-            subtitle: 'Control unavailable; target shown read-only.',
+            title: 'Billows settings · read-only',
+            subtitle: 'CH 4 set temp mirrored from the Smoke X4.',
             onTap: () {
               controller.phase = ConnectionPhase.live;
-              controller.billowsMode = BillowsMode.observe;
-              controller.billowsControlCapability = false;
-              _push(context, BillowsSettingsScreen(controller: controller));
-            },
-          ),
-          _entry(
-            context,
-            icon: Icons.power_off,
-            title: 'Billows settings · off',
-            subtitle: 'Monitoring off; Live hides the Billows card.',
-            onTap: () {
-              controller.phase = ConnectionPhase.live;
-              controller.billowsMode = BillowsMode.disabled;
-              controller.billowsControlCapability = false;
               _push(context, BillowsSettingsScreen(controller: controller));
             },
           ),
           _entry(
             context,
             icon: Icons.air,
-            title: 'Billows settings · control',
-            subtitle: 'Capability set; target slider is available.',
+            title: 'Billows settings · lost',
+            subtitle: 'Detected earlier; connection log explains the drop.',
             onTap: () {
-              controller.phase = ConnectionPhase.live;
-              controller.billowsMode = BillowsMode.control;
-              controller.billowsControlCapability = true;
+              controller
+                ..phase = ConnectionPhase.live
+                ..billowsAttachment = BillowsAttachment.detached
+                ..billowsSeenThisSession = true;
               _push(context, BillowsSettingsScreen(controller: controller));
             },
           ),
@@ -732,7 +719,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.sd_storage_outlined,
             title: 'History & storage',
-            subtitle: 'Phone history and bridge log, with explicit deletion.',
+            subtitle: 'Device log and Bridge log, with explicit deletion.',
             onTap: () {
               controller
                 ..phase = ConnectionPhase.live
@@ -785,8 +772,8 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.folder_open_outlined,
-            title: 'Phone history screen',
-            subtitle: 'The only path to history after the bridge is forgotten.',
+            title: 'Device log screen',
+            subtitle: 'The only path to history after the Bridge is forgotten.',
             onTap: () {
               controller.hasSavedData = true;
               controller.savedDataEmpty = false;
@@ -805,14 +792,14 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             icon: Icons.link_off,
             title: 'Forget this phone',
             subtitle:
-                'Pairing removed; bridge keeps recording; phone history kept.',
+                'Pairing removed; Bridge keeps recording; device log kept.',
             onTap: () => _openConfirm(context, DestructiveKind.forgetPhone),
           ),
           _entry(
             context,
             icon: Icons.sd_card_alert_outlined,
-            title: 'Clear bridge log',
-            subtitle: 'Erases the bridge log; keeps pairing and phone history.',
+            title: 'Clear Bridge log',
+            subtitle: 'Erases the Bridge log; keeps pairing and device log.',
             onTap: () =>
                 _openConfirm(context, DestructiveKind.clearBridgeHistory),
           ),
@@ -833,7 +820,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           _entry(
             context,
             icon: Icons.delete_forever_outlined,
-            title: 'Delete all phone history',
+            title: 'Delete all device log',
             subtitle: 'Explicit user action only; never automatic.',
             onTap: () => _openConfirm(context, DestructiveKind.deleteAll),
           ),
@@ -869,7 +856,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.monitor,
             title: 'Page 1 · probes',
-            subtitle: 'Four jack lines, detached ---, status strip.',
+            subtitle: 'Four probe lines, detached ---, status strip.',
             onTap: () => _openDevice(context, page: 1),
           ),
           _entry(
@@ -894,7 +881,7 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
             context,
             icon: Icons.monitor,
             title: 'Page 3 · Billows',
-            subtitle: 'Attached, observed target, observe/control mode.',
+            subtitle: 'Detected, CH 4 set temp mirrored, read-only.',
             onTap: () => _openDevice(context, page: 3),
           ),
           _entry(
@@ -907,18 +894,6 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
               page: 3,
               attachment: BillowsAttachment.detached,
               targetKnown: false,
-            ),
-          ),
-          _entry(
-            context,
-            icon: Icons.monitor,
-            title: 'Page 3 · Billows control',
-            subtitle: 'Mode control; the OLED says “Set in the app”.',
-            onTap: () => _openDevice(
-              context,
-              page: 3,
-              billowsMode: BillowsMode.control,
-              billowsControl: true,
             ),
           ),
           _entry(
@@ -1024,10 +999,9 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
     ConnectionPhase phase = ConnectionPhase.live,
     SyncState sync = SyncState.idle,
     bool slowLink = false,
-    BillowsMode billowsMode = BillowsMode.observe,
-    bool billowsControl = false,
     BillowsAttachment billowsAttachment = BillowsAttachment.attached,
-    bool billowsTargetKnown = true,
+    bool smokeXChannel4SetKnown = true,
+    bool billowsSeen = true,
     bool offlineCache = true,
     bool historyData = true,
   }) {
@@ -1045,10 +1019,9 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
           ? 38
           : (sync == SyncState.error ? 0 : 64)
       ..slowLink = slowLink
-      ..billowsMode = billowsMode
-      ..billowsControlCapability = billowsControl
       ..billowsAttachment = billowsAttachment
-      ..billowsTargetKnown = billowsTargetKnown
+      ..smokeXChannel4SetKnown = smokeXChannel4SetKnown
+      ..billowsSeenThisSession = billowsSeen
       ..offlineCache = offlineCache
       ..historyHasData = historyData
       ..phoneRecords = historyData ? 128430 : 0
@@ -1068,14 +1041,15 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
     bool missing = false,
     bool offline = false,
     bool offlineCache = true,
+    DateTimeRange? customRange,
   }) {
     controller
       ..phase = offline ? ConnectionPhase.offline : ConnectionPhase.live
       ..offlineCache = offlineCache
       ..historyRange = range
       ..historyProbe = null
-      ..historyCustomRange = null
-      ..historySort = HistorySort.jack
+      ..historyCustomRange = customRange
+      ..historySort = HistorySort.probe
       ..historyHasData = hasData
       ..phoneRecords = hasData ? 128430 : 0
       ..historyOneProbe = oneProbe
@@ -1122,8 +1096,6 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
     ProbePresence presence = ProbePresence.all,
     BillowsAttachment attachment = BillowsAttachment.attached,
     bool targetKnown = true,
-    BillowsMode billowsMode = BillowsMode.observe,
-    bool billowsControl = false,
   }) {
     controller
       ..phase = ConnectionPhase.live
@@ -1131,11 +1103,9 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
       ..probePresence = presence
       ..smokeXLiveHint = true
       ..smokeXStatus = SmokeXStatus.pairedLive
-      ..billowsMode = billowsMode
-      ..billowsControlCapability = billowsControl
       ..billowsAttachment = attachment
-      ..billowsTargetKnown = targetKnown
-      ..billowsTargetF = 225
+      ..smokeXChannel4SetKnown = targetKnown
+      ..smokeXChannel4SetF = 225
       ..bridgeRecords = 24810;
     _push(
       context,

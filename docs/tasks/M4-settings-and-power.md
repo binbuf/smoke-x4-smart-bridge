@@ -16,10 +16,10 @@ disconnect as the expected outcome.
 - **design:** [05 §5.9](../design/05-ble-contract.md)
 
 Implement the 80-byte `config` characteristic: read, full write, validation
-(bridge name, timeout, units, target, Billows mode). Probe name/role bytes are
-reserved and ignored in the MVP. Persist to NVS and apply runtime changes (OLED
-units/timeout, Billows mode). Reject `billows_mode=control` when
-`caps.billows_control=0`.
+(bridge name, timeout, units). Probe name/role bytes and the Billows
+mode/target bytes are reserved and ignored in the MVP. Persist to NVS and apply
+runtime changes (OLED units/timeout). Reject any nonzero `billows_mode` with
+`unsupported`; `caps.billows_control` is always 0.
 
 **Done when.** Round-trip and every invalid case are host-tested; a real phone
 changes units and display timeout and sees them on the OLED.
@@ -35,8 +35,8 @@ Implement `forget_phone`, `factory_reset`, `power_off`, `clear_history`, and
 `unpair_smoke_x`. Answer first, then act. `forget_phone` removes only the
 current peer's bond; factory reset wipes config, log, and all bonds before
 rebooting. Clear history writes a new random generation and keeps
-pairing/config. Power off enters deep sleep. `set_billows_target` is **not**
-implemented here; it belongs to B5.2, after the B5.0 decision.
+pairing/config. Power off enters deep sleep. `set_billows_target` is reserved and
+always returns `unsupported`; there is no Billows control path in the MVP.
 
 **Done when.** Each op is host-tested for ordering, idempotency, and failure;
 the destructive paths run on the board.
@@ -67,13 +67,17 @@ Handle the link teardown after forget/factory/power correctly:
 - **blocked-by:** A2.2, A3.1 · **verify:** H · **board:** no
 - **design:** [06 §6.7](../design/06-app.md)
 
-Implement the Settings root with sections: bridge status card, Preferences,
-Bridge, History & storage, and About. Show current values; disable
-bridge-specific controls with a reason when offline. Units are top-level and
-apply immediately. `Sync now` is a button in the bridge card, not a row.
+Implement the Settings root with sections: one Bridge section (status header
+only), History & storage, Preferences, and About. Show current values; disable
+Bridge controls with a reason when offline. Units are inside Preferences and
+apply immediately. `Sync now` is a button in the Bridge status header, not a row.
+Tapping the header opens Bridge details; do not add a separate `Bridge details`
+button. Do not create a second Bridge group or a duplicate Bridge settings view.
+Move Smoke X4 pairing, Billows, Bridge name and screen timeout into the Bridge
+details sub-view. Label the local copy `Device log`, not `Phone history`.
 
 **Done when.** Widget tests cover connected/offline/read-only, units, and
-navigation; no duplicate rows or save-all bar remain.
+navigation; no duplicate rows, duplicate Bridge section, or save-all bar remain.
 
 ---
 
@@ -84,11 +88,12 @@ navigation; no duplicate rows or save-all bar remain.
 
 Implement the editors:
 
-- temperature units °F/°C inline at the top of Settings, applied immediately;
+- temperature units °F/°C inline in Preferences, applied immediately;
 - bridge screen timeout 30/60/120/never;
 - bridge name (≤15 chars, app-facing label);
 - Smoke X4 pairing status + **Re-pair** (`unpair_smoke_x`);
-- Billows mode + target (target only if control is supported).
+- Billows detection/last-seen only; target is read-only and there is no mode or
+  target editor.
 
 There are no probe names or roles in the MVP. Use read-modify-write of the
 whole config, show per-field saving/error, and never optimistically claim
@@ -113,7 +118,7 @@ Implement:
   and all phones; send; treat disconnect as success; clear the saved connection
   and return to setup; keep local history.
 - **Power off bridge** — confirm; send; explain the 1.5 s PRG wake.
-- **Clear bridge log** — confirm; generation boundary; phone history kept.
+- **Clear bridge log** — confirm; generation boundary; device log kept.
 
 **Done when.** Each action works on the real bridge; the app never reports
 success before the device's `result` or the expected disconnect.
@@ -127,7 +132,7 @@ success before the device's `result` or the expected disconnect.
   [06 §6.7](../design/06-app.md)
 
 Wire set_time on connect and unit display on every screen: Live tiles,
-sparklines, History axis/tooltip/summary, Billows target and OLED. There are no
+sparklines, History axis/tooltip/summary, the Billows target readout and OLED. There are no
 probe labels to wire; identity is `P1`–`P4`.
 
 **Done when.** A unit change persists across relaunch and updates Live and

@@ -25,15 +25,38 @@ enum ProbeHealth { live, aging, stale, frozen }
 
 enum ProbePresence { all, detachedP3, none }
 
-enum BillowsMode { disabled, observe, control }
-
 enum BillowsAttachment { unknown, attached, detached }
 
 enum Units { fahrenheit, celsius }
 
-enum HistoryRange { oneHour, sixHours, twentyFourHours, sevenDays, all, custom }
+enum HistoryRange { oneHour, sixHours, twentyFourHours, twoDays, custom }
 
-enum HistorySort { jack, hottest, largestChange, recent }
+enum ConnectionEventKind {
+  bridgeConnected,
+  bridgeLost,
+  smokeXPaired,
+  smokeXLost,
+  billowsConnected,
+  billowsLost,
+  repair,
+  sync,
+}
+
+class ConnectionEvent {
+  const ConnectionEvent({
+    required this.title,
+    required this.detail,
+    required this.time,
+    required this.kind,
+  });
+
+  final String title;
+  final String detail;
+  final DateTime time;
+  final ConnectionEventKind kind;
+}
+
+enum HistorySort { probe, hottest, highestMax, recent, sinceCookStart }
 
 enum SyncState { idle, recent, backfill, complete, error }
 
@@ -108,17 +131,15 @@ class PrototypeController extends ChangeNotifier {
   SyncState syncState = SyncState.idle;
   int syncProgressPercent = 64;
 
-  bool billowsControlCapability = false;
-  BillowsMode billowsMode = BillowsMode.observe;
   BillowsAttachment billowsAttachment = BillowsAttachment.attached;
-  bool billowsTargetKnown = true;
-  int billowsTargetF = 225;
+  bool smokeXChannel4SetKnown = true;
+  int smokeXChannel4SetF = 225;
+  bool billowsSeenThisSession = true;
 
   HistoryRange historyRange = HistoryRange.twentyFourHours;
   int? historyProbe;
   DateTimeRange? historyCustomRange;
-  HistorySort historySort = HistorySort.jack;
-  bool daysNewestFirst = true;
+  HistorySort historySort = HistorySort.probe;
   bool historyHasData = true;
   bool historyOneProbe = false;
   bool historyEstimated = false;
@@ -159,8 +180,162 @@ class PrototypeController extends ChangeNotifier {
       phase == ConnectionPhase.failed ||
       phase == ConnectionPhase.reconnecting;
 
-  bool get isBillowsControl =>
-      billowsControlCapability && billowsMode == BillowsMode.control;
+  bool get billowsDetected => billowsAttachment == BillowsAttachment.attached;
+
+  bool get billowsLostThisSession => billowsSeenThisSession && !billowsDetected;
+
+  /// The last time the phone heard from the Bridge. A stale probe reading can
+  /// still be accompanied by a healthy Bluetooth link.
+  Duration? get bridgeLastContactAge {
+    switch (phase) {
+      case ConnectionPhase.live:
+      case ConnectionPhase.stale:
+        return const Duration(seconds: 4);
+      case ConnectionPhase.syncing:
+        return const Duration(seconds: 2);
+      case ConnectionPhase.reconnecting:
+        return const Duration(minutes: 2);
+      case ConnectionPhase.failed:
+      case ConnectionPhase.offline:
+        return const Duration(hours: 2);
+      case ConnectionPhase.blocked:
+        return const Duration(hours: 2);
+      case ConnectionPhase.setup:
+        return null;
+    }
+  }
+
+  Duration get bridgeConnectedFor => const Duration(hours: 2, minutes: 14);
+
+  Duration? get smokeXLastPacketAge {
+    if (!isConnected) {
+      final bridgeAge = bridgeLastContactAge;
+      if (bridgeAge == null) return null;
+      return bridgeAge + const Duration(seconds: 12);
+    }
+    switch (smokeXStatus) {
+      case SmokeXStatus.pairedLive:
+        return phase == ConnectionPhase.stale
+            ? const Duration(minutes: 4)
+            : const Duration(seconds: 12);
+      case SmokeXStatus.pairedLost:
+        return const Duration(minutes: 14);
+      case SmokeXStatus.unpaired:
+        return null;
+    }
+  }
+
+  bool get smokeXReceiving =>
+      isConnected &&
+      phase != ConnectionPhase.stale &&
+      smokeXStatus == SmokeXStatus.pairedLive;
+
+  String get bridgeLinkStatusLabel {
+    switch (phase) {
+      case ConnectionPhase.live:
+      case ConnectionPhase.stale:
+        return 'Connected';
+      case ConnectionPhase.syncing:
+        return 'Connected · syncing';
+      case ConnectionPhase.reconnecting:
+        return 'Reconnecting';
+      case ConnectionPhase.failed:
+      case ConnectionPhase.offline:
+        return 'Offline';
+      case ConnectionPhase.blocked:
+        return 'Blocked';
+      case ConnectionPhase.setup:
+        return 'Not connected';
+    }
+  }
+
+  /// Settings uses this shorter line because the status LED already says
+  /// `Connected`; repeating how long the link has been up adds no signal.
+  String get bridgeLastContactDetail {
+    if (isConnected) {
+      final age = bridgeLastContactAge;
+      if (age == null) return 'No contact yet';
+      return 'Last contact ${_shortDuration(age)} ago';
+    }
+    return bridgeLinkDetail;
+  }
+
+  /// Four cell-style bars, from weak (1) to excellent (4).
+  int get signalBars {
+    if (rssi >= -60) return 4;
+    if (rssi >= -70) return 3;
+    if (rssi >= -80) return 2;
+    return 1;
+  }
+
+  String get signalQualityLabel {
+    switch (signalBars) {
+      case 4:
+        return 'Excellent';
+      case 3:
+        return 'Good';
+      case 2:
+        return 'Fair';
+      default:
+        return 'Weak';
+    }
+  }
+
+  String get bridgeLinkDetail {
+    switch (phase) {
+      case ConnectionPhase.live:
+      case ConnectionPhase.stale:
+      case ConnectionPhase.syncing:
+        return 'Connected for ${_shortDuration(bridgeConnectedFor)} · last contact ${_shortDuration(bridgeLastContactAge!)} ago';
+      case ConnectionPhase.reconnecting:
+        return 'Attempt 2 of 6 · next try in 4 s';
+      case ConnectionPhase.failed:
+      case ConnectionPhase.offline:
+        return 'Last connected ${_shortDuration(bridgeLastContactAge!)} ago';
+      case ConnectionPhase.blocked:
+        switch (blockReason) {
+          case BlockReason.bluetoothOff:
+            return 'Bluetooth is off';
+          case BlockReason.permissionDenied:
+          case BlockReason.permissionBlocked:
+            return 'Bluetooth permission needed';
+          case BlockReason.unsupportedPhone:
+            return 'This phone cannot scan for Bluetooth LE';
+          case BlockReason.none:
+            return 'A connection is required';
+        }
+      case ConnectionPhase.setup:
+        return 'Not paired with this phone';
+    }
+  }
+
+  String get smokeXLinkStatusLabel {
+    if (!isConnected) return 'Last known';
+    if (phase == ConnectionPhase.stale) return 'No recent data';
+    switch (smokeXStatus) {
+      case SmokeXStatus.pairedLive:
+        return 'Receiving';
+      case SmokeXStatus.pairedLost:
+        return 'No recent data';
+      case SmokeXStatus.unpaired:
+        return 'Not paired';
+    }
+  }
+
+  String get smokeXLinkDetail {
+    final age = smokeXLastPacketAge;
+    if (age == null) return 'No data received yet';
+    if (!isConnected) {
+      return 'Last data ${_shortDuration(age)} ago · last known';
+    }
+    return 'Last data ${_shortDuration(age)} ago · 915 MHz';
+  }
+
+  String get lastSavedLabel {
+    if (isOffline) return 'Saved 2h ago';
+    if (phase == ConnectionPhase.stale) return 'Saved 4m ago';
+    return 'Saved 2m ago';
+  }
 
   ProbeHealth get effectiveProbeHealth {
     if (smokeXStatus == SmokeXStatus.pairedLost) return ProbeHealth.stale;
@@ -200,6 +375,88 @@ class PrototypeController extends ChangeNotifier {
     return !historyOneProbe || index == 3;
   }
 
+  /// Everything the phone has recorded. Custom ranges start here and can then
+  /// be narrowed to any minute.
+  DateTimeRange get entireHistoryRange => DateTimeRange(
+    start: DateTime(2026, 9, 1),
+    end: DateTime(2026, 10, 25, 18, 30),
+  );
+
+  /// One shared timeline for pairing, Bridge link and Billows events. Billows
+  /// joins automatically, so a dropped fan appears beside the regular
+  /// connection history instead of in a separate feature.
+  List<ConnectionEvent> get connectionLog {
+    final now = DateTime(2026, 10, 25, 18, 30);
+    final events = <ConnectionEvent>[
+      ConnectionEvent(
+        title: 'Bridge connected',
+        detail: 'Bluetooth · $deviceName ($deviceId)',
+        time: now.subtract(bridgeConnectedFor),
+        kind: ConnectionEventKind.bridgeConnected,
+      ),
+      ConnectionEvent(
+        title: 'Smoke X4 paired',
+        detail: '915 MHz · pairing confirmed by the Bridge',
+        time: now.subtract(bridgeConnectedFor).add(const Duration(minutes: 4)),
+        kind: ConnectionEventKind.smokeXPaired,
+      ),
+    ];
+    if (billowsSeenThisSession) {
+      events.add(
+        ConnectionEvent(
+          title: 'Billows detected',
+          detail: billowsDetected
+              ? 'Connected to the Smoke X4 · fan data is arriving'
+              : 'Connected earlier this session · no fan data now',
+          time: billowsDetected
+              ? now.subtract(const Duration(seconds: 12))
+              : now.subtract(const Duration(minutes: 12)),
+          kind: ConnectionEventKind.billowsConnected,
+        ),
+      );
+    }
+    if (billowsLostThisSession) {
+      events.add(
+        ConnectionEvent(
+          title: 'Billows connection lost',
+          detail: 'Was paired through the Smoke X4 · check fan power',
+          time: now.subtract(const Duration(minutes: 12)),
+          kind: ConnectionEventKind.billowsLost,
+        ),
+      );
+    }
+    if (phase == ConnectionPhase.offline || phase == ConnectionPhase.failed) {
+      events.add(
+        ConnectionEvent(
+          title: 'Bridge connection lost',
+          detail: 'Recording continues on the Bridge',
+          time: now.subtract(bridgeLastContactAge ?? const Duration(hours: 2)),
+          kind: ConnectionEventKind.bridgeLost,
+        ),
+      );
+    }
+    if (syncState == SyncState.complete) {
+      events.add(
+        ConnectionEvent(
+          title: 'History synced',
+          detail: 'Recent readings are on this phone',
+          time: now.subtract(const Duration(minutes: 2)),
+          kind: ConnectionEventKind.sync,
+        ),
+      );
+    }
+    events.sort((a, b) => b.time.compareTo(a.time));
+    return events;
+  }
+
+  List<ConnectionEvent> get billowsLog => connectionLog
+      .where(
+        (event) =>
+            event.kind == ConnectionEventKind.billowsConnected ||
+            event.kind == ConnectionEventKind.billowsLost,
+      )
+      .toList();
+
   String get unitsLabel => units == Units.fahrenheit ? '°F' : '°C';
 
   String get unitSuffix => units == Units.fahrenheit ? '°F' : '°C';
@@ -228,11 +485,11 @@ class PrototypeController extends ChangeNotifier {
       case ConnectionPhase.reconnecting:
         return 'Reconnecting…';
       case ConnectionPhase.failed:
-        return 'Can’t reach the bridge';
+        return 'Can’t reach the Bridge';
       case ConnectionPhase.offline:
         return offlineCache
             ? 'Showing last saved readings'
-            : 'Can’t reach the bridge';
+            : 'Can’t reach the Bridge';
       case ConnectionPhase.blocked:
         switch (blockReason) {
           case BlockReason.bluetoothOff:
@@ -250,27 +507,6 @@ class PrototypeController extends ChangeNotifier {
     }
   }
 
-  String get connectionChipLabel {
-    switch (phase) {
-      case ConnectionPhase.live:
-        return 'Connected · 4s';
-      case ConnectionPhase.stale:
-        return 'No new data · 4m';
-      case ConnectionPhase.syncing:
-        return 'Syncing';
-      case ConnectionPhase.reconnecting:
-        return 'Reconnecting';
-      case ConnectionPhase.failed:
-        return 'Can’t reach bridge';
-      case ConnectionPhase.offline:
-        return 'Offline';
-      case ConnectionPhase.blocked:
-        return 'Action needed';
-      case ConnectionPhase.setup:
-        return 'Not connected';
-    }
-  }
-
   String get connectionSubtitle {
     switch (phase) {
       case ConnectionPhase.live:
@@ -279,7 +515,7 @@ class PrototypeController extends ChangeNotifier {
         }
         return 'Updated 4s ago · battery $batteryPercent%';
       case ConnectionPhase.stale:
-        return 'Last reading 4m ago · the bridge still answers';
+        return 'Last reading 4m ago · the Bridge still answers';
       case ConnectionPhase.syncing:
         return syncState == SyncState.backfill
             ? 'Loading older history · ${slowLink ? 'slow Bluetooth link' : 'in the background'}'
@@ -287,7 +523,7 @@ class PrototypeController extends ChangeNotifier {
       case ConnectionPhase.reconnecting:
         return 'Attempt 2 of 6 · next try in 4 s';
       case ConnectionPhase.failed:
-        return 'Tap to retry. Recording continues on the bridge.';
+        return 'Tap to retry. Recording continues on the Bridge.';
       case ConnectionPhase.offline:
         return offlineCache
             ? 'Last sync 2 h ago'
@@ -295,7 +531,7 @@ class PrototypeController extends ChangeNotifier {
       case ConnectionPhase.blocked:
         switch (blockReason) {
           case BlockReason.bluetoothOff:
-            return 'Turn Bluetooth on to find your bridge.';
+            return 'Turn Bluetooth on to find your Bridge.';
           case BlockReason.permissionDenied:
             return 'Grant Bluetooth permission to scan.';
           case BlockReason.permissionBlocked:
@@ -306,18 +542,22 @@ class PrototypeController extends ChangeNotifier {
             return 'A connection is required for this action.';
         }
       case ConnectionPhase.setup:
-        return 'Set up a bridge to see live readings.';
+        return 'Set up a Bridge to see live readings.';
     }
   }
 
   bool smokeXLiveHint = true;
 
   String get smokeXLabel {
+    if (smokeXStatus == SmokeXStatus.unpaired) return 'Not paired';
+    if (!isConnected) return 'Paired · last known';
     switch (smokeXStatus) {
       case SmokeXStatus.pairedLive:
-        return 'Paired · live';
+        return phase == ConnectionPhase.stale
+            ? 'Paired · no recent data'
+            : 'Paired · receiving';
       case SmokeXStatus.pairedLost:
-        return 'Paired · lost 14m';
+        return 'Paired · no recent data';
       case SmokeXStatus.unpaired:
         return 'Not paired';
     }
@@ -326,44 +566,34 @@ class PrototypeController extends ChangeNotifier {
   String get smokeXSubtitle {
     switch (smokeXStatus) {
       case SmokeXStatus.pairedLive:
-        return 'Signal good · last packet 12 s ago';
+        return 'Last data 12s ago · 915 MHz';
       case SmokeXStatus.pairedLost:
-        return 'Last packet 14 minutes ago. Put the Smoke X4 in SYNC.';
+        return 'Last data 14m ago. Put the Smoke X4 in SYNC.';
       case SmokeXStatus.unpaired:
-        return 'Scanning 915/920 MHz. Put the Smoke X4 in SYNC.';
-    }
-  }
-
-  String get billowsModeLabel {
-    switch (billowsMode) {
-      case BillowsMode.disabled:
-        return 'Off';
-      case BillowsMode.observe:
-        return 'Monitor only';
-      case BillowsMode.control:
-        return 'Control';
+        return 'No data received. Put the Smoke X4 in SYNC.';
     }
   }
 
   String get billowsAttachmentLabel {
     switch (billowsAttachment) {
       case BillowsAttachment.attached:
-        return 'Connected';
+        return 'Detected';
       case BillowsAttachment.detached:
-        return 'Not connected';
+        return billowsSeenThisSession ? 'Lost this session' : 'Not detected';
       case BillowsAttachment.unknown:
-        return 'Unknown';
+        return 'Not detected';
     }
   }
 
+  String get billowsSettingsSubtitle {
+    if (!billowsSeenThisSession) {
+      return 'Not detected · appears automatically when connected';
+    }
+    return 'Read-only · $billowsAttachmentLabel';
+  }
+
   String get billowsSourceLabel {
-    if (billowsMode == BillowsMode.disabled) {
-      return 'Billows monitoring is off.';
-    }
-    if (isBillowsControl) {
-      return 'Controlled by the bridge';
-    }
-    return 'Set target on Smoke X4';
+    return 'Read-only · Smoke X4 channel 4';
   }
 
   String get displayTimeoutLabel {
@@ -397,18 +627,11 @@ class PrototypeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setBillowsMode(BillowsMode value) {
-    billowsMode = value;
-    notifyListeners();
-  }
-
-  void setBillowsTarget(int value) {
-    billowsTargetF = value;
-    notifyListeners();
-  }
-
   void setHistoryRange(HistoryRange value) {
     historyRange = value;
+    if (value != HistoryRange.custom) {
+      historyCustomRange = null;
+    }
     notifyListeners();
   }
 
@@ -425,11 +648,6 @@ class PrototypeController extends ChangeNotifier {
 
   void setHistorySort(HistorySort value) {
     historySort = value;
-    notifyListeners();
-  }
-
-  void toggleDaysSort() {
-    daysNewestFirst = !daysNewestFirst;
     notifyListeners();
   }
 
@@ -553,6 +771,14 @@ class PrototypeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  String _shortDuration(Duration duration) {
+    if (duration.inSeconds < 60) return '${duration.inSeconds}s';
+    if (duration.inMinutes < 60) return '${duration.inMinutes}m';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
+  }
+
   void reset({bool keepTheme = true}) {
     final theme = _themeMode;
     tab = AppTab.live;
@@ -566,16 +792,14 @@ class PrototypeController extends ChangeNotifier {
     slowLink = false;
     syncState = SyncState.idle;
     syncProgressPercent = 64;
-    billowsControlCapability = false;
-    billowsMode = BillowsMode.observe;
     billowsAttachment = BillowsAttachment.attached;
-    billowsTargetKnown = true;
-    billowsTargetF = 225;
+    smokeXChannel4SetKnown = true;
+    smokeXChannel4SetF = 225;
+    billowsSeenThisSession = true;
     historyRange = HistoryRange.twentyFourHours;
     historyProbe = null;
     historyCustomRange = null;
-    historySort = HistorySort.jack;
-    daysNewestFirst = true;
+    historySort = HistorySort.probe;
     historyHasData = true;
     historyOneProbe = false;
     historyEstimated = false;

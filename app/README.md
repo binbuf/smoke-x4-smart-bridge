@@ -31,19 +31,24 @@ test suite.
 
 ## Review every scenario
 
-Open **Settings → About** and long-press the app title. The Scenario Lab has
-80+ reachable screens and states grouped by flow:
+In debug builds, open the app-bar menu and choose **Experimental lab**, or go to
+**Settings → About** and long-press the app title. The Scenario Lab has 80+
+reachable screens and states grouped by flow. Release builds hide the menu entry
+by default; opt in with
+`--dart-define=ENABLE_EXPERIMENTAL_LAB=true` when a review build needs it:
 
 - Setup and permissions: primer, Bluetooth off, denied/blocked, unsupported,
   scanning, no results, results, protocol mismatch, passkey, pairing, wrong
-  code, timeout, out-of-date pairing, phone list full, first sync, phone history.
+  code, timeout, out-of-date pairing, phone list full, first sync, device log.
 - Live and connection: live/aging/stale/frozen, detached and absent probes,
   no Smoke X4, storage unavailable, syncing, slow link, reconnecting, failed,
   offline with/without cache, sync failure, and every Billows variant.
-- History: 1 h / 6 h / 24 h / 7 d / All, one probe, empty, no data in range,
-  offline cache, estimated time, and missing-from-bridge.
-- Settings: bridge details, preferences, units, appearance, Billows
-  monitor/control, history & storage, deletion, re-pair, phone history, About.
+- History: 1 h / 6 h / 24 h / 7 d / All, past cooks in a dedicated historical
+  view, one probe, empty, no data in range, offline cache, estimated time, and
+  missing-from-bridge.
+- Settings: Bridge status first, then history & storage, preferences, units,
+  appearance, Billows monitor/control/detection, deletion, re-pair, device log,
+  About.
 - Confirmations: forget, clear bridge log, delete 30/90/all, factory reset,
   power off, and the post-power-off wake screen.
 - Device OLED: four pages, passkey, power-off countdown, storage failure,
@@ -56,7 +61,7 @@ covers both **dark and light** modes for every screen.
 
 - Permission/Bluetooth settings buttons show a snackbar; they do not open the OS.
 - The OS passkey dialog is simulated in the lab. The real app never shows the
-  code; it is only on the bridge OLED.
+  code; it is only on the Bridge OLED.
 - Save, sync, re-pair, delete, factory reset, and power off use local timers or
   state changes. No device is contacted.
 - Charts use deterministic fixtures, including per-probe last-hour sparklines,

@@ -76,16 +76,26 @@ sentinel).
 - **blocked-by:** A3.2 · **verify:** H/P · **board:** no / phone
 - **design:** [06 §6.6](../design/06-app.md)
 
-Implement range presets (1h/6h/24h/7d/All) plus custom range, probe filters,
-crosshair with a pinned tooltip, pinch/zoom, drag/pan, double-tap reset, `Now`,
-LTTB and min/max envelope, gap splitting with reasons, estimated-time
-labelling, latest-point dots, summary sorting and day groups. SQL-bucket large
-ranges; keep the chart under a few thousand points. The full-screen chart is the
-precision-scrubbing surface.
+Implement range presets (1h/6h/24h/7d/All) plus custom range in one labelled
+filter card, probe filters, crosshair with a pinned tooltip, pinch and
+mouse-wheel/scroll zoom, drag/pan, double-tap fit, zoom controls, `Now`, LTTB and
+min/max envelope, gap splitting with reasons, estimated-time labelling,
+latest-point dots, current/min/max summary sorting and detected past cooks.
+Summary sorting includes `Since cook started`: detect the active cook from the
+newest recorded sample timestamps, fall back to the most recent past cook when
+none is active, and sort probes that have reported since that start. Mark the
+active cook `In progress` in Past cooks so it is not confused with a closed
+session. Past cooks open their historical graph in a dedicated view so the
+History tab keeps its current-cook state. SQL-bucket large ranges; keep the chart
+under a few thousand points. The full-screen chart is a dedicated,
+precision-scrubbing view; it never forces landscape, and fills the screen in
+either orientation.
 
 **Done when.** A 30-day, four-series fake DB renders within one frame budget on
-the target phone; filters, gaps and detached probes are correct; no fake zeros;
-a chart with no data in the selected range says so and offers one next action.
+the target phone; filters, gaps and detached probes are correct; tapping a past
+cook opens the historical view without changing the current History range; no
+fake zeros; a chart with no data in the selected range says so and offers one
+next action.
 
 ---
 

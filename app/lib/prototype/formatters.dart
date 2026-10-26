@@ -60,10 +60,8 @@ String historyRangeLabel(HistoryRange range) {
       return '6 h';
     case HistoryRange.twentyFourHours:
       return '24 h';
-    case HistoryRange.sevenDays:
-      return '7 d';
-    case HistoryRange.all:
-      return 'All';
+    case HistoryRange.twoDays:
+      return '2 d';
     case HistoryRange.custom:
       return 'Custom';
   }
@@ -77,10 +75,8 @@ String historyChipLabel(HistoryRange range) {
       return '6H';
     case HistoryRange.twentyFourHours:
       return '24H';
-    case HistoryRange.sevenDays:
-      return '7D';
-    case HistoryRange.all:
-      return 'ALL';
+    case HistoryRange.twoDays:
+      return '2D';
     case HistoryRange.custom:
       return 'CUSTOM';
   }
@@ -96,12 +92,46 @@ String historyWindowLabel(
     case HistoryRange.oneHour:
     case HistoryRange.sixHours:
     case HistoryRange.twentyFourHours:
-      return '${shortDate(start)} · ${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
-    case HistoryRange.sevenDays:
-    case HistoryRange.all:
+    case HistoryRange.twoDays:
     case HistoryRange.custom:
-      return '${shortDateWithYear(start)} – ${shortDateWithYear(end)}';
+      final sameDay =
+          start.year == end.year &&
+          start.month == end.month &&
+          start.day == end.day;
+      if (sameDay) {
+        return '${shortDate(start)} · ${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
+      }
+      return '${shortDate(start)} ${clockLabel(start, use24Hour: use24Hour)} – ${shortDate(end)} ${clockLabel(end, use24Hour: use24Hour)}';
   }
+}
+
+String timeRangeLabel(DateTime start, DateTime end, {bool use24Hour = false}) {
+  return '${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
+}
+
+String durationShort(Duration duration) {
+  final value = duration.abs();
+  if (value.inMinutes < 1) return '${value.inSeconds}s';
+  if (value.inHours < 1) return '${value.inMinutes}m';
+  if (value.inDays >= 1) {
+    final days = value.inDays;
+    final hours = value.inHours % 24;
+    return hours == 0 ? '${days}d' : '${days}d ${hours}h';
+  }
+  final hours = value.inHours;
+  final minutes = value.inMinutes % 60;
+  return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
+}
+
+String dayLabel(DateTime day, {DateTime? relativeTo}) {
+  final today = relativeTo ?? DateTime(2026, 10, 25);
+  final normalized = DateTime(day.year, day.month, day.day);
+  final todayOnly = DateTime(today.year, today.month, today.day);
+  if (normalized == todayOnly) return 'Today';
+  if (normalized == todayOnly.subtract(const Duration(days: 1))) {
+    return 'Yesterday';
+  }
+  return shortDateWithYear(day);
 }
 
 String relativeMinutes(int minutes) {

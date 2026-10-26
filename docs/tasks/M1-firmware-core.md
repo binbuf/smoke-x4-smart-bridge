@@ -47,7 +47,7 @@ parsing, no heap, and explicit units. Extend:
 - device-ID comparison and mismatch counter,
 - detached → `TEMP_DETACHED`,
 - Celsius → canonical °F tenths,
-- Billows attached + target fields,
+- Billows attached + target fields (target exposed only after validation),
 - preserve `new_alarm`,
 - reject wrong comma counts and trailing garbage.
 
@@ -166,11 +166,11 @@ record count and live values; no allocation on the path.
 - **blocked-by:** T0.8, F1.10 · **verify:** H/B · **board:** no / B
 - **design:** [07 §7.1–§7.3, §7.6](../design/07-display-and-controls.md)
 
-Implement Vext/I²C/SSD1306, the framebuffer, four pages (Probes, Link, Billows,
+Implement Vext/I²C/SSD1306, the framebuffer, up to four pages (Probes, Link, Billows,
 Device), passkey overlay, storage-failure overlay, and display timeout. Add
 framebuffer goldens.
 
-**Done when.** Host goldens match; the four pages are legible on the real OLED;
+**Done when.** Host goldens match; the visible pages are legible on the real OLED;
 the panel sleeps and wakes without changing the page.
 
 ---
@@ -231,7 +231,7 @@ log excerpt is committed.
 
 Run 30+ minutes with all four probes and the OLED awake/asleep. Record packet
 counts vs expected, RSSI, observed intervals, and any missed samples. Walk all
-four pages; test display sleep/wake, battery reading, and PRG power off/on.
+visible pages; test display sleep/wake, battery reading, and PRG power off/on.
 
 **Done when.** The cadence report is committed; any gap has a cause; the pages
 are legible and the power cycle works.

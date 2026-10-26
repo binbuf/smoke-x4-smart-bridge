@@ -13,7 +13,7 @@ verification tier, and whether it needs the board.
 | **M2 — BLE + app slice (V0)** | [M2-ble-and-app-slice.md](M2-ble-and-app-slice.md) | Phone pairs, sees live four temps and the last 15 minutes; **first deployable end-to-end** |
 | **M3 — History** | [M3-history-and-graph.md](M3-history-and-graph.md) | Full sync, resume, local archive, History chart, deletion, health |
 | **M4 — Settings & actions** | [M4-settings-and-power.md](M4-settings-and-power.md) | App controls units/display/time, forget, factory reset, power off |
-| **M5 — Billows (late)** | [M5-billows.md](M5-billows.md) | Observation always; setpoint only through the B5.0 gate; not a V0–V4 dependency |
+| **M5 — Billows (late)** | [M5-billows.md](M5-billows.md) | Observation only; no setpoint control; not a V0–V4 dependency |
 | **M6 — Field hardening** | [M6-field-hardening.md](M6-field-hardening.md) | 24 h soak, real cook, release, handoff |
 
 ## Task format
@@ -51,16 +51,17 @@ M3  full sync ─► local DB ─► History ─► reconnect/deletion ─► be
  │
 M4  config ─► settings UI ─► device actions ─► bench gate
  │
-M5  Billows (late) B5.0 gate ─► observation ─► control (if chosen) ─► bench gate
+M5  Billows (late) B5.0 passive evidence ─► observation ─► bench gate
  │
 M6  soak ─► field cook ─► release
 ```
 
-**Billows is deliberately late.** Observation and the control-path decision both
-land in M5, after the bridge/app core (M0–M4). V0–V4 must not depend on it: the
-app renders the Billows card only when `caps.billows_observe` is set. The B5.0
-capture is bench-only; no cook is required. The control path is still a gate, so
-no release claims "set target" until B5.0 is signed.
+**Billows is deliberately late.** Observation lands in M5, after the bridge/app
+core (M0–M4). V0–V4 must not depend on it: the app renders the Billows card only
+when `caps.billows_observe` is set. The B5.0 capture is bench-only, receive-only,
+and no cook is required. Control is out of scope: the Smoke X4 receiver itself
+cannot change set points or the Billows, so the listener cannot either. Post-MVP
+RF work is a passive data survey, not a control path.
 
 Two lanes can run concurrently:
 
@@ -82,7 +83,7 @@ Repeat that loop at V6.3 rather than adding a separate capture phase.
 | **M2 (V0)** | Fresh phone scans, pairs with the OLED code, sees four live temps, and shows the last 15 minutes in History; reconnect works |
 | **M3** | Full ring syncs, resumes after disconnect, survives app relaunch, renders gaps honestly, and deletion is explicit |
 | **M4** | Every app-controlled setting/action works on the real bridge; factory reset returns the app to setup |
-| **M5** | Billows observation verified with a real unit; control decision **signed** in `docs/billows-decision.md`; if control, safety tests pass; if C, owner sign-off is recorded |
+| **M5** | Billows observation verified with a real unit; target shown only if validated, else `—`; `billows_control = 0`; Option C recorded in `docs/billows-decision.md` |
 | **M6** | 24 h soak and one overnight cook pass; release checklist complete; README works from blank |
 
 ## Status board
@@ -106,9 +107,9 @@ without its verification.
 | # | Decision | Blocks |
 |---|---|---|
 | Q1 | Exact board is Heltec V3 | T0.8, T0.9, F1.2, F1.11 |
-| Q2 | Billows control path (A/B/C) | B5.2, A5.1 control mode, V5.1 |
+| Q2 | Billows control path — **decided: observation only** | closed; no MVP task |
 | Q3 | GPIO0 deep-sleep wake works | F1.12, V1.2, V6.2 |
-| Q4 | Billows target is probe 4 `max` | B5.1, A5.1 |
+| Q4 | Billows target relation (probe 4 `max` or derived) | B5.0, B5.1, A5.1 |
 | Q5 | BLE throughput acceptable | M2/M3 bench, A3.2 |
 
 These are design questions, not implementation choices. If an implementer hits
@@ -126,8 +127,8 @@ Nothing in this plan builds:
 - Multi-bridge, iOS, web, desktop.
 - On-device factory reset gestures or a boot-time button menu.
 - A local web UI or debug HTTP server.
-- Any LoRa transmission other than the pairing ACK, unless B5.0 explicitly
-  selects and approves the narrow Billows RF path.
+- Any LoRa transmission other than the pairing ACK. There is no Billows TX path
+  in the MVP; post-MVP Billows RF work is receive-only.
 
 If a task seems to need one of these, the design is wrong or the request has
 changed. Raise it; do not add it quietly.

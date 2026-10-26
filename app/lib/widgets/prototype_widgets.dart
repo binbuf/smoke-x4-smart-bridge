@@ -29,60 +29,6 @@ class ContentWidth extends StatelessWidget {
   }
 }
 
-class ConnectionStatusChip extends StatelessWidget {
-  const ConnectionStatusChip({super.key, required this.controller, this.onTap});
-
-  final PrototypeController controller;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (controller.phase) {
-      ConnectionPhase.live => StatusColors.live(context),
-      ConnectionPhase.stale => StatusColors.aging(context),
-      ConnectionPhase.syncing => StatusColors.info(context),
-      ConnectionPhase.reconnecting => StatusColors.aging(context),
-      ConnectionPhase.failed => Theme.of(context).colorScheme.error,
-      ConnectionPhase.offline => StatusColors.stale(context),
-      ConnectionPhase.blocked => Theme.of(context).colorScheme.error,
-      ConnectionPhase.setup => StatusColors.stale(context),
-    };
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Material(
-        color: color.withValues(alpha: 0.11),
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  controller.connectionChipLabel,
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: color, fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class ConnectionBanner extends StatelessWidget {
   const ConnectionBanner({super.key, required this.controller});
 
@@ -182,6 +128,94 @@ class ConnectionBanner extends StatelessWidget {
         content: Text('Simulated: opening the relevant Android settings.'),
       ),
     );
+  }
+}
+
+/// A small LED-style status light with a soft halo. The halo is the only glow
+/// in the app so healthy surfaces stay calm.
+class StatusLed extends StatelessWidget {
+  const StatusLed({
+    super.key,
+    required this.color,
+    this.active = true,
+    this.size = 10,
+  });
+
+  final Color color;
+  final bool active;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size + 10,
+      height: size + 10,
+      child: Center(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: active ? color : color.withValues(alpha: 0.45),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Theme.of(context).colorScheme.surface
+                  .withValues(alpha: 0.9),
+              width: 2,
+            ),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.42),
+                      blurRadius: 9,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A compact, cell-phone-style signal meter. Four bars avoid exposing dBm to
+/// users who only need to know whether the link is excellent, good, fair or
+/// weak.
+class SignalBars extends StatelessWidget {
+  const SignalBars({
+    super.key,
+    required this.level,
+    this.color,
+    this.semanticLabel,
+  });
+
+  /// 1 (weak) to 4 (excellent).
+  final int level;
+  final Color? color;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = color ?? scheme.onSurfaceVariant;
+    final bars = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (var index = 0; index < 4; index++)
+          Container(
+            width: 4,
+            height: 6.0 + index * 4,
+            margin: EdgeInsets.only(right: index == 3 ? 0 : 2.5),
+            decoration: BoxDecoration(
+              color: index < level ? active : active.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(1.2),
+            ),
+          ),
+      ],
+    );
+    if (semanticLabel == null) return bars;
+    return Semantics(label: semanticLabel, child: bars);
   }
 }
 
@@ -420,10 +454,16 @@ class SectionCard extends StatelessWidget {
 }
 
 class SettingsGroup extends StatelessWidget {
-  const SettingsGroup({super.key, required this.title, required this.children});
+  const SettingsGroup({
+    super.key,
+    required this.title,
+    required this.children,
+    this.header,
+  });
 
   final String title;
   final List<Widget> children;
+  final Widget? header;
 
   @override
   Widget build(BuildContext context) {
@@ -445,6 +485,10 @@ class SettingsGroup extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
+              if (header != null) ...[
+                header!,
+                if (children.isNotEmpty) const Divider(),
+              ],
               for (var i = 0; i < children.length; i++) ...[
                 if (i > 0) const Divider(),
                 children[i],
@@ -453,6 +497,54 @@ class SettingsGroup extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class SettingsTile extends StatelessWidget {
+  const SettingsTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = onTap != null;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      enabled: enabled,
+      leading: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: enabled
+              ? scheme.surfaceContainerHighest.withValues(alpha: 0.5)
+              : scheme.surfaceContainerHighest.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          size: 19,
+          color: enabled ? scheme.onSurfaceVariant : scheme.outline,
+        ),
+      ),
+      title: Text(title),
+      subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+      trailing: Icon(
+        enabled ? Icons.chevron_right : Icons.lock_outline,
+        size: 20,
+        color: enabled ? scheme.onSurfaceVariant : scheme.outline,
+      ),
+      onTap: onTap,
     );
   }
 }

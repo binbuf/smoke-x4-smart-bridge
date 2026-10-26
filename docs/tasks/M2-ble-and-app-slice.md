@@ -116,15 +116,18 @@ timeout, stale bond, and bond-full states are widget-tested.
 - **blocked-by:** T0.5, A2.1, F2.2 · **verify:** H/P · **board:** no / phone
 - **design:** [06 §6.5](../design/06-app.md)
 
-Implement the compact connection status, four probe tiles in jack order,
-per-probe last-hour sparklines, detached and stale states, and the Billows
-read-only card. The Billows card is hidden when `caps.billows_observe = 0`, so
-V0 does not depend on M5. No zero for absent data. Add the freshness calculation
-and widget tests. The aggregate preview graph is not part of Live.
+Implement the Live connection-chain card (phone → Bridge → Smoke X4) with two
+LED-style rows, last Bridge contact/session time and last Smoke X4 data age. Then
+add four probe tiles in probe order, per-probe last-hour sparklines, detached and
+stale states, and the Billows read-only card. The Billows card is hidden when
+`caps.billows_observe = 0` **and whenever Billows is not detected**, so V0 does
+not depend on M5. Do not add a “Connected” pill to the Billows card. No zero for
+absent data. Add the freshness calculation and widget tests. The aggregate
+preview graph and the app-bar status chip are not part of Live.
 
-**Done when.** Live renders four numbered probes, a sparkline where history
-exists, and every freshness state from a fake; a real phone shows live values at
-the sample cadence.
+**Done when.** Live renders the full chain, four numbered probes, a sparkline
+where history exists, and every freshness state from a fake; a real phone shows
+live values at the sample cadence.
 
 ---
 
@@ -187,7 +190,7 @@ V0 evidence.
 - **blocked-by:** V2.1 · **verify:** C · **board:** yes
 - **design:** [10 §10.3 B5, §10.6](../design/10-test-and-release.md), [02 §2.9](../design/02-smoke-x-protocol.md)
 
-Use the V0 build for a normal cook. Do not stage setpoint changes, receiver
+Use the V0 build for a normal cook. Do not stage target changes, receiver
 button presses, probe detaches, or a special capture sequence. Pair once, let
 the bridge record, use the app as intended, and sync before and after. This is
 early dogfooding, not the V6.3 release cook.

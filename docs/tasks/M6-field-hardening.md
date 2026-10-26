@@ -84,8 +84,8 @@ contains no unused network/notification/foreground-service permissions.
 
 Set the firmware version, run the host suite and `idf.py build`, produce a
 merged image, and document the USB flash command. Confirm factory reset, deep
-sleep, and the TX invariant on the release image (sync ACK only, or sync ACK +
-the B5.0-A Billows frame when `caps.billows_control` is set).
+sleep, and the TX invariant on the release image (sync ACK only; no Billows TX
+path, `caps.billows_control = 0`).
 
 **Done when.** The image and flash instructions are committed; a clean board
 flashes and reaches advertising.
@@ -102,7 +102,7 @@ Write/refresh:
 - root `README.md`: what it is, hardware, build/flash, install, pair, first run,
   limitations, attribution.
 - `docs/hardware-verified.md`: dated bench results.
-- `docs/billows-decision.md`: A/B/C and evidence.
+- `docs/billows-decision.md`: observation-only decision and evidence.
 - release notes per 10 §10.7.
 - a one-page "new user" path: power, fit antenna, pair, live, history.
 
@@ -123,8 +123,9 @@ Walk the acceptance matrix row by row. For each:
 - if fail, create a named follow-up or explicitly descope with the owner.
 
 Confirm the release notes match the capability bits (`billows_control`,
-`history`, `battery`, `power_off`, `factory_reset`). If `billows_control = 0`,
-confirm `docs/billows-decision.md` carries the owner's signed option-C
+`history`, `battery`, `power_off`, `factory_reset`). `billows_control` is 0 and
+the Billows copy says "Set the target on the Smoke X4." Confirm
+`docs/billows-decision.md` records the observation-only decision and owner
 acceptance; without it, release is blocked, not merely worded differently.
 
 **Done when.** Every row is pass, fail, or explicitly descoped; nothing is blank.

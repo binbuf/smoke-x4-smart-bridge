@@ -1,24 +1,31 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../prototype/fixtures.dart';
 import '../../prototype/formatters.dart';
 import '../../prototype/prototype_controller.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/probe_chart.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
+import 'history_chart_panel.dart';
+import 'history_full_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({
     super.key,
     required this.controller,
-    this.fullScreen = false,
+    this.title = 'History',
+    this.showPastCooks = true,
+    this.showFullscreenAction = true,
+    this.historical = false,
+    this.gapOverride,
   });
 
   final PrototypeController controller;
-  final bool fullScreen;
+  final String title;
+  final bool showPastCooks;
+  final bool showFullscreenAction;
+  final bool historical;
+  final bool? gapOverride;
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -26,14 +33,15 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final ScrollController _scrollController = ScrollController();
-  double _viewStart = 0;
-  double _viewEnd = 1;
-  double _scaleStartStart = 0;
-  double _scaleStartEnd = 1;
-  double _scaleStartFocalX = 0;
-  DateTime? _cursorTime;
+  final GlobalKey<HistoryChartPanelState> _chartKey =
+      GlobalKey<HistoryChartPanelState>();
 
   PrototypeController get controller => widget.controller;
+
+  bool get _hasActiveFilters =>
+      controller.historyProbe != null ||
+      controller.historyRange != HistoryRange.twentyFourHours ||
+      controller.historyCustomRange != null;
 
   @override
   void dispose() {
@@ -41,14 +49,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.dispose();
   }
 
-  bool get _panned => _viewStart > 0.001 || _viewEnd < 0.999;
+  void _resetViewport() => _chartKey.currentState?.resetViewport();
 
-  void _resetViewport() {
-    setState(() {
-      _viewStart = 0;
-      _viewEnd = 1;
-      _cursorTime = null;
-    });
+  void _resetFilters() {
+    controller
+      ..setHistoryProbe(null)
+      ..setHistoryRange(HistoryRange.twentyFourHours);
+    _resetViewport();
   }
 
   HistoryFixture _fixture() {
@@ -58,6 +65,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       oneProbe: controller.historyOneProbe,
       estimated: controller.historyEstimated,
       missingFromBridge: controller.historyMissingFromBridge,
+      hasGap: widget.gapOverride ?? true,
       customStart: controller.historyCustomRange?.start,
       customEnd: controller.historyCustomRange?.end,
     );
@@ -69,31 +77,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       listenable: controller,
       builder: (context, _) {
         final fixture = _fixture();
-        if (widget.fullScreen) {
-          return Scaffold(
-            appBar: prototypeAppBar(
-              context,
-              controller,
-              'History',
-              actions: [ConnectionStatusChip(controller: controller)],
-            ),
-            body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                child: Column(
-                  children: [
-                    _filters(context, fixture),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: _chartCard(context, fixture, expanded: true),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
         return ListView(
           controller: _scrollController,
           children: [
@@ -106,16 +89,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   _chartCard(context, fixture),
                   const SizedBox(height: 14),
                   _summaryCard(context, fixture),
-                  if (_showDays(fixture)) ...[
+                  if (controller.historyHasData && widget.showPastCooks) ...[
                     const SizedBox(height: 14),
-                    _daysCard(context, fixture),
+                    _pastCooksCard(context),
                   ],
                   if (controller.historyMissingFromBridge) ...[
                     const SizedBox(height: 12),
                     InlineNotice(
                       icon: Icons.link_off,
                       title: 'Some history was overwritten',
-                      message: 'The bridge reused this time range before it synced. The gap is permanent; the chart does not draw a straight line across it.',
+                      message: 'The Bridge reused this time range before it synced. The gap is permanent; the chart does not draw a straight line across it.',
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -129,100 +112,179 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _filters(BuildContext context, HistoryFixture fixture) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final range in HistoryRange.values)
-                if (range != HistoryRange.custom)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 7),
-                    child: ChoiceChip(
-                      label: Text(historyChipLabel(range)),
-                      selected: controller.historyRange == range,
-                      onSelected: (_) {
-                        controller.setHistoryRange(range);
-                        _resetViewport();
-                      },
-                    ),
-                  ),
-              if (controller.historyRange == HistoryRange.custom)
-                Padding(
-                  padding: const EdgeInsets.only(right: 7),
-                  child: ChoiceChip(
-                    label: const Text('CUSTOM'),
-                    selected: true,
-                    onSelected: (_) => _pickCustomRange(fixture),
-                  ),
-                ),
-              IconButton.filledTonal(
-                tooltip: 'Custom date range',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _pickCustomRange(fixture),
-                icon: const Icon(Icons.calendar_month_outlined, size: 19),
+    final rangeLabel = controller.historyRange == HistoryRange.custom
+        ? 'Custom'
+        : historyChipLabel(controller.historyRange);
+    final probeLabel = controller.historyProbe == null
+        ? 'All probes'
+        : 'P${controller.historyProbe}';
+
+    return SectionCard(
+      key: const Key('history.filters'),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+      child: Row(
+        children: [
+          if (!widget.historical) ...[
+            Expanded(
+              child: _FilterMenuButton<HistoryRange>(
+                key: const Key('history.range.menu'),
+                icon: Icons.schedule_outlined,
+                label: rangeLabel,
+                tooltip: 'History range',
+                items: _rangeMenuItems(context),
+                onSelected: _selectRange,
               ),
-            ],
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: _FilterMenuButton<int>(
+              key: const Key('history.filter.menu'),
+              icon: Icons.linear_scale,
+              label: probeLabel,
+              tooltip: 'Probes',
+              items: _probeMenuItems(context, fixture),
+              onSelected: (value) {
+                controller.setHistoryProbe(value == 0 ? null : value);
+                _resetViewport();
+              },
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _probeChip(context, fixture, null, 'All'),
-              for (var i = 0; i < 4; i++)
-                _probeChip(context, fixture, i + 1, 'P${i + 1}'),
-            ],
-          ),
-        ),
-      ],
+          if (_hasActiveFilters && !widget.historical)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: IconButton(
+                key: const Key('history.filters.reset'),
+                tooltip: 'Reset filters',
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(38, 38),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: _resetFilters,
+                icon: const Icon(Icons.restart_alt, size: 19),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _probeChip(
+  List<PopupMenuEntry<HistoryRange>> _rangeMenuItems(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return [
+      for (final range in const [
+        HistoryRange.oneHour,
+        HistoryRange.sixHours,
+        HistoryRange.twentyFourHours,
+        HistoryRange.twoDays,
+        HistoryRange.custom,
+      ])
+        PopupMenuItem<HistoryRange>(
+          key: Key('history.range.${historyChipLabel(range).toLowerCase()}'),
+          value: range,
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      range == HistoryRange.custom
+                          ? 'Custom range…'
+                          : historyRangeLabel(range),
+                    ),
+                    if (range == HistoryRange.custom)
+                      Text(
+                        'Any date and time',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                  ],
+                ),
+              ),
+              if (controller.historyRange == range)
+                Icon(Icons.check, size: 18, color: scheme.primary),
+            ],
+          ),
+        ),
+    ];
+  }
+
+  List<PopupMenuEntry<int>> _probeMenuItems(
     BuildContext context,
     HistoryFixture fixture,
-    int? probe,
-    String label,
   ) {
-    final selected = controller.historyProbe == probe;
-    final hasData = probe == null || fixture.seriesHasValues(probe - 1);
-    final color = probe == null
-        ? Theme.of(context).colorScheme.primary
-        : ProbeColors.forIndex(context, probe - 1);
-    return Padding(
-      padding: const EdgeInsets.only(right: 7),
-      child: ChoiceChip(
-        avatar: probe == null
-            ? null
-            : Container(
+    final scheme = Theme.of(context).colorScheme;
+    PopupMenuItem<int> item(int value, String label, Color? color) {
+      final hasData = value == 0 || fixture.seriesHasValues(value - 1);
+      return PopupMenuItem<int>(
+        key: Key('history.filter.${value == 0 ? 'all' : 'p$value'}'),
+        value: value,
+        enabled: hasData,
+        child: Row(
+          children: [
+            if (color != null)
+              Container(
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
                   color: hasData ? color : color.withValues(alpha: 0.35),
                   shape: BoxShape.circle,
                 ),
+              )
+            else
+              Icon(
+                Icons.layers_outlined,
+                size: 16,
+                color: hasData ? scheme.onSurfaceVariant : scheme.outline,
               ),
-        label: Text(label),
-        selected: selected,
-        onSelected: hasData
-            ? (_) {
-                controller.setHistoryProbe(probe);
-                _resetViewport();
-              }
-            : null,
-      ),
-    );
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                label,
+                style: hasData ? null : TextStyle(color: scheme.outline),
+              ),
+            ),
+            if (!hasData)
+              Text(
+                'No data',
+                style: Theme.of(context).textTheme.labelSmall
+                    ?.copyWith(color: scheme.outline),
+              ),
+            if (controller.historyProbe == (value == 0 ? null : value)) ...[
+              const SizedBox(width: 8),
+              Icon(Icons.check, size: 18, color: scheme.primary),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return [
+      item(0, 'All probes', null),
+      for (var i = 1; i <= 4; i++)
+        item(i, 'P$i', ProbeColors.forIndex(context, i - 1)),
+    ];
   }
 
-  Widget _chartCard(
-    BuildContext context,
-    HistoryFixture fixture, {
-    bool expanded = false,
-  }) {
+  Future<void> _selectRange(HistoryRange range) async {
+    if (range == HistoryRange.custom) {
+      final initial =
+          controller.historyCustomRange ?? controller.entireHistoryRange;
+      if (controller.historyCustomRange == null) {
+        controller.setHistoryCustomRange(initial);
+      }
+      _resetViewport();
+      await _pickCustomRange(initial);
+      return;
+    }
+    controller.setHistoryRange(range);
+    _resetViewport();
+  }
+
+  Widget _chartCard(BuildContext context, HistoryFixture fixture) {
     final scheme = Theme.of(context).colorScheme;
     final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
     final window = historyWindowLabel(
@@ -235,6 +297,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final noProbeData =
         controller.historyProbe != null &&
         !fixture.seriesHasValues(controller.historyProbe! - 1);
+    final probeCount = controller.historyProbe == null ? 4 : 1;
+
     final chart = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -251,25 +315,38 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  const SizedBox(height: 2),
-                  Row(
+                  const SizedBox(height: 3),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
-                        controller.isOffline ? 'Saved 2h ago' : 'Saved 2m ago',
+                        widget.historical
+                            ? 'Recorded'
+                            : controller.lastSavedLabel,
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
-                      if (fixture.estimated) ...[
-                        const SizedBox(width: 8),
+                      Text(
+                        '·',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.outline),
+                      ),
+                      Text(
+                        '$probeCount ${probeCount == 1 ? 'probe' : 'probes'}',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      if (fixture.estimated)
                         Text(
-                          'estimated time',
+                          '· estimated time',
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
                                 color: StatusColors.aging(context),
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
-                      ],
                     ],
                   ),
                 ],
@@ -281,305 +358,58 @@ class _HistoryScreenState extends State<HistoryScreen> {
               onPressed: () => _showChartHelp(context),
               icon: const Icon(Icons.help_outline, size: 19),
             ),
-            IconButton(
-              tooltip: 'Full-screen chart',
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.fullScreen
-                  ? () => Navigator.of(context).pop()
-                  : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => HistoryScreen(
-                          controller: controller,
-                          fullScreen: true,
-                        ),
-                      ),
+            if (widget.showFullscreenAction)
+              IconButton(
+                tooltip: 'Full-screen chart',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => HistoryFullScreenScreen(
+                      controller: controller,
+                      historical: widget.historical,
+                      gapOverride: widget.gapOverride,
                     ),
-              icon: Icon(
-                widget.fullScreen ? Icons.close_fullscreen : Icons.open_in_full,
-                size: 19,
+                  ),
+                ),
+                icon: const Icon(Icons.open_in_full, size: 19),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 6),
         if (noData || noProbeData)
-          expanded
-              ? Expanded(
-                  child: EmptyState(
-                    icon: Icons.show_chart,
-                    title: noData ? 'No readings yet' : 'No data in this range',
-                    message: noData
-                        ? 'The bridge records whenever it is on and synced with the Smoke X4.'
-                        : 'P${controller.historyProbe} has no readings in this range. Try another range or show all probes.',
-                    action: () {
-                      if (noData) {
-                        controller.setTab(AppTab.live);
-                      } else {
-                        controller.setHistoryProbe(null);
-                        _resetViewport();
-                      }
-                    },
-                    actionLabel: noData ? 'Go to Live' : 'Show all probes',
-                  ),
-                )
-              : SizedBox(
-                  height: 300,
-                  child: EmptyState(
-                    icon: Icons.show_chart,
-                    title: noData ? 'No readings yet' : 'No data in this range',
-                    message: noData
-                        ? 'The bridge records whenever it is on and synced with the Smoke X4.'
-                        : 'P${controller.historyProbe} has no readings in this range. Try another range or show all probes.',
-                    action: () {
-                      if (noData) {
-                        controller.setTab(AppTab.live);
-                      } else {
-                        controller.setHistoryProbe(null);
-                        _resetViewport();
-                      }
-                    },
-                    actionLabel: noData ? 'Go to Live' : 'Show all probes',
-                  ),
-                )
-        else
-          expanded
-              ? Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final plot = historyChartPlotRect(
-                              Size(constraints.maxWidth, constraints.maxHeight),
-                            );
-                            return _chartGestureLayer(context, fixture, plot);
-                          },
-                        ),
-                      ),
-                      if (_cursorTime != null) _buildTooltip(context, fixture),
-                    ],
-                  ),
-                )
-              : SizedBox(
-                  height: 300,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final plot = historyChartPlotRect(
-                              Size(constraints.maxWidth, constraints.maxHeight),
-                            );
-                            return _chartGestureLayer(context, fixture, plot);
-                          },
-                        ),
-                      ),
-                      if (_cursorTime != null) _buildTooltip(context, fixture),
-                    ],
-                  ),
-                ),
-        if (_panned)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(0, 36),
-                ),
-                onPressed: _resetViewport,
-                icon: const Icon(Icons.arrow_forward, size: 16),
-                label: const Text('Now'),
-              ),
+          SizedBox(
+            height: 300,
+            child: EmptyState(
+              icon: Icons.show_chart,
+              title: noData ? 'No readings yet' : 'No data in this range',
+              message: noData
+                  ? 'The Bridge records whenever it is on and synced with the Smoke X4.'
+                  : 'P${controller.historyProbe} has no readings in this range. Try another range or show all probes.',
+              action: () {
+                if (noData) {
+                  controller.setTab(AppTab.live);
+                } else {
+                  controller.setHistoryProbe(null);
+                  _resetViewport();
+                }
+              },
+              actionLabel: noData ? 'Go to Live' : 'Show all probes',
             ),
+          )
+        else
+          HistoryChartPanel(
+            key: _chartKey,
+            controller: controller,
+            fixture: fixture,
+            historical: widget.historical,
           ),
       ],
     );
 
     return SectionCard(
+      key: const Key('history.chart'),
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
       child: chart,
-    );
-  }
-
-  Widget _chartGestureLayer(
-    BuildContext context,
-    HistoryFixture fixture,
-    Rect plot,
-  ) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (details) => _setCursor(details.localPosition, plot),
-      onDoubleTap: _resetViewport,
-      onScaleStart: (details) {
-        _scaleStartStart = _viewStart;
-        _scaleStartEnd = _viewEnd;
-        _scaleStartFocalX = details.localFocalPoint.dx;
-      },
-      onScaleUpdate: (details) => _updateViewport(details, plot),
-      child: HistoryChart(
-        fixture: fixture,
-        units: controller.units,
-        colors: ProbeColors.of(context),
-        visibleProbe: controller.historyProbe,
-        viewStart: _viewStart,
-        viewEnd: _viewEnd,
-        cursorTime: _cursorTime,
-        use24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
-      ),
-    );
-  }
-
-  void _setCursor(Offset position, Rect plot) {
-    if (!plot.contains(position)) {
-      setState(() => _cursorTime = null);
-      return;
-    }
-    final fraction = ((position.dx - plot.left) / plot.width).clamp(0.0, 1.0);
-    final fixture = _fixture();
-    final start = fixture.start.add(
-      Duration(
-        milliseconds:
-            (fixture.end.difference(fixture.start).inMilliseconds *
-                    (_viewStart + (fraction * (_viewEnd - _viewStart))))
-                .round(),
-      ),
-    );
-    setState(() => _cursorTime = start);
-  }
-
-  void _updateViewport(ScaleUpdateDetails details, Rect plot) {
-    if (plot.width <= 0) return;
-    final oldSpan = _scaleStartEnd - _scaleStartStart;
-    final newSpan = (oldSpan / math.max(0.01, details.scale)).clamp(0.02, 1.0);
-    final startFocal = ((_scaleStartFocalX - plot.left) / plot.width).clamp(
-      0.0,
-      1.0,
-    );
-    final currentFocal = ((details.localFocalPoint.dx - plot.left) / plot.width)
-        .clamp(0.0, 1.0);
-    final ratio = newSpan / oldSpan;
-    var newStart = currentFocal - (startFocal - _scaleStartStart) * ratio;
-    newStart = newStart.clamp(0.0, 1 - newSpan);
-    setState(() {
-      _viewStart = newStart;
-      _viewEnd = newStart + newSpan;
-      _cursorTime = null;
-    });
-  }
-
-  Widget _buildTooltip(BuildContext context, HistoryFixture fixture) {
-    final cursor = _cursorTime!;
-    final plotWidth =
-        MediaQuery.sizeOf(context).width - (widget.fullScreen ? 104 : 88);
-    final totalMs = fixture.end.difference(fixture.start).inMilliseconds;
-    final fraction = (cursor.difference(fixture.start).inMilliseconds / totalMs)
-        .clamp(0.0, 1.0);
-    final x = plotWidth * fraction;
-    final alignLeft = x > plotWidth * 0.52;
-    final probes = controller.historyProbe == null
-        ? [1, 2, 3, 4]
-        : [controller.historyProbe!];
-    final rows = <Widget>[];
-    for (final probe in probes) {
-      final series = fixture.series[probe - 1];
-      ChartPoint? nearest;
-      for (final point in series.points) {
-        if (point.valueF == null) continue;
-        if (nearest == null ||
-            point.time.difference(cursor).inMilliseconds.abs() <
-                nearest.time.difference(cursor).inMilliseconds.abs()) {
-          nearest = point;
-        }
-      }
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: ProbeColors.forIndex(context, probe - 1),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'P$probe',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                nearest?.valueF == null
-                    ? 'No reading'
-                    : controller.tempFor(nearest!.valueF),
-                style: Theme.of(context).textTheme.labelMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    return Positioned(
-      top: 8,
-      left: alignLeft ? null : x + 10,
-      right: alignLeft ? 8 : null,
-      child: GestureDetector(
-        onTap: () {},
-        child: Container(
-          width: 172,
-          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      clockLabel(
-                        cursor,
-                        use24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
-                      ),
-                      style: Theme.of(context).textTheme.labelMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () => setState(() => _cursorTime = null),
-                    child: Icon(
-                      Icons.close,
-                      size: 15,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              ...rows,
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -590,8 +420,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final stats = probes
         .map((probe) => ProbeRangeStats.fromSeries(fixture.series[probe - 1]))
         .toList();
+    final activeCook = currentCookSession();
+    final cookReference = activeCook ?? latestCookSession();
     switch (controller.historySort) {
-      case HistorySort.jack:
+      case HistorySort.probe:
         stats.sort((a, b) => a.probe.compareTo(b.probe));
         break;
       case HistorySort.hottest:
@@ -602,11 +434,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           return b.last!.compareTo(a.last!);
         });
         break;
-      case HistorySort.largestChange:
+      case HistorySort.highestMax:
         stats.sort((a, b) {
-          final aChange = a.change?.abs() ?? -1;
-          final bChange = b.change?.abs() ?? -1;
-          return bChange.compareTo(aChange);
+          if (a.max == null && b.max == null) return 0;
+          if (a.max == null) return 1;
+          if (b.max == null) return -1;
+          return b.max!.compareTo(a.max!);
         });
         break;
       case HistorySort.recent:
@@ -617,9 +450,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
           return b.lastSampleAt!.compareTo(a.lastSampleAt!);
         });
         break;
+      case HistorySort.sinceCookStart:
+        bool readingInCook(ProbeRangeStats stat) =>
+            stat.lastSampleAt != null &&
+            (cookReference == null ||
+                !stat.lastSampleAt!.isBefore(cookReference.start));
+        stats.sort((a, b) {
+          final aInCook = readingInCook(a);
+          final bInCook = readingInCook(b);
+          if (aInCook != bInCook) return aInCook ? -1 : 1;
+          if (a.lastSampleAt == null && b.lastSampleAt == null) {
+            return a.probe.compareTo(b.probe);
+          }
+          if (a.lastSampleAt == null) return 1;
+          if (b.lastSampleAt == null) return -1;
+          return b.lastSampleAt!.compareTo(a.lastSampleAt!);
+        });
+        break;
     }
 
     return SectionCard(
+      key: const Key('history.summary'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -631,26 +482,38 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
+              Text(
+                controller.unitsLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 6),
               PopupMenuButton<HistorySort>(
                 tooltip: 'Sort summary',
                 initialValue: controller.historySort,
                 onSelected: controller.setHistorySort,
                 itemBuilder: (context) => const [
                   PopupMenuItem(
-                    value: HistorySort.jack,
-                    child: Text('Jack order'),
+                    value: HistorySort.probe,
+                    child: Text('Probe order'),
                   ),
                   PopupMenuItem(
                     value: HistorySort.hottest,
-                    child: Text('Hottest first'),
+                    child: Text('Hottest now'),
                   ),
                   PopupMenuItem(
-                    value: HistorySort.largestChange,
-                    child: Text('Largest change'),
+                    value: HistorySort.highestMax,
+                    child: Text('Highest peak'),
                   ),
                   PopupMenuItem(
                     value: HistorySort.recent,
                     child: Text('Most recent'),
+                  ),
+                  PopupMenuItem(
+                    value: HistorySort.sinceCookStart,
+                    child: Text('Since cook started'),
                   ),
                 ],
                 child: Row(
@@ -668,7 +531,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          if (controller.historySort == HistorySort.sinceCookStart) ...[
+            const SizedBox(height: 6),
+            Text(
+              _cookSortDetail(activeCook, cookReference),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          const _SummaryHeader(),
+          const SizedBox(height: 2),
           for (final stat in stats)
             _SummaryRow(
               stat: stat,
@@ -688,171 +562,170 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   String _sortLabel(HistorySort sort) {
     switch (sort) {
-      case HistorySort.jack:
-        return 'Jack order';
+      case HistorySort.probe:
+        return 'Probe order';
       case HistorySort.hottest:
-        return 'Hottest';
-      case HistorySort.largestChange:
-        return 'Largest change';
+        return 'Hottest now';
+      case HistorySort.highestMax:
+        return 'Highest peak';
       case HistorySort.recent:
         return 'Most recent';
+      case HistorySort.sinceCookStart:
+        return 'Since cook started';
     }
   }
 
-  bool _showDays(HistoryFixture fixture) {
-    final span = fixture.end.difference(fixture.start);
-    return controller.historyRange == HistoryRange.sevenDays ||
-        controller.historyRange == HistoryRange.all ||
-        (controller.historyRange == HistoryRange.custom && span.inDays >= 2);
+  String _cookSortDetail(CookSession? activeCook, CookSession? cookReference) {
+    if (cookReference == null) {
+      return 'No cook detected in the recorded readings.';
+    }
+    final elapsed = durationShort(fixtureNow.difference(cookReference.start));
+    if (activeCook != null) {
+      return 'Cook started $elapsed ago · in progress';
+    }
+    return 'Last cook started $elapsed ago';
   }
 
-  Widget _daysCard(BuildContext context, HistoryFixture fixture) {
-    final days = _daySummaries(fixture);
+  Widget _pastCooksCard(BuildContext context) {
+    final cooks = buildCookSessions();
+    final scheme = Theme.of(context).colorScheme;
+    final visible = cooks.take(3).toList();
     return SectionCard(
+      key: const Key('history.cooks'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Days',
-                  style: Theme.of(context).textTheme.titleMedium,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Past cooks',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Detected from recorded readings',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
                 ),
               ),
               TextButton(
-                onPressed: controller.toggleDaysSort,
-                child: Text(
-                  controller.daysNewestFirst ? 'Newest first' : 'Oldest first',
-                ),
+                key: const Key('history.cooks.open'),
+                onPressed: () => _showCookSheet(context),
+                child: const Text('View all'),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          for (final day in days)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: Text(_dayLabel(day.day)),
-              subtitle: Text(
-                '${commaInt(day.readings)} readings · ${day.probes} probes${day.hasGap ? ' · 1 gap' : ''}',
-              ),
-              trailing: const Icon(Icons.chevron_right, size: 20),
-              onTap: () {
-                controller.setHistoryCustomRange(
-                  DateTimeRange(
-                    start: DateTime(day.day.year, day.day.month, day.day.day),
-                    end: DateTime(
-                      day.day.year,
-                      day.day.month,
-                      day.day.day,
-                      23,
-                      59,
-                      59,
-                    ),
-                  ),
-                );
-                _resetViewport();
-                if (_scrollController.hasClients) {
-                  _scrollController.animateTo(
-                    0,
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeOut,
-                  );
-                }
-              },
+          for (final cook in visible)
+            _CookTile(
+              cook: cook,
+              selected: _isCookSelected(cook),
+              current: isCookInProgress(cook),
+              onTap: () => _openPastCook(context, cook),
             ),
         ],
       ),
     );
   }
 
-  List<_DaySummary> _daySummaries(HistoryFixture fixture) {
-    final probes = controller.historyProbe == null
-        ? [1, 2, 3, 4]
-        : [controller.historyProbe!];
-    final map = <DateTime, _DaySummary>{};
-    for (final probe in probes) {
-      for (final point in fixture.series[probe - 1].points) {
-        if (point.valueF == null) continue;
-        final day = DateTime(point.time.year, point.time.month, point.time.day);
-        final summary = map.putIfAbsent(
-          day,
-          () => _DaySummary(day: day, readings: 0, probes: 0, hasGap: false),
-        );
-        map[day] = _DaySummary(
-          day: day,
-          readings: summary.readings + 1,
-          probes: summary.probes + 1,
-          hasGap: summary.hasGap,
-        );
-      }
-    }
-    final days = map.values.toList();
-    // Each probe contributes a point per bucket; report days, not raw sums.
-    final normalized = <DateTime, _DaySummary>{};
-    for (final day in days) {
-      normalized[day.day] = _DaySummary(
-        day: day.day,
-        readings: day.readings,
-        probes: probes.length,
-        hasGap: _dayHasGap(day.day, fixture),
-      );
-    }
-    final result = normalized.values.toList();
-    result.sort(
-      (a, b) => controller.daysNewestFirst
-          ? b.day.compareTo(a.day)
-          : a.day.compareTo(b.day),
-    );
-    return result;
+  bool _isCookSelected(CookSession cook) {
+    final range = controller.historyCustomRange;
+    if (range == null) return false;
+    return range.start.difference(cook.start).inMinutes.abs() < 1 &&
+        range.end.difference(cook.end).inMinutes.abs() < 1;
   }
 
-  bool _dayHasGap(DateTime day, HistoryFixture fixture) {
-    final start = DateTime(day.year, day.month, day.day);
-    final end = start.add(const Duration(days: 1));
-    return fixture.gapStart.isBefore(end) && fixture.gapEnd.isAfter(start);
-  }
-
-  String _dayLabel(DateTime day) {
-    final today = DateTime(2026, 10, 25);
-    final normalized = DateTime(day.year, day.month, day.day);
-    if (normalized == today) return 'Today';
-    if (normalized == today.subtract(const Duration(days: 1))) {
-      return 'Yesterday';
-    }
-    return shortDateWithYear(day);
-  }
-
-  Future<void> _pickCustomRange(HistoryFixture fixture) async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2024),
-      lastDate: DateTime(2026, 10, 25),
-      initialDateRange:
-          controller.historyCustomRange ??
-          DateTimeRange(start: fixture.start, end: fixture.end),
-      helpText: 'History range',
-      saveText: 'Show range',
-    );
-    if (picked == null) return;
-    controller.setHistoryCustomRange(
-      DateTimeRange(
-        start: DateTime(
-          picked.start.year,
-          picked.start.month,
-          picked.start.day,
-        ),
-        end: DateTime(
-          picked.end.year,
-          picked.end.month,
-          picked.end.day,
-          23,
-          59,
-          59,
-        ),
+  void _openPastCook(BuildContext context, CookSession cook) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PastCookScreen(controller: controller, cook: cook),
       ),
     );
+  }
+
+  void _showCookSheet(BuildContext context) {
+    final cooks = buildCookSessions();
+    final hostContext = context;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.72,
+          maxChildSize: 0.92,
+          builder: (context, scrollController) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Past cooks',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'The app groups recorded readings into cooks. Choose one to open its historical graph.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    children: [
+                      for (final cook in cooks)
+                        _CookTile(
+                          cook: cook,
+                          selected: _isCookSelected(cook),
+                          current: isCookInProgress(cook),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            _openPastCook(hostContext, cook);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _pickCustomRange(DateTimeRange initial) async {
+    final picked = await showModalBottomSheet<DateTimeRange>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _CustomRangeSheet(
+        initialRange: initial,
+        memoryRange: controller.entireHistoryRange,
+        use24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
+      ),
+    );
+    if (picked == null) return;
+    controller.setHistoryCustomRange(picked);
     _resetViewport();
   }
 
@@ -877,23 +750,493 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
             const _HelpRow(
               icon: Icons.open_with,
-              text: 'Drag to pan. Pinch to zoom. Double-tap to reset.',
+              text: 'Drag to pan. Pinch or scroll to zoom. Double-tap to fit the full range.',
+            ),
+            const _HelpRow(
+              icon: Icons.local_fire_department_outlined,
+              text: 'Use Past cooks to jump to a recorded time range, or choose Custom range to set exact dates and times.',
             ),
             const _HelpRow(
               icon: Icons.linear_scale,
-              text:
-                  'A gap means the bridge has no reading for that time. '
-                  'The line never bridges a gap.',
+              text: 'A gap means the Bridge has no reading for that time. The line never bridges a gap.',
             ),
             const _HelpRow(
               icon: Icons.straighten,
-              text:
-                  'The chart shares one temperature scale when all probes are '
-                  'visible, and fits the selected probe when you filter.',
+              text: 'All visible probes share one temperature scale. Filtering to one probe expands that scale.',
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class PastCookScreen extends StatefulWidget {
+  const PastCookScreen({
+    super.key,
+    required this.controller,
+    required this.cook,
+  });
+
+  final PrototypeController controller;
+  final CookSession cook;
+
+  @override
+  State<PastCookScreen> createState() => _PastCookScreenState();
+}
+
+class _PastCookScreenState extends State<PastCookScreen> {
+  late final PrototypeController _history;
+
+  @override
+  void initState() {
+    super.initState();
+    final source = widget.controller;
+    _history = PrototypeController()
+      ..units = source.units
+      ..historyRange = HistoryRange.custom
+      ..historyCustomRange = DateTimeRange(
+        start: widget.cook.start,
+        end: widget.cook.end,
+      )
+      ..historyProbe = null
+      ..historySort = source.historySort
+      ..historyHasData = source.historyHasData
+      ..historyOneProbe = source.historyOneProbe
+      ..historyEstimated = source.historyEstimated
+      ..historyMissingFromBridge = false;
+  }
+
+  @override
+  void dispose() {
+    _history.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: prototypeAppBar(context, widget.controller, 'Past cook'),
+      body: HistoryScreen(
+        key: const Key('pastCook.history'),
+        controller: _history,
+        historical: true,
+        showPastCooks: false,
+        showFullscreenAction: false,
+        gapOverride: widget.cook.hasGap,
+      ),
+    );
+  }
+}
+
+class _FilterMenuButton<T> extends StatelessWidget {
+  const _FilterMenuButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.items,
+    required this.onSelected,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final List<PopupMenuEntry<T>> items;
+  final ValueChanged<T> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<T>(
+      tooltip: tooltip,
+      position: PopupMenuPosition.under,
+      onSelected: onSelected,
+      itemBuilder: (context) => items,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 11),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.8),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 17, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Icon(
+              Icons.arrow_drop_down,
+              size: 19,
+              color: scheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomRangeSheet extends StatefulWidget {
+  const _CustomRangeSheet({
+    required this.initialRange,
+    required this.memoryRange,
+    required this.use24Hour,
+  });
+
+  final DateTimeRange initialRange;
+  final DateTimeRange memoryRange;
+  final bool use24Hour;
+
+  @override
+  State<_CustomRangeSheet> createState() => _CustomRangeSheetState();
+}
+
+class _CustomRangeSheetState extends State<_CustomRangeSheet> {
+  late DateTime _start;
+  late DateTime _end;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _start = widget.initialRange.start;
+    _end = widget.initialRange.end;
+  }
+
+  bool get _valid => _end.isAfter(_start);
+
+  Future<void> _pickDate({required bool start}) async {
+    final current = start ? _start : _end;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(
+        widget.memoryRange.start.year,
+        widget.memoryRange.start.month,
+        widget.memoryRange.start.day,
+      ),
+      lastDate: widget.memoryRange.end,
+      helpText: start ? 'Start date' : 'End date',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      final next = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        current.hour,
+        current.minute,
+      );
+      if (start) {
+        _start = next;
+      } else {
+        _end = next;
+      }
+      _validate();
+    });
+  }
+
+  Future<void> _pickTime({required bool start}) async {
+    final current = start ? _start : _end;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current),
+      helpText: start ? 'Start time' : 'End time',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      final next = DateTime(
+        current.year,
+        current.month,
+        current.day,
+        picked.hour,
+        picked.minute,
+      );
+      if (start) {
+        _start = next;
+      } else {
+        _end = next;
+      }
+      _validate();
+    });
+  }
+
+  void _validate() {
+    if (_start.isBefore(widget.memoryRange.start) ||
+        _end.isAfter(widget.memoryRange.end)) {
+      _error = 'Choose a range inside the readings in memory.';
+    } else if (!_valid) {
+      _error = 'The end must be after the start.';
+    } else {
+      _error = null;
+    }
+  }
+
+  void _applyPreset(DateTimeRange range) {
+    setState(() {
+      _start = range.start;
+      _end = range.end;
+      _validate();
+    });
+  }
+
+  void _apply() {
+    _validate();
+    if (_error != null) {
+      setState(() {});
+      return;
+    }
+    Navigator.of(context).pop(DateTimeRange(start: _start, end: _end));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final memory = widget.memoryRange;
+    final today = DateTime(memory.end.year, memory.end.month, memory.end.day);
+    final yesterdayStart = today.subtract(const Duration(days: 1));
+    final yesterdayEnd = today.subtract(const Duration(minutes: 1));
+    final presets = <(String, DateTimeRange)>[
+      ('Entire memory', memory),
+      ('Today', DateTimeRange(start: today, end: memory.end)),
+      ('Yesterday', DateTimeRange(start: yesterdayStart, end: yesterdayEnd)),
+      (
+        'Last 6 hours',
+        DateTimeRange(
+          start: memory.end.subtract(const Duration(hours: 6)),
+          end: memory.end,
+        ),
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Custom range', style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 4),
+            Text(
+              'Pick exact dates and times. It starts with everything the phone has in memory.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: scheme.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${shortDateWithYear(_start)} · ${clockLabel(_start, use24Hour: widget.use24Hour)}',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Icon(
+                      Icons.arrow_downward_rounded,
+                      size: 16,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    '${shortDateWithYear(_end)} · ${clockLabel(_end, use24Hour: widget.use24Hour)}',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _valid
+                        ? '${durationShort(_end.difference(_start))} of history'
+                        : 'End is before start',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: _valid ? scheme.onSurfaceVariant : scheme.error,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _RangeField(
+              label: 'START',
+              value: _start,
+              use24Hour: widget.use24Hour,
+              onPickDate: () => _pickDate(start: true),
+              onPickTime: () => _pickTime(start: true),
+            ),
+            const SizedBox(height: 8),
+            _RangeField(
+              label: 'END',
+              value: _end,
+              use24Hour: widget.use24Hour,
+              onPickDate: () => _pickDate(start: false),
+              onPickTime: () => _pickTime(start: false),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              'QUICK PICKS',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final preset in presets)
+                  ActionChip(
+                    label: Text(preset.$1),
+                    onPressed: () => _applyPreset(preset.$2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _apply,
+                    child: const Text('Use range'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RangeField extends StatelessWidget {
+  const _RangeField({
+    required this.label,
+    required this.value,
+    required this.use24Hour,
+    required this.onPickDate,
+    required this.onPickTime,
+  });
+
+  final String label;
+  final DateTime value;
+  final bool use24Hour;
+  final VoidCallback onPickDate;
+  final VoidCallback onPickTime;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        SizedBox(
+          width: 48,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        Expanded(
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              visualDensity: VisualDensity.compact,
+            ),
+            onPressed: onPickDate,
+            icon: const Icon(Icons.calendar_month_outlined, size: 17),
+            label: Text(
+              shortDateWithYear(value),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+          onPressed: onPickTime,
+          child: Text(clockLabel(value, use24Hour: use24Hour)),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryHeader extends StatelessWidget {
+  const _SummaryHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 1,
+    );
+    return Row(
+      children: [
+        SizedBox(width: 64, child: Text('PROBE', style: style)),
+        Expanded(child: Text('CURRENT', style: style)),
+        SizedBox(
+          width: 54,
+          child: Text('MIN', style: style, textAlign: TextAlign.right),
+        ),
+        SizedBox(
+          width: 54,
+          child: Text('MAX', style: style, textAlign: TextAlign.right),
+        ),
+        const SizedBox(width: 20),
+      ],
     );
   }
 }
@@ -915,117 +1258,203 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final color = ProbeColors.forIndex(context, stat.probe - 1);
-    final last = stat.last;
-    final change = stat.change;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.08) : null,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: last == null ? color.withValues(alpha: 0.35) : color,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 26,
-              child: Text(
-                'P${stat.probe}',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
+    final hasData = stat.last != null;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: hasData
+          ? 'Probe ${stat.probe}, current ${controller.tempFor(stat.last)}, minimum ${controller.tempFor(stat.min)}, maximum ${controller.tempFor(stat.max)}'
+          : 'Probe ${stat.probe}, no data in this range',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.08) : null,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 64,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: hasData ? color : color.withValues(alpha: 0.35),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      'P${stat.probe}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            Expanded(
-              child: last == null
-                  ? Text(
-                      'No data in this range',
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                controller.tempFor(last),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                            ),
-                            if (change != null) ...[
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  deltaLabel(change, controller.units),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(
-                                        color: change.abs() < 0.05
-                                            ? scheme.onSurfaceVariant
-                                            : change > 0
-                                            ? StatusColors.live(context)
-                                            : StatusColors.aging(context),
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                ),
-                              ),
-                            ],
-                          ],
+              Expanded(
+                child: hasData
+                    ? Text(
+                        '${controller.valueFor(stat.last)}°',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
-                        Text(
-                          '${controller.valueFor(stat.min)}–${controller.valueFor(stat.max)}',
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                        ),
-                      ],
-                    ),
-            ),
-            if (last != null) const SizedBox(width: 2),
-            Icon(
-              selected ? Icons.check : Icons.chevron_right,
-              size: 18,
-              color: selected ? color : scheme.onSurfaceVariant,
-            ),
-          ],
+                      )
+                    : Text(
+                        'No data',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+              ),
+              SizedBox(
+                width: 54,
+                child: Text(
+                  hasData ? '${controller.valueFor(stat.min)}°' : '—',
+                  textAlign: TextAlign.right,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 54,
+                child: Text(
+                  hasData ? '${controller.valueFor(stat.max)}°' : '—',
+                  textAlign: TextAlign.right,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 20,
+                child: Icon(
+                  selected ? Icons.check : Icons.chevron_right,
+                  size: 16,
+                  color: selected ? color : scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _DaySummary {
-  const _DaySummary({
-    required this.day,
-    required this.readings,
-    required this.probes,
-    required this.hasGap,
+class _CookTile extends StatelessWidget {
+  const _CookTile({
+    required this.cook,
+    required this.selected,
+    required this.current,
+    required this.onTap,
   });
 
-  final DateTime day;
-  final int readings;
-  final int probes;
-  final bool hasGap;
+  final CookSession cook;
+  final bool selected;
+  final bool current;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(vertical: 2),
+      selected: selected,
+      selectedTileColor: scheme.primary.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      leading: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: selected
+              ? scheme.primary.withValues(alpha: 0.18)
+              : scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _monthLabel(cook.start.month),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
+            ),
+            Text(
+              '${cook.start.day}',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700, height: 1.1),
+            ),
+          ],
+        ),
+      ),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              dayLabel(cook.start),
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          if (current) ...[
+            const SizedBox(width: 8),
+            Pill(label: 'In progress', color: StatusColors.live(context)),
+          ],
+        ],
+      ),
+      subtitle: Text(
+        '${timeRangeLabel(cook.start, cook.end, use24Hour: use24Hour)}\n'
+        '${durationShort(cook.duration)} · ${cook.probes} probes'
+        '${cook.hasGap ? ' · gap' : ''}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.35),
+      ),
+      trailing: Icon(
+        selected ? Icons.check_circle : Icons.chevron_right,
+        size: 20,
+        color: selected ? scheme.primary : scheme.onSurfaceVariant,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  String _monthLabel(int month) {
+    const months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
+    return months[month - 1];
+  }
 }
 
 class _HelpRow extends StatelessWidget {

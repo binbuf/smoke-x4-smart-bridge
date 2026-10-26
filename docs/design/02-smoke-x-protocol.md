@@ -10,9 +10,9 @@ legacy parser work. Confidence is marked:
 - **[I]** inferred, consistent with captures but not proven.
 - **[?]** unknown; preserve, do not invent semantics.
 
-The bridge **never transmits except for the pairing acknowledgement**. Any
-future Billows RF control is a separate decision and is not part of this
-contract.
+The bridge **never transmits except for the pairing acknowledgement**. Billows
+is receive-only in the MVP; post-MVP Billows RF work is also a passive survey and
+is not part of this contract.
 
 ## 2.1 Physical layer
 
@@ -97,9 +97,8 @@ different and is persisted after pairing.
 Sent once, on the **operating frequency**, after decoding and validating a sync
 beacon. The Smoke X4 stops beaconing and returns to normal operation.
 
-This is the only LoRa packet the default build ever transmits. If the B5.0
-decision selects option A, the only additional packet is the validated,
-allow-listed Billows target-set frame described in [08](08-billows.md).
+This is the only LoRa packet the bridge ever transmits. There is no Billows
+target-set frame in the MVP; see [08](08-billows.md).
 
 ## 2.5 State message (26 commas, X4)
 
@@ -187,19 +186,20 @@ X2). What is known and what is not:
   target. If `max` is the target, the ±25 alarms are not represented in the
   packet. **[?]**
 
-B5.0 must capture `max` and `min` at 225 °F and 250 °F and derive the relation
-before the app displays a target. A single known setpoint separates
+B5.0 must passively capture `max` and `min` at 225, 250, and 275 °F and derive
+the relation before the app displays a target. A single known setpoint separates
 `max = target` from `max = target + 25`; a second setpoint confirms the mapping.
-Do not change a setpoint or press receiver buttons during a live cook just to
-capture — use the M5 bench sitting. The air probe can be at room temperature;
-no cook is required.
+Do not change a setpoint during a live cook just to capture — use the M5 bench
+sitting. The air probe can be at room temperature; no cook is required.
 
-This is sufficient to display "Billows attached". It is **not** sufficient to
-set the target. See [08 — Billows](08-billows.md) for the control-path gate.
+The attached flag is sufficient to display "Billows detected". The target is
+shown only after B5.0 validates it; otherwise the UI shows `—`. There is no
+control path: ThermoWorks documents that a Smoke X4 receiver cannot change set
+points or the Billows, so the listener cannot either. See [08 — Billows](08-billows.md)
+and [`../billows-decision.md`](../billows-decision.md).
 
-Do not display a "fan running" state from RF data. If the bridge directly drives
-a fan, it knows its own output and may display that; it must label it as its own
-control, not as a Smoke X4 observation.
+Do not display a "fan running" state from RF data. The Smoke X4's fan output is
+not observable and the bridge has no fan output in the MVP.
 
 ## 2.7 Pairing state machine
 
@@ -289,6 +289,6 @@ the legacy fixtures.
 | Q1 | What is state header field 1? | Capture across settings/menu changes | None for MVP; diagnostics only |
 | Q2 | What is state header field 3? | Capture around alarm/menu activity | None for MVP; diagnostics only |
 | Q3 | Do other probe `state` values exist (shorted/open)? | Bench fault injection | Display would need an "invalid" state |
-| Q4 | Is Billows target really probe 4 `max`? | Capture with a Billows attached and change target | Billows display/control semantics |
-| Q5 | Is there any receiver→base command traffic? | Passive capture while pressing every receiver button, and while changing base settings | **Gates Billows RF control** |
+| Q4 | Is Billows target probe 4 `max`, `max − 25`, or another relation? | Passive capture with a Billows attached while changing the base target | Billows target display |
+| Q5 | Is there any receiver→base command traffic? | Public docs say the receiver has no setpoint controls; a passive capture is post-MVP confirmation only | None for MVP; no control path |
 | Q6 | Does the X4 change operating frequency without re-sync? | Long soak | Pairing recovery behavior |
