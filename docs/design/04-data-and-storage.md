@@ -304,7 +304,7 @@ app.
 | Cause | Detection | App behaviour |
 |---|---|---|
 | Device ring rotated past the app's cursor | Forward request returns `status = gap`, `start_seq > cursor + 1` | Store a permanent gap; continue from `min_seq` |
-| Device log cleared/factory reset | `generation` changed | Keep old data; start a new segment; mark the boundary |
+| Bridge history cleared / factory reset | `generation` changed | Keep phone history; start a new segment; mark the boundary |
 | LoRa packet loss / bridge off | `seq` is continuous, but `unix_s` delta > 90 s | Draw a gap between points; no data invented |
 | App was away | Backward/forward cursor jump | Store the missing range if the device still holds it; otherwise gap |
 | Clock was unknown | `flags.clock_valid = 0` | Plot with estimated time; mark the range |

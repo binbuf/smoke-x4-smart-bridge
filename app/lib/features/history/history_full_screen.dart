@@ -48,6 +48,22 @@ class HistoryFullScreenScreen extends StatelessWidget {
           use24Hour: use24Hour,
         );
         final probeCount = controller.historyProbe == null ? 4 : 1;
+        final dataProbeCount = controller.historyProbe == null
+            ? fixture.series
+                  .where(
+                    (series) =>
+                        series.points.any((point) => point.valueF != null),
+                  )
+                  .length
+            : (fixture.seriesHasValues(controller.historyProbe! - 1) ? 1 : 0);
+        final probeMeta = dataProbeCount == probeCount
+            ? '$probeCount ${probeCount == 1 ? 'probe' : 'probes'}'
+            : '$dataProbeCount of $probeCount ${probeCount == 1 ? 'probe' : 'probes'}';
+        final metaLead = !fixture.hasValues
+            ? 'No readings'
+            : historical
+            ? 'Recorded history'
+            : controller.lastSyncedLabel;
 
         return Scaffold(
           backgroundColor: scheme.surface,
@@ -84,9 +100,7 @@ class HistoryFullScreenScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              historical
-                                  ? 'Recorded · $probeCount ${probeCount == 1 ? 'probe' : 'probes'}'
-                                  : '${controller.lastSavedLabel} · $probeCount ${probeCount == 1 ? 'probe' : 'probes'}',
+                              '$metaLead · $probeMeta',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(

@@ -357,7 +357,7 @@ class _HistoryChartPainter extends CustomPainter {
     for (var i = 0; i < ticks.length; i++) {
       final isLast = i == ticks.length - 1;
       if (i % labelEvery != 0 && !isLast) continue;
-      final label = '${ticks[ticks.length - 1 - i].round()}°';
+      final label = '${ticks[ticks.length - 1 - i].round()}';
       final painter = TextPainter(
         text: TextSpan(
           text: label,
@@ -394,7 +394,7 @@ class _HistoryChartPainter extends CustomPainter {
     bool atLatest = false,
   }) {
     final span = viewEndTime.difference(viewStartTime);
-    const divisions = 3;
+    final divisions = span.inHours > 24 ? 2 : 3;
     for (var i = 0; i <= divisions; i++) {
       final time = viewStartTime.add(
         Duration(milliseconds: (spanMs * i / divisions).round()),
@@ -449,9 +449,9 @@ class _HistoryChartPainter extends CustomPainter {
     _dashedLine(canvas, Offset(x2, chart.top), Offset(x2, chart.bottom), dash);
     if (x2 - x1 > 58) {
       final label = switch (fixture.gapReason) {
-        HistoryGapReason.noSignal => 'No data',
+        HistoryGapReason.noSignal => 'No signal',
         HistoryGapReason.bridgeOff => 'Bridge off',
-        HistoryGapReason.bridgeRotated => 'Overwritten',
+        HistoryGapReason.bridgeRotated => 'Not synced',
       };
       final painter = TextPainter(
         text: TextSpan(

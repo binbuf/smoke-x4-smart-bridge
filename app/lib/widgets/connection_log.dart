@@ -31,7 +31,7 @@ class ConnectionLogList extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Text(
           billowsOnly
-              ? 'No Billows events this session. It will appear automatically when the Smoke X4 detects the fan.'
+              ? 'No Billows events yet. Billows will appear here when the Smoke X4 detects it.'
               : 'No connection events yet.',
           style: Theme.of(context).textTheme.bodySmall
               ?.copyWith(color: scheme.onSurfaceVariant),

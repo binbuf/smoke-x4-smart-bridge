@@ -25,9 +25,10 @@ The app is a monitor and a remote control, not the recording authority:
   freshness, bridge/Billows status.
 - **History** — all four probes over the whole locally stored history, with
   gaps rendered as gaps and tools for exploring the archive.
-- **Settings** — units, bridge display timeout, connection controls, data
-  deletion, and the device actions the bridge cannot expose with one button.
-  Billows detection/last-seen is read-only; there is no target setter.
+- **Settings** — one Bridge section, History & storage, preferences and About.
+  Units and appearance apply immediately; Bridge name, screen timeout and the
+  device actions live with the Bridge object. Billows detection/last-seen is
+  read-only; there is no target setter.
 
 ## 0.2 Who it is for and where it is used
 
@@ -59,7 +60,7 @@ the MVP but exercises every layer of the architecture:
 | Radio | Real Smoke X4 paired; stock receiver still works; state packets decoded |
 | Firmware | Samples appended to the flash ring; OLED shows four probes; PRG cycles pages and powers off |
 | BLE | Advertises when idle; passkey pairing; live-state notify; reads the last 15 minutes of readings |
-| App | Scans, pairs with the code on the OLED, shows four live temperatures, and shows the last 15 minutes in History |
+| App | Scans, pairs with the code on the OLED, shows four live temperatures, and shows the last 15 minutes in the full History shell |
 | Failure paths | Disconnect/reconnect; Smoke X4 stops sending; power-cycle the bridge |
 
 V0 is the end of milestone **M2** in the task plan. It is the point at which the
@@ -96,7 +97,7 @@ design/task.
 | Pairing code on screen, entered on phone | First bond shows six digits on the OLED; the phone's OS prompt accepts them; a wrong code produces a named retry path; subsequent reconnects do not prompt. | [05](05-ble-contract.md) | F2.4, A2.2, V2.1 |
 | App can forget device | App-initiated "Forget this phone" removes the current phone's bond on both sides (when connected) and clears the saved connection; local history is kept. Other phones are unaffected. | [05](05-ble-contract.md), [06](06-app.md) | F4.3, A4.3, V4.1 |
 | App can factory reset | Authenticated control op wipes config, all bonds, and bridge history, then reboots. The app states what is lost before sending, treats the disconnect as success, and keeps local history until the user deletes it. | [05](05-ble-contract.md), [06](06-app.md) | F4.3, A4.3, V4.1 |
-| Re-pair a re-synced Smoke X4 | Settings → Connection shows paired/unpaired and a Re-pair action; it clears the old radio pairing, keeps the log/bonds, and restarts the scan. | [02](02-smoke-x-protocol.md), [06](06-app.md) | F1.4, F4.2, A4.2, V4.1 |
+| Re-pair a re-synced Smoke X4 | Settings → Bridge → Smoke X4 pairing shows the current state and a `Re-pair Smoke X4` action; it clears the old radio pairing, keeps the log/bonds, and restarts the scan. | [02](02-smoke-x-protocol.md), [06](06-app.md) | F1.4, F4.2, A4.2, V4.1 |
 | Record whenever on, synced, and Smoke X4 is sending | With no phone present, samples continue into flash; unplug/replug resumes into the same rolling log with only the last record at risk. | [03](03-firmware-architecture.md), [04](04-data-and-storage.md) | F1.5–F1.8, V1.1 |
 | Collect all connected probe temps | Four probes in probe order, tenths °F internally; detached = null; partial connections are represented without inventing data. | [02](02-smoke-x-protocol.md), [04](04-data-and-storage.md) | F1.3, F1.6 |
 | Billows: set target temp | **Out of scope.** The app has no target setter. It shows "Set on the Smoke X4." Public ThermoWorks docs say a Smoke X4 receiver cannot change set points or the Billows; only Signals with its app can. | [08](08-billows.md), [decision](../billows-decision.md) | none |
@@ -105,16 +106,22 @@ design/task.
 | App handles discovery/connection/health | Auto-connect to remembered device, explicit states for scanning/connecting/bonding/syncing/live/stale/reconnecting/failed; reconnect with bounded backoff. | [06](06-app.md) | A2.1–A2.4, A3.4 |
 | Settings the device cannot do | Units, bridge display timeout, bridge name, forget, factory reset, power off. Billows target is not a setting. | [06](06-app.md), [07](07-display-and-controls.md) | F4.1, A4.1–A4.4 |
 | Show four probe temps | Live cards in probe order, large values, per-probe last-hour sparkline, detached state, freshness; no zero for absent data. No probe names, roles or tags in the MVP. | [06](06-app.md) | A2.3 |
-| History all four probes; no data means no line | Four series, gaps at >90 s, LTTB/min-max decimation, range and probe filters, crosshair, pan/zoom, summary, gap reasons, cached data available offline. | [06](06-app.md), [04](04-data-and-storage.md) | A3.3 |
+| History all four probes; no data means no line | Four series, gaps at >90 s, LTTB/min-max decimation, range/probe/custom filters, crosshair, pan/zoom, Latest/Min/Max Summary, Cooks, gap reasons, cached data available offline. | [06](06-app.md), [04](04-data-and-storage.md) | A3.3 |
 | Device records regardless of app; app catches up | Sync cursor is sequence-based; connect triggers catch-up; live notifications append; periodic catch-up every 60 s while connected. | [04](04-data-and-storage.md) | F2.5, F3.1, A3.2 |
 | Rotate old data out on ESP32; never auto-delete in app | Bridge ring wraps oldest sectors; app only deletes through an explicit user action, with a confirmation that says what is lost. | [04](04-data-and-storage.md), [06](06-app.md) | F1.7, A3.5 |
+| Live is one honest status surface | BLE link state and X4 telemetry freshness are separate; healthy screens are quiet; detached probes show `—`, never zero; cached data is labelled saved; every failure has a next action. | [06](06-app.md), [13](13-ui-implementation-contract.md) | A2.3, A3.4, A3.6 |
+| History is an archive, not a demo chart | Range/probe filters persist; crosshair, pan/zoom, Summary, gap reasons, Cooks and a dedicated Cook view work on offline cache; no data never draws a line. | [06](06-app.md), [13](13-ui-implementation-contract.md) | A2.5, A3.3, A4.5 |
+| Settings applies immediately | Units and appearance apply in the same frame; Bridge controls save per field or explain why they are disabled; there is no save-all bar and no duplicate action. | [06](06-app.md), [13](13-ui-implementation-contract.md) | A4.1–A4.4 |
+| Prototype chrome never ships | No theme toggle, lab icon, simulation button, fake OS prompt or “simulated” copy is reachable in a release build; the Experimental lab is debug-only. | [06](06-app.md), [13](13-ui-implementation-contract.md) | T0.5a, V6.4 |
 
 ## 0.6 Out of scope (and intentionally absent)
 
 - Wi-Fi, AP/STA provisioning, HTTP, WebSocket, mDNS, MQTT/Home Assistant.
 - OTA or any firmware update path other than USB.
 - Alarm rules, buzzer/LED alarms, phone notifications, foreground service.
-- Cook sessions, names, marks, phases, presets, ETA, stall/lid detection.
+- User-created cook sessions, names, marks, phases, presets, ETA, stall/lid
+  detection. Detected Cooks are read-only archive navigation derived from the
+  recorded readings; they are not editable sessions.
 - CSV/JSON export, share sheets, cloud sync, accounts.
 - Multi-bridge selection, multi-user access, remote access outside BLE range.
 - iOS, web, desktop.

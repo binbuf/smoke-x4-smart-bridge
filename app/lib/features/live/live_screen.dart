@@ -48,11 +48,11 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         icon: Icons.sensors_off_outlined,
                         color: StatusColors.aging(context),
-                        title: 'Smoke X4 not sending',
-                        message: 'The Bridge is connected but has no recent data. Put the Smoke X4 in SYNC and keep it in range.',
+                        title: 'No data from Smoke X4',
+                        message: 'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
                         action: TextButton(
                           onPressed: () => _showSmokeXHelp(context),
-                          child: const Text('Pairing instructions'),
+                          child: const Text('Troubleshoot'),
                         ),
                       ),
                     ],
@@ -66,8 +66,8 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         icon: Icons.error_outline,
                         color: Theme.of(context).colorScheme.error,
-                        title: 'Couldn’t catch up',
-                        message: 'The last sync did not finish. Live readings can continue; retry when the link is stable.',
+                        title: 'History sync failed',
+                        message: 'Live readings are still updating. Retry when the Bluetooth connection is stable.',
                         action: TextButton(
                           onPressed: controller.retryConnection,
                           child: const Text('Retry sync'),
@@ -79,8 +79,17 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         icon: Icons.sd_card_alert_outlined,
                         color: Theme.of(context).colorScheme.error,
-                        title: 'Storage unavailable',
-                        message: 'The Bridge can show live readings, but this session is not being recorded.',
+                        title: 'Not recording',
+                        message: 'Live readings are available, but the Bridge can’t save them. Check the Bridge’s storage.',
+                        action: TextButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  BridgeDetailsScreen(controller: controller),
+                            ),
+                          ),
+                          child: const Text('Bridge details'),
+                        ),
                       ),
                     ],
                     if (controller.probePresence == ProbePresence.none) ...[
@@ -88,10 +97,16 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         icon: Icons.graphic_eq,
                         title: 'No probes connected',
-                        message: 'Plug a probe into the Smoke X4. Detached probes are shown as —, never 0 °F.',
+                        message:
+                            'Plug a probe into the Smoke X4 to see a reading.',
                       ),
                     ],
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Probes',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -126,8 +141,8 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         icon: Icons.air,
                         color: StatusColors.aging(context),
-                        title: 'Billows disconnected',
-                        message: 'It was detected earlier this session. Check the fan’s power and its link to the Smoke X4. The connection log records the drop.',
+                        title: 'Billows not detected',
+                        message: 'Billows was detected earlier this session. Make sure the fan is powered on and in range of the Smoke X4.',
                         action: TextButton(
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -169,12 +184,10 @@ class LiveScreen extends StatelessWidget {
             const SizedBox(height: 6),
             const Text('2. Hold its button until it beeps.'),
             const SizedBox(height: 6),
-            const Text(
-              '3. The Bridge scans 915/920 MHz and confirms the pairing.',
-            ),
+            const Text('3. The Bridge confirms the pairing.'),
             const SizedBox(height: 16),
             Text(
-              'Re-pairing does not delete the Bridge log or any phone pairing.',
+              'Re-pairing doesn’t delete history on the Bridge or remove paired phones.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -253,49 +266,87 @@ class _ConnectionCard extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Icon(
-                        Icons.schedule,
-                        size: 15,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        controller.isConnected
-                            ? controller.bridgeConnectedForLabel
-                            : 'Not connected',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      const Spacer(),
-                      if (controller.isConnected) ...[
-                        SignalBars(
-                          level: controller.signalBars,
-                          color: StatusColors.signal(
-                            context,
-                            controller.signalBars,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.schedule,
+                            size: 15,
+                            color: scheme.onSurfaceVariant,
                           ),
-                          semanticLabel:
-                              '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          controller.signalQualityLabel,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              controller.bridgeConnectedLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ),
+                          if (controller.isConnected) ...[
+                            const SizedBox(width: 6),
+                            SignalBars(
+                              level: controller.signalBars,
+                              color: StatusColors.signal(
+                                context,
+                                controller.signalBars,
                               ),
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                      Icon(
-                        Icons.chevron_right,
-                        size: 18,
-                        color: scheme.onSurfaceVariant,
+                              semanticLabel:
+                                  '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              controller.signalQualityLabel,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Icon(
+                            controller.isConnected
+                                ? Icons.sensors
+                                : Icons.history,
+                            size: 15,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              controller.telemetryStatusLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color:
+                                        controller.isConnected &&
+                                            !controller.smokeXReceiving
+                                        ? StatusColors.aging(context)
+                                        : scheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          if (!controller.isConnected)
+                            Icon(
+                              Icons.chevron_right,
+                              size: 18,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -418,13 +469,15 @@ class _SyncCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  backfill ? 'Loading older history' : 'Syncing',
+                  backfill
+                      ? 'Loading saved readings'
+                      : 'Syncing saved readings',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
               if (controller.slowLink)
                 Text(
-                  'slow link',
+                  'Slow connection',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: StatusColors.aging(context),
                     fontWeight: FontWeight.w700,
@@ -441,8 +494,8 @@ class _SyncCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             backfill
-                ? 'Recent history is already available. Older readings continue in the background.'
-                : 'Recent history first, then a forward catch-up.',
+                ? 'Your latest readings are ready. Older readings continue in the background.'
+                : 'Newest readings load first.',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),
@@ -460,6 +513,10 @@ class _BillowsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final setTempKnown = controller.smokeXChannel4SetKnown;
+    final setTempLabel = controller.isConnected
+        ? 'Set temp'
+        : 'Set temp (last known)';
     return SectionCard(
       key: const Key('live.billows'),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -491,8 +548,8 @@ class _BillowsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _Metric(
-                  label: 'CH 4 SET TEMP',
-                  value: controller.smokeXChannel4SetKnown
+                  label: setTempLabel,
+                  value: setTempKnown
                       ? controller.tempFor(
                           controller.smokeXChannel4SetF.toDouble(),
                         )
@@ -501,11 +558,17 @@ class _BillowsCard extends StatelessWidget {
               ),
               Expanded(
                 child: _Metric(
-                  label: 'STATUS',
-                  value: controller.billowsAttachmentLabel,
+                  label: 'Last detected',
+                  value: controller.billowsLastDetectedLabel,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Set on the Smoke X4.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -529,8 +592,8 @@ class _Metric extends StatelessWidget {
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: scheme.onSurfaceVariant,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.1,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
           ),
         ),
         const SizedBox(height: 2),

@@ -43,7 +43,7 @@ class HistoryStorageScreen extends StatelessWidget {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Device log',
+                                  'History on this phone',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium,
@@ -65,13 +65,9 @@ class HistoryStorageScreen extends StatelessWidget {
                             label: 'Date range',
                             value: controller.savedDataRange,
                           ),
-                          KeyValueRow(
-                            label: 'Database',
-                            value: controller.savedDataSize,
-                          ),
                           const SizedBox(height: 6),
                           Text(
-                            'Stays on this device even if the Bridge is reset.',
+                            'Stays on this phone even if the Bridge is reset.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
@@ -83,7 +79,9 @@ class HistoryStorageScreen extends StatelessWidget {
                             ),
                             onPressed: () => _showDeleteOptions(context),
                             icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text('Delete device log…'),
+                            label: const Text(
+                              'Delete history from this phone…',
+                            ),
                           ),
                         ],
                       ),
@@ -102,7 +100,7 @@ class HistoryStorageScreen extends StatelessWidget {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Bridge log',
+                                  'History on the Bridge',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium,
@@ -129,15 +127,15 @@ class HistoryStorageScreen extends StatelessWidget {
                           ),
                           KeyValueRow(
                             label: 'Capacity',
-                            value: '~117 days at 30 s',
+                            value: 'About 117 days at 30-second intervals',
                           ),
                           KeyValueRow(
-                            label: 'Oldest',
-                            value: 'Oct 17, 2026 · 08:14',
+                            label: 'Oldest reading',
+                            value: 'Oct 17, 2026 at 8:14 AM',
                           ),
                           KeyValueRow(
-                            label: 'Newest',
-                            value: 'Oct 25, 2026 · 18:30',
+                            label: 'Newest reading',
+                            value: 'Oct 25, 2026 at 6:30 PM',
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -158,12 +156,16 @@ class HistoryStorageScreen extends StatelessWidget {
                               Icons.sd_card_alert_outlined,
                               size: 18,
                             ),
-                            label: Text(
-                              connected
-                                  ? 'Clear Bridge log…'
-                                  : 'Connect to clear the Bridge log',
-                            ),
+                            label: const Text('Clear history on the Bridge…'),
                           ),
+                          if (!connected) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Connect to the Bridge to clear it.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -171,7 +173,7 @@ class HistoryStorageScreen extends StatelessWidget {
                     InlineNotice(
                       icon: Icons.info_outline,
                       title: 'Two separate copies',
-                      message: 'Deleting device log does not clear the Bridge log. Clearing the Bridge log does not delete device log.',
+                      message: 'Deleting history from your phone doesn’t clear the Bridge. Clearing the Bridge doesn’t delete history from your phone.',
                     ),
                   ],
                 ),
@@ -199,12 +201,12 @@ class HistoryStorageScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Delete device log',
+                'Delete history from this phone',
                 style: Theme.of(sheetContext).textTheme.headlineSmall,
               ),
               const SizedBox(height: 6),
               Text(
-                'Only readings on this device are removed. The Bridge is not changed.',
+                'Only readings on this phone are removed. The Bridge isn’t changed.',
                 style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                   color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
                 ),
@@ -212,7 +214,8 @@ class HistoryStorageScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _DeleteOption(
                 title: 'Older than 30 days',
-                subtitle: '${commaInt(older30)} readings · Sep 25 – Oct 24',
+                subtitle:
+                    '${commaInt(older30)} readings · Sep 25 – Oct 24, 2026',
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   deleteLocalData(context, controller, '30');
@@ -220,15 +223,16 @@ class HistoryStorageScreen extends StatelessWidget {
               ),
               _DeleteOption(
                 title: 'Older than 90 days',
-                subtitle: '${commaInt(older90)} readings · Jul 27 – Oct 24',
+                subtitle:
+                    '${commaInt(older90)} readings · Jul 27 – Oct 24, 2026',
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   deleteLocalData(context, controller, '90');
                 },
               ),
               _DeleteOption(
-                title: 'Everything',
-                subtitle: '${commaInt(count)} readings · Sep 1 – Oct 24',
+                title: 'All history on this phone',
+                subtitle: '${commaInt(count)} readings · Sep 1 – Oct 24, 2026',
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   deleteLocalData(context, controller, 'all');
@@ -289,7 +293,7 @@ class AppearanceScreen extends StatelessWidget {
                         mode: ThemeMode.system,
                         icon: Icons.brightness_auto_outlined,
                         title: 'System',
-                        subtitle: 'Match the phone setting',
+                        subtitle: 'Match your phone',
                         controller: controller,
                       ),
                       const Divider(),
@@ -297,7 +301,7 @@ class AppearanceScreen extends StatelessWidget {
                         mode: ThemeMode.light,
                         icon: Icons.light_mode_outlined,
                         title: 'Light',
-                        subtitle: 'Warm daylight palette',
+                        subtitle: 'Always use light',
                         controller: controller,
                       ),
                       const Divider(),
@@ -305,7 +309,7 @@ class AppearanceScreen extends StatelessWidget {
                         mode: ThemeMode.dark,
                         icon: Icons.dark_mode_outlined,
                         title: 'Dark',
-                        subtitle: 'Low-light palette for night cooks',
+                        subtitle: 'Always use dark',
                         controller: controller,
                       ),
                     ],
@@ -374,7 +378,7 @@ Future<void> showBridgeTimeoutSheet(
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'The OLED sleeps after this time. A button press or BLE connect wakes it.',
+                  'The Bridge screen turns off after this time. Press any button or connect with the app to wake it.',
                   style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                     color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
                   ),
@@ -386,7 +390,13 @@ Future<void> showBridgeTimeoutSheet(
                   children: [
                     for (final option in const [30, 60, 120, 0])
                       ChoiceChip(
-                        label: Text(option == 0 ? 'Never' : '$option s'),
+                        label: Text(
+                          option == 0
+                              ? 'Never'
+                              : option < 60
+                              ? '$option sec'
+                              : '${option ~/ 60} min',
+                        ),
                         selected: controller.displayTimeoutSeconds == option,
                         onSelected: (_) {
                           controller.setDisplayTimeout(option);
@@ -437,7 +447,7 @@ Future<void> showBridgeNameDialog(
           ),
           const SizedBox(height: 4),
           Text(
-            'Shown in this app only. The Bluetooth name stays SmokeX4-${controller.deviceId}.',
+            'Only shown in this app. The Bridge’s Bluetooth name doesn’t change.',
             style: Theme.of(dialogContext).textTheme.bodySmall?.copyWith(
               color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
             ),

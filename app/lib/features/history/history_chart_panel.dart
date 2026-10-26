@@ -197,7 +197,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            'Pan · pinch or scroll to zoom',
+            'Drag to pan · pinch to zoom',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall
@@ -231,7 +231,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
             onPressed: resetViewport,
-            child: Text(widget.historical ? 'Fit' : 'Now'),
+            child: Text(widget.historical ? 'Fit range' : 'Now'),
           ),
       ],
     );
@@ -421,11 +421,6 @@ class _ChartControlButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
-      style: IconButton.styleFrom(
-        minimumSize: const Size(32, 32),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
       onPressed: onPressed,
       icon: Icon(icon, size: 18),
     );

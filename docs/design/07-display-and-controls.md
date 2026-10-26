@@ -28,42 +28,44 @@ resets to page 1 on boot. The passkey and power-off overlays pre-empt the page.
 
 ```
 ┌─────────────────────┐
-│P1             225.0 │
-│P2             165.2 │
-│P3               --- │
-│P4              80.0 │
+│P1          225.0°F  │
+│P2          165.2°F  │
+│P3             ---   │
+│P4           80.0°F  │
 │                     │
-│● BLE   ● X4   87%   │
+│• App   • X4   87%   │
 └─────────────────────┘
 ```
 
 - Four lines in probe order. No names or roles in the MVP; identity is `P1`–`P4`.
-- One-decimal temperature.
+- One-decimal temperature. Show the unit on each line, or one unit marker in the
+  status strip if the panel is too tight; do not mix both in one render.
 - Detached: `---`, never `0.0`.
 - If a probe is invalid (not detached, but no usable reading): `ERR`.
-- Bottom strip: BLE dot (filled when connected, hollow when advertising), Smoke
+- Bottom strip: App dot (filled when connected, hollow when advertising), Smoke
   X4 dot (filled when a packet arrived in the last 90 s), battery percent or
-  `—`, and a `!` if storage is unavailable.
+  `—`, and a `!` if storage is unavailable. `App` is the user-facing word for
+  the BLE link; `BLE` stays in diagnostics only.
 
 The large numeric face is reserved for a future single-probe hero view. On the
 four-probe page, 5×7 is clearer than four 12×24 numbers.
 
-### Page 2 — Link
+### Page 2 — Connection
 
 ```
 ┌─────────────────────┐
-│BLE   advertising    │
+│App   connected      │
 │Name  SmokeX4-A4F2   │
 │Phones paired    2/4 │
 │                     │
 │X4    paired         │
-│LMXC[  910.5 MHz     │
-│RSSI -71  last 12s   │
+│Radio  910.5 MHz     │
+│Signal -71  last 12s │
 └─────────────────────┘
 ```
 
-When connected, `BLE connected` and the phone's pairing state replace
-`advertising`. When the Smoke X4 is lost, show `X4 lost 14m`. When unpaired:
+When advertising, show `App ready to pair` and the phone's pairing state. When
+the Smoke X4 is lost, show `X4 no data 14m`. When unpaired:
 
 ```
 ┌─────────────────────┐
@@ -84,42 +86,45 @@ on the bench.
 
 ```
 ┌─────────────────────┐
-│BILLOWS   detected    │
-│CH 4 SET    225 °F   │
-│Pit         224.6    │
+│BILLOWS    DETECTED  │
+│SET       225.0°F   │
+│P4        224.6°F   │
 │                     │
 │Set on the Smoke X4  │
 └─────────────────────┘
 ```
 
-- `detected` / `not detected` from the Smoke X4. The page is only shown when a
+- `DETECTED` / `NOT DETECTED` from the Smoke X4. The page is only shown when a
   Billows has been detected; do not invent a "connected" state for a device
   whose fan output is not observable.
-- `CH 4 SET` is the Smoke X4 channel 4 set temp, only when validated; otherwise
-  `CH 4 SET —`.
-- `Pit` is probe 4 (the fan channel) if connected, else `—`.
+- `SET` is the Smoke X4 channel 4 set temp, only when validated; otherwise
+  `SET —`.
+- `P4` is probe 4 (the fan channel) if connected, else `—`.
 - The last line always says "Set on the Smoke X4". There is no control mode and
   no app-set target in the MVP.
 - Never show a fan speed, duty, or "running" state that is not measured.
 
-### Page 4 — Device
+### Page 4 — Bridge
 
 ```
 ┌─────────────────────┐
-│DEVICE       v0.1.0  │
+│BRIDGE       v0.1.0  │
 │Battery  3.89V  87%  │
-│Storage  12.4 days   │
+│Log      12.4 days left│
 │Readings  35,712     │
 │Uptime   14:15:30    │
-│Heap     142k (min 128k)│
+│Memory   142k (low 128k)│
 └─────────────────────┘
 ```
 
-- Battery percent is `—` when unknown.
-- Storage shows days at the current cadence and records used.
+- Battery percent is `—` when unknown; do not invent charging state.
+- `Log` shows days left at the current cadence; `Readings` shows the stored
+  count.
 - Firmware version and uptime.
-- Heap is a bench diagnostic; it may be removed from the release page if it
+- `Memory` is a bench diagnostic; it may be removed from the release page if it
   makes the page too dense. It is useful during the 24 h soak.
+- Page names in the app preview are `Probes`, `Connection`, `Billows`, `Bridge`.
+  The OLED itself may keep the compact headers above.
 
 ## 7.3 Overlays
 
@@ -173,8 +178,8 @@ protection.
 │  SMOKE X4 BRIDGE    │
 │       v0.1.0        │
 │                     │
-│  fit antenna before │
-│  power              │
+│ Attach antenna      │
+│ before power        │
 └─────────────────────┘
 ```
 

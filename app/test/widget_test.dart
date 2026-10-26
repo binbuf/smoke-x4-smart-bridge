@@ -59,39 +59,39 @@ void main() {
     expect(find.byKey(const Key('status.connection')), findsOneWidget);
     expect(find.text('App'), findsOneWidget);
     expect(find.text('Connected · 4s'), findsNothing);
-    expect(find.text('2h 14m'), findsOneWidget);
+    expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
     expect(find.text('Fair'), findsOneWidget);
     expect(find.textContaining('Last data 12s ago'), findsNothing);
     expect(find.text('updated 4s ago · bridge 87% · -71 dBm'), findsNothing);
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    expect(find.text('PREFERENCES'), findsOneWidget);
-    expect(find.text('BRIDGE'), findsOneWidget);
-    expect(find.text('HISTORY & STORAGE'), findsOneWidget);
-    expect(find.text('ABOUT'), findsOneWidget);
+    expect(find.text('Preferences'), findsOneWidget);
+    expect(find.text('Bridge'), findsOneWidget);
+    expect(find.text('History & storage'), findsOneWidget);
+    expect(find.text('About'), findsWidgets);
     expect(find.text('ACTIONS'), findsNothing);
-    expect(find.text('Device & Bridge logs'), findsOneWidget);
+    expect(find.text('Storage'), findsOneWidget);
     expect(find.byKey(const Key('settings.history.logs')), findsOneWidget);
     expect(find.text('Smoke X4'), findsNothing);
-    expect(find.text('Last contact 4s ago'), findsOneWidget);
+    expect(find.text('Updated 4s ago'), findsOneWidget);
     expect(find.textContaining('Connected for'), findsNothing);
     expect(find.text('Fair'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('PREFERENCES')).dy,
-      greaterThan(tester.getTopLeft(find.text('HISTORY & STORAGE')).dy),
+      tester.getTopLeft(find.text('Preferences')).dy,
+      greaterThan(tester.getTopLeft(find.text('History & storage')).dy),
     );
     expect(find.text('Probe names & roles'), findsNothing);
 
-    await tester.ensureVisible(find.widgetWithText(ListTile, 'About'));
+    await tester.ensureVisible(find.widgetWithText(ListTile, 'About this app'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'About'));
+    await tester.tap(find.widgetWithText(ListTile, 'About this app'));
     await tester.pumpAndSettle();
     expect(find.text('Smoke X4 Smart Bridge'), findsOneWidget);
 
     await tester.longPress(find.text('Smoke X4 Smart Bridge'));
     await tester.pumpAndSettle();
-    expect(find.text('Scenario lab'), findsOneWidget);
+    expect(find.text('Experimental lab'), findsOneWidget);
   });
 
   testWidgets('first-run setup advances without simulation buttons', (
@@ -112,10 +112,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Connect your Bridge'), findsOneWidget);
-    await tester.tap(find.text('Find Bridge'));
+    await tester.tap(find.text('Find bridge'));
     await tester.pump(const Duration(milliseconds: 1300));
     await tester.pumpAndSettle();
-    expect(find.text('Nearby Bridges'), findsOneWidget);
+    expect(find.text('Nearby bridges'), findsOneWidget);
     expect(find.text('Simulate scan results'), findsNothing);
 
     await tester.tap(find.text('SmokeX4-A4F2'));
@@ -126,7 +126,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Loading history'), findsOneWidget);
 
-    await tester.tap(find.text('Start monitoring'));
+    await tester.tap(find.text('View live readings'));
     await tester.pump();
     expect(controller.phase, ConnectionPhase.live);
     expect(controller.tab, AppTab.live);
@@ -145,7 +145,7 @@ void main() {
     await tester.tap(find.byKey(const Key('history.range.2d')));
     await tester.pumpAndSettle();
     expect(controller.historyRange, HistoryRange.twoDays);
-    expect(find.text('Past cooks'), findsWidgets);
+    expect(find.text('Cooks'), findsWidgets);
     expect(find.text('Days'), findsNothing);
     expect(find.text('Graph'), findsNothing);
 
@@ -179,6 +179,20 @@ void main() {
     await tester.tap(find.text('History'));
     await tester.pumpAndSettle();
     expect(find.textContaining('°C'), findsWidgets);
+  });
+
+  testWidgets('History layout fits a 320 px phone', (tester) async {
+    final controller = PrototypeController()..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    tester.view.physicalSize = const Size(960, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(shell(controller));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Summary'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Bridge name dialog saves without crashing', (tester) async {
@@ -236,12 +250,12 @@ void main() {
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
-    expect(find.text('Showing last saved readings'), findsOneWidget);
-    expect(find.text('Last sync 2 h ago'), findsOneWidget);
+    expect(find.text('Showing saved readings'), findsOneWidget);
+    expect(find.text('Last reading 2 hr ago'), findsOneWidget);
     expect(find.text('Summary'), findsOneWidget);
   });
 
-  testWidgets('Live presents the Bridge and Smoke X4 chain by colour', (
+  testWidgets('Live separates the BLE link from Smoke X4 telemetry', (
     tester,
   ) async {
     final controller = PrototypeController();
@@ -256,8 +270,44 @@ void main() {
     expect(find.text('Connected'), findsNothing);
     expect(find.text('Receiving'), findsNothing);
     expect(find.textContaining('Connected for'), findsNothing);
-    expect(find.text('2h 14m'), findsOneWidget);
+    expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
+    expect(find.text('Receiving readings · updated 12s ago'), findsOneWidget);
     expect(find.text('Fair'), findsOneWidget);
+  });
+
+  testWidgets('Live distinguishes stale X4 telemetry from a connected Bridge', (
+    tester,
+  ) async {
+    final controller = PrototypeController()
+      ..phase = ConnectionPhase.stale
+      ..smokeXStatus = SmokeXStatus.pairedLive;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    final connection = find.byKey(const Key('status.connection'));
+    expect(
+      find.descendant(
+        of: connection,
+        matching: find.text('Bridge connected · 2h 14m'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: connection,
+        matching: find.text('No readings for 4 min'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Live names a lost Smoke X4 signal', (tester) async {
+    final controller = PrototypeController()
+      ..smokeXStatus = SmokeXStatus.pairedLost;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    expect(find.text('Smoke X4 signal lost · 14 min ago'), findsOneWidget);
   });
 
   testWidgets('Billows only appears when detected and loss is explained', (
@@ -270,7 +320,7 @@ void main() {
     await pumpShell(tester, controller);
 
     expect(find.byKey(const Key('live.billows')), findsNothing);
-    expect(find.text('Billows disconnected'), findsNothing);
+    expect(find.text('Billows not detected'), findsNothing);
 
     controller
       ..billowsAttachment = BillowsAttachment.detached
@@ -278,7 +328,7 @@ void main() {
       ..notifyListeners();
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('live.billows')), findsNothing);
-    expect(find.text('Billows disconnected'), findsOneWidget);
+    expect(find.text('Billows not detected'), findsOneWidget);
 
     controller
       ..billowsAttachment = BillowsAttachment.attached
@@ -286,8 +336,9 @@ void main() {
     await tester.pumpAndSettle();
     final billows = find.byKey(const Key('live.billows'));
     expect(billows, findsOneWidget);
-    expect(find.text('Billows disconnected'), findsNothing);
-    expect(find.text('CH 4 SET TEMP'), findsOneWidget);
+    expect(find.text('Billows not detected'), findsNothing);
+    expect(find.text('Set temp'), findsOneWidget);
+    expect(find.text('12s ago'), findsOneWidget);
     expect(find.textContaining('Read-only'), findsNothing);
     expect(find.text('Set target'), findsNothing);
     expect(find.text('Monitor only'), findsNothing);
@@ -306,14 +357,20 @@ void main() {
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
-    expect(find.textContaining('Last connected 2h ago'), findsNothing);
-    expect(find.textContaining('Last data 2h ago'), findsNothing);
-    expect(find.text('Not connected'), findsOneWidget);
+    expect(
+      find.textContaining('Bridge disconnected · last connected 2 hr ago'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Showing saved readings · last reading 2 hr ago'),
+      findsOneWidget,
+    );
+    expect(find.text('Not connected'), findsNothing);
     expect(find.text('Fair'), findsNothing);
     expect(find.text('Offline'), findsNothing);
   });
 
-  testWidgets('Summary shows current, min and max without deltas', (
+  testWidgets('Summary shows latest, min and max without deltas', (
     tester,
   ) async {
     final controller = PrototypeController()..tab = AppTab.history;
@@ -323,15 +380,15 @@ void main() {
     final summary = find.byKey(const Key('history.summary'));
     expect(summary, findsOneWidget);
     expect(
-      find.descendant(of: summary, matching: find.text('CURRENT')),
+      find.descendant(of: summary, matching: find.text('Latest')),
       findsOneWidget,
     );
     expect(
-      find.descendant(of: summary, matching: find.text('MIN')),
+      find.descendant(of: summary, matching: find.text('Min')),
       findsOneWidget,
     );
     expect(
-      find.descendant(of: summary, matching: find.text('MAX')),
+      find.descendant(of: summary, matching: find.text('Max')),
       findsOneWidget,
     );
     expect(
@@ -347,11 +404,11 @@ void main() {
 
     await tester.tap(find.text('Probe order'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Since cook started'));
+    await tester.tap(find.text('Since cook start'));
     await tester.pumpAndSettle();
 
     expect(controller.historySort, HistorySort.sinceCookStart);
-    expect(find.text('Since cook started'), findsOneWidget);
+    expect(find.text('Since cook start'), findsOneWidget);
     expect(find.textContaining('Cook started 9h 20m ago'), findsOneWidget);
     expect(find.text('In progress'), findsOneWidget);
   });
@@ -370,7 +427,7 @@ void main() {
 
     expect(find.byType(HistoryFullScreenScreen), findsOneWidget);
     expect(find.text('Summary'), findsNothing);
-    expect(find.text('Past cooks'), findsNothing);
+    expect(find.text('Cooks'), findsNothing);
     expect(find.byTooltip('Close full-screen chart'), findsOneWidget);
 
     tester.view.physicalSize = const Size(2532, 1170);
@@ -381,7 +438,7 @@ void main() {
   });
 
   testWidgets(
-    'Past cooks opens a historical graph without changing the current view',
+    'Cooks opens a historical view without changing the current view',
     (tester) async {
       final controller = PrototypeController()..tab = AppTab.history;
       addTearDown(controller.dispose);
@@ -403,8 +460,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('pastCook.history')), findsOneWidget);
-      expect(find.text('Past cook'), findsOneWidget);
-      expect(find.text('Recorded'), findsOneWidget);
+      expect(find.text('Cook'), findsOneWidget);
+      expect(find.text('Recorded history'), findsOneWidget);
       expect(controller.historyRange, HistoryRange.twentyFourHours);
       expect(controller.historyCustomRange, isNull);
 
@@ -415,7 +472,7 @@ void main() {
     },
   );
 
-  testWidgets('custom range starts with everything in memory', (tester) async {
+  testWidgets('custom range starts with all saved history', (tester) async {
     final controller = PrototypeController()..tab = AppTab.history;
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
@@ -432,7 +489,7 @@ void main() {
     expect(find.text('Custom range'), findsOneWidget);
     expect(controller.historyRange, HistoryRange.custom);
     expect(controller.historyCustomRange, controller.entireHistoryRange);
-    expect(find.text('Entire memory'), findsOneWidget);
+    expect(find.text('All saved history'), findsOneWidget);
   });
 
   testWidgets('Bridge details keeps one sync and one repair path', (
@@ -463,11 +520,9 @@ void main() {
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
-    expect(find.text('Billows disconnected'), findsOneWidget);
+    expect(find.text('Billows not detected'), findsOneWidget);
     expect(
-      controller.billowsLog.any(
-        (event) => event.title == 'Billows connection lost',
-      ),
+      controller.billowsLog.any((event) => event.title == 'Billows lost'),
       isTrue,
     );
 
@@ -477,10 +532,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('billows.connectionLog')));
     await tester.pumpAndSettle();
-    expect(find.text('Billows connection lost'), findsOneWidget);
+    expect(find.text('Billows lost'), findsOneWidget);
   });
 
-  testWidgets('Billows settings is read-only and mirrors CH 4', (tester) async {
+  testWidgets('Billows settings is status-only and mirrors set temp', (
+    tester,
+  ) async {
     final controller = PrototypeController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
@@ -491,8 +548,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Read-only fan status'), findsOneWidget);
-    expect(find.textContaining('channel 4 set temp'), findsWidgets);
+    expect(find.text('Billows status'), findsOneWidget);
+    expect(find.text('Set temp'), findsOneWidget);
+    expect(find.text('Smoke X4 (channel 4)'), findsOneWidget);
     expect(find.text('Monitor only'), findsNothing);
     expect(find.text('Control'), findsNothing);
     expect(find.text('Set target'), findsNothing);
@@ -509,10 +567,11 @@ void main() {
     expect(find.text('Experimental lab'), findsOneWidget);
     await tester.tap(find.text('Experimental lab'));
     await tester.pumpAndSettle();
-    expect(find.text('Scenario lab'), findsOneWidget);
+    expect(find.text('Experimental lab'), findsOneWidget);
+    expect(find.text('No devices required'), findsOneWidget);
   });
 
-  testWidgets('scenario lab still opens', (tester) async {
+  testWidgets('experimental lab still opens', (tester) async {
     final controller = PrototypeController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
@@ -522,7 +581,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Scenario lab'), findsOneWidget);
+    expect(find.text('Experimental lab'), findsOneWidget);
     expect(find.text('No devices required'), findsOneWidget);
   });
 

@@ -1,7 +1,8 @@
 # 11 — UI/UX Refresh Proposal
 
-**Status:** Approved and implemented in the prototype · **Date:** 2026-10-25 ·
-**Baseline:** `app/` prototype at `412cb48`
+**Status:** Approved and implemented in the prototype; final UI baseline ·
+**Date:** 2026-10-25 (final baseline 2026-10-26) · **Baseline:** `app/`
+prototype in this tree after `e6aa7b5`
 
 This proposal was approved in full. The prototype now implements the Live,
 History and Settings direction; the decisions have been folded into
@@ -10,18 +11,36 @@ History and Settings direction; the decisions have been folded into
 [10](10-test-and-release.md), and the M0–M4 task plans.
 
 > **Final implementation note (2026-10-26):** the prototype now uses a Bridge
-> connection-chain card on Live (simple App → Bridge → Smoke X4 icons with status
-> text underneath), no app-bar status chip, “probe” terminology everywhere, one
-> unified Bridge settings section with no duplicate sync or repair actions,
-> Billows that appears automatically, mirrors the read-only Smoke X4 channel 4
-> set temp and logs detection/loss beside Bridge pairing events, a Summary with
-> current / min / max and no deltas, and Past cooks
-> that open a dedicated historical view instead of replacing the current History
-> range. History ranges are `1H`, `6H`, `24H`, `2D` and `Custom` (exact dates and
-> times, defaulting to everything in memory); range and probes are compact
-> dropdowns. Settings shows Bridge first, then Preferences; there is no separate
-> `Bridge details` button. Where the sketches below differ,
+> connection-chain card on Live (simple App → Bridge → Smoke X4 icons with state
+> labels and a separate BLE/X4 status block), no app-bar status chip, “probe”
+> terminology everywhere, one unified Bridge settings section with no duplicate
+> sync or repair actions, Billows that appears automatically, mirrors the
+> observed Smoke X4 channel 4 set temp (status-only) and logs detection/loss
+> beside Bridge pairing events, a Summary with Latest / Min / Max and no deltas,
+> and Cooks that open a dedicated historical view instead of replacing the
+> current History range. History ranges are `1 hour`, `6 hours`, `24 hours`,
+> `2 days` and `Custom`
+> (exact dates and times, defaulting to everything in memory); range and probes
+> are compact dropdowns. Settings shows Bridge first, then Preferences; there is
+> no separate `Bridge details` button. Where the sketches below differ,
 > [06-app.md](06-app.md) is authoritative.
+>
+> **Copy note (2026-10-26):** where this document and
+> [12 — Copy & Label Review](12-copy-and-label-review.md) differ, 12 is the copy
+> source of truth for labels and state vocabulary. In particular: `Device log`
+> becomes `History on this phone`, `Bridge log` becomes `History on the Bridge`,
+> `Last contact` becomes `Updated`, `Past cooks` becomes `Cooks`, `Current`
+> becomes `Latest`, and Live distinguishes BLE link state from X4 telemetry
+> freshness instead of relying on colour alone.
+>
+> **Final audit (2026-10-26):** the prototype is now the production UI contract
+> in [13 — UI/UX Implementation Contract](13-ui-implementation-contract.md). The
+> prototype is complete: `flutter analyze` is clean, the widget suite is green,
+> and dark/light screenshots are generated from the real widget tree. Production
+> keeps this visual layer and replaces `PrototypeController` with real view
+> models. The remaining copy/accessibility/localization gaps are listed in
+> [12](12-copy-and-label-review.md) and mapped to tasks in 13 §13.9. Where the
+> sketches below use older labels or the 7-day/all ranges, 06 and 13 win.
 
 The short version: the prototype already proves the hard truths — four probes,
 honest gaps, no invented zeros, explicit destructive actions. What it does not
@@ -34,9 +53,9 @@ information architecture and the two screens that matter most: **Live** and
 
 - **Live:** a connection-chain card for phone → Bridge → Smoke X4, then four
   P1–P4 tiles with relative 1 h sparklines. No aggregate preview graph.
-- **History:** range/probe filter card, premium pan/zoom chart, current/min/max
-  summary, detected past cooks that open a separate historical view, gaps and
-  empty states. Past cooks never replace the current History tab state.
+- **History:** range/probe filter card, premium pan/zoom chart, Latest/Min/Max
+  summary, detected Cooks that open a separate historical view, gaps and empty
+  states. A Cook never replaces the current History tab state.
 - **Settings:** one Bridge section first, then Preferences; the Bridge status
   header contains the status, sync action and every Bridge setting. Tapping the
   header opens Bridge details; there is no separate details button. °F/°C inline,
@@ -175,7 +194,7 @@ Design principles:
 │  Live: connection-chain card, 2×2 probes  │
 │        + sparklines, Billows if detected  │
 │  History: range + probe filter card       │
-│           chart + summary + past cooks    │
+│           chart + summary + Cooks         │
 │  Settings: preferences, one Bridge card,  │
 │            history & storage, about       │
 └──────────────────────────────────────────┘
@@ -202,34 +221,38 @@ Design principles:
 ├────────────────────────────────────────────┤
 │ [phone] → [bt] → [x4]                      │
 │   App       Bridge      Smoke X4           │
-│ ⏱ 2h 14m                  ▂▄▆▁ Fair      > │
+│ ⏱ Bridge connected · 2h 14m  ▂▄▆▁ Fair  > │
+│ ⌁ Receiving readings · updated 12s ago     │
 ├────────────────────────────────────────────┤
 │ ┌──────────────────┐ ┌──────────────────┐  │
 │ │ ● P1             │ │ ● P2             │  │
-│ │ 165.2 °F         │ │ 164.0 °F         │  │
+│ │ 165.2°F          │ │ 164.0°F          │  │
 │ │ ╭──────╮   +0.8° │ │ ╭──────╮   -0.3° │  │
 │ │ ╰──────╯    1h   │ │ ╰──────╯    1h   │  │
 │ └──────────────────┘ └──────────────────┘  │
 │ ┌──────────────────┐ ┌──────────────────┐  │
 │ │ ● P3             │ │ ● P4             │  │
-│ │ —                │ │ 225.0 °F         │  │
+│ │ —                │ │ 225.0°F          │  │
 │ │ Not connected    │ │ ╭──────╮   +2.1° │  │
 │ │                  │ │ ╰──────╯    1h   │  │
 │ └──────────────────┘ └──────────────────┘  │
 ├────────────────────────────────────────────┤
-│ Billows                   Detected          │
-│ CH 4 set temp 225 °F                       │
+│ Billows          Detected · 12s ago         │
+│ Set temp 225.0°F · Set on the Smoke X4      │
 └────────────────────────────────────────────┘
 ```
 
 ### Rules
 
 - **Connection chain first.** The top card shows the whole link as three nodes:
-  App → Bridge → Smoke X4. Node colour is the state: grey not connected, green
-  healthy, amber degraded, red blocked/failed. Do not add a second text status
-  under each label. A compact clock row shows the connected duration down to the
-  minute, with the cell-style signal meter right-aligned; offline says
-  `Not connected` and hides the signal. No app-bar status chip.
+  App → Bridge → Smoke X4. Node colour is a secondary cue, not the only state.
+  Add one compact status block below the chain instead of a second label under
+  every node: `Bridge connected · 2h 14m` and `Receiving readings · updated 12s
+  ago`. Use `Receiving readings` only when a valid X4 packet arrived within 90 s;
+  use `No readings for 4 min` for 90 s–10 min and `Smoke X4 signal lost · 10 min
+  ago` after 10 min. Offline says `Bridge disconnected · last connected 2h ago`
+  and hides the signal. When showing cache, add `Showing saved readings · last
+  reading 20 min ago`. No app-bar status chip.
 - **No names, roles or tags.** The tile label is `Probe 1` / `P1`, plus the
   probe color. The same identity is used in History, Summary and the OLED.
 - **Sparkline in every tile when that probe has history.** Use the last hour,
@@ -239,7 +262,7 @@ Design principles:
   This is the FireBoard pattern and makes the tile useful without adding a
   separate chart screen.
 - **Do not show “Live · updated 4s ago” on every tile.** Healthy tiles stay
-  quiet. Show only the exception: `Not connected`, `No new reading for 4m`, or
+  quiet. Show only the exception: `Not connected`, `No readings for 4 min`, or
   a dimmed value in the offline state.
 - **Detached probe with history:** show the historical sparkline muted, ending
   at the last sample, and `Not connected` underneath. Never extend the line to
@@ -252,35 +275,37 @@ Design principles:
   History tab is one tap away; the sparklines provide the glance.
 - **Billows** is one compact card and appears only when detected. Showing it
   implies a live connection, so do not add a “Connected” pill. Show:
-  - `Detected`, not a control mode,
+  - `Detected · last detected 12s ago`, sourced from `billows_attached`,
   - the Smoke X4 channel 4 set temp if validated, else `—`,
-  - a read-only explanation that the value comes from the Smoke X4.
-  There is no mode switch and no `Set target` button; the MVP is observation-only.
-  If it was detected earlier in this session and is now missing, show one
-  `Billows disconnected` notice. Detection history and last-seen belong in
-  Settings > Bridge > Billows.
+  - a status-only note that the value comes from the Smoke X4.
+  There is no mode switch and no `Set target` button; the Billows target is
+  observation-only. Never claim the fan is running or that the Billows itself is
+  reporting telemetry. If it was detected earlier this session and is now
+  missing, show one `Billows not detected` notice. Detection history and
+  last-seen belong in Settings > Bridge > Billows.
 - **Sync/error notices** only appear when there is something to say. A healthy
   Live screen should start with temperatures, not chrome.
 - **Offline with cache:** dim the values, show one banner
-  `Showing last saved readings · 6:18 PM` with `Retry`. Do not repeat
-  “No readings for 12m” four times.
+  `Showing saved readings · last reading 6:18 PM` with `Retry`. Do not repeat
+  “No readings for 12 min” four times.
 - **Pull-to-refresh** stays. It is the one visible recovery action.
 
 ### Status language
 
 | Internal state | User-facing |
 |---|---|
-| `live` | Bridge `Connected · last contact 4s ago`; Smoke X4 `Receiving · last data 12s ago` |
-| `aging` | `Last contact 62s ago` (amber dot only) |
-| `stale` | Smoke X4 `No recent data · last data 4m ago` (Bridge stays green) |
-| `frozen` | `No new readings for 12 min` (dimmed values) |
-| `offline` + cache | Bridge `Offline · last connected 2h ago`; values dimmed |
-| `offline` no cache | `Can’t reach the Bridge · nothing saved yet` |
+| `live` | `Bridge connected · 2h 14m`; `Receiving readings · updated 12s ago` (only when the last valid X4 packet is ≤90 s) |
+| `aging` | `Updated 62s ago` (amber dot only) |
+| `stale` | `No readings for 4 min`; Bridge remains connected |
+| `frozen` | `No readings for 12 min` (dimmed values) |
+| `offline` + cache | `Bridge disconnected · last connected 2h ago`; `Showing saved readings · last reading 20 min ago` |
+| `offline` no cache | `Bridge disconnected · nothing saved yet` |
 | `reconnecting` | `Reconnecting… attempt 2 of 6` |
 | `failed` | `Can’t reach the Bridge` + `Reconnect` |
 
 Drop `Aging`, `Stale` and `Frozen` from the UI. They are internal health names,
-not user language.
+not user language. Do not use `Receiving` without a fresh valid packet; do not
+use `Connected` for the X4 link.
 
 ---
 
@@ -291,7 +316,7 @@ not user language.
 - Tab, app bar and all copy: **History**.
 - Remove `Probe history`, `Open graph`, `Graph` and the `Graph` lab group.
 - History is not just a chart. It is the archive: chart + per-probe summary +
-  detected past cooks + data-quality states.
+  detected Cooks + data-quality states.
 
 ### Layout
 
@@ -299,10 +324,10 @@ not user language.
 ┌────────────────────────────────────────────┐
 │ History                                    │
 ├────────────────────────────────────────────┤
-│ [ 24H ▾ ]  [ All probes ▾ ]          ↺     │
+│ [ 24 hours ▾ ]  [ All probes ▾ ]      ↺    │
 ├────────────────────────────────────────────┤
-│ Oct 24 6:30 PM – Oct 25 6:30 PM            │
-│ Saved 2m ago · 4 probes                    │
+│ Oct 24, 6:30 PM – Oct 25, 6:30 PM          │
+│ Synced 2 min ago · 4 probes                │
 │                                            │
 │ 275 ┤          ╭─╮                         │
 │ 225 ┤──╮   ╭───╯ ╰──╮      P4              │
@@ -311,16 +336,16 @@ not user language.
 │     └──────────────────────────────        │
 │      6:30 PM   2:30 AM   10:30 AM   Now    │
 │  ● P1 166.0° ● P2 171.9° ● P4 215.8°       │
-│  Pan · pinch or scroll to zoom   − + ⛶ Now │
+│  Drag to pan · pinch to zoom   − + ⛶ Now   │
 ├────────────────────────────────────────────┤
 │ Summary                         °F  Probe ▾│
-│ PROBE   CURRENT        MIN       MAX       │
+│ Probe   Latest         Min       Max       │
 │ ● P1    166.0°         149.9°    181.5°  > │
 │ ● P2    171.9°         148.4°    175.9°  > │
 │ ● P3    159.6°         132.6°    168.2°  > │
 │ ● P4    215.8°         202.7°    247.0°  > │
 ├────────────────────────────────────────────┤
-│ Past cooks                     View all    │
+│ Cooks                          View all    │
 │ [OCT 25] Today  9:10 AM – 6:30 PM · 4      │
 │ [OCT 24] Yesterday  10:05 AM – 7:20 PM · 4 │
 └────────────────────────────────────────────┘
@@ -330,14 +355,15 @@ not user language.
 
 **Must ship in the refresh**
 
-- Range menu: `1H`, `6H`, `24H`, `2D`, `Custom`. Custom starts with the entire
-  archive in memory and opens an exact date-and-time sheet.
-- Custom range via a calendar icon (date/time range sheet).
-- Probe filter chips: `All`, `P1`–`P4`. A probe with no data in the selected
-  range is disabled with `No data in this range`.
-- Range chips and probe chips persist across tab switches.
-- One labelled filter card keeps range, probes, custom date and Past cooks
-  visible together.
+- Range trigger: `1 hour`, `6 hours`, `24 hours`, `2 days`, `Custom`; menu:
+  `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 2 days`,
+  `Custom range…`. Custom starts with all saved history and opens an exact
+  date-and-time sheet.
+- Probe filter: `All probes`, `P1`–`P4`. A probe with no data in the selected
+  range is disabled with `No data`.
+- Range and probe filters persist across tab switches.
+- One filter card keeps range, probe filter and reset together; Cooks live in
+  their own card below Summary.
 - Shared y-axis when all probes are visible; auto-scale to the selected probe
   when one is selected.
 - Nice y-axis ticks (1/2/2.5/5 × 10ⁿ) and the unit shown once (`°F` / `°C`).
@@ -350,8 +376,8 @@ not user language.
 - Live-follow badge when the chart is at Now; panning pauses follow, `Now`
   resumes.
 - Latest-point dots at the end of each visible series.
-- Gap bands with a reason (`No signal`, `Bridge off`, `Overwritten before
-  sync`) and a tap explanation. Never connect across a gap.
+- Gap bands with a reason (`No signal`, `Bridge off`, `Not synced`) and a tap
+  explanation. Never connect across a gap.
 - Estimated-time badge when any visible sample has `time_estimated`.
 - Offline cache banner; the chart still renders.
 - `Expand` opens a dedicated full-screen chart view for precise scrubbing. It
@@ -366,27 +392,26 @@ not user language.
 
 - Preload each range on selection and show a non-blocking `Loading 30 days…`
   state.
-- A small overview brush for `2D` and `Custom`.
+- A small overview brush for `2 days` and `Custom`.
 - A dashed Billows target reference line when the target is known and P4 is
   visible. This is a real reading, not an alarm.
 - Sort menu on Summary:
-  `Probe order`, `Hottest now`, `Highest peak`, `Most recent`,
-  `Since cook started`.
-- Past cooks list sorted newest first; tapping a cook filters the chart to its
-  exact start/end time.
+  `Probe order`, `Hottest`, `Highest`, `Latest reading`,
+  `Since cook start`.
+- Cooks list sorted newest first; tapping a cook opens its exact start/end view.
 
 **Deliberately not included**
 
 - User-created cook sessions, names, marks, phases, ETA, stall/lid detection.
-  (Detected past cooks are archive navigation only.)
+  (Detected Cooks are archive navigation only.)
 - Alarms, notifications, recipes, cloud, sharing, CSV export.
 - Chart smoothing that would hide real noise.
 - A second aggregate chart on Live.
 
 ### Chart behaviour details
 
-- Default on first open: `24H`, `All probes`.
-- If the user arrived by tapping P1's tile: `1H`, `P1` selected.
+- Default on first open: `24 hours`, `All probes`.
+- If the user arrived by tapping P1's tile: `1 hour`, `P1` selected.
 - If only one probe has data, keep the chips honest; do not silently hide the
   other probes.
 - Y-axis: 4–5 nice ticks, shared across visible series. Do not auto-scale to a
@@ -398,8 +423,8 @@ not user language.
 - Gaps: muted hatched band + a short label when wide enough; dashed vertical
   edges when narrow. A gap is information, not an error.
 - Missing-from-bridge: a distinct gap reason and copy:
-  “The bridge overwrote this range before it synced.”
-- No data: no line, no zero, and `No data in this range` in Summary.
+  “The Bridge overwrote this part of its history before it reached your phone.”
+- No data: no line, no zero, and `No readings in this range` in History.
 - Units: one conversion path for tiles, axis, tooltip, summary and Billows.
 - Data volume: SQL-bucket long ranges; LTTB plus min/max envelope; never pass
   more than a few thousand points to the painter.
@@ -415,27 +440,26 @@ sorting the chart itself would be meaningless.
 
 | Field | Meaning |
 |---|---|
-| `Current` | Newest valid reading in range |
+| `Latest` | Newest valid reading in range |
 | `Min` | Lowest valid reading in range |
 | `Max` | Highest valid reading in range |
 | `No data` | No valid reading for that probe in range |
 
 There are no temperature deltas. Default order is probe order. The sort menu
-offers hottest now, highest peak, most recent and since cook started. The last
+offers `Hottest`, `Highest`, `Latest reading` and `Since cook start`. The last
 option detects the active cook from recorded sample timestamps (falling back to
-the latest past cook) and shows that start age above the rows. Tapping a row
+the latest detected cook) and shows that start age above the rows. Tapping a row
 selects/focuses that probe.
 
-### Past cooks
+### Cooks
 
-Show detected cook sessions derived from recorded readings and gaps. Each row
-carries the date, exact start/end time, duration, probe count and gap state.
-Tapping a row opens a **new Past cook view** with that historical graph and
-summary. It does not change the current History tab, which stays on the current
-cook (or its own range when there is no current cook). `Past cooks` in the filter
-header opens the full list; the summary card shows the most recent three. This
-gives the archive a browseable structure without inventing named or user-created
-sessions.
+Show detected cooks derived from recorded readings and gaps. Each row carries the
+date, exact start/end time, duration, probe count and gap state. Tapping a row
+opens a **Cook view** with that historical graph and summary. It does not change
+the current History tab, which stays on the current cook (or its own range when
+there is no current cook). `Cooks` in the archive card opens the full list; the
+summary card shows the most recent three. This gives the archive a browseable
+structure without inventing named or user-created sessions.
 
 ---
 
@@ -449,15 +473,15 @@ Settings
 BRIDGE
 ┌────────────────────────────────────────────┐
 │ Backyard Bridge                          > │
-│ Bridge A4F2 · Bluetooth                    │
+│ Bridge A4F2                                │
 │ ● Connected                    Battery 87%  │
 │ Signal ▂▄▆▁ Fair                            │
-│ Last contact 4s ago                         │
+│ Updated 4s ago                              │
 │ [ Sync now ]                               │
 └────────────────────────────────────────────┘
 
 HISTORY & STORAGE
-  Device & Bridge logs  128,430 device · 24,810 Bridge >
+  Storage  128,430 on this phone · 24,810 on the Bridge >
 
 PREFERENCES
   Temperature units                    [°F][°C]
@@ -475,12 +499,12 @@ ABOUT
   opens Bridge details; there is no separate `Bridge details` button.
 - The Bridge status header uses a cell-style signal meter with an
   `Excellent / Good / Fair / Weak` label on its own row, plus battery and
-  `Last contact`. It does not repeat `Connected for 2h 14m`; the status LED and
+  `Updated`. It does not repeat `Connected for 2h 14m`; the status LED and
   `Connected` label already say that.
-- `History & storage` is one destination row. The sub-view shows the Device log
-  and Bridge log together with their separate deletion rules.
-- If offline, the header says `Offline · last connected 2h ago` and the button
-  becomes `Reconnect`.
+- `History & storage` is one destination row. The sub-view shows History on this
+  phone and History on the Bridge together with their separate deletion rules.
+- If offline, the header says `Bridge disconnected · last connected 2h ago` and
+  the button becomes `Reconnect`.
 - The app bar on Settings does not need a second status chip; the Bridge section
   is the status surface.
 - Destructive actions are not a top-level section. They live at the bottom of
@@ -502,9 +526,9 @@ ABOUT
 | `Probe names & roles` | Out of MVP; fake names | Removed everywhere |
 | `Billows` under Device | Billows is not a display setting | `Bridge > Billows` |
 | `Device name` | Ambiguous | `Bridge name` (app-facing label) |
-| `Data` group with four rows | Three rows open the same screen, one duplicates sync | `History & storage` with Device log / Bridge log rows |
-| `Delete recorded data` | Technical; hides 30/90/all options | `Delete device log…` one action with options |
-| `Clear bridge history` | “History” ambiguous | `Clear bridge log…` inside Bridge log |
+| `Data` group with four rows | Three rows open the same screen, one duplicates sync | `History & storage` with `History on this phone` / `History on the Bridge` |
+| `Delete recorded data` | Technical; hides 30/90/all options | `Delete history from this phone…` one action with options |
+| `Clear bridge history` | “History” ambiguous | `Clear history on the Bridge…` inside History on the Bridge |
 | `Actions` group/screen | A container for three unrelated actions | Bridge details > Bridge actions |
 | `Power off bridge` | Correct label, wrong location | Bridge details > Bridge actions |
 | `Factory reset` | Ambiguous object | `Factory reset bridge` in Bridge actions |
@@ -531,7 +555,7 @@ ABOUT
 | Appearance | Immediate; local only |
 | Bridge screen timeout | Immediate; requires connection, disabled with reason offline |
 | Bridge name | Edit in a small dialog; apply on Done; inline `Saving…` / `Saved` / `Couldn’t save` |
-| Billows | Read-only; detection/last-seen only. No mode or target write. |
+| Billows | Status only; detection/last-seen only. No mode or target write. |
 | Destructive actions | Confirmation sheet with exact loss, count and range |
 
 Remove bottom `Save changes` bars. A preference should not need a second tap to
@@ -570,30 +594,31 @@ This phone
 - `Power off`, `Factory reset` and `Forget this phone` are action rows, not
   navigation rows. No chevrons.
 - Remove “The current cook is not ended or deleted” from power-off copy. There
-  are no cook sessions in this product.
+  are no user-created cook sessions in this product; detected Cooks are archive
+  navigation only.
 
 ### History & storage
 
 Two clearly labelled copies, not three duplicated deletion rows:
 
 ```
-DEVICE LOG
+HISTORY ON THIS PHONE
   128,430 readings · Sep 1 – Oct 24 · 9.2 MB
-  Stays on this device even if the bridge is reset.
-  [ Delete device log… ]
+  Stays on this phone even if the Bridge is reset.
+  [ Delete history from this phone… ]
 
-BRIDGE LOG
+HISTORY ON THE BRIDGE
   24,810 of 338,400 readings · 7.3% · ~117 days capacity
   Oldest Oct 17 · Newest Oct 25
-  The bridge overwrites its oldest readings automatically.
-  [ Clear bridge log… ]        (connected only)
+  The Bridge overwrites its oldest readings automatically.
+  [ Clear history on the Bridge… ]        (connected only)
 ```
 
-- `Delete device log…` opens a sheet with `Older than 30 days`, `Older than
-  90 days`, `Everything`, showing the exact count and date range before the
-  final confirmation.
-- `Clear bridge log…` is a separate bridge action and says the device log is
-  kept.
+- `Delete history from this phone…` opens a sheet with `Older than 30 days`,
+  `Older than 90 days`, `All history on this phone`, showing the exact count and
+  date range before the final confirmation.
+- `Clear history on the Bridge…` is a separate Bridge action and says history on
+  this phone is kept.
 - Use **readings**, not **records**, in user-facing copy.
 - No auto-delete; no “sectors”, “ring” or “generation” in user copy.
 
@@ -659,7 +684,7 @@ technical demo and shows prototype controls.
 - Remove `Prototype · no device is contacted` from every page.
 - Remove `Simulate scan results`, `Simulate successful bond` and
   `Simulate wrong code` from product pages; expose them in the lab only.
-- Rename `Saved data` to `Device log` everywhere.
+- Rename `Saved data` to `History on this phone` everywhere.
 - Keep the `stale bond`, `bond store full`, `wrong code` and `no prompt` states;
   rewrite them in plain language:
   - `This bridge already has 4 phones paired.`
@@ -706,12 +731,14 @@ The lab is a review tool, not a product screen.
 - Add:
   - Live: sparkline present / one probe no history / detached with history /
     all tiles stale / offline cache.
-  - History: 1h/6h/24h/7d/all, probe filter, no data in range, custom range,
-    crosshair, full-screen, summary sort, past cooks, gap reasons.
-  - Settings: units °C, immediate-save states, offline, device log delete
-    options, bridge log clear, bridge actions.
+  - History: 1 hour / 6 hours / 24 hours / 2 days / Custom, probe filter, no
+    data in range, custom range, crosshair, full-screen, Summary sort, Cooks,
+    Cook view, gap reasons.
+  - Settings: units °C, immediate-save states, offline, phone-history delete
+    options, Bridge-history clear, Bridge actions.
 - Keep the lab’s search, reset and “start first-run flow”.
-- Rename the `Saved data (orphaned)` scenario to `Device log (orphaned)`.
+- Rename the `Saved data (orphaned)` scenario to `History on this phone (after
+  forgetting the Bridge)`.
 
 ---
 
@@ -790,14 +817,15 @@ Probe palette:
 |---|---|
 | **Live** | Dashboard, Now, Monitor (as a tab) |
 | **History** | Graph, Probe history, Chart (as a tab) |
-| **Device log** | Saved data, recorded data, local data |
-| **Bridge log** | Bridge storage, bridge history, ring, sectors |
+| **History on this phone** | Device log, saved data, recorded data, local data |
+| **History on the Bridge** | Bridge log, Bridge storage, bridge history, ring, sectors |
 | **Readings** | Records, points, samples (in user copy) |
+| **Cooks / Cook view** | Past cooks, sessions |
 | **Pairing / paired** | Bond / bonded (in user copy) |
 | **Bridge name** | Device name |
 | **Bridge screen timeout** | Display timeout |
 | **Detected** (Billows) | Connected, attached, monitor only |
-| **No new readings for 4m** | Stale, aging, frozen |
+| **No readings for 4 min** | No new readings for 4m, stale, aging, frozen |
 | **Can’t reach the Bridge** | Lost the Bridge (unless it is a hard failure) |
 | **Technical details** | MTU/RSSI/protocol on the main screen |
 
@@ -812,16 +840,16 @@ Probe palette:
 | `Plot points` | Removed; use `readings` if needed |
 | `Live · updated 4s ago` on every tile | Connection card with last contact/data; exceptions only |
 | `Aging · 62 s since last reading` | `Updated 62s ago` |
-| `Last reading 4m ago` | `No new reading for 4m` |
+| `Last reading 4m ago` | `No readings for 4 min` |
 | `No readings for 12m` ×4 | One banner + dimmed values |
 | `Data` | `History & storage` |
 | `Actions` | `Bridge actions` (inside Bridge details) |
 | `Device settings` | Removed; split into Preferences and Bridge |
 | `Probe names & roles` | Removed |
-| `Delete recorded data` | `Delete device log…` |
-| `Clear bridge history` | `Clear bridge log…` |
-| `Factory reset` | `Factory reset bridge` |
-| `Saved data` | `Device log` |
+| `Delete recorded data` | `Delete history from this phone…` |
+| `Clear bridge history` | `Clear history on the Bridge…` |
+| `Factory reset` | `Factory reset Bridge` |
+| `Saved data` | `History on this phone` |
 | `Records` | `Readings` |
 | `Attached` (Billows) | `Detected` |
 | `Observe` / `Monitor only` | Removed; there is no control mode |
@@ -834,7 +862,7 @@ Probe palette:
 | `Bond store full` | `4 phones already paired` |
 | `MTU 23 (slow link)` | `Slow Bluetooth link` (Technical details) |
 | `RSSI -71 dBm` | `Signal: good` (Technical details) |
-| `The current cook is not ended or deleted` | Removed; there are no cook sessions |
+| `The current cook is not ended or deleted` | Removed; there are no user-created cook sessions |
 | `The bridge rotates oldest sectors…` | `The bridge overwrites its oldest readings automatically.` |
 | `The recent graph is useful immediately` | `Recent history is ready first` |
 | `Enable Billows in Settings > Device > Billows` | Remove circular copy; Billows status is read-only in `Bridge > Billows` |
@@ -955,8 +983,8 @@ class ProbeStats {
 ### Settings implementation
 
 - Move Bridge details and History & storage into
-  `bridge_details.dart` / `settings_views.dart`; keep Billows, RePair,
-  Device log, power-off and shared confirmation sheets in
+  `bridge_details.dart` / `settings_views.dart`; keep Billows, Re-pair,
+  orphaned history, power-off and shared confirmation sheets in
   `settings_details.dart` for the prototype. `ProbeEditorScreen` and
   `ActionsScreen` are removed.
 - One source of truth for destructive copy; the product paths and the lab
@@ -1007,37 +1035,44 @@ Add stable keys now so the harness does not depend on changing labels:
 
 ---
 
-## 11.14 Docs and tasks to change after approval
+## 11.14 Docs and tasks changed after approval
+
+These changes are applied; the task plan now also carries the UI production
+requirements in [13](13-ui-implementation-contract.md).
 
 | Doc/task | Change |
 |---|---|
-| [00](00-product.md) | `Live / History / Settings`; remove probe names/roles from MVP acceptance; update success criteria and screen descriptions. |
-| [05](05-ble-contract.md) | Remove `probe_name`/`probe_role`; P4 fixed pit; update config validation/size; remove role language from `pit_temp_f10`. |
-| [06](06-app.md) | Rewrite §6.1, §6.5, §6.6, §6.7, §6.8. Add units, sparklines, History filters/summary/days, settings IA, prototype-chrome rule. |
-| [07](07-display-and-controls.md) | Page 1 P1–P4 only; remove role/name copy; P4 as Billows channel. |
-| [README](README.md) | Add decisions D16–D20 (see below). |
-| `M0` T0.5 | Shell placeholder tabs: Live / History / Settings. |
-| `M3` A3.3 | Rename to History; range/filter/crosshair/zoom/summary/days; sparkline query; gap reasons. |
-| `M3` A3.6 | Add emptiness per range/probe; no aggregate preview. |
-| `M4` A4.1 | New settings root (Preferences/Bridge/History & storage/About). |
-| `M4` A4.2 | Units inline; remove probe names/roles; split bridge settings; immediate save. |
-| `M4` A4.4 | Remove probe labels from Live/History/OLED; units only. |
-| `M2` V0 | Add the live sparkline requirement (last 15 min) or explicitly defer the full History chart to M3. |
-| `M6` V6.4 | Remove debug-only UI; verify no lab entry in release. |
-| `app/screenshots/README.md` | Rename `graph_*` to `history_*`; remove `device`, `probe_editor`, `actions` screenshots; add new states. |
+| [00](00-product.md) | `Live / History / Settings`; probe names/roles removed; UI lifecycle acceptance rows added. |
+| [05](05-ble-contract.md) | `probe_name`/`probe_role` removed; P4 fixed pit; config reserved bytes documented. |
+| [06](06-app.md) | Live/History/Settings/Setup/error sections refreshed; units, sparklines, filters, Summary, Cooks, prototype-chrome rule and the production UI contract added. |
+| [07](07-display-and-controls.md) | P1–P4 only; OLED labels and overlays aligned with the app preview. |
+| [README](README.md) | Decisions D16–D21 recorded. |
+| `M0` T0.5/T0.5a | Shell tabs are Live / History / Settings; the prototype becomes the production UI baseline. |
+| `M3` A3.3 | History ranges/filters/crosshair/zoom/Summary/Cooks/Cook view/gap reasons. |
+| `M3` A3.6 | Empty states per range/probe; no aggregate preview. |
+| `M4` A4.5 | Full UI state matrix, goldens, accessibility and copy lint. |
+| `M4` A4.1 | Settings root (Bridge / History & storage / Preferences / About). |
+| `M4` A4.2 | Units inline; Bridge settings split; immediate per-field save; Appearance. |
+| `M4` A4.4 | Units, time and theme end-to-end. |
+| `M2` A2.5/V0 | Mount the full History UI with recent data; full sync/decimation lands in M3. |
+| `M6` V6.4 | Remove debug-only UI; verify no lab entry in release; UI parity/a11y/copy gate. |
+| `app/screenshots/README.md` | `history_*` names and the final state set. |
 
-Proposed decisions for the design README:
+Decisions recorded in the design README:
 
-- **D16 — Probe identity is P1–P4 + color.** No names, roles or tags in the MVP
+- **D16 — Probe identity is P1–P4 + colour.** No names, roles or tags in the MVP
   UI, OLED or config.
 - **D17 — Live shows per-probe sparklines; no aggregate graph.** History is the
   only multi-probe chart.
 - **D18 — History is a first-class archive**, with filters, crosshair,
-  zoom/pan, summary and past cooks. It is not a demo chart.
+  zoom/pan, Summary and detected Cooks. It is not a demo chart.
 - **D19 — Settings is object-based.** Units are top-level and immediate;
   destructive actions live with the object they affect; no `Actions` screen.
 - **D20 — Prototype chrome is lab-only.** Product screens use production copy,
   no simulation controls, no theme/lab icons in the app bar.
+- **D21 — The approved prototype is the production UI contract.** Production
+  keeps the visual layer and replaces the state source; see
+  [13](13-ui-implementation-contract.md).
 
 ---
 
@@ -1071,10 +1106,11 @@ Proposed decisions for the design README:
 - No `Graph` label in the product UI; tab and screen are `History`.
 - Live has four tiles; each shows a relative 1 h sparkline when that probe has
   data; no aggregate preview graph.
-- History has range presets, custom range, probe filters, crosshair, pinch/pan,
-  reset/Now, gap reasons, summary and sorting.
+- History has range presets (`1 hour`, `6 hours`, `24 hours`, `2 days`,
+  `Custom`), probe filters, crosshair, pinch/pan, reset/Now, gap reasons,
+  Latest/Min/Max Summary, sorting, Cooks and a dedicated Cook view.
 - Settings has a top-level °F/°C control that applies immediately; no save-all
-  bar for units/timeout.
+  bar for units/timeout, and Appearance is local and immediate.
 - No `Actions` screen, no `Probe names & roles`, no duplicate `Sync now` /
   `Forget this phone` / storage rows.
 - No `Prototype · no device is contacted`, `Simulate…`, theme toggle or lab icon
@@ -1089,31 +1125,21 @@ Proposed decisions for the design README:
 
 ---
 
-## 11.16 Decisions I need from you
+## 11.16 Decisions (approved)
 
-I recommend all four; they are the ones that change implementation rather than
-just visuals.
+All four decisions are approved and implemented in the prototype:
 
-1. **Remove probe names/roles from the contract now, not just the UI.**
-   *Recommendation: yes.* It removes dead config bytes, dead edit flows and
-   dead OLED copy before M0. Keep the 80-byte characteristic with reserved bytes
-   for now.
-2. **Sparkline window on Live = fixed last 1 hour, relative scale.**
-   *Recommendation: yes.* It is predictable, cheap to query, and tapping the
-   tile opens History with the same 1 h / P# filter.
-3. **History scope = the full recommended set**, including custom range,
-   full-screen, summary sorting and past cooks.
-   *Recommendation: yes.* These are front-end-only features and are what make
-   History feel like a tool rather than a mock. If schedule pressure appears,
-   ship presets/filters/crosshair/summary first and defer custom range/day
-   groups to the polish pass.
-4. **Keep an optional bridge name**, renamed from “Device name”, in Bridge
-   details. *Recommendation: yes.* It is the bridge’s label, not a probe tag,
-   and it helps multi-phone households later. If you want the absolute minimum,
-   remove it from MVP too.
+1. **Probe names/roles are removed from the contract**, not just the UI. The
+   80-byte config keeps the former bytes reserved.
+2. **Live sparkline window is the fixed last hour**, relative scale. Tapping a
+   tile opens History with the same 1 hour / P# filter.
+3. **History ships the full set**: custom range, full-screen, Summary sorting
+   and detected Cooks. The prototype includes them.
+4. **The optional Bridge name stays**, renamed from “Device name”, in Bridge
+   details.
 
-If you approve, I would start with P0 and P1, then bring you Live and Settings
-screenshots for a checkpoint before doing the full History pass.
+Production rollout now follows [13](13-ui-implementation-contract.md) and the
+M0–M6 task plan; no further UI direction decision is required.
 
 ---
 

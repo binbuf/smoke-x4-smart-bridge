@@ -57,7 +57,7 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: prototypeAppBar(context, widget.controller, 'OLED preview'),
+      appBar: prototypeAppBar(context, widget.controller, 'Bridge screen'),
       body: ListView(
         children: [
           ContentWidth(
@@ -66,12 +66,12 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Device display',
+                  'Bridge screen preview',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '128×64 SSD1306 · simulated at 3×. One button, four pages, four overlays.',
+                  '128×64 SSD1306 · simulated at 3×. One button, four pages, seven states.',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
@@ -90,21 +90,27 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
                       Wrap(
                         spacing: 8,
                         children: [
-                          for (var i = 1; i <= 4; i++)
+                          for (final entry in const [
+                            (1, 'Probes'),
+                            (2, 'Connection'),
+                            (3, 'Billows'),
+                            (4, 'Bridge'),
+                          ])
                             ChoiceChip(
-                              label: Text('Page $i'),
+                              label: Text('${entry.$1} · ${entry.$2}'),
                               selected:
-                                  _overlay == DeviceOverlay.none && _page == i,
+                                  _overlay == DeviceOverlay.none &&
+                                  _page == entry.$1,
                               onSelected: (_) => setState(() {
                                 _overlay = DeviceOverlay.none;
-                                _page = i;
+                                _page = entry.$1;
                               }),
                             ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Overlays',
+                        'States & overlays',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 10),
@@ -114,7 +120,7 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
                         children: [
                           for (final entry in const [
                             (DeviceOverlay.boot, 'Boot'),
-                            (DeviceOverlay.passkey, 'Passkey'),
+                            (DeviceOverlay.passkey, 'Pairing code'),
                             (DeviceOverlay.power, 'Power off'),
                             (DeviceOverlay.storage, 'Storage failure'),
                             (DeviceOverlay.resetting, 'Resetting'),
@@ -155,7 +161,7 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Tap wakes a sleeping display without changing the page. Hold shows the countdown; release before 1.5 s cancels.',
+                        'Tap the PRG button to wake a sleeping display without changing the page. Hold it to show the countdown; release before 1.5 s cancels.',
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
@@ -226,30 +232,30 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
               _oledRow(
                 'P${i + 1}',
                 probes[i].connected
-                    ? widget.controller.valueFor(probes[i].tempF)
+                    ? '${widget.controller.valueFor(probes[i].tempF)}${widget.controller.unitSuffix}'
                     : '---',
               ),
             const Spacer(),
-            _oledRow('• BLE   • X4', '${widget.controller.batteryPercent}%'),
+            _oledRow('• App   • X4', '${widget.controller.batteryPercent}%'),
           ],
         );
       case 2:
         final linked = widget.controller.isConnected;
         final x4 = switch (widget.controller.smokeXStatus) {
           SmokeXStatus.pairedLive => 'paired',
-          SmokeXStatus.pairedLost => 'lost 14m',
+          SmokeXStatus.pairedLost => 'no data 14m',
           SmokeXStatus.unpaired => 'not paired',
         };
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _oledRow('BLE', linked ? 'connected' : 'advertising'),
+            _oledRow('App', linked ? 'connected' : 'ready to pair'),
             _oledRow('Name', 'SmokeX4-${widget.controller.deviceId}'),
-            _oledRow('Phones bonded', '2/4'),
+            _oledRow('Phones paired', '2/4'),
             const SizedBox(height: 8),
             _oledRow('X4', x4),
-            _oledRow('LMXC[', '910.5 MHz'),
-            _oledRow('RSSI ${widget.controller.rssi}', 'last 12s'),
+            _oledRow('Radio', '910.5 MHz'),
+            _oledRow('Signal ${widget.controller.rssi}', 'last 12s'),
           ],
         );
       case 3:
@@ -259,10 +265,10 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
           children: [
             _oledRow(
               'BILLOWS',
-              widget.controller.billowsAttachmentLabel.toLowerCase(),
+              widget.controller.billowsDetected ? 'DETECTED' : 'NOT DETECTED',
             ),
             _oledRow(
-              'CH 4 SET',
+              'SET',
               widget.controller.smokeXChannel4SetKnown
                   ? widget.controller.tempFor(
                       widget.controller.smokeXChannel4SetF.toDouble(),
@@ -270,8 +276,10 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
                   : '—',
             ),
             _oledRow(
-              'Pit',
-              pit.connected ? widget.controller.valueFor(pit.tempF) : '—',
+              'P4',
+              pit.connected
+                  ? '${widget.controller.valueFor(pit.tempF)}${widget.controller.unitSuffix}'
+                  : '—',
             ),
             const Spacer(),
             const Text('Set on the Smoke X4'),
@@ -281,12 +289,12 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _oledRow('DEVICE', 'v${widget.controller.firmware}'),
+            _oledRow('BRIDGE', 'v${widget.controller.firmware}'),
             _oledRow('Battery', '3.89V  ${widget.controller.batteryPercent}%'),
-            _oledRow('Storage', '12.4 days'),
-            _oledRow('Records', commaInt(widget.controller.bridgeRecords)),
+            _oledRow('Log', '12.4 days left'),
+            _oledRow('Readings', commaInt(widget.controller.bridgeRecords)),
             _oledRow('Uptime', '14:15:30'),
-            _oledRow('Heap', '142k (min 128k)'),
+            _oledRow('Memory', '142k (low 128k)'),
           ],
         );
       default:
@@ -345,7 +353,7 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
             SizedBox(height: 6),
             Text('       v0.1.0'),
             SizedBox(height: 18),
-            Text('  fit antenna before'),
+            Text('  Attach antenna before'),
             Text('  power'),
           ],
         );

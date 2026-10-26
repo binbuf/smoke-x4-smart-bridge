@@ -81,7 +81,7 @@ class _SetupScreenState extends State<SetupScreen> {
       listenable: controller,
       builder: (context, _) {
         return Scaffold(
-          appBar: prototypeAppBar(context, controller, 'Connect Bridge'),
+          appBar: prototypeAppBar(context, controller, 'Set up'),
           body: SafeArea(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 220),
@@ -100,20 +100,20 @@ class _SetupScreenState extends State<SetupScreen> {
       case SetupStep.noBridge:
         return _SetupPage(
           icon: Icons.bluetooth_searching,
-          eyebrow: 'SETUP',
           title: 'Connect your Bridge',
-          message:
-              'Power it on. If the screen is off, hold PRG for 1.5 seconds.',
-          primaryLabel: 'Find Bridge',
+          message: 'Power it on. Press PRG to wake the screen. If the Bridge is off, hold PRG for 1.5 seconds to turn it on.',
+          primaryLabel: 'Find bridge',
           onPrimary: () => _go(SetupStep.scanning),
-          secondaryLabel: controller.hasSavedData ? 'View device log' : null,
+          secondaryLabel: controller.hasSavedData
+              ? 'View history on this phone'
+              : null,
           onSecondary: controller.hasSavedData
               ? () => _go(SetupStep.savedData)
               : null,
           child: controller.hasSavedData
               ? InlineNotice(
                   icon: Icons.folder_open_outlined,
-                  title: 'Device log',
+                  title: 'History on this phone',
                   message:
                       '${commaInt(controller.phoneRecords)} readings · ${controller.savedDataRange}',
                 )
@@ -124,15 +124,15 @@ class _SetupScreenState extends State<SetupScreen> {
           icon: Icons.bluetooth,
           eyebrow: 'PERMISSION',
           title: 'Allow Bluetooth to find your Bridge',
-          message: 'The app uses Bluetooth only to find and connect to your Bridge. It does not use location, and there is no cloud account.',
-          primaryLabel: 'Allow Bluetooth',
+          message: 'Android 12 and newer use Nearby devices permission. Android 11 and older require location permission for Bluetooth scanning. The permission is only needed to find your Bridge.',
+          primaryLabel: 'Continue',
           onPrimary: () => _go(SetupStep.scanning),
           secondaryLabel: 'Not now',
           onSecondary: () => Navigator.of(context).pop(),
           child: const _BulletList(
             items: [
-              'Nearby devices permission on Android 12+',
-              'No location is read or stored',
+              'Nearby devices on Android 12 and newer',
+              'Location on Android 7–11 — required for Bluetooth scanning',
               'The Bridge keeps recording while you set up',
             ],
           ),
@@ -141,13 +141,11 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.bluetooth_disabled,
           eyebrow: 'BLUETOOTH OFF',
-          title: 'Bluetooth is off.',
+          title: 'Bluetooth is off',
           message: 'Turn Bluetooth on so the app can find your Bridge. The Bridge keeps recording while you do.',
           primaryLabel: 'Open Bluetooth settings',
-          onPrimary: () => _simulateSettings(
-            context,
-            'Android Bluetooth settings would open here.',
-          ),
+          onPrimary: () =>
+              _simulateSettings(context, 'Opening Bluetooth settings.'),
           secondaryLabel: 'Check again',
           onSecondary: () => _go(SetupStep.scanning),
         );
@@ -155,28 +153,23 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.lock_outline,
           eyebrow: 'PERMISSION',
-          title: 'Bluetooth permission needed.',
+          title: 'Bluetooth permission needed',
           message:
               'The app needs Nearby devices permission to scan for the Bridge.',
           primaryLabel: 'Grant permission',
           onPrimary: () => _go(SetupStep.scanning),
-          secondaryLabel: 'Open settings',
-          onSecondary: () => _simulateSettings(
-            context,
-            'Android app settings would open here.',
-          ),
+          secondaryLabel: 'Open app settings',
+          onSecondary: () =>
+              _simulateSettings(context, 'Opening app settings.'),
         );
       case SetupStep.permissionBlocked:
         return _SetupPage(
           icon: Icons.lock,
           eyebrow: 'BLOCKED',
-          title: 'Bluetooth permission is blocked.',
+          title: 'Bluetooth permission is blocked',
           message: 'Enable Nearby devices permission in Android settings, then come back.',
           primaryLabel: 'Open app settings',
-          onPrimary: () => _simulateSettings(
-            context,
-            'Android app settings would open here.',
-          ),
+          onPrimary: () => _simulateSettings(context, 'Opening app settings.'),
           secondaryLabel: 'Back',
           onSecondary: () => _go(SetupStep.noBridge),
         );
@@ -184,17 +177,23 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.phonelink_erase,
           eyebrow: 'UNSUPPORTED',
-          title: 'This phone can’t scan for Bluetooth LE.',
+          title: 'This phone doesn’t support Bluetooth LE',
           message: 'Try a different Android phone. The Bridge itself is unchanged and keeps recording.',
           primaryLabel: 'Close',
           onPrimary: () => Navigator.of(context).pop(),
+          secondaryLabel: controller.hasSavedData
+              ? 'View history on this phone'
+              : null,
+          onSecondary: controller.hasSavedData
+              ? () => _go(SetupStep.savedData)
+              : null,
         );
       case SetupStep.scanning:
         return _SetupPage(
           icon: Icons.radar,
           eyebrow: 'SCANNING',
           title: 'Looking for your Bridge…',
-          message: 'Scanning stops after 10 seconds. Your remembered Bridge is preferred.',
+          message: 'Scanning stops after 10 seconds. We’ll check your last Bridge first.',
           primaryLabel: 'Cancel',
           onPrimary: () => _go(SetupStep.noBridge),
           child: const Column(
@@ -205,19 +204,17 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.search_off,
           eyebrow: 'NO RESULTS',
-          title: 'No Bridge found.',
-          message: 'Make sure it is on, then hold PRG for 1.5 s if it is asleep. Bluetooth range is usually about 10 m indoors.',
-          primaryLabel: 'Retry',
+          title: 'No Bridge found',
+          message: 'Make sure it’s on and within about 10 meters (30 feet). If it’s off, hold PRG for 1.5 seconds to turn it on.',
+          primaryLabel: 'Try again',
           onPrimary: () => _go(SetupStep.scanning),
           secondaryLabel: 'Open Bluetooth settings',
-          onSecondary: () => _simulateSettings(
-            context,
-            'Android Bluetooth settings would open here.',
-          ),
+          onSecondary: () =>
+              _simulateSettings(context, 'Opening Bluetooth settings.'),
           footer: controller.hasSavedData
               ? TextButton(
                   onPressed: () => _go(SetupStep.savedData),
-                  child: const Text('View device log instead'),
+                  child: const Text('View history on this phone'),
                 )
               : null,
         );
@@ -232,11 +229,13 @@ class _SetupScreenState extends State<SetupScreen> {
       case SetupStep.protocolMismatch:
         return _SetupPage(
           icon: Icons.system_update_alt,
-          eyebrow: 'APP UPDATE NEEDED',
-          title: 'This Bridge needs a newer app.',
-          message: 'Update the app before pairing. The Bridge is not changed.',
-          primaryLabel: 'Close',
-          onPrimary: () => Navigator.of(context).pop(),
+          eyebrow: 'APP UPDATE REQUIRED',
+          title: 'Update the app to use this Bridge',
+          message: 'Install the latest version, then try again. The Bridge hasn’t been changed.',
+          primaryLabel: 'Update app',
+          onPrimary: () => _simulateSettings(context, 'Opening the app store.'),
+          secondaryLabel: 'Close',
+          onSecondary: () => Navigator.of(context).pop(),
         );
       case SetupStep.passkey:
         return _PasskeyPage(
@@ -249,37 +248,33 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.pin_outlined,
           eyebrow: 'PAIRING FAILED',
-          title: 'The code didn’t match.',
-          message: 'Try again. After two failures, remove the old pairing in Android settings and pair again.',
+          title: 'The code didn’t match',
+          message: 'Try again. If it fails twice, forget the old pairing in Android settings and pair again.',
           primaryLabel: 'Try again',
           onPrimary: () => _go(SetupStep.passkey),
-          secondaryLabel: 'Open Bluetooth settings',
-          onSecondary: () => _simulateSettings(
-            context,
-            'Android Bluetooth settings would open here.',
-          ),
+          secondaryLabel: 'Open Android settings',
+          onSecondary: () =>
+              _simulateSettings(context, 'Opening Bluetooth settings.'),
         );
       case SetupStep.bondTimeout:
         return _SetupPage(
           icon: Icons.notifications_off_outlined,
           eyebrow: 'PAIRING FAILED',
-          title: 'No prompt appeared.',
-          message: 'Check the notification shade for the Android pairing prompt, then try again.',
-          primaryLabel: 'Retry',
+          title: 'No prompt appeared',
+          message: 'Open your notifications and look for the Android pairing request, then try again.',
+          primaryLabel: 'Try again',
           onPrimary: () => _go(SetupStep.passkey),
           secondaryLabel: 'Open Bluetooth settings',
-          onSecondary: () => _simulateSettings(
-            context,
-            'Android Bluetooth settings would open here.',
-          ),
+          onSecondary: () =>
+              _simulateSettings(context, 'Opening Bluetooth settings.'),
         );
       case SetupStep.bondStale:
         return _SetupPage(
           icon: Icons.link_off,
           eyebrow: 'PAIRING OUT OF DATE',
-          title: 'This phone’s pairing is out of date.',
-          message: 'The Bridge was reset, so the old pairing no longer works. Remove it and pair again. The Bridge’s new identity is safe to trust.',
-          primaryLabel: 'Forget pairing and re-pair',
+          title: 'This phone’s pairing is out of date',
+          message: 'The Bridge was reset, so the old pairing no longer works. Forget the old pairing, then pair again.',
+          primaryLabel: 'Forget and re-pair',
           onPrimary: () => _go(SetupStep.passkey),
           secondaryLabel: 'Cancel',
           onSecondary: () => _go(SetupStep.results),
@@ -288,9 +283,9 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.people_outline,
           eyebrow: 'PHONE LIST FULL',
-          title: 'This Bridge already has 4 phones paired.',
-          message: 'Forget one phone from a paired phone, then try again. The app checks this before showing the Android prompt.',
-          primaryLabel: 'I’ve freed a slot',
+          title: 'This Bridge already has 4 phones paired',
+          message: 'Open the app on a phone that’s already paired and choose Forget this phone. If none is available, the Bridge needs a USB reset.',
+          primaryLabel: 'Try again',
           onPrimary: () => _go(SetupStep.passkey),
           secondaryLabel: 'Cancel',
           onSecondary: () => _go(SetupStep.results),
@@ -475,7 +470,7 @@ class _ScanResults extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Nearby Bridges',
+                      'Nearby bridges',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                   ),
@@ -488,30 +483,30 @@ class _ScanResults extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Remembered Bridges are shown first.',
+                'Your last Bridge is shown first.',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
               _DeviceRow(
                 name: 'SmokeX4-A4F2',
-                detail: 'P4 225 °F · 87%',
-                rssi: '-71 dBm',
+                detail: 'P4 225°F · 87%',
+                rssi: 'Good signal',
                 remembered: true,
                 onTap: onSelect,
               ),
               const SizedBox(height: 10),
               _DeviceRow(
                 name: 'SmokeX4-B91C',
-                detail: 'P4 180 °F · 64%',
-                rssi: '-88 dBm',
+                detail: 'P4 180°F · 64%',
+                rssi: 'Weak signal',
                 onTap: onSelect,
               ),
               const SizedBox(height: 10),
               _DeviceRow(
                 name: 'SmokeX4-LEGACY',
-                detail: 'Protocol 2.x · needs a newer app',
-                rssi: '-82 dBm',
+                detail: 'Requires a newer app',
+                rssi: 'Fair signal',
                 warning: true,
                 onTap: onProtocolMismatch,
               ),
@@ -520,7 +515,7 @@ class _ScanResults extends StatelessWidget {
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.folder_open_outlined),
-                    title: const Text('Device log'),
+                    title: const Text('History on this phone'),
                     subtitle: Text(
                       '${commaInt(controller.phoneRecords)} readings · ${controller.savedDataRange}',
                     ),
@@ -530,7 +525,7 @@ class _ScanResults extends StatelessWidget {
                 ),
               const SizedBox(height: 18),
               Text(
-                'The scan stops after 10 seconds. If nothing appears, retry or open Bluetooth settings.',
+                'Scanning stops after 10 seconds. If your Bridge doesn’t appear, try again or open Bluetooth settings.',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),
@@ -584,7 +579,7 @@ class _DeviceRow extends StatelessWidget {
             Flexible(child: Text(name)),
             if (remembered) ...[
               const SizedBox(width: 8),
-              Pill(label: 'Remembered', color: StatusColors.live(context)),
+              Pill(label: 'Last used', color: StatusColors.live(context)),
             ],
           ],
         ),
@@ -636,17 +631,17 @@ class _PasskeyPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'The Bridge’s screen shows a 6-digit code. Enter it in the phone’s prompt.',
+                'Enter the 6-digit code shown on the Bridge screen in the Android prompt.',
                 style: Theme.of(context).textTheme.bodyLarge
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
               ),
               const SizedBox(height: 22),
               Text(
-                'LOOK AT THE BRIDGE OLED',
+                'Look at the Bridge screen',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.3,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
                 ),
               ),
               const SizedBox(height: 8),
@@ -691,7 +686,7 @@ class _PasskeyPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                'Android will ask for this code. The app never shows it; it is only on the Bridge OLED.',
+                'Example: the code appears on the Bridge screen. Only the Bridge screen shows the real code.',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.4),
               ),
@@ -754,7 +749,7 @@ class _BondingPage extends StatelessWidget {
                   child: Column(
                     children: const [
                       _BondStep(label: 'Connecting to the Bridge', done: true),
-                      _BondStep(label: 'Pairing with the code', active: true),
+                      _BondStep(label: 'Checking the code', active: true),
                       _BondStep(label: 'Syncing recent history'),
                     ],
                   ),
@@ -852,7 +847,7 @@ class _FirstSyncPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Recent history is ready first. Older readings continue in the background.',
+                'Your latest readings are ready. Older readings will load in the background.',
                 style: Theme.of(context).textTheme.bodyLarge
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
               ),
@@ -870,17 +865,17 @@ class _FirstSyncPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '${controller.syncProgressPercent}% · recent 24 hours',
+                        '${controller.syncProgressPercent}% · last 24 hours',
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                       const SizedBox(height: 14),
-                      const _SyncStep(label: 'Phone clock set', done: true),
+                      const _SyncStep(label: 'Time set', done: true),
                       const _SyncStep(
-                        label: 'Reading the last 24 hours',
+                        label: 'Loading the last 24 hours',
                         active: true,
                       ),
-                      const _SyncStep(label: 'Loading older history'),
-                      const _SyncStep(label: 'Live readings'),
+                      const _SyncStep(label: 'Loading older readings'),
+                      const _SyncStep(label: 'Live view ready'),
                     ],
                   ),
                 ),
@@ -890,7 +885,7 @@ class _FirstSyncPage extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: onContinue,
-                  child: const Text('Start monitoring'),
+                  child: const Text('View live readings'),
                 ),
               ),
             ],
@@ -967,7 +962,7 @@ class _SavedDataStep extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Device log',
+                'History on this phone',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
@@ -980,8 +975,8 @@ class _SavedDataStep extends StatelessWidget {
               if (empty)
                 const EmptyState(
                   icon: Icons.folder_off_outlined,
-                  title: 'No device log',
-                  message: 'There is no history on this phone yet. The Bridge records whenever it is on and synced.',
+                  title: 'No history on this phone',
+                  message: 'There is no history on this phone yet. The Bridge records whenever it’s on and paired with the Smoke X4.',
                 )
               else
                 SectionCard(
@@ -997,7 +992,7 @@ class _SavedDataStep extends StatelessWidget {
                         value: controller.savedDataRange,
                       ),
                       KeyValueRow(
-                        label: 'Database',
+                        label: 'Storage used',
                         value: controller.savedDataSize,
                       ),
                       const SizedBox(height: 14),
@@ -1010,7 +1005,7 @@ class _SavedDataStep extends StatelessWidget {
                           ),
                           onPressed: () => _deleteSavedData(context),
                           icon: const Icon(Icons.delete_outline),
-                          label: const Text('Delete device log'),
+                          label: const Text('Delete history from this phone…'),
                         ),
                       ),
                     ],
@@ -1021,7 +1016,7 @@ class _SavedDataStep extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: onBack,
-                  child: const Text('Back to setup'),
+                  child: const Text('Back'),
                 ),
               ),
             ],
@@ -1034,12 +1029,12 @@ class _SavedDataStep extends StatelessWidget {
   Future<void> _deleteSavedData(BuildContext context) async {
     final confirmed = await showLossSheet(
       context,
-      title: 'Delete all device log?',
-      intro: 'This deletes every reading stored on this phone. It cannot be undone.',
+      title: 'Delete all history from this phone?',
+      intro: 'This deletes every reading stored on this phone. It can’t be undone.',
       bullets: [
         '${commaInt(controller.phoneRecords)} readings',
         controller.savedDataRange,
-        'The Bridge is not changed and keeps recording.',
+        'The Bridge isn’t changed and keeps recording.',
       ],
       keepNote: 'This is the only copy of the history on this phone.',
       confirmLabel: 'Delete ${commaInt(controller.phoneRecords)} readings',

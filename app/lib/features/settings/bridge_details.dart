@@ -65,7 +65,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                                           .titleMedium,
                                     ),
                                     Text(
-                                      'Bridge ${controller.deviceId} · Bluetooth',
+                                      'Bridge ${controller.deviceId}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -162,7 +162,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                                           .showSnackBar(
                                             const SnackBar(
                                               content: Text(
-                                                'Syncing forward (simulated)…',
+                                                'Syncing saved readings…',
                                               ),
                                             ),
                                           );
@@ -251,12 +251,16 @@ class BridgeDetailsScreen extends StatelessWidget {
                                   )
                                 : null,
                             icon: const Icon(Icons.sync_alt, size: 18),
-                            label: Text(
-                              connected
-                                  ? 'Re-pair Smoke X4'
-                                  : 'Connect to re-pair',
-                            ),
+                            label: const Text('Re-pair Smoke X4'),
                           ),
+                          if (!connected) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Connect to the Bridge to re-pair.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -271,7 +275,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                             title: 'Bridge name',
                             subtitle: controller.canEdit
                                 ? controller.deviceName
-                                : '${controller.deviceName} · connect to change',
+                                : '${controller.deviceName}\nConnect to change',
                             onTap: controller.canEdit
                                 ? () =>
                                       showBridgeNameDialog(context, controller)
@@ -284,7 +288,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                             title: 'Bridge screen timeout',
                             subtitle: controller.canEdit
                                 ? _timeoutSubtitle()
-                                : '${_timeoutSubtitle()} · connect to change',
+                                : '${_timeoutSubtitle()}\nConnect to change',
                             onTap: controller.canEdit
                                 ? () => showBridgeTimeoutSheet(
                                     context,
@@ -332,11 +336,11 @@ class BridgeDetailsScreen extends StatelessWidget {
                           ),
                           title: const Text('Technical details'),
                           subtitle: const Text(
-                            'Firmware, signal, MTU and identifiers',
+                            'Firmware, signal, and connection details',
                           ),
                           children: [
                             KeyValueRow(
-                              label: 'Device ID',
+                              label: 'Bridge ID',
                               value: controller.deviceId,
                             ),
                             KeyValueRow(
@@ -354,18 +358,21 @@ class BridgeDetailsScreen extends StatelessWidget {
                             KeyValueRow(
                               label: 'MTU',
                               value: controller.slowLink
-                                  ? '23 (slow link)'
+                                  ? '23 · slow connection'
                                   : '247',
                             ),
                             KeyValueRow(
-                              label: 'Last connected',
-                              value: connected ? 'Just now' : '2 hours ago',
+                              label: 'Connected for',
+                              value: controller.isConnected
+                                  ? controller.bridgeConnectedForLabel
+                                  : '—',
                             ),
                             KeyValueRow(
-                              label: 'Last sync',
-                              value: connected
-                                  ? '2 minutes ago'
-                                  : '2 hours ago',
+                              label: 'Last synced',
+                              value: controller.lastSyncedLabel.replaceFirst(
+                                'Synced ',
+                                '',
+                              ),
                             ),
                           ],
                         ),
@@ -393,9 +400,9 @@ class BridgeDetailsScreen extends StatelessWidget {
                             Icons.history,
                             color: scheme.onSurfaceVariant,
                           ),
-                          title: const Text('Connection & pairing log'),
+                          title: const Text('Connection log'),
                           subtitle: const Text(
-                            'Bridge, Smoke X4 and Billows events together',
+                            'Bridge, Smoke X4, and Billows events',
                           ),
                           children: [ConnectionLogList(controller: controller)],
                         ),
@@ -403,11 +410,11 @@ class BridgeDetailsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'BRIDGE ACTIONS',
+                      'Bridge actions',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.3,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -418,10 +425,10 @@ class BridgeDetailsScreen extends StatelessWidget {
                           ListTile(
                             enabled: connected,
                             leading: const Icon(Icons.power_settings_new),
-                            title: const Text('Power off Bridge'),
+                            title: const Text('Power off the Bridge'),
                             subtitle: Text(
                               connected
-                                  ? 'Stop recording until you wake it'
+                                  ? 'Stop recording until you turn it back on'
                                   : 'Connect to the Bridge first',
                             ),
                             onTap: connected
@@ -441,7 +448,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                             ),
                             subtitle: Text(
                               connected
-                                  ? 'Wipes pairing, settings and the Bridge log'
+                                  ? 'Erases pairings, settings, and saved readings'
                                   : 'Connect to the Bridge first',
                             ),
                             onTap: connected
@@ -456,7 +463,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                               style: TextStyle(color: scheme.error),
                             ),
                             subtitle: const Text(
-                              'Removes this phone’s pairing; keeps device log',
+                              'Removes this phone’s pairing; keeps history on this phone',
                             ),
                             onTap: () => showForgetFlow(context, controller),
                           ),
@@ -465,8 +472,8 @@ class BridgeDetailsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Power off and factory reset need a live connection. '
-                      'Forget this phone can still clear this phone locally.',
+                      'Power off and factory reset require a connection to the Bridge. '
+                      'You can forget this phone while offline.',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
@@ -481,7 +488,7 @@ class BridgeDetailsScreen extends StatelessWidget {
   }
 
   String _timeoutSubtitle() {
-    if (controller.displayTimeoutSeconds == 0) return 'OLED stays on';
-    return '${controller.displayTimeoutLabel} · OLED sleep';
+    if (controller.displayTimeoutSeconds == 0) return 'Screen stays on';
+    return '${controller.displayTimeoutLabel} · screen turns off';
   }
 }
