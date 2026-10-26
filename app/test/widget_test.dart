@@ -59,7 +59,8 @@ void main() {
     expect(find.byKey(const Key('status.connection')), findsOneWidget);
     expect(find.text('App'), findsOneWidget);
     expect(find.text('Connected · 4s'), findsNothing);
-    expect(find.textContaining('last contact 4s ago'), findsOneWidget);
+    expect(find.text('2h 14m'), findsOneWidget);
+    expect(find.text('Fair'), findsOneWidget);
     expect(find.textContaining('Last data 12s ago'), findsNothing);
     expect(find.text('updated 4s ago · bridge 87% · -71 dBm'), findsNothing);
 
@@ -240,7 +241,7 @@ void main() {
     expect(find.text('Summary'), findsOneWidget);
   });
 
-  testWidgets('Live presents the Bridge and Smoke X4 chain with ages', (
+  testWidgets('Live presents the Bridge and Smoke X4 chain by colour', (
     tester,
   ) async {
     final controller = PrototypeController();
@@ -248,11 +249,15 @@ void main() {
     await pumpShell(tester, controller);
 
     expect(find.byKey(const Key('status.connection')), findsOneWidget);
-    expect(find.text('This phone'), findsOneWidget);
+    expect(find.text('App'), findsOneWidget);
     expect(find.text('Bridge'), findsWidgets);
     expect(find.text('Smoke X4'), findsWidgets);
-    expect(find.textContaining('Connected for 2h 14m'), findsOneWidget);
-    expect(find.text('Receiving'), findsOneWidget);
+    expect(find.text('This phone'), findsNothing);
+    expect(find.text('Connected'), findsNothing);
+    expect(find.text('Receiving'), findsNothing);
+    expect(find.textContaining('Connected for'), findsNothing);
+    expect(find.text('2h 14m'), findsOneWidget);
+    expect(find.text('Fair'), findsOneWidget);
   });
 
   testWidgets('Billows only appears when detected and loss is explained', (
@@ -292,7 +297,7 @@ void main() {
     );
   });
 
-  testWidgets('offline Live states when each link was last seen', (
+  testWidgets('offline Live greys the chain and hides the signal', (
     tester,
   ) async {
     final controller = PrototypeController()
@@ -301,9 +306,11 @@ void main() {
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
-    expect(find.textContaining('Last connected 2h ago'), findsOneWidget);
+    expect(find.textContaining('Last connected 2h ago'), findsNothing);
     expect(find.textContaining('Last data 2h ago'), findsNothing);
-    expect(find.text('Offline'), findsOneWidget);
+    expect(find.text('Not connected'), findsOneWidget);
+    expect(find.text('Fair'), findsNothing);
+    expect(find.text('Offline'), findsNothing);
   });
 
   testWidgets('Summary shows current, min and max without deltas', (

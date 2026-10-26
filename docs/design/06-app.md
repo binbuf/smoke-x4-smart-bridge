@@ -218,9 +218,8 @@ automatically.
 ├────────────────────────────────────────────┤
 │   [phone]      →      [bt]      →    [x4]  │
 │     App               Bridge         Smoke X4 │
-│  This phone          Connected      Receiving │
 │                                            │
-│ Connected for 2h 14m · last contact 4s ago > │
+│ ⏱ 2h 14m                    ▂▄▆▁ Fair      > │
 ├────────────────────────────────────────────┤
 │ ┌──────────────────┐ ┌──────────────────┐  │
 │ │ ● P1             │ │ ● P2             │  │
@@ -236,7 +235,7 @@ automatically.
 │ └──────────────────┘ └──────────────────┘  │
 ├────────────────────────────────────────────┤
 │ Billows                   Detected          │
-│ CH 4 set temp 225 °F · Read-only           │
+│ CH 4 set temp 225 °F                       │
 └────────────────────────────────────────────┘
 ```
 
@@ -246,10 +245,14 @@ Rules:
   whole chain as simple icons with labels underneath: **App → Bridge → Smoke
   X4**. Tapping anywhere on the card opens Bridge details, where the manual
   `Sync now` action lives.
-- The Bridge detail line states when the phone last connected and the current
-  session length, for example `Connected for 2h 14m · last contact 4s ago`.
-  Offline it becomes `Last connected 2h ago`. The Smoke X4 node keeps its
-  `Receiving` / `No recent data` state without repeating a last-data age.
+- The chain uses colour instead of a second text label on each node: grey for
+  not connected, green for healthy, amber for a degraded link and red for a
+  blocked/failed link. The visible labels are only `App`, `Bridge` and
+  `Smoke X4`; the state is also exposed to screen readers.
+- A compact row below the chain uses a clock icon and the connected duration
+  down to the minute (`2h 14m`, never seconds). The cell-style signal meter sits
+  on the right of that row with its `Excellent / Good / Fair / Weak` label.
+  Offline the row says `Not connected` and hides the signal meter.
 - There is no `Sync now` action on the Live card. The product is designed so
   manual sync is rarely needed; pull-to-refresh remains the recovery gesture.
 - There is no small connection chip in the app bar. Healthy status lives in the

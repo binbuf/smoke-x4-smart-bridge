@@ -200,12 +200,9 @@ Design principles:
 ┌────────────────────────────────────────────┐
 │ Live                                       │
 ├────────────────────────────────────────────┤
-│ Connection                    ⟳ Sync now   │
-│ This phone ▸ Bridge ▸ Smoke X4             │
-│ ● Bridge            Connected              │
-│   Connected for 2h 14m · last contact 4s ago   > │
-│ ● Smoke X4          Receiving              │
-│   Last data 12s ago · 915 MHz              │
+│ [phone] → [bt] → [x4]                      │
+│   App       Bridge      Smoke X4           │
+│ ⏱ 2h 14m                  ▂▄▆▁ Fair      > │
 ├────────────────────────────────────────────┤
 │ ┌──────────────────┐ ┌──────────────────┐  │
 │ │ ● P1             │ │ ● P2             │  │
@@ -221,15 +218,18 @@ Design principles:
 │ └──────────────────┘ └──────────────────┘  │
 ├────────────────────────────────────────────┤
 │ Billows                   Detected          │
-│ CH 4 set temp 225 °F · Read-only           │
+│ CH 4 set temp 225 °F                       │
 └────────────────────────────────────────────┘
 ```
 
 ### Rules
 
-- **Connection chain first.** The top card shows the whole link as two LED rows:
-  phone → Bridge and Bridge → Smoke X4. State the last Bridge contact, current
-  session length, and the last Smoke X4 data age. No app-bar status chip.
+- **Connection chain first.** The top card shows the whole link as three nodes:
+  App → Bridge → Smoke X4. Node colour is the state: grey not connected, green
+  healthy, amber degraded, red blocked/failed. Do not add a second text status
+  under each label. A compact clock row shows the connected duration down to the
+  minute, with the cell-style signal meter right-aligned; offline says
+  `Not connected` and hides the signal. No app-bar status chip.
 - **No names, roles or tags.** The tile label is `Probe 1` / `P1`, plus the
   probe color. The same identity is used in History, Summary and the OLED.
 - **Sparkline in every tile when that probe has history.** Use the last hour,

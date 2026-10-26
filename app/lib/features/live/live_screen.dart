@@ -222,7 +222,6 @@ class _ConnectionCard extends StatelessWidget {
                         label: 'App',
                         status: 'This phone',
                         color: appColor,
-                        active: controller.isConnected,
                       ),
                     ),
                     _ChainArrow(color: scheme.outline),
@@ -232,7 +231,6 @@ class _ConnectionCard extends StatelessWidget {
                         label: 'Bridge',
                         status: controller.bridgeLinkStatusLabel,
                         color: bridgeColor,
-                        active: controller.isConnected,
                       ),
                     ),
                     _ChainArrow(color: scheme.outline),
@@ -242,9 +240,6 @@ class _ConnectionCard extends StatelessWidget {
                         label: 'Smoke X4',
                         status: controller.smokeXLinkStatusLabel,
                         color: smokeColor,
-                        active:
-                            controller.isConnected &&
-                            controller.smokeXStatus != SmokeXStatus.unpaired,
                       ),
                     ),
                   ],
@@ -265,16 +260,38 @@ class _ConnectionCard extends StatelessWidget {
                         size: 15,
                         color: scheme.onSurfaceVariant,
                       ),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text(
-                          _detailLine,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant),
-                        ),
+                      const SizedBox(width: 6),
+                      Text(
+                        controller.isConnected
+                            ? controller.bridgeConnectedForLabel
+                            : 'Not connected',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
+                      const Spacer(),
+                      if (controller.isConnected) ...[
+                        SignalBars(
+                          level: controller.signalBars,
+                          color: StatusColors.signal(
+                            context,
+                            controller.signalBars,
+                          ),
+                          semanticLabel:
+                              '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          controller.signalQualityLabel,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       Icon(
                         Icons.chevron_right,
                         size: 18,
@@ -290,8 +307,6 @@ class _ConnectionCard extends StatelessWidget {
       ),
     );
   }
-
-  String get _detailLine => controller.bridgeLinkDetail;
 
   Color _bridgeColor(BuildContext context) {
     switch (controller.phase) {
@@ -330,51 +345,42 @@ class _ChainNode extends StatelessWidget {
     required this.label,
     required this.status,
     required this.color,
-    required this.active,
   });
 
   final IconData icon;
   final String label;
+
+  /// Spoken status; the visible sub-label is intentionally gone so the node
+  /// colour carries healthy / issue / not-connected state.
   final String status;
   final Color color;
-  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final tint = active ? color : color.withValues(alpha: 0.6);
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: tint.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: tint.withValues(alpha: 0.26)),
+    return Semantics(
+      label: '$label, $status',
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.26)),
+            ),
+            child: Icon(icon, size: 24, color: color),
           ),
-          child: Icon(icon, size: 24, color: tint),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 1),
-        Text(
-          status,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: active ? color : scheme.onSurfaceVariant,
-            fontWeight: FontWeight.w700,
+          const SizedBox(height: 7),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(color: color, fontWeight: FontWeight.w700),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

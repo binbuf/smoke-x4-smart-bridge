@@ -35,6 +35,7 @@ session model, or notification stack** in this MVP.
 | [09 — Legacy Audit](09-legacy-audit.md) | What is kept, what is left behind, and which defects are not inherited |
 | [10 — Test & Release](10-test-and-release.md) | Test layers, bench matrix, soak, release checklist |
 | [11 — UI/UX Refresh](11-ui-ux-refresh-proposal.md) | Approved Live/History/Settings refresh, naming and interaction decisions |
+| [12 — Copy & Label Review](12-copy-and-label-review.md) | Proposed copy, terminology, formatting and lab/OLED label changes (proposal) |
 
 Task plans live in [`../tasks/`](../tasks/README.md). Bench evidence lives in
 [`../hardware-verified.md`](../hardware-verified.md); the Billows scope decision

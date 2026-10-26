@@ -207,6 +207,15 @@ class PrototypeController extends ChangeNotifier {
 
   Duration get bridgeConnectedFor => const Duration(hours: 2, minutes: 14);
 
+  /// Connected duration without seconds, for the compact Live status row.
+  String get bridgeConnectedForLabel {
+    final value = bridgeConnectedFor;
+    final hours = value.inHours;
+    final minutes = value.inMinutes % 60;
+    if (hours == 0) return '${minutes}m';
+    return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
+  }
+
   Duration? get smokeXLastPacketAge {
     if (!isConnected) {
       final bridgeAge = bridgeLastContactAge;

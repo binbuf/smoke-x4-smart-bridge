@@ -5,7 +5,7 @@ light themes. They are review artifacts, not golden tests that block the suite.
 
 | Image | Screen |
 |---|---|
-| `live_dark.png`, `live_light.png` | Live: connection chain, four probes with sparklines, Billows detected |
+| `live_dark.png`, `live_light.png` | Live: colour-coded connection chain, connected time + signal bars, four probes with sparklines, Billows detected |
 | `live_billows_detected.png` | Billows detected, CH 4 set temp and status |
 | `live_billows_lost.png` | Billows detected earlier but missing now |
 | `live_offline_cache.png` | Offline with dimmed cached readings |
