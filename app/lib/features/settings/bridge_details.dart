@@ -117,7 +117,10 @@ class BridgeDetailsScreen extends StatelessWidget {
                                 const SizedBox(width: 9),
                                 SignalBars(
                                   level: controller.signalBars,
-                                  color: statusColor,
+                                  color: StatusColors.signal(
+                                    context,
+                                    controller.signalBars,
+                                  ),
                                   semanticLabel:
                                       '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
                                 ),

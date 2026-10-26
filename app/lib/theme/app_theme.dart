@@ -261,4 +261,12 @@ class StatusColors {
 
   static Color info(BuildContext context) =>
       Theme.of(context).colorScheme.primary;
+
+  /// Signal bar colour: good/excellent is live green, fair is amber and weak
+  /// is the error colour.
+  static Color signal(BuildContext context, int level) {
+    if (level >= 3) return live(context);
+    if (level == 2) return aging(context);
+    return frozen(context);
+  }
 }
