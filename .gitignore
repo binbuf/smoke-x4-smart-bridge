@@ -1,2 +1,10 @@
-docs/
+# Local reference tree — not part of the new build
 legacy/
+
+# Docs: keep the design/task set, ignore scratch files
+docs/*
+!docs/Start.md
+!docs/design/
+!docs/tasks/
+!docs/hardware-verified.md
+!docs/billows-decision.md

@@ -1,0 +1,155 @@
+# 00 — Product & Scope
+
+## 0.1 The product in one page
+
+A ThermoWorks Smoke X4 transmits probe temperatures over LoRa every ~30 seconds.
+The stock ThermoWorks receiver continues to work. The **Smoke X4 Smart Bridge**
+is a second listener:
+
+```
+ 4 probes ──► Smoke X4 ──LoRa 915 MHz──► stock receiver(s)
+                  │
+                  └──► Heltec WiFi LoRa 32 V3 ──► rolling flash log
+                                                     │
+                                                     ├──► 128×64 OLED
+                                                     └──► BLE GATT ──► Android app
+```
+
+The bridge is **always recording** while it is on and synced with a Smoke X4.
+The phone may be absent, asleep, or out of range; that changes nothing. When the
+phone reconnects, it asks for everything after its last stored sequence number.
+
+The app is a monitor and a remote control, not the recording authority:
+
+- **Live** — four probe temperatures, per-probe last-hour sparklines,
+  freshness, bridge/Billows status.
+- **History** — all four probes over the whole locally stored history, with
+  gaps rendered as gaps and tools for exploring the archive.
+- **Settings** — units, bridge display timeout, Billows target (if supported),
+  connection controls, data deletion, and the device actions the bridge cannot
+  expose with one button.
+
+## 0.2 Who it is for and where it is used
+
+One user, one smoker, one bridge, one Android phone at a time. Up to four
+phones may be bonded for replacement/handoff, but only one is connected and
+multi-user access is not a feature. The phone is used in a yard, often at night,
+often at arm's length or farther. The bridge sits near the
+smoker, powered by USB or its 3000 mAh pack. The phone is not expected to stay
+connected for the entire cook; it is expected to reconnect and catch up.
+
+The product is successful when a user can:
+
+1. Power the bridge on, see probe temperatures on the OLED, and walk away.
+2. Open the app, find and pair the bridge once, and see live temperatures.
+3. Close the app for six hours, reopen it, and see the entire six hours in
+   History without doing anything else.
+4. Change the temperature unit or the bridge display timeout from the phone.
+5. Forget the phone or factory-reset the bridge from the phone when needed.
+6. See whether a Billows is attached and, if the control path is supported, set
+   its target from the app.
+
+## 0.3 The thin vertical slice (V0)
+
+V0 is the first deployable end-to-end build. It is deliberately narrower than
+the MVP but exercises every layer of the architecture:
+
+| Layer | V0 behaviour |
+|---|---|
+| Radio | Real Smoke X4 paired; stock receiver still works; state packets decoded |
+| Firmware | Samples appended to the flash ring; OLED shows four probes; PRG cycles pages and powers off |
+| BLE | Advertises when idle; passkey pairing; live-state notify; reads the last 15 minutes of readings |
+| App | Scans, pairs with the code on the OLED, shows four live temperatures, and shows the last 15 minutes in History |
+| Failure paths | Disconnect/reconnect; Smoke X4 stops sending; power-cycle the bridge |
+
+V0 is the end of milestone **M2** in the task plan. It is the point at which the
+hardware, radio, storage, BLE, and app are proven together. History sync,
+settings, and Billows come after it without re-architecting anything.
+
+## 0.4 MVP definition
+
+The MVP is V0 plus:
+
+- Full history sync, resume after disconnect, and an interactive History view
+  over all local data.
+- The Settings tab and all app-controlled device actions.
+- Automatic data rotation on the bridge and user-controlled deletion on the
+  phone.
+- Battery/deep-sleep behaviour and a 24-hour soak.
+- Billows observation; Billows setpoint control **only if** the feasibility gate
+  in [08](08-billows.md) selects a safe path. Observation-only (option C) is a
+  scope cut that requires explicit owner sign-off; it is not silently counted as
+  the "set target" feature.
+
+An MVP is not "feature-complete" until it has been used for one real overnight
+cook with the phone left away from the bridge for several hours.
+
+## 0.5 Feature acceptance
+
+Each line from the brief maps to a concrete acceptance test and an owning
+design/task.
+
+| Requirement | Acceptance | Design | Tasks |
+|---|---|---|---|
+| Hold PRG to turn off/on | From on, hold 1.5 s; countdown appears; release confirms; device sleeps. From sleep, hold 1.5 s; device boots to page 1. A short tap never powers off. | [07](07-display-and-controls.md) | F1.12, V1.2, V6.2 |
+| Tap PRG to cycle information windows/dialogs | Each tap advances one page; a tap wakes a sleeping display without changing the page; the passkey overlay and power-off dialog have defined tap behaviour. | [07](07-display-and-controls.md) | F1.11, F1.12, V1.2 |
+| Automatic BLE discovery whenever on and not connected | Advertising starts at boot and restarts on disconnect, failed connect, and advertising timeout. The app finds it without pressing a button. | [05](05-ble-contract.md), [06](06-app.md) | F2.1, F2.4, A2.1 |
+| Pairing code on screen, entered on phone | First bond shows six digits on the OLED; the phone's OS prompt accepts them; a wrong code produces a named retry path; subsequent reconnects do not prompt. | [05](05-ble-contract.md) | F2.4, A2.2, V2.1 |
+| App can forget device | App-initiated "Forget this phone" removes the current phone's bond on both sides (when connected) and clears the saved connection; local history is kept. Other phones are unaffected. | [05](05-ble-contract.md), [06](06-app.md) | F4.3, A4.3, V4.1 |
+| App can factory reset | Authenticated control op wipes config, all bonds, and bridge history, then reboots. The app states what is lost before sending, treats the disconnect as success, and keeps local history until the user deletes it. | [05](05-ble-contract.md), [06](06-app.md) | F4.3, A4.3, V4.1 |
+| Re-pair a re-synced Smoke X4 | Settings → Connection shows paired/unpaired and a Re-pair action; it clears the old radio pairing, keeps the log/bonds, and restarts the scan. | [02](02-smoke-x-protocol.md), [06](06-app.md) | F1.4, F4.2, A4.2, V4.1 |
+| Record whenever on, synced, and Smoke X4 is sending | With no phone present, samples continue into flash; unplug/replug resumes into the same rolling log with only the last record at risk. | [03](03-firmware-architecture.md), [04](04-data-and-storage.md) | F1.5–F1.8, V1.1 |
+| Collect all connected probe temps | Four probes in jack order, tenths °F internally; detached = null; partial connections are represented without inventing data. | [02](02-smoke-x-protocol.md), [04](04-data-and-storage.md) | F1.3, F1.6 |
+| Billows: set target temp | **Gated.** If a safe control path is selected, the app writes a target and the firmware acknowledges/controls; otherwise the app displays the observed target read-only and the scope decision is recorded. | [08](08-billows.md) | B5.0–B5.2, A5.1, V5.1 |
+| Billows: connected/status | App and OLED show attached/not attached and the last observed target if the field is validated; no fan speed is invented. | [08](08-billows.md) | B5.1 |
+| Periodic collection, efficient storage | 30 s samples; 18 B each; ~117 days in a 5.875 MB partition; ring rotates oldest first; app stores every synced sample. | [04](04-data-and-storage.md) | F1.6–F1.8, V6.1 |
+| App handles discovery/connection/health | Auto-connect to remembered device, explicit states for scanning/connecting/bonding/syncing/live/stale/reconnecting/failed; reconnect with bounded backoff. | [06](06-app.md) | A2.1–A2.4, A3.4 |
+| Settings the device cannot do | Units, bridge display timeout, bridge name, Billows target, forget, factory reset, power off. | [06](06-app.md), [07](07-display-and-controls.md) | F4.1, A4.1–A4.4 |
+| Show four probe temps | Live cards in jack order, large values, per-probe last-hour sparkline, detached state, freshness; no zero for absent data. No probe names, roles or tags in the MVP. | [06](06-app.md) | A2.3 |
+| History all four probes; no data means no line | Four series, gaps at >90 s, LTTB/min-max decimation, range and probe filters, crosshair, pan/zoom, summary, gap reasons, cached data available offline. | [06](06-app.md), [04](04-data-and-storage.md) | A3.3 |
+| Device records regardless of app; app catches up | Sync cursor is sequence-based; connect triggers catch-up; live notifications append; periodic catch-up every 60 s while connected. | [04](04-data-and-storage.md) | F2.5, F3.1, A3.2 |
+| Rotate old data out on ESP32; never auto-delete in app | Bridge ring wraps oldest sectors; app only deletes through an explicit user action, with a confirmation that says what is lost. | [04](04-data-and-storage.md), [06](06-app.md) | F1.7, A3.5 |
+
+## 0.6 Out of scope (and intentionally absent)
+
+- Wi-Fi, AP/STA provisioning, HTTP, WebSocket, mDNS, MQTT/Home Assistant.
+- OTA or any firmware update path other than USB.
+- Alarm rules, buzzer/LED alarms, phone notifications, foreground service.
+- Cook sessions, names, marks, phases, presets, ETA, stall/lid detection.
+- CSV/JSON export, share sheets, cloud sync, accounts.
+- Multi-bridge selection, multi-user access, remote access outside BLE range.
+- iOS, web, desktop.
+- X2-specific UI or acceptance.
+- Battery saver profiles, battery calibration UI, charger status.
+- A local web UI or debug HTTP server.
+
+These are not "future roadmap" promises. They are removed so the kept path can
+be made trustworthy. If a need appears after field use, it gets its own design
+decision.
+
+## 0.7 Product-level success criteria
+
+| Criterion | Target |
+|---|---|
+| Cold scan → live temperature | < 60 s for a phone that has never seen the bridge; < 15 s for a bonded phone |
+| Reconnect → live | < 10 s after the phone is in range |
+| 24 h history catch-up | < 20 s at MTU ≥247 (51.8 KB of sample data); at MTU 23 expect ~1 min |
+| Full ring catch-up | < 10 min at MTU ≥247 for ~5.9 MB, resumable if interrupted; at MTU 23 treat it as a background job |
+| Record loss on power cut | At most the last record; no loss of earlier records |
+| Continuous recording capacity | ≥ 110 days at 30 s cadence |
+| 24 h soak | No reboot, no panic, no heap trend, no missed sample storm |
+| Battery runtime | ≥ 24 h with OLED sleeping and BLE advertising, measured on the 3000 mAh pack |
+| App history after relaunch | 100% of synced samples remain, regardless of bridge availability |
+
+## 0.8 Assumptions and unknowns
+
+- The board is the **Heltec WiFi LoRa 32 V3** (ESP32-S3FN8, 8 MB flash, SX1262,
+  SSD1306). If it is not, [01](01-hardware.md) must be revised before M0 exits.
+- A real Smoke X4 and probes are available for bench work. A Billows may not be;
+  [08](08-billows.md) is written so observation can land without one but control
+  cannot be claimed without one.
+- The phone is Android 12+ with BLE and a working OS passkey dialog. Android 7–11
+  need the legacy location-permission path; that is a task detail, not a product
+  change.
+- The bridge is powered by USB for long cooks; the battery is a UPS/portable
+  option. Runtime is measured, not assumed.
