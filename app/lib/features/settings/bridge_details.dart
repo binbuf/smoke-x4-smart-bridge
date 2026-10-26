@@ -2,102 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../prototype/prototype_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/connection_log.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 import 'settings_details.dart';
-
-class SmokeX4DetailsScreen extends StatelessWidget {
-  const SmokeX4DetailsScreen({super.key, required this.controller});
-
-  final PrototypeController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final scheme = Theme.of(context).colorScheme;
-        final connected = controller.isConnected;
-        return Scaffold(
-          appBar: prototypeAppBar(context, controller, 'Smoke X4'),
-          body: ListView(
-            children: [
-              ContentWidth(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SectionCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.sensors,
-                                color: scheme.primary,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Smoke X4 pairing',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
-                                ),
-                              ),
-                              Pill(
-                                label: controller.smokeXLabel,
-                                color:
-                                    controller.smokeXStatus ==
-                                        SmokeXStatus.pairedLive
-                                    ? StatusColors.live(context)
-                                    : StatusColors.aging(context),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            controller.smokeXSubtitle,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                          const SizedBox(height: 14),
-                          OutlinedButton.icon(
-                            onPressed: connected
-                                ? () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) =>
-                                          RePairScreen(controller: controller),
-                                    ),
-                                  )
-                                : null,
-                            icon: const Icon(Icons.sync_alt, size: 18),
-                            label: Text(
-                              connected
-                                  ? 'Re-pair Smoke X4'
-                                  : 'Connect to re-pair',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    InlineNotice(
-                      icon: Icons.info_outline,
-                      title: 'Re-pairing keeps your history',
-                      message: 'It clears only the radio pairing. The bridge log and phone pairings are kept.',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
+import 'settings_views.dart';
 
 class BridgeDetailsScreen extends StatelessWidget {
   const BridgeDetailsScreen({super.key, required this.controller});
@@ -111,6 +20,13 @@ class BridgeDetailsScreen extends StatelessWidget {
       builder: (context, _) {
         final scheme = Theme.of(context).colorScheme;
         final connected = controller.isConnected;
+        final statusColor = connected
+            ? StatusColors.live(context)
+            : controller.phase == ConnectionPhase.reconnecting
+            ? StatusColors.aging(context)
+            : controller.phase == ConnectionPhase.blocked
+            ? scheme.error
+            : StatusColors.stale(context);
         return Scaffold(
           appBar: prototypeAppBar(context, controller, 'Bridge'),
           body: ListView(
@@ -149,7 +65,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                                           .titleMedium,
                                     ),
                                     Text(
-                                      'SmokeX4-${controller.deviceId}',
+                                      'Bridge ${controller.deviceId} · Bluetooth',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -160,22 +76,77 @@ class BridgeDetailsScreen extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              Pill(
-                                label: connected ? 'Connected' : 'Offline',
-                                color: connected
-                                    ? StatusColors.live(context)
-                                    : StatusColors.stale(context),
-                              ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              StatusLed(color: statusColor, active: connected),
+                              const SizedBox(width: 2),
+                              Text(
+                                controller.bridgeLinkStatusLabel,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                              const Spacer(),
+                              if (connected)
+                                Text(
+                                  'Battery ${controller.batteryPercent}%',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                ),
+                            ],
+                          ),
+                          if (connected) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Text(
+                                  'Signal',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                                const SizedBox(width: 9),
+                                SignalBars(
+                                  level: controller.signalBars,
+                                  color: statusColor,
+                                  semanticLabel:
+                                      '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  controller.signalQualityLabel,
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 3),
                           Text(
-                            connected
-                                ? 'Updated 4s ago · battery ${controller.batteryPercent}% · signal good'
-                                : 'Last sync 2 hours ago. Recording continues on the bridge.',
+                            controller.bridgeLastContactDetail,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
+                          if (!connected) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Recording continues on the Bridge.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
                           const SizedBox(height: 14),
                           Row(
                             children: [
@@ -230,6 +201,113 @@ class BridgeDetailsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     SectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.sensors,
+                                color: scheme.primary,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  'Smoke X4 pairing',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                              ),
+                              Pill(
+                                label: controller.smokeXLabel,
+                                color: !connected
+                                    ? StatusColors.stale(context)
+                                    : controller.smokeXReceiving
+                                    ? StatusColors.live(context)
+                                    : StatusColors.aging(context),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            controller.smokeXSubtitle,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 14),
+                          OutlinedButton.icon(
+                            key: const Key('bridge.repair'),
+                            onPressed: connected
+                                ? () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          RePairScreen(controller: controller),
+                                    ),
+                                  )
+                                : null,
+                            icon: const Icon(Icons.sync_alt, size: 18),
+                            label: Text(
+                              connected
+                                  ? 'Re-pair Smoke X4'
+                                  : 'Connect to re-pair',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SectionCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          SettingsTile(
+                            key: const Key('bridge.name'),
+                            icon: Icons.badge_outlined,
+                            title: 'Bridge name',
+                            subtitle: controller.canEdit
+                                ? controller.deviceName
+                                : '${controller.deviceName} · connect to change',
+                            onTap: controller.canEdit
+                                ? () =>
+                                      showBridgeNameDialog(context, controller)
+                                : null,
+                          ),
+                          const Divider(),
+                          SettingsTile(
+                            key: const Key('bridge.timeout'),
+                            icon: Icons.timer_outlined,
+                            title: 'Bridge screen timeout',
+                            subtitle: controller.canEdit
+                                ? _timeoutSubtitle()
+                                : '${_timeoutSubtitle()} · connect to change',
+                            onTap: controller.canEdit
+                                ? () => showBridgeTimeoutSheet(
+                                    context,
+                                    controller,
+                                  )
+                                : null,
+                          ),
+                          const Divider(),
+                          SettingsTile(
+                            key: const Key('bridge.billows'),
+                            icon: Icons.air,
+                            title: 'Billows',
+                            subtitle: controller.billowsSettingsSubtitle,
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => BillowsSettingsScreen(
+                                  controller: controller,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SectionCard(
                       padding: EdgeInsets.zero,
                       child: Theme(
                         data: Theme.of(context)
@@ -277,6 +355,10 @@ class BridgeDetailsScreen extends StatelessWidget {
                                   : '247',
                             ),
                             KeyValueRow(
+                              label: 'Last connected',
+                              value: connected ? 'Just now' : '2 hours ago',
+                            ),
+                            KeyValueRow(
                               label: 'Last sync',
                               value: connected
                                   ? '2 minutes ago'
@@ -288,65 +370,32 @@ class BridgeDetailsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     SectionCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.sensors,
-                                size: 20,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Smoke X4',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
-                                ),
-                              ),
-                              Pill(
-                                label: controller.smokeXLabel,
-                                color:
-                                    controller.smokeXStatus ==
-                                        SmokeXStatus.pairedLive
-                                    ? StatusColors.live(context)
-                                    : StatusColors.aging(context),
-                              ),
-                            ],
+                      padding: EdgeInsets.zero,
+                      child: Theme(
+                        data: Theme.of(context)
+                            .copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          key: const Key('bridge.connectionLog'),
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 2,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            controller.smokeXSubtitle,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          childrenPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            12,
                           ),
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: connected
-                                ? () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) =>
-                                          RePairScreen(controller: controller),
-                                    ),
-                                  )
-                                : null,
-                            icon: const Icon(Icons.sync_alt, size: 18),
-                            label: Text(
-                              connected
-                                  ? 'Re-pair Smoke X4'
-                                  : 'Connect to re-pair',
-                            ),
+                          leading: Icon(
+                            Icons.history,
+                            color: scheme.onSurfaceVariant,
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Re-pairing keeps the bridge log and phone pairings.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          title: const Text('Connection & pairing log'),
+                          subtitle: const Text(
+                            'Bridge, Smoke X4 and Billows events together',
                           ),
-                        ],
+                          children: [ConnectionLogList(controller: controller)],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -366,11 +415,11 @@ class BridgeDetailsScreen extends StatelessWidget {
                           ListTile(
                             enabled: connected,
                             leading: const Icon(Icons.power_settings_new),
-                            title: const Text('Power off bridge'),
+                            title: const Text('Power off Bridge'),
                             subtitle: Text(
                               connected
                                   ? 'Stop recording until you wake it'
-                                  : 'Connect to the bridge first',
+                                  : 'Connect to the Bridge first',
                             ),
                             onTap: connected
                                 ? () => powerOff(context, controller)
@@ -384,13 +433,13 @@ class BridgeDetailsScreen extends StatelessWidget {
                               color: scheme.error,
                             ),
                             title: Text(
-                              'Factory reset bridge',
+                              'Factory reset Bridge',
                               style: TextStyle(color: scheme.error),
                             ),
                             subtitle: Text(
                               connected
-                                  ? 'Wipes pairing, settings and the bridge log'
-                                  : 'Connect to the bridge first',
+                                  ? 'Wipes pairing, settings and the Bridge log'
+                                  : 'Connect to the Bridge first',
                             ),
                             onTap: connected
                                 ? () => factoryReset(context, controller)
@@ -404,7 +453,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                               style: TextStyle(color: scheme.error),
                             ),
                             subtitle: const Text(
-                              'Removes this phone’s pairing; keeps phone history',
+                              'Removes this phone’s pairing; keeps device log',
                             ),
                             onTap: () => showForgetFlow(context, controller),
                           ),
@@ -426,5 +475,10 @@ class BridgeDetailsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _timeoutSubtitle() {
+    if (controller.displayTimeoutSeconds == 0) return 'OLED stays on';
+    return '${controller.displayTimeoutLabel} · OLED sleep';
   }
 }

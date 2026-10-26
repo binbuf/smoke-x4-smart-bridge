@@ -26,13 +26,14 @@ scarce resource; do not use it to discover typos.
   recovery, empty log, full log, generation change, capacity arithmetic.
 - Sync: forward/backward, count limits, gap, generation change, disconnect
   mid-batch, MTU 23 and 247 frame reassembly.
-- Config: all fields, bad UTF-8, bad target, factory reset, pairing-store
-  clear.
-- Control: every op, malformed body, unknown op, unsupported Billows, op_id echo.
-- UI: framebuffer goldens for the pages/overlays in [07 §7.6](07-display-and-controls.md).
-- Invariant test: only the sync handler — plus the B5.0-A Billows handler when
-  that build option is compiled — can reach the radio TX function; an out-of-band
-  frequency never retunes or transmits, and the Billows frame is allow-listed.
+- Config: all active fields, bad UTF-8, reserved Billows fields ignored, factory
+  reset, pairing-store clear.
+- Control: every op, malformed body, unknown op, `set_billows_target` always
+  `unsupported`, op_id echo.
+- UI: framebuffer goldens for the pages in [07 §7.6](07-display-and-controls.md).
+- Invariant test: only the sync handler can reach the radio TX function; an
+  out-of-band frequency never retunes or transmits. Assert there is no Billows
+  transmit path.
 
 ### App
 
@@ -96,7 +97,7 @@ Run in this order; each row is evidence, not a checkbox.
 - [ ] Close/reopen app; auto-reconnect; history preserved.
 - [ ] Walk out of range; stale/offline; walk back; reconnect.
 - [ ] History ranges, filters, gaps, pan/zoom, no data, summary sort.
-- [ ] Settings units/display timeout/bridge name/Billows.
+- [ ] Settings units/display timeout/bridge name; Billows is read-only.
 - [ ] Re-pair the Smoke X4 from the app; stock receiver unaffected.
 - [ ] Delete 30/90/all; confirm counts and dates.
 - [ ] Factory reset from app; app returns to setup.
@@ -104,8 +105,10 @@ Run in this order; each row is evidence, not a checkbox.
 
 ### B4 — Billows
 
-Per [08 §8.8](08-billows.md). Observation must pass without a control path;
-control only after the B5.0 decision.
+Per [08 §8.8](08-billows.md). Observation only. Confirm attached/detach, target
+when validated (else `—`), units conversion, and no fan-running/duty claim.
+There is no control path to test. A post-MVP receive-only RF survey is separate
+and does not gate the release.
 
 ### B5 — Field
 
@@ -153,8 +156,8 @@ finding, not a reason to lower the bar after the fact.
 - [ ] `idf.py build` clean; host tests green.
 - [ ] Partition table matches [01 §1.8](01-hardware.md); no OTA slots.
 - [ ] Factory reset clears config, log, and bonds.
-- [ ] Only TX path is the sync ACK, plus the B5.0-A Billows frame if
-      `caps.billows_control` is set; invariant test green for the actual build.
+- [ ] Only TX path is the sync ACK. `caps.billows_control = 0`; invariant test
+      green for the actual build.
 - [ ] 24 h soak report committed.
 - [ ] Merged image + flash command documented.
 - [ ] `docs/hardware-verified.md` updated with dated results.
@@ -174,8 +177,9 @@ finding, not a reason to lower the bar after the fact.
 
 - [ ] One overnight cook completed.
 - [ ] Stock receiver unaffected.
-- [ ] Billows decision recorded and signed; option C has explicit owner
-      acceptance; release notes do not overclaim.
+- [ ] Billows decision recorded as observation only; owner acceptance is in
+      `docs/billows-decision.md`; release notes say "Set the target on the
+      Smoke X4."
 - [ ] Known limitations written down (no OTA, no alarms, no iOS, BLE range,
       battery runtime, lost-phone recovery).
 - [ ] A new user can follow the README from a blank phone/board to live data
@@ -193,7 +197,7 @@ finding, not a reason to lower the bar after the fact.
 | Record without phone | ring tests | power cut | overnight |
 | Four probes/detached | parser/codec | real probes | real cook |
 | Billows observe | parser/codec | real Billows | cook |
-| Billows control | op tests | only if B5.0/B5.2 | supervised |
+| Billows control | — | not implemented | — |
 | Efficient storage | capacity/recovery | ring rotation | 24 h |
 | BLE health/reconnect | fake + state tests | range walk | phone away |
 | Settings | widget tests | real writes | — |
@@ -220,10 +224,10 @@ Verified:
 Known limitations:
 - USB firmware update only
 - no alarms/notifications (use the Smoke X4's alarm)
-- Billows: observe only / control (choose one and be specific)
+- Billows: observed only; set the target on the Smoke X4
 - BLE range and phone-background behavior
 - recovery if all bonded phones are lost
 ```
 
-The release note must match the capability bits. If
-`caps.billows_control = 0`, the note says observe only.
+The release note must match the capability bits. The MVP always has
+`caps.billows_control = 0`, so the note says observed only.

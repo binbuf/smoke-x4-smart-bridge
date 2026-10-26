@@ -37,7 +37,7 @@ named cooks.
   input (copied into the new `protocol/fixtures/`, not read from `legacy/` at
   runtime).
 - The Billows field hypothesis and the questions that must be answered with a
-  real unit.
+  real unit. Control is not inherited; the MVP is observation-only.
 
 ### Code patterns that may be reused
 
@@ -98,7 +98,7 @@ These are recorded so the new implementation does not repeat them.
 | GATT write error path passed an uninitialized buffer | A `!= 0` branch used `sizeof buf + 1` | Codecs validate length before unpack; host tests cover malformed writes. |
 | Button gesture ladder / hidden reset gestures | Too many verbs on one button | Tap + hold only; factory reset is app-only; no boot-time menu/reset hold (the hold-to-wake confirmation is the sole boot-time hold). |
 | GPIO0 deep-sleep wake possibly enters ROM download | Strapping pin sampled at reset | Explicit V0 bench gate; fallback documented before shipping. |
-| Billows was decoded but never surfaced; target field unvalidated | No Billows unit was available | Observation is a first-class task; control is a gated decision, not a guess. |
+| Billows was decoded but never surfaced; target field unvalidated | No Billows unit was available | Observation is a first-class task. Control is not attempted: the Smoke X4 receiver cannot change set points, so the bridge cannot either. Target display waits for a passive B5.0 capture; extra RF telemetry is a post-MVP receive-only survey. |
 | OLED pages described features the device did not own (cook clock, session) | Display copied app concepts | Four pages contain only what the device knows. |
 | The app inherited a large design system and setup machine | The full product grew before the slim cut | New app starts at three destinations; no legacy UI code. |
 

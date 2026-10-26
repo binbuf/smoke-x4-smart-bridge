@@ -82,9 +82,10 @@ class AppTheme {
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
-        titleTextStyle: base.textTheme.titleLarge?.copyWith(
+        titleTextStyle: base.textTheme.headlineSmall?.copyWith(
           color: scheme.onSurface,
           fontWeight: FontWeight.w700,
+          letterSpacing: -0.5,
         ),
       ),
       cardTheme: CardThemeData(
@@ -93,7 +94,7 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           side: BorderSide(
             color: scheme.outlineVariant.withValues(alpha: isDark ? 0.6 : 0.8),
           ),
@@ -101,16 +102,23 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: isDark ? const Color(0xFF171411) : Colors.white,
-        indicatorColor: scheme.primaryContainer,
+        indicatorColor: scheme.primary.withValues(alpha: isDark ? 0.20 : 0.14),
         elevation: 0,
-        height: 72,
-        labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(
+        height: 70,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? scheme.primary : scheme.onSurfaceVariant,
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
+            color: selected ? scheme.primary : scheme.onSurfaceVariant,
+          );
+        }),
       ),
       dividerTheme: DividerThemeData(
         color: scheme.outlineVariant.withValues(alpha: 0.6),
@@ -205,7 +213,7 @@ class AppTheme {
   }
 }
 
-/// One accent per probe jack. These are used consistently in cards, the graph,
+/// One accent per probe. These are used consistently in cards, the graph,
 /// and the legend. The OLED is monochrome, so colors are app-only.
 class ProbeColors {
   const ProbeColors._();

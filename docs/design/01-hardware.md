@@ -18,9 +18,9 @@ used by the legacy build and enclosure.
 | Extras | PRG button (GPIO0), white LED (GPIO35), Vext gate (GPIO36) |
 
 **Do not power the board without the 915 MHz antenna fitted.** Transmitting into
-an open port can damage the SX1262 PA. The default MVP transmits only the
-pairing ACK; if B5.0 option A is approved, the one additional transmission is
-the narrow Billows target-set frame. The antenna stays on whenever powered.
+an open port can damage the SX1262 PA. The MVP transmits only the pairing ACK.
+There is no Billows transmit path; post-MVP Billows RF work is receive-only. The
+antenna stays on whenever powered.
 
 The V4 board is not a supported target. It may share the pin map; it is untested
 and must not be assumed.
@@ -48,8 +48,8 @@ and must not be assumed.
 | 19/20 | USB D−/D+ | Native USB |
 | 45/46 | Strapping | Avoid |
 
-Free pins: 2–7, 47, 48. They are reserved for a future Billows inline
-controller or a second button; nothing in the MVP uses them. **GPIO3 is also a
+Free pins: 2–7, 47, 48. They are reserved for a second button or a future
+Billows inline controller (post-MVP, not approved); nothing in the MVP uses them. **GPIO3 is also a
 strapping/JTAG strap on the ESP32-S3**, so verify the board schematic and the
 boot state before using it as an output; 47/48 are the safer expansion pins.
 
@@ -168,9 +168,9 @@ PRG button, USB-C, antenna, and a 3000 mAh pack. The MVP does not require a new
 case. Two caveats:
 
 - The case must not block the antenna or the battery connector.
-- If Billows control is implemented as an inline fan controller, it needs a
+- A future (post-MVP, not approved) Billows inline fan controller needs a
   separate enclosure/connector; do not try to fit mains/12 V switching inside
-  the existing case without a new design review.
+  the existing case without a new design review. The MVP has no fan output.
 
 ## 1.7 Billows hardware
 
@@ -178,13 +178,19 @@ The Billows is a 12 V fan. It is powered through a fan adapter that plugs into
 the Smoke X4's fan port. The Smoke X4 owns the fan control loop in the standard
 product.
 
-The bridge has **no proven electrical or RF control path** to the Billows. See
-[08 — Billows](08-billows.md). The only hardware statement that can be made now:
+The bridge has **no electrical or RF control path** to the Billows. The Smoke X4
+receiver itself cannot change set points or the Billows; only the base can. The
+MVP is observation-only. See [08 — Billows](08-billows.md) and
+[`../billows-decision.md`](../billows-decision.md).
+
+The only hardware statements that can be made now:
 
 - Do not connect 12 V to any ESP32 pin.
 - Do not assume the fan adapter's control signal is a 3.3 V PWM input.
-- Any inline controller needs a high-side switch, flyback protection, a fuse,
-  and a separate 12 V ground/return review before it is connected to a fan.
+- A future inline controller (post-MVP, not approved) needs a high-side switch,
+  flyback protection, a fuse, and a separate 12 V ground/return review before it
+  is connected to a fan.
+- Post-MVP Billows RF work is receive-only; there is no approved transmit path.
 
 ## 1.8 Flash partition
 

@@ -81,7 +81,7 @@ class _SetupScreenState extends State<SetupScreen> {
       listenable: controller,
       builder: (context, _) {
         return Scaffold(
-          appBar: prototypeAppBar(context, controller, 'Connect bridge'),
+          appBar: prototypeAppBar(context, controller, 'Connect Bridge'),
           body: SafeArea(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 220),
@@ -101,19 +101,19 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.bluetooth_searching,
           eyebrow: 'SETUP',
-          title: 'Connect your bridge',
+          title: 'Connect your Bridge',
           message:
               'Power it on. If the screen is off, hold PRG for 1.5 seconds.',
-          primaryLabel: 'Find bridge',
+          primaryLabel: 'Find Bridge',
           onPrimary: () => _go(SetupStep.scanning),
-          secondaryLabel: controller.hasSavedData ? 'View phone history' : null,
+          secondaryLabel: controller.hasSavedData ? 'View device log' : null,
           onSecondary: controller.hasSavedData
               ? () => _go(SetupStep.savedData)
               : null,
           child: controller.hasSavedData
               ? InlineNotice(
                   icon: Icons.folder_open_outlined,
-                  title: 'Phone history',
+                  title: 'Device log',
                   message:
                       '${commaInt(controller.phoneRecords)} readings · ${controller.savedDataRange}',
                 )
@@ -123,8 +123,8 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.bluetooth,
           eyebrow: 'PERMISSION',
-          title: 'Allow Bluetooth to find your bridge',
-          message: 'The app uses Bluetooth only to find and connect to your bridge. It does not use location, and there is no cloud account.',
+          title: 'Allow Bluetooth to find your Bridge',
+          message: 'The app uses Bluetooth only to find and connect to your Bridge. It does not use location, and there is no cloud account.',
           primaryLabel: 'Allow Bluetooth',
           onPrimary: () => _go(SetupStep.scanning),
           secondaryLabel: 'Not now',
@@ -133,7 +133,7 @@ class _SetupScreenState extends State<SetupScreen> {
             items: [
               'Nearby devices permission on Android 12+',
               'No location is read or stored',
-              'The bridge keeps recording while you set up',
+              'The Bridge keeps recording while you set up',
             ],
           ),
         );
@@ -142,7 +142,7 @@ class _SetupScreenState extends State<SetupScreen> {
           icon: Icons.bluetooth_disabled,
           eyebrow: 'BLUETOOTH OFF',
           title: 'Bluetooth is off.',
-          message: 'Turn Bluetooth on so the app can find your bridge. The bridge keeps recording while you do.',
+          message: 'Turn Bluetooth on so the app can find your Bridge. The Bridge keeps recording while you do.',
           primaryLabel: 'Open Bluetooth settings',
           onPrimary: () => _simulateSettings(
             context,
@@ -157,7 +157,7 @@ class _SetupScreenState extends State<SetupScreen> {
           eyebrow: 'PERMISSION',
           title: 'Bluetooth permission needed.',
           message:
-              'The app needs Nearby devices permission to scan for the bridge.',
+              'The app needs Nearby devices permission to scan for the Bridge.',
           primaryLabel: 'Grant permission',
           onPrimary: () => _go(SetupStep.scanning),
           secondaryLabel: 'Open settings',
@@ -185,7 +185,7 @@ class _SetupScreenState extends State<SetupScreen> {
           icon: Icons.phonelink_erase,
           eyebrow: 'UNSUPPORTED',
           title: 'This phone can’t scan for Bluetooth LE.',
-          message: 'Try a different Android phone. The bridge itself is unchanged and keeps recording.',
+          message: 'Try a different Android phone. The Bridge itself is unchanged and keeps recording.',
           primaryLabel: 'Close',
           onPrimary: () => Navigator.of(context).pop(),
         );
@@ -193,8 +193,8 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.radar,
           eyebrow: 'SCANNING',
-          title: 'Looking for your bridge…',
-          message: 'Scanning stops after 10 seconds. Your remembered bridge is preferred.',
+          title: 'Looking for your Bridge…',
+          message: 'Scanning stops after 10 seconds. Your remembered Bridge is preferred.',
           primaryLabel: 'Cancel',
           onPrimary: () => _go(SetupStep.noBridge),
           child: const Column(
@@ -205,7 +205,7 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.search_off,
           eyebrow: 'NO RESULTS',
-          title: 'No bridge found.',
+          title: 'No Bridge found.',
           message: 'Make sure it is on, then hold PRG for 1.5 s if it is asleep. Bluetooth range is usually about 10 m indoors.',
           primaryLabel: 'Retry',
           onPrimary: () => _go(SetupStep.scanning),
@@ -217,7 +217,7 @@ class _SetupScreenState extends State<SetupScreen> {
           footer: controller.hasSavedData
               ? TextButton(
                   onPressed: () => _go(SetupStep.savedData),
-                  child: const Text('View phone history instead'),
+                  child: const Text('View device log instead'),
                 )
               : null,
         );
@@ -233,8 +233,8 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.system_update_alt,
           eyebrow: 'APP UPDATE NEEDED',
-          title: 'This bridge needs a newer app.',
-          message: 'Update the app before pairing. The bridge is not changed.',
+          title: 'This Bridge needs a newer app.',
+          message: 'Update the app before pairing. The Bridge is not changed.',
           primaryLabel: 'Close',
           onPrimary: () => Navigator.of(context).pop(),
         );
@@ -278,7 +278,7 @@ class _SetupScreenState extends State<SetupScreen> {
           icon: Icons.link_off,
           eyebrow: 'PAIRING OUT OF DATE',
           title: 'This phone’s pairing is out of date.',
-          message: 'The bridge was reset, so the old pairing no longer works. Remove it and pair again. The bridge’s new identity is safe to trust.',
+          message: 'The Bridge was reset, so the old pairing no longer works. Remove it and pair again. The Bridge’s new identity is safe to trust.',
           primaryLabel: 'Forget pairing and re-pair',
           onPrimary: () => _go(SetupStep.passkey),
           secondaryLabel: 'Cancel',
@@ -288,7 +288,7 @@ class _SetupScreenState extends State<SetupScreen> {
         return _SetupPage(
           icon: Icons.people_outline,
           eyebrow: 'PHONE LIST FULL',
-          title: 'This bridge already has 4 phones paired.',
+          title: 'This Bridge already has 4 phones paired.',
           message: 'Forget one phone from a paired phone, then try again. The app checks this before showing the Android prompt.',
           primaryLabel: 'I’ve freed a slot',
           onPrimary: () => _go(SetupStep.passkey),
@@ -475,7 +475,7 @@ class _ScanResults extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Nearby bridges',
+                      'Nearby Bridges',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                   ),
@@ -488,7 +488,7 @@ class _ScanResults extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Remembered bridges are shown first.',
+                'Remembered Bridges are shown first.',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),
@@ -520,7 +520,7 @@ class _ScanResults extends StatelessWidget {
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.folder_open_outlined),
-                    title: const Text('Phone history'),
+                    title: const Text('Device log'),
                     subtitle: Text(
                       '${commaInt(controller.phoneRecords)} readings · ${controller.savedDataRange}',
                     ),
@@ -631,12 +631,12 @@ class _PasskeyPage extends StatelessWidget {
               ),
               const SizedBox(height: 22),
               Text(
-                'Pair with the bridge',
+                'Pair with the Bridge',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 10),
               Text(
-                'The bridge’s screen shows a 6-digit code. Enter it in the phone’s prompt.',
+                'The Bridge’s screen shows a 6-digit code. Enter it in the phone’s prompt.',
                 style: Theme.of(context).textTheme.bodyLarge
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
               ),
@@ -691,7 +691,7 @@ class _PasskeyPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                'Android will ask for this code. The app never shows it; it is only on the bridge OLED.',
+                'Android will ask for this code. The app never shows it; it is only on the Bridge OLED.',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.4),
               ),
@@ -742,7 +742,7 @@ class _BondingPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Enter the code shown on the bridge when Android asks for it.',
+                'Enter the code shown on the Bridge when Android asks for it.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium
                     ?.copyWith(color: scheme.onSurfaceVariant),
@@ -753,7 +753,7 @@ class _BondingPage extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: const [
-                      _BondStep(label: 'Connecting to the bridge', done: true),
+                      _BondStep(label: 'Connecting to the Bridge', done: true),
                       _BondStep(label: 'Pairing with the code', active: true),
                       _BondStep(label: 'Syncing recent history'),
                     ],
@@ -967,12 +967,12 @@ class _SavedDataStep extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Phone history',
+                'Device log',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
               Text(
-                'History on this phone is separate from the bridge. It is never deleted automatically.',
+                'History on this phone is separate from the Bridge. It is never deleted automatically.',
                 style: Theme.of(context).textTheme.bodyMedium
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.45),
               ),
@@ -980,8 +980,8 @@ class _SavedDataStep extends StatelessWidget {
               if (empty)
                 const EmptyState(
                   icon: Icons.folder_off_outlined,
-                  title: 'No phone history',
-                  message: 'There is no history on this phone yet. The bridge records whenever it is on and synced.',
+                  title: 'No device log',
+                  message: 'There is no history on this phone yet. The Bridge records whenever it is on and synced.',
                 )
               else
                 SectionCard(
@@ -1010,7 +1010,7 @@ class _SavedDataStep extends StatelessWidget {
                           ),
                           onPressed: () => _deleteSavedData(context),
                           icon: const Icon(Icons.delete_outline),
-                          label: const Text('Delete phone history'),
+                          label: const Text('Delete device log'),
                         ),
                       ),
                     ],
@@ -1034,12 +1034,12 @@ class _SavedDataStep extends StatelessWidget {
   Future<void> _deleteSavedData(BuildContext context) async {
     final confirmed = await showLossSheet(
       context,
-      title: 'Delete all phone history?',
+      title: 'Delete all device log?',
       intro: 'This deletes every reading stored on this phone. It cannot be undone.',
       bullets: [
         '${commaInt(controller.phoneRecords)} readings',
         controller.savedDataRange,
-        'The bridge is not changed and keeps recording.',
+        'The Bridge is not changed and keeps recording.',
       ],
       keepNote: 'This is the only copy of the history on this phone.',
       confirmLabel: 'Delete ${commaInt(controller.phoneRecords)} readings',

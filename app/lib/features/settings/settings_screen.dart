@@ -26,18 +26,39 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _BridgeCard(
-                    controller: controller,
-                    onTap: () => _push(
-                      context,
-                      BridgeDetailsScreen(controller: controller),
+                  SettingsGroup(
+                    title: 'Bridge',
+                    header: _BridgeStatusHeader(
+                      controller: controller,
+                      onOpen: () => _push(
+                        context,
+                        BridgeDetailsScreen(controller: controller),
+                      ),
                     ),
+                    children: const [],
+                  ),
+                  SettingsGroup(
+                    title: 'History & storage',
+                    children: [
+                      SettingsTile(
+                        key: const Key('settings.history.logs'),
+                        icon: Icons.sd_storage_outlined,
+                        title: 'Device & Bridge logs',
+                        subtitle:
+                            '${commaInt(controller.phoneRecords)} device · ${commaInt(controller.bridgeRecords)} Bridge readings',
+                        onTap: () => _push(
+                          context,
+                          HistoryStorageScreen(controller: controller),
+                        ),
+                      ),
+                    ],
                   ),
                   SettingsGroup(
                     title: 'Preferences',
                     children: [
                       _UnitsTile(controller: controller),
-                      _SettingsTile(
+                      SettingsTile(
+                        key: const Key('settings.appearance'),
                         icon: Icons.palette_outlined,
                         title: 'Appearance',
                         subtitle: controller.themeModeLabel,
@@ -49,79 +70,9 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                   SettingsGroup(
-                    title: 'Bridge',
-                    children: [
-                      _SettingsTile(
-                        icon: Icons.sensors,
-                        title: 'Smoke X4',
-                        subtitle: controller.smokeXLabel,
-                        onTap: () => _push(
-                          context,
-                          SmokeX4DetailsScreen(controller: controller),
-                        ),
-                      ),
-                      _SettingsTile(
-                        icon: Icons.air,
-                        title: 'Billows',
-                        subtitle: controller.billowsMode == BillowsMode.disabled
-                            ? 'Off'
-                            : '${controller.billowsModeLabel} · ${controller.billowsTargetKnown ? controller.tempFor(controller.billowsTargetF.toDouble()) : 'Target unknown'}',
-                        onTap: () => _push(
-                          context,
-                          BillowsSettingsScreen(controller: controller),
-                        ),
-                      ),
-                      _SettingsTile(
-                        icon: Icons.timer_outlined,
-                        title: 'Bridge screen timeout',
-                        subtitle: controller.canEdit
-                            ? controller.displayTimeoutLabel
-                            : '${controller.displayTimeoutLabel} · connect to change',
-                        onTap: controller.canEdit
-                            ? () => showBridgeTimeoutSheet(context, controller)
-                            : null,
-                      ),
-                      _SettingsTile(
-                        icon: Icons.badge_outlined,
-                        title: 'Bridge name',
-                        subtitle: controller.canEdit
-                            ? controller.deviceName
-                            : '${controller.deviceName} · connect to change',
-                        onTap: controller.canEdit
-                            ? () => showBridgeNameDialog(context, controller)
-                            : null,
-                      ),
-                    ],
-                  ),
-                  SettingsGroup(
-                    title: 'History & storage',
-                    children: [
-                      _SettingsTile(
-                        icon: Icons.phone_android,
-                        title: 'Phone history',
-                        subtitle:
-                            '${commaInt(controller.phoneRecords)} readings · ${controller.savedDataSize}',
-                        onTap: () => _push(
-                          context,
-                          HistoryStorageScreen(controller: controller),
-                        ),
-                      ),
-                      _SettingsTile(
-                        icon: Icons.sd_storage_outlined,
-                        title: 'Bridge log',
-                        subtitle:
-                            '${commaInt(controller.bridgeRecords)} readings · rolling',
-                        onTap: () => _push(
-                          context,
-                          HistoryStorageScreen(controller: controller),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SettingsGroup(
                     title: 'About',
                     children: [
-                      _SettingsTile(
+                      SettingsTile(
                         icon: Icons.info_outline,
                         title: 'About',
                         subtitle: 'App 0.1.0 · firmware ${controller.firmware}',
@@ -141,7 +92,7 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   Center(
                     child: Text(
-                      'Smoke X4 Smart Bridge · local only',
+                      'Smoke X4 Smart Bridge · Local only',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
@@ -160,97 +111,124 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class _BridgeCard extends StatelessWidget {
-  const _BridgeCard({required this.controller, required this.onTap});
+class _BridgeStatusHeader extends StatelessWidget {
+  const _BridgeStatusHeader({required this.controller, required this.onOpen});
 
   final PrototypeController controller;
-  final VoidCallback onTap;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final connected = controller.isConnected;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    final color = connected
+        ? StatusColors.live(context)
+        : controller.phase == ConnectionPhase.reconnecting
+        ? StatusColors.aging(context)
+        : controller.phase == ConnectionPhase.blocked
+        ? scheme.error
+        : StatusColors.stale(context);
+
+    return InkWell(
+      key: const Key('settings.bridge.status'),
+      onTap: onOpen,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(Icons.bluetooth, color: scheme.primary),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        controller.deviceName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        'Bridge ${controller.deviceId} · Bluetooth',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                StatusLed(color: color, active: connected),
+                const SizedBox(width: 2),
+                Text(
+                  controller.bridgeLinkStatusLabel,
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: color, fontWeight: FontWeight.w800),
+                ),
+                const Spacer(),
+                if (connected)
+                  Text(
+                    'Battery ${controller.batteryPercent}%',
+                    style: Theme.of(context).textTheme.labelSmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+              ],
+            ),
+            if (connected) ...[
+              const SizedBox(height: 6),
               Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Icon(Icons.bluetooth, color: scheme.primary),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          controller.deviceName,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          'SmokeX4-${controller.deviceId}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant),
-                        ),
-                      ],
+                  Text(
+                    'Signal',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  Pill(
-                    label: connected ? 'Connected' : 'Offline',
-                    color: connected
-                        ? StatusColors.live(context)
-                        : StatusColors.stale(context),
+                  const SizedBox(width: 9),
+                  SignalBars(
+                    level: controller.signalBars,
+                    color: color,
+                    semanticLabel:
+                        '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: scheme.onSurfaceVariant,
+                  const SizedBox(width: 7),
+                  Text(
+                    controller.signalQualityLabel,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                connected
-                    ? 'Updated 4s ago · battery ${controller.batteryPercent}% · signal good'
-                    : 'Last sync 2 hours ago. Recording continues on the bridge.',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  onPressed: () {
-                    if (connected) {
-                      controller.simulateSync();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Syncing forward (simulated)…'),
-                        ),
-                      );
-                    } else {
-                      controller.retryConnection();
-                    }
-                  },
-                  icon: const Icon(Icons.sync, size: 18),
-                  label: Text(connected ? 'Sync now' : 'Reconnect'),
-                ),
-              ),
             ],
-          ),
+            const SizedBox(height: 3),
+            Text(
+              controller.bridgeLastContactDetail,
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
         ),
       ),
     );
@@ -284,8 +262,8 @@ class _UnitsTile extends StatelessWidget {
                     ),
                     Text(
                       controller.isConnected
-                          ? 'Every reading, target and the bridge OLED'
-                          : 'The bridge OLED updates when you reconnect',
+                          ? 'Every reading, target and the Bridge OLED'
+                          : 'The Bridge OLED updates when you reconnect',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
@@ -298,6 +276,7 @@ class _UnitsTile extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: SegmentedButton<Units>(
+              key: const Key('settings.units'),
               showSelectedIcon: false,
               segments: const [
                 ButtonSegment(value: Units.fahrenheit, label: Text('°F')),
@@ -310,42 +289,6 @@ class _UnitsTile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SettingsTile extends StatelessWidget {
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final enabled = onTap != null;
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      enabled: enabled,
-      leading: Icon(
-        icon,
-        color: enabled ? scheme.onSurfaceVariant : scheme.outline,
-      ),
-      title: Text(title),
-      subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing: Icon(
-        Icons.chevron_right,
-        size: 20,
-        color: enabled ? scheme.onSurfaceVariant : scheme.outline,
-      ),
-      onTap: onTap,
     );
   }
 }

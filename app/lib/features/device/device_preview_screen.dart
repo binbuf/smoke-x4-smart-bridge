@@ -262,10 +262,10 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
               widget.controller.billowsAttachmentLabel.toLowerCase(),
             ),
             _oledRow(
-              'Target',
-              widget.controller.billowsTargetKnown
+              'CH 4 SET',
+              widget.controller.smokeXChannel4SetKnown
                   ? widget.controller.tempFor(
-                      widget.controller.billowsTargetF.toDouble(),
+                      widget.controller.smokeXChannel4SetF.toDouble(),
                     )
                   : '—',
             ),
@@ -273,13 +273,8 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
               'Pit',
               pit.connected ? widget.controller.valueFor(pit.tempF) : '—',
             ),
-            _oledRow('Mode', widget.controller.billowsModeLabel.toLowerCase()),
             const Spacer(),
-            Text(
-              widget.controller.isBillowsControl
-                  ? 'Set in the app'
-                  : 'Set on the Smoke X4',
-            ),
+            const Text('Set on the Smoke X4'),
           ],
         );
       case 4:

@@ -36,11 +36,14 @@ class HistoryStorageScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.phone_android, color: scheme.primary),
+                              Icon(
+                                Icons.developer_board_outlined,
+                                color: scheme.primary,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Phone history',
+                                  'Device log',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium,
@@ -68,7 +71,7 @@ class HistoryStorageScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Stays on this phone even if the bridge is reset.',
+                            'Stays on this device even if the Bridge is reset.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
@@ -80,7 +83,7 @@ class HistoryStorageScreen extends StatelessWidget {
                             ),
                             onPressed: () => _showDeleteOptions(context),
                             icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text('Delete phone history…'),
+                            label: const Text('Delete device log…'),
                           ),
                         ],
                       ),
@@ -138,7 +141,7 @@ class HistoryStorageScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'The bridge overwrites its oldest readings automatically.',
+                            'The Bridge overwrites its oldest readings automatically.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
@@ -157,8 +160,8 @@ class HistoryStorageScreen extends StatelessWidget {
                             ),
                             label: Text(
                               connected
-                                  ? 'Clear bridge log…'
-                                  : 'Connect to clear the bridge log',
+                                  ? 'Clear Bridge log…'
+                                  : 'Connect to clear the Bridge log',
                             ),
                           ),
                         ],
@@ -168,7 +171,7 @@ class HistoryStorageScreen extends StatelessWidget {
                     InlineNotice(
                       icon: Icons.info_outline,
                       title: 'Two separate copies',
-                      message: 'Deleting phone history does not clear the bridge log. Clearing the bridge log does not delete phone history.',
+                      message: 'Deleting device log does not clear the Bridge log. Clearing the Bridge log does not delete device log.',
                     ),
                   ],
                 ),
@@ -196,12 +199,12 @@ class HistoryStorageScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Delete phone history',
+                'Delete device log',
                 style: Theme.of(sheetContext).textTheme.headlineSmall,
               ),
               const SizedBox(height: 6),
               Text(
-                'Only readings on this phone are removed. The bridge is not changed.',
+                'Only readings on this device are removed. The Bridge is not changed.',
                 style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                   color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
                 ),
@@ -413,7 +416,7 @@ Future<void> showBridgeNameDialog(
   BuildContext context,
   PrototypeController controller,
 ) async {
-  final textController = TextEditingController(text: controller.deviceName);
+  var draft = controller.deviceName;
   final result = await showDialog<String>(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -422,12 +425,14 @@ Future<void> showBridgeNameDialog(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: textController,
+          TextFormField(
+            initialValue: draft,
             autofocus: true,
             maxLength: 15,
+            textInputAction: TextInputAction.done,
             decoration: const InputDecoration(hintText: 'Backyard Bridge'),
-            onSubmitted: (value) =>
+            onChanged: (value) => draft = value,
+            onFieldSubmitted: (value) =>
                 Navigator.of(dialogContext).pop(value.trim()),
           ),
           const SizedBox(height: 4),
@@ -445,8 +450,7 @@ Future<void> showBridgeNameDialog(
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () =>
-              Navigator.of(dialogContext).pop(textController.text.trim()),
+          onPressed: () => Navigator.of(dialogContext).pop(draft.trim()),
           child: const Text('Save'),
         ),
       ],
@@ -455,5 +459,4 @@ Future<void> showBridgeNameDialog(
   if (result != null && result.isNotEmpty) {
     controller.setDeviceName(result);
   }
-  textController.dispose();
 }

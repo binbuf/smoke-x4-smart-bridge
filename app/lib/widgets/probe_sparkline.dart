@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -98,11 +99,13 @@ class _SparklinePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
 
     final path = Path();
+    final offsets = <Offset>[];
     var active = false;
-    Offset? lastOffset;
+    var hasGap = false;
     for (final point in points) {
       if (point.valueF == null) {
         active = false;
+        hasGap = true;
         continue;
       }
       final x =
@@ -112,15 +115,33 @@ class _SparklinePainter extends CustomPainter {
           (1 - (_display(point.valueF!) - minValue) / (maxValue - minValue)) *
               height;
       final offset = Offset(x, y);
+      offsets.add(offset);
       if (!active) {
         path.moveTo(offset.dx, offset.dy);
         active = true;
       } else {
         path.lineTo(offset.dx, offset.dy);
       }
-      lastOffset = offset;
+    }
+    if (offsets.length > 1 && !hasGap) {
+      final fillPath = Path()
+        ..moveTo(offsets.first.dx, top + height)
+        ..lineTo(offsets.first.dx, offsets.first.dy);
+      for (final offset in offsets.skip(1)) {
+        fillPath.lineTo(offset.dx, offset.dy);
+      }
+      fillPath
+        ..lineTo(offsets.last.dx, top + height)
+        ..close();
+      final fill = Paint()
+        ..shader = ui.Gradient.linear(Offset(0, top), Offset(0, top + height), [
+          color.withValues(alpha: 0.18),
+          color.withValues(alpha: 0.0),
+        ]);
+      canvas.drawPath(fillPath, fill);
     }
     canvas.drawPath(path, line);
+    final lastOffset = offsets.isEmpty ? null : offsets.last;
 
     if (lastOffset != null) {
       final dot = Paint()..color = color;

@@ -63,7 +63,7 @@ public release. The app must not require manufacturer data.
 | 1 | 1 | `flags` | Same bits as `live.flags` |
 | 2 | 2 | `pit_temp_f10` | P4 (the fixed pit/Billows channel), tenths °F; sentinels allowed |
 | 4 | 1 | `battery_pct` | 0–100, or 255 unknown |
-| 5 | 2 | `billows_target_f10` | Observed/controlled target; 0 unknown |
+| 5 | 2 | `billows_target_f10` | Observed target set on the Smoke X4; 0 unknown |
 | 7 | 1 | `age_s` | Seconds since last valid Smoke X4 packet, clamped 0–255 |
 | 8 | 1 | reserved | 0 |
 
@@ -117,7 +117,7 @@ Fixed 32 B. Safe to read before bonding.
 | Bit | Meaning |
 |---|---|
 | 0 | `billows_observe` — the bridge decodes attached/target fields |
-| 1 | `billows_control` — the bridge can set a target and drive the fan |
+| 1 | `billows_control` — **reserved; always 0 in the MVP** (no target setter, no fan output) |
 | 2 | `history` — sync is supported |
 | 3 | `battery` — a real battery reading exists |
 | 4 | `display_config` — display timeout/units configurable |
@@ -126,7 +126,8 @@ Fixed 32 B. Safe to read before bonding.
 | 7 | `config` — the config characteristic is writable |
 
 A client must not invent a capability the bit does not set. In particular,
-`billows_control = 0` means the target field is read-only.
+`billows_control = 0` means Billows is observation-only: the target field is
+read-only and the app must not show a target setter. The MVP always reports 0.
 
 ## 5.4 `0002 live` — Read, Notify, encrypted
 
@@ -151,7 +152,7 @@ live telemetry still works if MTU negotiation fails.
 | 0 | `smoke_paired` |
 | 1 | `smoke_live` — a valid state packet within the last 90 s |
 | 2 | `billows_attached` — observed from the Smoke X4 |
-| 3 | `billows_output` — the bridge is currently driving a fan output |
+| 3 | `billows_output` — **reserved; always 0 in the MVP** |
 | 4 | `clock_valid` |
 | 5 | `storage_ok` — the sample log is writable |
 | 6 | `display_on` |
@@ -187,7 +188,7 @@ must not reuse an outstanding `op_id`.
 | 3 | `factory_reset` | — | Wipe config, bonds, history; reboot |
 | 4 | `power_off` | — | Enter deep sleep |
 | 5 | `clear_history` | — | Erase the sample ring; keep config/pairing; new generation |
-| 6 | `set_billows_target` | `target_f10 i16` | Set fan target; only if `caps.billows_control` |
+| 6 | `set_billows_target` | `target_f10 i16` | **Reserved.** Always `unsupported` in the MVP; the app never sends it |
 | 7 | `unpair_smoke_x` | — | Forget the Smoke X4 pairing, keep log/config/bonds, restart the 915/920 scan |
 
 Rules:
@@ -202,8 +203,9 @@ Rules:
   result notification can leave before the link drops or the device reboots.
 - `factory_reset` wipes before scheduling the reboot; a lost timer must not
   leave a half-wiped device.
-- `set_billows_target` returns `unsupported` when `caps.billows_control = 0` or
-  the chosen Billows mode is observe-only.
+- `set_billows_target` always returns `unsupported` in the MVP
+  (`caps.billows_control = 0`). There is no fan output and no Billows TX path.
+  The op stays reserved so a future control build can add it without a wire break.
 - `unpair_smoke_x` answers `ok`, clears the stored device ID/frequency, keeps the
   log and phone bonds, and starts the sync scan. The app then tells the user to
   put the Smoke X4 in SYNC.
@@ -287,18 +289,19 @@ Fixed 80 B.
 | 1 | 1 | `units`: 0 °C, 1 °F (OLED display; stored samples are always °F) |
 | 2 | 2 | `display_timeout_s` u16; 0 = never |
 | 4 | 16 | `device_name` UTF-8, NUL-padded (≤15 chars) |
-| 20 | 2 | `billows_target_f10` i16; 0 = none |
-| 22 | 1 | `billows_mode`: 0 observe, 1 control, 2 disabled |
+| 20 | 2 | `billows_target_f10` i16 — **reserved, ignored/unwritten in the MVP** |
+| 22 | 1 | `billows_mode` — **reserved, must be 0 in the MVP**; 1 control is refused |
 | 23 | 57 | reserved (probe names/roles were removed from the MVP) |
 
 Read returns current values. Write replaces the whole struct and validates:
 
 - `device_name` is valid UTF-8, NUL-terminated within its field;
 - display timeout is one of 30/60/120/0;
-- target is 32–572 °F when in control mode;
-- `billows_mode = control` is refused if `caps.billows_control = 0`.
+- `billows_mode` must be 0 (observe); any control value is refused with
+  `unsupported` because `caps.billows_control = 0`;
+- the reserved target field is ignored; the app has no target editor.
 
-Probe identity is jack order and colour in the app (`P1`–`P4`); there are no
+Probe identity is probe order and colour in the app (`P1`–`P4`); there are no
 probe names or roles in the MVP. P4 is the fixed Billows/pit channel on the
 Smoke X4. The 80-byte characteristic is kept for now with the former
 name/role bytes reserved, so the packet size does not churn before M0.
@@ -344,7 +347,7 @@ Fixed 60 B.
 | 4 | `clock_valid` |
 | 5 | `storage_ok` |
 | 6 | `billows_attached` |
-| 7 | `billows_control` |
+| 7 | `billows_control` (reserved; always 0 in the MVP) |
 
 ## 5.11 Security
 
@@ -463,7 +466,7 @@ Host tests must include at least:
 - `info` with all caps and with `billows_control = 0`;
 - `live` four attached, one detached, all detached, clock invalid, Billows
   attached;
-- `config` min/max device name, timeout, units, control mode refusal;
+- `config` min/max device name, timeout, units, and reserved control-mode refusal;
 - `stats` at empty log and full ring;
 - `control` each op, malformed bodies, wrong length, unknown op;
 - `result` status/detail truncation;

@@ -12,9 +12,8 @@
 4. **One owner per resource.** NVS belongs to `bridge_config`; flash belongs to
    `sample_log`; the SX1262 belongs to `sx_radio`; the GATT server belongs to
    `ble_service`.
-5. **No hidden transmissions.** In the default build the only LoRa TX call path
-   is the pairing ACK. If B5.0 option A is approved, the only additional path is
-   the allow-listed, range-checked Billows target-set frame.
+5. **No hidden transmissions.** The only LoRa TX call path is the pairing ACK.
+   There is no Billows transmit path; post-MVP Billows RF work is receive-only.
 
 ## 3.2 Component map
 
@@ -201,7 +200,7 @@ versioned struct and change notifications.
 | Namespace | Keys |
 |---|---|
 | `pair` | device_id, frequency_hz, num_probes, paired_at |
-| `device` | units, display_timeout_s, device_name, billows_mode, billows_target_f10 |
+| `device` | units, display_timeout_s, device_name; `billows_mode`/`billows_target_f10` are reserved and unwritten in the MVP |
 | `log` | generation, clear_pending, clock_anchor_s, clock_valid (the sequence is recovered from flash) |
 | `stats` | boot_count, last_reset_reason, packets_ok, packets_bad |
 | BLE bonds | NimBLE's own NVS namespace (documented exception) |

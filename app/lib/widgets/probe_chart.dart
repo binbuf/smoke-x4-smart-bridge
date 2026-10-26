@@ -27,6 +27,7 @@ class HistoryChart extends StatelessWidget {
     this.viewEnd = 1,
     this.cursorTime,
     this.use24Hour = false,
+    this.latestIsNow = true,
   });
 
   final HistoryFixture fixture;
@@ -37,6 +38,7 @@ class HistoryChart extends StatelessWidget {
   final double viewEnd;
   final DateTime? cursorTime;
   final bool use24Hour;
+  final bool latestIsNow;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +71,7 @@ class HistoryChart extends StatelessWidget {
               viewEnd: viewEnd,
               cursorTime: cursorTime,
               use24Hour: use24Hour,
+              latestIsNow: latestIsNow,
             ),
           ),
         );
@@ -114,6 +117,7 @@ class _HistoryChartPainter extends CustomPainter {
     required this.viewEnd,
     required this.cursorTime,
     required this.use24Hour,
+    required this.latestIsNow,
   });
 
   final HistoryFixture fixture;
@@ -128,6 +132,7 @@ class _HistoryChartPainter extends CustomPainter {
   final double viewEnd;
   final DateTime? cursorTime;
   final bool use24Hour;
+  final bool latestIsNow;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -203,11 +208,14 @@ class _HistoryChartPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round;
 
       final path = Path();
+      final offsets = <Offset>[];
       var active = false;
+      var hasGap = false;
       Offset? lastOffset;
       for (final point in series.points) {
         if (point.valueF == null) {
           active = false;
+          hasGap = true;
           continue;
         }
         if (point.time.isBefore(viewStartTime) ||
@@ -225,6 +233,7 @@ class _HistoryChartPainter extends CustomPainter {
                 (maxValue - minValue) *
                 chart.height;
         final offset = Offset(x, y);
+        offsets.add(offset);
         if (!active) {
           path.moveTo(offset.dx, offset.dy);
           active = true;
@@ -235,6 +244,24 @@ class _HistoryChartPainter extends CustomPainter {
       }
       canvas.save();
       canvas.clipRect(chart);
+      if (visibleProbe != null && offsets.length > 1 && !hasGap) {
+        final fillPath = Path()
+          ..moveTo(offsets.first.dx, chart.bottom)
+          ..lineTo(offsets.first.dx, offsets.first.dy);
+        for (final offset in offsets.skip(1)) {
+          fillPath.lineTo(offset.dx, offset.dy);
+        }
+        fillPath
+          ..lineTo(offsets.last.dx, chart.bottom)
+          ..close();
+        final fill = Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(0, chart.top),
+            Offset(0, chart.bottom),
+            [color.withValues(alpha: 0.20), color.withValues(alpha: 0.0)],
+          );
+        canvas.drawPath(fillPath, fill);
+      }
       canvas.drawPath(path, paint);
       canvas.restore();
       if (lastOffset != null) {
@@ -248,7 +275,14 @@ class _HistoryChartPainter extends CustomPainter {
       }
     }
 
-    _drawXAxisLabels(canvas, chart, viewStartTime, viewEndTime, spanMs);
+    _drawXAxisLabels(
+      canvas,
+      chart,
+      viewStartTime,
+      viewEndTime,
+      spanMs,
+      atLatest: viewEnd > 0.999 && latestIsNow,
+    );
     _drawUnit(canvas, size);
 
     if (cursorTime != null &&
@@ -273,18 +307,15 @@ class _HistoryChartPainter extends CustomPainter {
 
   List<double> _niceTicks(double minValue, double maxValue) {
     final range = math.max(1.0, maxValue - minValue);
-    final rough = range / 4;
+    final rough = range / 5;
     final magnitude = math.pow(10, (math.log(rough) / math.ln10).floor());
     final normalized = rough / magnitude;
-    double niceNormalized;
-    if (normalized <= 1) {
-      niceNormalized = 1;
-    } else if (normalized <= 2) {
-      niceNormalized = 2;
-    } else if (normalized <= 5) {
-      niceNormalized = 5;
-    } else {
-      niceNormalized = 10;
+    const choices = [1.0, 2.0, 2.5, 5.0, 10.0];
+    var niceNormalized = choices.first;
+    for (final choice in choices.skip(1)) {
+      if ((choice - normalized).abs() < (niceNormalized - normalized).abs()) {
+        niceNormalized = choice;
+      }
     }
     final step = niceNormalized * magnitude;
     final niceMin = (minValue / step).floor() * step;
@@ -322,7 +353,10 @@ class _HistoryChartPainter extends CustomPainter {
   }
 
   void _drawYAxisLabels(Canvas canvas, Rect chart, List<double> ticks) {
+    final labelEvery = ticks.length > 6 ? 2 : 1;
     for (var i = 0; i < ticks.length; i++) {
+      final isLast = i == ticks.length - 1;
+      if (i % labelEvery != 0 && !isLast) continue;
       final label = '${ticks[ticks.length - 1 - i].round()}°';
       final painter = TextPainter(
         text: TextSpan(
@@ -356,15 +390,18 @@ class _HistoryChartPainter extends CustomPainter {
     Rect chart,
     DateTime viewStartTime,
     DateTime viewEndTime,
-    int spanMs,
-  ) {
+    int spanMs, {
+    bool atLatest = false,
+  }) {
     final span = viewEndTime.difference(viewStartTime);
     const divisions = 3;
     for (var i = 0; i <= divisions; i++) {
       final time = viewStartTime.add(
         Duration(milliseconds: (spanMs * i / divisions).round()),
       );
-      final label = chartTime(time, span, use24Hour: use24Hour);
+      final label = i == divisions && atLatest
+          ? 'Now'
+          : chartTime(time, span, use24Hour: use24Hour);
       final painter = TextPainter(
         text: TextSpan(
           text: label,
@@ -498,6 +535,7 @@ class _HistoryChartPainter extends CustomPainter {
         oldDelegate.viewEnd != viewEnd ||
         oldDelegate.cursorTime != cursorTime ||
         oldDelegate.use24Hour != use24Hour ||
+        oldDelegate.latestIsNow != latestIsNow ||
         oldDelegate.colors != colors ||
         oldDelegate.gridColor != gridColor ||
         oldDelegate.labelStyle != labelStyle;
