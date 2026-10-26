@@ -1,0 +1,318 @@
+# 03 — Firmware Architecture
+
+## 3.1 Principles
+
+1. **Recording is the product.** The radio, parser, and flash writer come up
+   before BLE and the UI. A BLE failure never stops a sample from being stored.
+2. **Host-testable logic has no ESP-IDF dependency.** Protocol parsing, record
+   encoding, ring geometry, sync framing, and config validation build and test
+   with a plain C compiler.
+3. **No dynamic allocation on the sample path.** The payload is at most ~128 B;
+   all buffers are fixed or stack.
+4. **One owner per resource.** NVS belongs to `bridge_config`; flash belongs to
+   `sample_log`; the SX1262 belongs to `sx_radio`; the GATT server belongs to
+   `ble_service`.
+5. **No hidden transmissions.** In the default build the only LoRa TX call path
+   is the pairing ACK. If B5.0 option A is approved, the only additional path is
+   the allow-listed, range-checked Billows target-set frame.
+
+## 3.2 Component map
+
+```
+firmware/
+├── main/
+│   ├── main.c                 app_main: wiring only
+│   ├── boot.c                 ordered, failure-tolerant boot
+│   ├── tasks.h                every task's stack/priority/core in one table
+│   └── CMakeLists.txt
+├── components/
+│   ├── sx_protocol/           pure C: payload parsing, sample conversion
+│   ├── sx_radio/              SX1262 driver wrapper + pairing state machine
+│   ├── sample_log/            pure C geometry + IDF flash adapter
+│   ├── bridge_config/         typed NVS config, pairing, bonds metadata
+│   ├── bridge_state/          live snapshot, clock, counters
+│   ├── ble_service/           NimBLE GATT server, advertising, security
+│   ├── ui/                    SSD1306 driver, pages, button, power
+│   └── board/                 pin definitions, battery ADC, Vext, watchdogs
+├── vendor/
+│   └── esp-idf-sx126x/        pinned ra01s driver
+├── test/                      plain CMake host tests
+├── partitions.csv
+├── sdkconfig.defaults
+├── sdkconfig.defaults.heltec-v3
+└── Makefile
+```
+
+`BLE service` and `ui` are ESP-IDF components; their **models and renderers**
+are pure C and host-tested. `sample_log` splits into `log_core.c` (pure ring
+geometry and record encoding) and `log_flash.c` (partition read/write/erase).
+
+### What is reused from `legacy/`
+
+- `smoke_x_parser.c` / `smoke_x_types.h` shape and MIT notice, reworked for the
+  new record format and strict X4 handling.
+- The pinned `ra01s` SX1262 driver and radio parameter block.
+- The proven GATT security model (passkey + bonding + encrypted/authenticated
+  characteristics) and the chunked-notification pattern.
+- The hardware facts in [01](01-hardware.md).
+
+No app UI, session model, alarm engine, network stack, or design system is
+carried over. See [09](09-legacy-audit.md).
+
+## 3.3 Tasks
+
+One table, compiled into an assert that the declared stack total stays under
+budget.
+
+| Task | Stack | Prio | Core | Role |
+|---|---:|---:|---|---|
+| `radio_rx` | 4096 | 6 | 1 | Poll SX1262; hand payload + RSSI/SNR to `sx_radio` |
+| `sample_pipe` | 4096 | 5 | 0 | Parse, build record, publish live state, enqueue log write |
+| `log_writer` | 4096 | 4 | 0 | Append records, erase/rotate sectors, update counters |
+| `ble_host` | NimBLE | 5 | 0 | NimBLE host/controller task (created by the stack) |
+| `ble_tx` | 3072 | 4 | 0 | Serialize live/sync notifications; one writer at a time |
+| `ui` | 4096 | 3 | 0 | Button scan, page render, display sleep |
+| `housekeeping` | 3072 | 2 | 0 | Battery sample, watchdog feed, stats snapshot, clock persistence |
+
+Total application stacks: ~22.5 KB. With no Wi-Fi and no HTTP server, the
+firmware should keep ≥ 120 KB free heap after BLE is up; measure it in V0.
+
+The radio task is pinned to core 1, away from the BLE host on core 0. The
+SX1262 driver polls with `vTaskDelay(1)`; at one packet per 30 s this is a
+correctness-first choice, not a throughput design. A DIO1 interrupt path is a
+post-MVP optimization.
+
+## 3.4 Boot sequence
+
+```
+app_main
+  1  nvs_flash_init()                          fatal on failure
+  2  bridge_config_init()                      load config/pairing/counters
+  3  board_power_init()                        Vext, battery ADC, rails
+  4  ui_init()                                 splash + version
+  5  sample_log_init()                         mount raw partition, recover ring
+  6  sx_protocol_init()                        static validation tables
+  7  sx_radio_init()                           SX1262 reset/config
+  8  sx_radio_start()                          paired: tune + RX
+                                                unpaired: 915/920 scan
+  9  ble_service_start()                       advertising begins
+ 10  housekeeping_start()
+ 11  ui_start()                                first page
+```
+
+Ordering rationale: samples can be captured before BLE is ready. If BLE init
+fails, the bridge still records and displays. If the log mount fails, the bridge
+still shows live temperatures but announces "storage unavailable" on the OLED
+and in `stats`; it does not pretend to record.
+
+`ui_init` must be before `sample_log_init` only because the display is the
+diagnostic surface for a log failure. It is not a data dependency.
+
+## 3.5 Runtime state
+
+### 3.5.1 Power state
+
+```
+BOOT → ON_IDLE (advertising) ⇄ CONNECTED
+  │          │                     │
+  │          └──── hold PRG ────────┘
+  │                    │
+  │                    ▼
+  └─────────────► POWER_OFF (deep sleep)
+                       │ hold PRG
+                       └──────► BOOT
+```
+
+`app power_off` can also move `CONNECTED` or `ON_IDLE` to `POWER_OFF`; the app
+sends the op, the device answers, then sleeps.
+
+`ON_IDLE` means on, not connected. `CONNECTED` means the single active BLE
+central is connected. Advertising is active in `ON_IDLE`; it stops in
+`CONNECTED` and restarts on disconnect.
+
+### 3.5.2 BLE link state
+
+`ADVERTISING → CONNECTED → SECURED → SUBSCRIBED → STREAMING`
+
+- `CONNECTED` but not `SECURED`: only `info` is readable; `live`, `stats`,
+  `sync_*`, and `control` reject with Insufficient Encryption (0x0F) or
+  Insufficient Authentication (0x05), depending on the link state.
+- `SECURED`: bond complete.
+- `SUBSCRIBED`: the app has enabled `live` notifications.
+- `STREAMING`: a sync response is in flight; live notifications still flow.
+
+A sync request from an unsecured link is refused, not queued.
+
+### 3.5.3 Smoke X link state
+
+`UNPAIRED → SYNC_RECEIVED → CONFIRMED (PAIRED) → LOST → PAIRED`
+
+`LOST` is a UI/status state, not an unpair. It is entered after 10 minutes
+without a valid state packet. The radio stays tuned; a returning packet moves
+back to `PAIRED`. `PAIRED` or `LOST` → `UNPAIRED` happens only through the
+app's `unpair_smoke_x` op; a reboot does not clear pairing.
+
+### 3.5.4 Storage state
+
+`OK → NEAR_FULL → READ_ONLY` (unrecoverable flash error) or `OK → ROTATING`.
+
+Rotation is normal and must not be surfaced as an error. `NEAR_FULL` is
+practically unreachable because the ring always frees the oldest sector; keep it
+as a diagnostic.
+
+## 3.6 Sample pipeline
+
+```
+SX1262 packet
+  │
+  ▼
+radio_rx
+  │  payload[128], rssi, snr
+  ▼
+sx_radio (pairing/ID/frequency validation)
+  │  parsed state, UTC now
+  ▼
+sample_pipe
+  ├─► bridge_state_update(live snapshot)
+  ├─► log_writer queue (fixed 18-byte record)
+  └─► ble_tx queue (20-byte live notification)
+        │
+        ▼
+      ui marks dirty
+```
+
+Rules:
+
+- The parser rejects malformed input; counters increment; no partial record is
+  written.
+- Device ID mismatch is dropped and counted.
+- Detached probes become `TEMP_DETACHED` before the record is built.
+- The log write is queued; if the queue is full, the sample is dropped and
+  `dropped_samples` increments. At 30 s cadence this should never happen; if it
+  does, it is visible.
+- Live notification is best-effort. A missed notification is recovered by sync;
+  it is not a data-loss path.
+
+## 3.7 Configuration
+
+`bridge_config` is the only component that opens NVS. It exposes a typed,
+versioned struct and change notifications.
+
+| Namespace | Keys |
+|---|---|
+| `pair` | device_id, frequency_hz, num_probes, paired_at |
+| `device` | units, display_timeout_s, device_name, billows_mode, billows_target_f10 |
+| `log` | generation, clear_pending, clock_anchor_s, clock_valid (the sequence is recovered from flash) |
+| `stats` | boot_count, last_reset_reason, packets_ok, packets_bad |
+| BLE bonds | NimBLE's own NVS namespace (documented exception) |
+
+Rules:
+
+- `config_version` gates forward migrations.
+- Writes are validated before they are persisted; a bad app write returns
+  `invalid` and changes nothing.
+- Factory reset erases all namespaces **and** calls NimBLE's bond store clear.
+- `generation` is a **new random value** on any log clear/factory reset/whole-log
+  corruption; it is the app's signal that its cursor is invalid. A single bad
+  sector does not change it. `clear_pending` records an interrupted clear so the
+  boot path can finish the erase and ignore old-generation sectors.
+- Pairing data is independent of log data: forgetting phones does not unpair the
+  Smoke X4; clearing the log does not unpair.
+
+## 3.8 Clock
+
+The board has no RTC. `bridge_state` keeps:
+
+- `unix_s` — current best wall clock (0 = unknown),
+- `clock_valid` — true after an app `set_time` or a persisted anchor,
+- `last_anchor_uptime_s` — for monotonic advancement.
+
+On boot, load the last persisted `unix_s` plus the elapsed deep-sleep/off time if
+known; mark it `estimated`. The app sets the clock on every connect when the
+delta exceeds 2 s. Records written while the clock is unknown carry `unix_s = 0`
+and `clock_valid = 0`; the app can still place them relative to `seq`.
+
+Persist the clock anchor every 10 minutes to NVS. Do not write NVS per sample.
+
+## 3.9 BLE service
+
+NimBLE, one custom GATT service. The contract is in
+[05 — BLE Contract](05-ble-contract.md).
+
+- Advertising starts at boot when not connected and restarts on disconnect,
+  failed connect, and advertising timeout.
+- `info` is open; everything else requires encryption; `control` and `config`
+  writes require an authenticated (passkey) bond.
+- A six-digit passkey is generated when bonding starts and shown on the OLED.
+- Max 4 bonds, one active connection. `info.bonds_free` is published so the app
+  can refuse a bond before the OS prompt when the store is full.
+- Request ATT MTU 247. The fixed **notification** payload (`live`) is 20 B, so
+  live telemetry works even at the default MTU 23; larger reads use Read Blob
+  and `config` writes use queued writes.
+- Sync uses a framed byte stream that works at any MTU (see 05 §5.7–§5.8).
+
+## 3.10 UI and power
+
+- Pages and gestures are specified in [07](07-display-and-controls.md).
+- The UI task samples PRG at 20 ms with a 30 ms debounce.
+- Display timeout default 60 s; the panel and I²C traffic stop when asleep.
+- Hold-to-power-off shows a countdown and commits on release. Deep sleep turns
+  Vext off and sleeps the SX1262.
+- The app can request power-off; the device answers first, then sleeps.
+
+## 3.11 Reliability
+
+- Task watchdog subscribed by all application tasks (5 s).
+- Brownout detector enabled above the flash-write-unsafe threshold.
+- Panic handler writes a coredump to the coredump partition; the next boot logs
+  a one-line summary and preserves it for USB retrieval. The MVP does not add a
+  separate phone notification or fault screen.
+- Log recovery after power loss is described in [04 §4.3](04-data-and-storage.md).
+- The radio task and log writer must not block on BLE. Use bounded queues and
+  drop-with-counter rather than blocking the sample path.
+
+## 3.12 Memory budget
+
+| Consumer | Estimate |
+|---|---:|
+| NimBLE host/controller | 80–110 KB |
+| Application stacks | ~22.5 KB |
+| UI framebuffer + font | ~3 KB |
+| Radio buffers + driver | ~4 KB |
+| Log write/read buffers | ~8 KB |
+| GATT/sync scratch | ~4 KB |
+| FreeRTOS objects, NVS, misc | ~20 KB |
+| **Expected free heap after boot** | **≥ 120 KB** |
+
+If free heap is below 80 KB with a phone connected, the build is not releaseable.
+Measure `heap_free` / `heap_min` in `stats` and during the 24 h soak.
+
+## 3.13 Build and flash
+
+ESP-IDF 6.0.x, target `esp32s3`, NimBLE, no Wi-Fi, no HTTP server, no OTA.
+
+```bash
+# host tests: no ESP-IDF required
+cmake -S firmware/test -B firmware/test/build -G Ninja
+cmake --build firmware/test/build
+ctest --test-dir firmware/test/build
+
+# firmware
+idf.py -B build -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
+idf.py -B build -p COMx flash monitor
+```
+
+CI runs the host tests and `idf.py build` for the Heltec target. A release is a
+merged image plus a version string; the app displays the version but cannot
+update it.
+
+## 3.14 Test seams
+
+- `sx_protocol` is pure C and takes a payload string.
+- `sample_log` core takes a `log_io` interface (`read`, `write`, `erase`) so a
+  RAM-backed fake can simulate wrap, torn writes, and corruption.
+- `bridge_state` takes a clock function.
+- `ble_service` payload encoders are pure functions; the NimBLE callbacks are
+  thin.
+- `ui` renderers take a snapshot struct and write a 1 KB framebuffer; host tests
+  compare framebuffer goldens.

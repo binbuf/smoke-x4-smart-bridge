@@ -1,0 +1,426 @@
+# 04 — Data, Storage & Sync
+
+## 4.1 The short answer
+
+The bridge keeps a **single continuous rolling log**. There are no cook
+sessions, names, marks, or close/open transitions. Every valid Smoke X4 state
+packet becomes one fixed 18-byte record. When the log is full, the oldest 4 KB
+sector is erased and reused.
+
+| | |
+|---|---:|
+| Sample cadence | 30 s nominal |
+| Record size | **18 bytes** |
+| Data partition | **5.875 MB** (6,160,384 B) |
+| Sector size | 4 KB |
+| Records per sector | 225 |
+| Sectors | 1,504 |
+| Records total | **338,400** |
+| Continuous recording | **~117.5 days** |
+| A 24 h cook | ~52 KB |
+| A 12 h cook | ~26 KB |
+
+The app stores every record it has ever synced. The bridge rotating a sector is
+not a request for the app to delete anything.
+
+## 4.2 Record format
+
+Packed, little-endian, no padding. Defined once in `protocol/records.yaml` and
+generated into C and Dart.
+
+```c
+typedef struct __attribute__((packed)) {
+    uint8_t  seq[3];      /* 0  monotonic sample id, u24 LE                 */
+    uint32_t unix_s;      /* 3  UTC seconds; 0 = clock was not set           */
+    int16_t  temp[4];     /* 7  tenths °F; TEMP_DETACHED / TEMP_INVALID      */
+    uint8_t  flags;       /* 15 see below                                    */
+    uint16_t crc16;       /* 16 CRC-16/CCITT-FALSE over bytes 0..15           */
+} sample_rec_t;           /* == 18 bytes                                      */
+```
+
+`seq` is a 24-bit integer, max 16,777,215. At 30 s continuous that is ~15.9
+years, far beyond the ring's 117-day capacity. It is stored as three bytes to
+keep the record compact; all code uses a `uint32_t` in memory.
+
+### Temperature sentinels
+
+| Value | Meaning |
+|---|---|
+| `INT16_MIN` (−32768) | Probe detached. Surface as null. Never plot as a temperature. |
+| `INT16_MIN + 1` (−32767) | Probe present but invalid/unmapped (reserved; see 02 Q3). |
+| Otherwise | Temperature × 10, canonical °F. |
+
+### Flags
+
+| Bit | Meaning |
+|---|---|
+| 0–3 | Probe 1–4 attached in this packet |
+| 4 | Billows attached per the Smoke X4 |
+| 5 | Clock was valid when this record was written |
+| 6 | Source packet was Celsius (provenance only; stored value is °F) |
+| 7 | `new_alarm` was set in this packet (preserved; no alarm feature in MVP) |
+
+The `attached` bits duplicate the sentinel for fast filtering. They must agree;
+a record where `attached=0` but `temp != TEMP_DETACHED` is corrupt and is
+rejected on read.
+
+### Why not smaller?
+
+A 12-byte record without a timestamp or CRC is possible, but it makes power-loss
+recovery and wall-clock placement guesswork. Eighteen bytes buys:
+
+- a monotonic cursor that survives reboots and clock changes,
+- a UTC timestamp per sample,
+- per-record integrity,
+- enough headroom for 117 days on the available partition.
+
+The legacy 16-byte record with sessions, headers, and a 2.4 MB partition held
+~54 days. This design holds roughly twice as much while removing the session
+model that caused sync-completeness bugs.
+
+## 4.3 Flash ring layout
+
+The `samples` partition is raw flash, not a filesystem.
+
+```
+sector 0         sector 1                     sector 1503
+┌──────────────┐ ┌──────────────┐             ┌──────────────┐
+│ header A/B   │ │ header A/B   │             │ header A/B   │
+│ 225 × 18 B   │ │ 225 × 18 B   │   ......    │ 225 × 18 B   │
+│ 14 B spare   │ │ 14 B spare   │             │ 14 B spare   │
+└──────────────┘ └──────────────┘             └──────────────┘
+      ▲                 ▲                              ▲
+    oldest           next to erase                 newest
+```
+
+### Sector header (two 16-byte copies, A and B)
+
+| Offset | Size | Field |
+|---|---:|---|
+| 0 | 4 | magic `SX4L` |
+| 4 | 1 | version = 1 |
+| 5 | 1 | flags (reserved) |
+| 6 | 3 | `first_seq` u24 |
+| 9 | 4 | `generation` u32 |
+| 13 | 2 | CRC-16/CCITT-FALSE over bytes 0..12 |
+| 15 | 1 | reserved |
+
+Two copies are written back-to-back. A sector is usable if either copy is valid
+and its header agrees with the records found in it. The header is written
+**before** the first record of the sector; records are appended after it.
+
+### Write path
+
+1. On the first record of a sector, erase the sector (if needed), write header
+   copies A and B, verify by read-back.
+2. Append 18-byte records sequentially.
+3. When the sector has 225 records, move to the next sector.
+4. If the next sector is the oldest live sector (the tail), erase it and advance
+   the tail. That is rotation; it is normal.
+5. Every record is CRC-checked on write (host test) and on read.
+
+There is no per-sample `fsync`; NOR flash writes are committed as they complete.
+The per-record CRC catches a torn tail on the next boot.
+
+### Recovery on boot
+
+1. Read both header copies from every sector; accept a copy with valid CRC.
+2. For each usable sector, scan records from the start until the first bad CRC
+   or impossible sentinel combination. That is the valid tail.
+3. A sector with no valid records is empty/reclaimable.
+4. Determine `min_seq` and `max_seq` across all valid sectors.
+5. `next_seq = max_seq + 1`; if the log is empty, start at 0.
+6. If the newest sector's tail was torn, ignore the torn record(s); the next
+   write starts after the last valid one. No rewrite of earlier data.
+7. If both header copies are invalid but the sector's records validate and NVS
+   still has the current generation, reconstruct the header from the first valid
+   record and adopt the sector. Only reclaim it when the records also fail or
+   the generation is unknown. Do **not** change the generation for a single bad
+   sector; only a deliberate clear or an unusable whole log creates a new
+   generation.
+
+`generation` is a **random 32-bit value**, not a counter. It is created when a
+log is first formatted, cleared, or found wholly unusable, and it is written to
+NVS *before* the erase. Every sector header carries it. A sector whose header
+generation does not match the current generation is ignored and reclaimed, so a
+power cut halfway through a clear cannot resurrect old records. If NVS is lost
+but the log is readable, the newest sector header restores the generation.
+
+Worst-case loss on a power cut is the record being written. Dual headers plus
+reconstruction from valid records mean a torn sector header does not discard the
+sector's committed records. The design does not claim "zero loss"; it claims
+"earlier records are safe".
+
+### Capacity arithmetic
+
+```
+6,160,384 bytes / 4,096 = 1,504 sectors
+(4,096 - 32 header) / 18 = 225 records/sector (14 bytes spare)
+1,504 × 225 = 338,400 records
+338,400 / 2,880 per day = 117.5 days
+```
+
+At 24 h/day. A user who cooks 12 h/day gets ~235 days.
+
+### Wear
+
+A sector is erased once per full ring rotation (~117 days of continuous
+logging). Over five years that is ~15 erase cycles per sector, against a
+100,000-cycle rating. Flash endurance is not a constraint; do not contort the
+design for it.
+
+## 4.4 Time without an RTC
+
+The board has no battery-backed clock.
+
+- `unix_s` is written from `bridge_state` at sample time.
+- If the clock is unknown, `unix_s = 0`, `flags.clock_valid = 0`.
+- The app sets the clock on every connect if the device's time differs by more
+  than 2 s.
+- The firmware persists the last known UTC in NVS every 10 minutes. On boot it
+  restores that anchor plus elapsed uptime and marks it **estimated** until the
+  app sets it.
+- Records written before the first phone connection may have no wall time. The
+  app places them relative to their `seq` and the sync time, labels the History view's
+  time axis "estimated", and never invents a precise date.
+
+No sample time is ever adjusted backwards. A clock correction changes future
+records only; `seq` keeps ordering unambiguous.
+
+## 4.5 BLE sync protocol
+
+The app stores a high-water cursor. The device answers requests from its ring.
+The protocol is designed for two directions because a first sync should show the
+**recent** History view immediately, not the oldest data first.
+
+### Request: `sync_ctrl` (write, encrypted)
+
+| Offset | Size | Field |
+|---|---:|---|
+| 0 | 1 | `ver = 1` |
+| 1 | 1 | `cmd`: 0 status, 1 read, 2 cancel |
+| 2 | 1 | `direction`: 0 forward (after cursor), 1 backward (before cursor) |
+| 3 | 4 | `cursor_seq` u32 |
+| 7 | 1 | reserved |
+| 8 | 2 | `max_records` u16 (1–64; 0 reads as 32) |
+
+### Response: `sync_data` (notify, encrypted)
+
+Notifications carry a 4-byte frame header followed by a slice of a byte stream:
+
+| Offset | Size | Field |
+|---|---:|---|
+| 0 | 1 | `ver = 1` |
+| 1 | 1 | `frame_seq` (wraps 0–255) |
+| 2 | 1 | `flags`: b0 START, b1 END, b2 ERROR |
+| 3 | 1 | `len` (payload bytes; ≤ MTU−3−4) |
+
+The app concatenates payload bytes until the END frame. The logical stream is:
+
+**START payload (20 B)**
+
+| Offset | Size | Field |
+|---|---:|---|
+| 0 | 4 | `generation` u32 |
+| 4 | 4 | `min_seq` u32 |
+| 8 | 4 | `max_seq` u32 |
+| 12 | 4 | `start_seq` u32 (first record in this response, or next cursor if none) |
+| 16 | 2 | `count` u16 |
+| 18 | 1 | `record_size = 18` |
+| 19 | 1 | `status`: 0 ok, 1 gap, 2 error, 3 busy, 4 empty |
+
+**RECORDS**
+
+`count × 18` bytes, in ascending `seq` order even for a backward request.
+
+**END payload (13 B)**
+
+| Offset | Size | Field |
+|---|---:|---|
+| 0 | 1 | `status` (same values as START; final) |
+| 1 | 4 | `next_seq` u32 (exclusive cursor for the next request in the same direction) |
+| 5 | 4 | `min_seq` u32 |
+| 9 | 4 | `max_seq` u32 |
+
+### Semantics
+
+- **Forward**: return records with `seq > cursor_seq`, lowest first. `next_seq =
+  last_seq + 1`. If `min_seq > 0 and cursor_seq < min_seq - 1`, return from
+  `min_seq` and set `status = gap`. Never compute `min_seq - 1` when `min_seq =
+  0`; `seq = 0` is a valid first record. Forward is used only when the app
+  already has at least one record; a first sync always uses backward, so an
+  empty app cursor is never confused with "has record 0".
+- **Backward**: return the highest `count` records with `seq < cursor_seq`, but
+  emit them ascending in the payload. `next_seq = first_seq` is the exclusive
+  cursor for the next backward request, so record `0` is still reachable. If
+  `cursor_seq > max_seq + 1`, start at `max_seq + 1`. If the request returns
+  `count = 0`, the app stops; `next_seq = 0` is a cursor, not a stop sentinel.
+- **Empty log**: `status = empty (4)`, `count = 0`, `min_seq = max_seq =
+  0xFFFFFFFF`. The app treats it as "nothing recorded yet", not as a gap.
+- **No records in this direction**: `count = 0`, `start_seq = cursor_seq`, and
+  the END status is `ok` (unless the whole log is empty, above). The app treats
+  zero as "this direction is drained" and switches to forward catch-up.
+- The device snapshots `generation`, `min_seq`, and `max_seq` at START; records
+  written during the transfer appear in the next request.
+- One transfer at a time. A second `sync_ctrl` with `cmd = 0` or `cmd = 2` is
+  allowed while busy (status/cancel); other reads are ignored and the app times
+  out or cancels.
+- `max_records` 64 → 1,152 B of records, roughly 6–7 notifications at MTU 247
+  and ~74 at MTU 23. The app should use 32 for predictable latency.
+- The app sends the next request only after the END frame; this is the flow
+  control. No ACK notification is needed.
+- The app verifies contiguous `frame_seq` within a response. A missing frame
+  discards the partial batch and re-requests it; it never stores a stream with a
+  hole.
+- If the link drops, the app resumes from its last fully stored record. The
+  device does not remember a partial transfer.
+
+### First sync (recent first)
+
+1. Read `stats` or issue `cmd=status` to learn `generation`, `min_seq`,
+   `max_seq`. An empty log returns `status = empty` and `min_seq = max_seq =
+   0xFFFFFFFF`; do not treat `seq = 0` as "none".
+2. If the response is `status = empty`, skip to live and show the empty History view.
+   Otherwise, if the app has no data for this generation, request backward from
+   `max_seq + 1`, `max_records = 32`, until the last 24 h (2,880 records) are
+   stored. History is useful immediately.
+3. Continue backward in the background until `min_seq`, at a lower priority.
+4. Switch to forward mode from `max_seq` for live catch-up.
+5. If the generation changes, treat prior data as a previous epoch: keep it,
+   start a new local segment, and reset cursors.
+
+### Ongoing sync
+
+- Every `live` notification is appended immediately by `seq`.
+- Every 60 s while connected, request forward from the local maximum `seq` to
+  catch any missed notification.
+- On reconnect, do the same before enabling live display.
+
+## 4.6 Gaps and rotation
+
+A gap is a range of sequence numbers that exists on neither the device nor the
+app.
+
+| Cause | Detection | App behaviour |
+|---|---|---|
+| Device ring rotated past the app's cursor | Forward request returns `status = gap`, `start_seq > cursor + 1` | Store a permanent gap; continue from `min_seq` |
+| Device log cleared/factory reset | `generation` changed | Keep old data; start a new segment; mark the boundary |
+| LoRa packet loss / bridge off | `seq` is continuous, but `unix_s` delta > 90 s | Draw a gap between points; no data invented |
+| App was away | Backward/forward cursor jump | Store the missing range if the device still holds it; otherwise gap |
+| Clock was unknown | `flags.clock_valid = 0` | Plot with estimated time; mark the range |
+
+`seq` continuity is the source of truth for "do we have every sample the device
+recorded". A time delta alone does not prove a device gap; the Smoke X4 may have
+stopped transmitting, or the bridge may have been off. A gap of **more than
+90 seconds** between adjacent records is treated as missing time for History.
+The observed normal cadence wobbles up to ~76 s during menu use, so 60 s is too
+tight.
+
+The device reports `records_stored`, `min_seq`, `max_seq`, and `generation` in
+`stats`; the app can show "Bridge holds 12.3 days; phone holds 91.0 days."
+
+## 4.7 App cache
+
+SQLite (via `sqflite`/`sqlite3`, exact package choice in
+[06](06-app.md)) with a small schema:
+
+```sql
+CREATE TABLE bridge (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  last_seen_ms INTEGER NOT NULL,
+  generation INTEGER NOT NULL,
+  cursor_after INTEGER,            -- highest contiguous seq; NULL until data
+  cursor_before INTEGER,           -- lowest contiguous seq; NULL until data
+  device_min_seq INTEGER,          -- NULL when the bridge log is empty
+  device_max_seq INTEGER
+);
+
+CREATE TABLE sample (
+  bridge_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  seq INTEGER NOT NULL,
+  unix_s INTEGER,                  -- NULL when the device clock was unknown
+  recorded_ms INTEGER NOT NULL,    -- wall time or estimated wall time
+  time_estimated INTEGER NOT NULL,
+  p1 INTEGER, p2 INTEGER, p3 INTEGER, p4 INTEGER,  -- tenths °F; NULL = absent
+  flags INTEGER NOT NULL,
+  PRIMARY KEY (bridge_id, generation, seq)
+);
+CREATE INDEX sample_time ON sample(bridge_id, recorded_ms);
+
+CREATE TABLE gap (
+  bridge_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  from_seq INTEGER NOT NULL,
+  to_seq INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  detected_ms INTEGER NOT NULL,
+  PRIMARY KEY (bridge_id, generation, from_seq)
+);
+```
+
+Bulk inserts in one transaction per batch. Inserts are idempotent by
+`(bridge_id, generation, seq)`.
+
+The importer maps a device `unix_s = 0` to SQL `unix_s = NULL` and sets
+`time_estimated = 1`. It then estimates:
+
+```
+recorded_ms = sync_wall_ms - (device_max_seq - seq) * 30000
+```
+
+The estimate is for axis placement only; the app never claims the time is exact.
+A real device time is stored as-is and `time_estimated = 0`.
+
+## 4.8 Retention and deletion
+
+### Bridge
+
+- Automatic: the ring overwrites the oldest sector.
+- App action `clear_history`: write a new random generation and
+  `clear_pending = 1` to NVS, erase the ring (resumable if power is lost), reset
+  `seq = 0`, keep pairing and config, then clear `clear_pending`. On boot, a
+  pending clear finishes the erase and ignores every sector whose generation is
+  not the new one.
+- Factory reset: the same clear transaction, then erase config and bonds and
+  reboot. A power cut at any step leaves either a recoverable pending clear or a
+  fully reset device; it cannot half-resurrect an old log.
+
+### App
+
+- **No automatic deletion.** Ever. A user may leave the app unopened for a year;
+  what was synced stays. Forgetting the bridge, factory-resetting the bridge, or
+  a generation change does not delete local history; the setup screen exposes a
+  **Phone history** entry so the user can review or delete it explicitly.
+- Settings → History & storage offers:
+  - "Delete phone history older than 30 days"
+  - "Delete phone history older than 90 days"
+  - "Delete all phone history"
+- Each is a confirmation that states the count and date range to be removed.
+- Deleting phone history does not command the bridge to delete anything.
+- Clearing the bridge log does not delete phone history.
+- Deleting a date range also deletes or trims `gap` rows that fall inside it, so
+  a stale gap cannot outlive the samples it described.
+
+## 4.9 Data volume
+
+| Scope | Records | Raw bytes | Approx. SQLite |
+|---|---:|---:|---:|
+| 1 day | 2,880 | 51.8 KB | 150–250 KB |
+| 7 days | 20,160 | 363 KB | 1–2 MB |
+| 30 days | 86,400 | 1.56 MB | 5–8 MB |
+| Full ring (117 days) | 338,400 | 6.09 MB | 20–30 MB |
+
+A 20–30 MB local database is acceptable on a modern Android phone. The History view
+must decimate; it must not load 338k × 4 values into a widget.
+
+## 4.10 Versioning
+
+- Record `version` is carried in the sector header, not every record.
+- Readers must use `record_size` from the sync header, not `sizeof`.
+- A future record length can grow; the app skips unknown trailing bytes using
+  the stated size.
+- `generation` and `seq` are independent of the record version.
+- Any incompatible change bumps the protocol major and requires an app update;
+  the app refuses an unknown major with a named "Update the app" state.
