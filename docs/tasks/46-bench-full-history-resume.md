@@ -57,4 +57,26 @@ Prove the complete history path on the real Bridge and target phone: full-ring s
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+Report: [docs/progress/T46.md](../progress/T46.md). Evidence manifest:
+[artifacts/bench/T46/README.md](../../artifacts/bench/T46/README.md).
+
+- Real 6.43 h / 696-record archive on the Pixel 11 Pro Fold; saved-Bridge cold
+  launch with no Setup/passkey, absent-Bridge last-known + manual Connect,
+  mid-sync resume (96 → 629 rows, no duplicates), quiet 30 s sync, and a 9.7 min
+  forward catch-up (one 411 B frame, not a re-read). MTU 247.
+- Seeded 117-day archive walked every 13 §13.4 History state; full-ring first
+  paint 2.65 s; 30-day deletion removed 252,023 rows and left 82,426.
+- **Blocked, not waived:** real clear/factory reset (T48/T49/T52), a true 30+
+  minute absence and a true 24 h radio transfer (T61/T55), and the amber
+  paired-lost X4 dialog (T54/T55). The owner shortened the absence window.
+- **Findings routed:** offline probe tiles say “updated live” (A), Live
+  sparklines do not backfill from the archive (B), offline header leaks the
+  `A4F2` fixture ID (C), the sync card stays up while Bluetooth is blocked (D),
+  Bridge `stats` shows 0 of 0 (E), gap bands use `detected_ms` and the
+  `Not synced` label did not render (F), full-ring Cooks/sort are archive-wide
+  (G), a Bridge reboot can leave a stale Connected state (H), 320 dp truncates
+  labels (I), the permanent-loss banner is archive-wide (J), and the 1 min
+  Live change window reverted to 5 min after relaunch (K).
+- Phone left on the real archive, physical 1080×2342, theme System, 5 min Live
+  change window, TalkBack disabled.

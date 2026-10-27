@@ -1,0 +1,1480 @@
+[14:14:47] I (215880) NimBLE: GATT procedure initiated: notify; 
+[14:14:47] I (215880) NimBLE: att_handle=28
+[14:14:47] 
+[14:14:47] I (215990) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:14:47] I (215990) NimBLE: GATT procedure initiated: notify; 
+[14:14:47] I (215990) NimBLE: att_handle=28
+[14:14:47] 
+[14:14:47] I (216000) sx4.ble: sync transfer ended (status 0)
+[14:14:53] I (221820) sx4.house: battery 4047 mV (85%)
+[14:15:00] I (228850) sx4.radio: rx len=77 rssi=-37 snr=11 freq=918500000
+[14:15:00] I (228850) sx4.radio: payload="LMXC[\,30,1,1,0,758,0,99,47,0,740,0,160,32,0,760,0,160,32,0,746,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 38 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 34 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 36 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:15:00] I (228860) sx4.sample: stored seq=598 t=758,740,760,746 flags=0x2f
+[14:15:03] I (231820) sx4.house: battery 4047 mV (85%)
+[14:15:13] I (241820) sx4.house: battery 4047 mV (85%)
+[14:15:18] I (246250) NimBLE: GATT procedure initiated: notify; 
+[14:15:18] I (246250) NimBLE: att_handle=28
+[14:15:18] 
+[14:15:18] I (246410) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:15:18] I (246410) NimBLE: GATT procedure initiated: notify; 
+[14:15:18] I (246410) NimBLE: att_handle=28
+[14:15:18] 
+[14:15:18] I (246420) sx4.ble: sync transfer ended (status 0)
+[14:15:23] I (251820) sx4.house: battery 4038 mV (84%)
+[14:15:31] I (259100) sx4.radio: rx len=77 rssi=-37 snr=11 freq=918500000
+[14:15:31] I (259100) sx4.radio: payload="LMXC[\,30,1,1,0,756,0,99,47,0,739,0,160,32,0,759,0,160,32,0,745,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 33 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:15:31] I (259110) sx4.sample: stored seq=599 t=756,739,759,745 flags=0x2f
+[14:15:33] I (261820) sx4.house: battery 4047 mV (85%)
+[14:15:43] I (271820) sx4.house: battery 4047 mV (85%)
+[14:15:48] I (276720) NimBLE: GATT procedure initiated: notify; 
+[14:15:48] I (276720) NimBLE: att_handle=28
+[14:15:48] 
+[14:15:48] I (276880) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[14:15:48] I (276880) NimBLE: GATT procedure initiated: notify; 
+[14:15:48] I (276880) NimBLE: att_handle=28
+[14:15:48] 
+[14:15:48] I (276880) sx4.ble: sync transfer ended (status 0)
+[14:15:53] I (281820) sx4.house: battery 4047 mV (85%)
+[14:16:01] I (289310) sx4.radio: rx len=77 rssi=-36 snr=10 freq=918500000
+[14:16:01] I (289310) sx4.radio: payload="LMXC[\,30,1,1,0,753,0,99,47,0,735,0,160,32,0,756,0,160,32,0,741,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 33 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:16:01] I (289320) sx4.sample: stored seq=600 t=753,735,756,741 flags=0x2f
+[14:16:03] I (291820) sx4.house: battery 4047 mV (85%)
+[14:16:13] I (301820) sx4.house: battery 4047 mV (85%)
+[14:16:19] I (307140) NimBLE: GATT procedure initiated: notify; 
+[14:16:19] I (307140) NimBLE: att_handle=28
+[14:16:19] 
+[14:16:19] I (307250) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:16:19] I (307250) NimBLE: GATT procedure initiated: notify; 
+[14:16:19] I (307260) NimBLE: att_handle=28
+[14:16:19] 
+[14:16:19] I (307260) sx4.ble: sync transfer ended (status 0)
+[14:16:23] I (311820) sx4.house: battery 4047 mV (85%)
+[14:16:31] I (319560) sx4.radio: rx len=77 rssi=-38 snr=10 freq=918500000
+[14:16:31] I (319560) sx4.radio: payload="LMXC[\,30,1,1,0,752,0,99,47,0,736,0,160,32,0,755,0,160,32,0,742,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 33 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:16:31] I (319570) sx4.sample: stored seq=601 t=752,736,755,742 flags=0x2f
+[14:16:33] I (321820) sx4.house: battery 4047 mV (85%)
+[14:16:43] I (331820) sx4.house: battery 4047 mV (85%)
+[14:16:49] I (337610) NimBLE: GATT procedure initiated: notify; 
+[14:16:49] I (337610) NimBLE: att_handle=28
+[14:16:49] 
+[14:16:49] I (337770) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:16:49] I (337770) NimBLE: GATT procedure initiated: notify; 
+[14:16:49] I (337770) NimBLE: att_handle=28
+[14:16:49] 
+[14:16:49] I (337780) sx4.ble: sync transfer ended (status 0)
+[14:16:53] I (341820) sx4.house: battery 4047 mV (85%)
+[14:17:01] I (349790) sx4.radio: rx len=77 rssi=-38 snr=10 freq=918500000
+[14:17:01] I (349790) sx4.radio: payload="LMXC[\,30,1,1,0,752,0,99,47,0,739,0,160,32,0,755,0,160,32,0,744,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 33 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:17:01] I (349800) sx4.sample: stored seq=602 t=752,739,755,744 flags=0x2f
+[14:17:03] I (351820) sx4.house: battery 4047 mV (85%)
+[14:17:13] I (361820) sx4.house: battery 4047 mV (85%)
+[14:17:20] I (368030) NimBLE: GATT procedure initiated: notify; 
+[14:17:20] I (368030) NimBLE: att_handle=28
+[14:17:20] 
+[14:17:20] I (368140) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:17:20] I (368140) NimBLE: GATT procedure initiated: notify; 
+[14:17:20] I (368140) NimBLE: att_handle=28
+[14:17:20] 
+[14:17:20] I (368150) sx4.ble: sync transfer ended (status 0)
+[14:17:23] I (371820) sx4.house: battery 4047 mV (85%)
+[14:17:32] I (380020) sx4.radio: rx len=77 rssi=-38 snr=10 freq=918500000
+[14:17:32] I (380020) sx4.radio: payload="LMXC[\,30,1,1,0,753,0,99,47,0,743,0,160,32,0,756,0,160,32,0,747,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 34 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:17:32] I (380030) sx4.sample: stored seq=603 t=753,743,756,747 flags=0x2f
+[14:17:33] I (381820) sx4.house: battery 4047 mV (85%)
+[14:17:43] I (391820) sx4.house: battery 4047 mV (85%)
+[14:17:50] I (398450) NimBLE: GATT procedure initiated: notify; 
+[14:17:50] I (398450) NimBLE: att_handle=28
+[14:17:50] 
+[14:17:50] I (398560) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:17:50] I (398560) NimBLE: GATT procedure initiated: notify; 
+[14:17:50] I (398560) NimBLE: att_handle=28
+[14:17:50] 
+[14:17:50] I (398570) sx4.ble: sync transfer ended (status 0)
+[14:17:53] I (401820) sx4.house: battery 4047 mV (85%)
+[14:18:02] I (410310) sx4.radio: rx len=77 rssi=-38 snr=11 freq=918500000
+[14:18:02] I (410310) sx4.radio: payload="LMXC[\,30,1,1,0,754,0,99,47,0,747,0,160,32,0,757,0,160,32,0,751,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 34 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:18:02] I (410320) sx4.sample: stored seq=604 t=754,747,757,751 flags=0x2f
+[14:18:03] I (411820) sx4.house: battery 4047 mV (85%)
+[14:18:13] I (421820) sx4.house: battery 4047 mV (85%)
+[14:18:20] I (428820) NimBLE: GATT procedure initiated: notify; 
+[14:18:20] I (428820) NimBLE: att_handle=28
+[14:18:20] 
+[14:18:20] I (428980) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:18:20] I (428980) NimBLE: GATT procedure initiated: notify; 
+[14:18:20] I (428980) NimBLE: att_handle=28
+[14:18:20] 
+[14:18:20] I (428990) sx4.ble: sync transfer ended (status 0)
+[14:18:23] I (431820) sx4.house: battery 4047 mV (85%)
+[14:18:32] I (440540) sx4.radio: rx len=77 rssi=-38 snr=11 freq=918500000
+[14:18:32] I (440540) sx4.radio: payload="LMXC[\,30,1,1,0,755,0,99,47,0,750,0,160,32,0,757,0,160,32,0,753,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 35 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:18:32] I (440550) sx4.sample: stored seq=605 t=755,750,757,753 flags=0x2f
+[14:18:33] I (441820) sx4.house: battery 4047 mV (85%)
+[14:18:43] I (451820) sx4.house: battery 4047 mV (85%)
+[14:18:51] I (459390) NimBLE: GATT procedure initiated: notify; 
+[14:18:51] I (459390) NimBLE: att_handle=28
+[14:18:51] 
+[14:18:51] I (459500) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:18:51] I (459500) NimBLE: GATT procedure initiated: notify; 
+[14:18:51] I (459500) NimBLE: att_handle=28
+[14:18:51] 
+[14:18:51] I (459500) sx4.ble: sync transfer ended (status 0)
+[14:18:53] I (461820) sx4.house: battery 4047 mV (85%)
+[14:19:02] I (470770) sx4.radio: rx len=77 rssi=-34 snr=11 freq=918500000
+[14:19:02] I (470770) sx4.radio: payload="LMXC[\,30,1,1,0,759,0,99,47,0,754,0,160,32,0,759,0,160,32,0,756,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 35 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 35 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 36 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:19:02] I (470780) sx4.sample: stored seq=606 t=759,754,759,756 flags=0x2f
+[14:19:03] I (471820) sx4.house: battery 4047 mV (85%)
+[14:19:13] I (481820) sx4.house: battery 4047 mV (85%)
+[14:19:21] I (489760) NimBLE: GATT procedure initiated: notify; 
+[14:19:21] I (489760) NimBLE: att_handle=28
+[14:19:21] 
+[14:19:21] I (489870) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[14:19:21] I (489870) NimBLE: GATT procedure initiated: notify; 
+[14:19:21] I (489870) NimBLE: att_handle=28
+[14:19:21] 
+[14:19:21] I (489870) sx4.ble: sync transfer ended (status 0)
+[14:19:23] I (491820) sx4.house: battery 4047 mV (85%)
+[14:19:33] I (501420) sx4.radio: rx len=77 rssi=-35 snr=10 freq=918500000
+[14:19:33] I (501420) sx4.radio: payload="LMXC[\,30,1,1,0,761,0,99,47,0,757,0,160,32,0,761,0,160,32,0,758,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 36 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 35 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 38 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:19:33] I (501430) sx4.sample: stored seq=607 t=761,757,761,758 flags=0x2f
+[14:19:33] I (501820) sx4.house: battery 4047 mV (85%)
+[14:19:43] I (511820) sx4.house: battery 4047 mV (85%)
+[14:19:52] I (520080) NimBLE: GATT procedure initiated: notify; 
+[14:19:52] I (520080) NimBLE: att_handle=28
+[14:19:52] 
+[14:19:52] I (520200) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:19:52] I (520200) NimBLE: GATT procedure initiated: notify; 
+[14:19:52] I (520200) NimBLE: att_handle=28
+[14:19:52] 
+[14:19:52] I (520200) sx4.ble: sync transfer ended (status 0)
+[14:19:53] I (521820) sx4.house: battery 4047 mV (85%)
+[14:20:03] I (531790) sx4.radio: rx len=77 rssi=-33 snr=10 freq=918500000
+[14:20:03] I (531790) sx4.radio: payload="LMXC[\,30,1,1,0,764,0,99,47,0,761,0,160,32,0,763,0,160,32,0,761,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 36 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:20:03] I (531800) sx4.sample: stored seq=608 t=764,761,763,761 flags=0x2f
+[14:20:03] I (531820) sx4.house: battery 4047 mV (85%)
+[14:20:14] I (542820) sx4.house: battery 4047 mV (85%)
+[14:20:22] I (550400) NimBLE: GATT procedure initiated: notify; 
+[14:20:22] I (550410) NimBLE: att_handle=28
+[14:20:22] 
+[14:20:22] I (550570) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:20:22] I (550570) NimBLE: GATT procedure initiated: notify; 
+[14:20:22] I (550570) NimBLE: att_handle=28
+[14:20:22] 
+[14:20:22] I (550570) sx4.ble: sync transfer ended (status 0)
+[14:20:24] I (552820) sx4.house: battery 4052 mV (85%)
+[14:20:34] I (562120) sx4.radio: rx len=77 rssi=-37 snr=10 freq=918500000
+[14:20:34] I (562120) sx4.radio: payload="LMXC[\,30,1,1,0,766,0,99,47,0,762,0,160,32,0,765,0,160,32,0,763,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 36 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:20:34] I (562130) sx4.sample: stored seq=609 t=766,762,765,763 flags=0x2f
+[14:20:34] I (562820) sx4.house: battery 4047 mV (85%)
+[14:20:44] I (572820) sx4.house: battery 4047 mV (85%)
+[14:20:52] I (580830) NimBLE: GATT procedure initiated: notify; 
+[14:20:52] I (580830) NimBLE: att_handle=28
+[14:20:52] 
+[14:20:52] I (580940) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:20:52] I (580940) NimBLE: GATT procedure initiated: notify; 
+[14:20:52] I (580940) NimBLE: att_handle=28
+[14:20:52] 
+[14:20:52] I (580940) sx4.ble: sync transfer ended (status 0)
+[14:20:54] I (582820) sx4.house: battery 4047 mV (85%)
+[14:21:04] I (592490) sx4.radio: rx len=77 rssi=-36 snr=10 freq=918500000
+[14:21:04] I (592490) sx4.radio: payload="LMXC[\,30,1,1,0,767,0,99,47,0,763,0,160,32,0,766,0,160,32,0,765,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 36 37 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:21:04] I (592500) sx4.sample: stored seq=610 t=767,763,766,765 flags=0x2f
+[14:21:04] I (592820) sx4.house: battery 4047 mV (85%)
+[14:21:14] I (602830) sx4.house: battery 4047 mV (85%)
+[14:21:23] I (611200) NimBLE: GATT procedure initiated: notify; 
+[14:21:23] I (611200) NimBLE: att_handle=28
+[14:21:23] 
+[14:21:23] I (611360) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[14:21:23] I (611360) NimBLE: GATT procedure initiated: notify; 
+[14:21:23] I (611360) NimBLE: att_handle=28
+[14:21:23] 
+[14:21:23] I (611360) sx4.ble: sync transfer ended (status 0)
+[14:21:24] I (612830) sx4.house: battery 4047 mV (85%)
+[14:21:34] I (622830) sx4.house: battery 4047 mV (85%)
+[14:21:34] I (622840) sx4.radio: rx len=77 rssi=-37 snr=10 freq=918500000
+[14:21:34] I (622840) sx4.radio: payload="LMXC[\,30,1,1,0,769,0,99,47,0,765,0,160,32,0,767,0,160,32,0,766,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 36 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 36 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:21:34] I (622850) sx4.sample: stored seq=611 t=769,765,767,766 flags=0x2f
+[14:21:44] I (632830) sx4.house: battery 4047 mV (85%)
+[14:21:53] I (641570) NimBLE: GATT procedure initiated: notify; 
+[14:21:53] I (641570) NimBLE: att_handle=28
+[14:21:53] 
+[14:21:53] I (641680) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:21:53] I (641680) NimBLE: GATT procedure initiated: notify; 
+[14:21:53] I (641680) NimBLE: att_handle=28
+[14:21:53] 
+[14:21:53] I (641680) sx4.ble: sync transfer ended (status 0)
+[14:21:54] I (642830) sx4.house: battery 4047 mV (85%)
+[14:22:04] I (652830) sx4.house: battery 4047 mV (85%)
+[14:22:05] I (653110) sx4.radio: rx len=77 rssi=-36 snr=11 freq=918500000
+[14:22:05] I (653110) sx4.radio: payload="LMXC[\,30,1,1,0,769,0,99,47,0,765,0,160,32,0,768,0,160,32,0,767,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 36 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:22:05] I (653120) sx4.sample: stored seq=612 t=769,765,768,767 flags=0x2f
+[14:22:14] I (662830) sx4.house: battery 4047 mV (85%)
+[14:22:23] I (671940) NimBLE: GATT procedure initiated: notify; 
+[14:22:23] I (671940) NimBLE: att_handle=28
+[14:22:23] 
+[14:22:24] I (672050) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:22:24] I (672050) NimBLE: GATT procedure initiated: notify; 
+[14:22:24] I (672050) NimBLE: att_handle=28
+[14:22:24] 
+[14:22:24] I (672060) sx4.ble: sync transfer ended (status 0)
+[14:22:24] I (672830) sx4.house: battery 4047 mV (85%)
+[14:22:34] I (682830) sx4.house: battery 4052 mV (85%)
+[14:22:35] I (683340) sx4.radio: rx len=77 rssi=-38 snr=10 freq=918500000
+[14:22:35] I (683340) sx4.radio: payload="LMXC[\,30,1,1,0,771,0,99,47,0,767,0,160,32,0,769,0,160,32,0,768,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 38 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:22:35] I (683350) sx4.sample: stored seq=613 t=771,767,769,768 flags=0x2f
+[14:22:44] I (692830) sx4.house: battery 4047 mV (85%)
+[14:22:54] I (702310) NimBLE: GATT procedure initiated: notify; 
+[14:22:54] I (702310) NimBLE: att_handle=28
+[14:22:54] 
+[14:22:54] I (702420) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:22:54] I (702420) NimBLE: GATT procedure initiated: notify; 
+[14:22:54] I (702420) NimBLE: att_handle=28
+[14:22:54] 
+[14:22:54] I (702430) sx4.ble: sync transfer ended (status 0)
+[14:22:54] I (702830) sx4.house: battery 4047 mV (85%)
+[14:23:04] I (712830) sx4.house: battery 4047 mV (85%)
+[14:23:05] I (713570) sx4.radio: rx len=77 rssi=-34 snr=10 freq=918500000
+[14:23:05] I (713570) sx4.radio: payload="LMXC[\,30,1,1,0,771,0,99,47,0,767,0,160,32,0,770,0,160,32,0,768,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 38 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:23:05] I (713580) sx4.sample: stored seq=614 t=771,767,770,768 flags=0x2f
+[14:23:14] I (722830) sx4.house: battery 4047 mV (85%)
+[14:23:24] I (732730) NimBLE: GATT procedure initiated: notify; 
+[14:23:24] I (732730) NimBLE: att_handle=28
+[14:23:24] 
+[14:23:24] I (732830) sx4.house: battery 4047 mV (85%)
+[14:23:24] I (732840) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:23:24] I (732850) NimBLE: GATT procedure initiated: notify; 
+[14:23:24] I (732850) NimBLE: att_handle=28
+[14:23:24] 
+[14:23:24] I (732850) sx4.ble: sync transfer ended (status 0)
+[14:23:34] I (742830) sx4.house: battery 4047 mV (85%)
+[14:23:35] I (743800) sx4.radio: rx len=77 rssi=-37 snr=10 freq=918500000
+[14:23:35] I (743800) sx4.radio: payload="LMXC[\,30,1,1,0,772,0,99,47,0,767,0,160,32,0,771,0,160,32,0,769,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:23:35] I (743810) sx4.sample: stored seq=615 t=772,767,771,769 flags=0x2f
+[14:23:44] I (752830) sx4.house: battery 4047 mV (85%)
+[14:23:54] I (762830) sx4.house: battery 4047 mV (85%)
+[14:23:58] I (766470) sx4.ble: central disconnected (reason 0x213)
+[14:23:58] I (766480) NimBLE: GAP procedure initiated: advertise; 
+[14:23:58] I (766480) NimBLE: disc_mode=2
+[14:23:58] I (766480) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[14:23:58] I (766480) NimBLE: 
+[14:23:58] 
+[14:23:58] I (766490) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[14:23:58] I (766800) sx4.ble: central connected (handle 1)
+[14:23:58] I (766910) sx4.ble: pairing complete (status 0, 1 bond(s))
+[14:23:58] I (766910) sx4.ble: link secured (authenticated, 1 bond(s))
+[14:24:00] I (768660) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[14:24:00] I (768660) NimBLE: GATT procedure initiated: notify; 
+[14:24:00] I (768660) NimBLE: att_handle=23
+[14:24:00] 
+[14:24:00] I (768760) NimBLE: GATT procedure initiated: notify; 
+[14:24:00] I (768760) NimBLE: att_handle=28
+[14:24:00] 
+[14:24:01] I (769160) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:24:01] I (769160) NimBLE: GATT procedure initiated: notify; 
+[14:24:01] I (769160) NimBLE: att_handle=28
+[14:24:01] 
+[14:24:01] I (769170) sx4.ble: sync transfer ended (status 0)
+[14:24:04] I (772830) sx4.house: battery 4047 mV (85%)
+[14:24:06] I (774030) sx4.radio: rx len=77 rssi=-34 snr=11 freq=918500000
+[14:24:06] I (774030) sx4.radio: payload="LMXC[\,30,1,1,0,772,0,99,47,0,768,0,160,32,0,771,0,160,32,0,769,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:24:06] I (774040) sx4.sample: stored seq=616 t=772,768,771,769 flags=0x2f
+[14:24:14] I (782830) sx4.house: battery 4047 mV (85%)
+[14:24:24] I (792830) sx4.house: battery 4047 mV (85%)
+[14:24:31] I (799420) NimBLE: GATT procedure initiated: notify; 
+[14:24:31] I (799420) NimBLE: att_handle=28
+[14:24:31] 
+[14:24:31] I (799580) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:24:31] I (799580) NimBLE: GATT procedure initiated: notify; 
+[14:24:31] I (799580) NimBLE: att_handle=28
+[14:24:31] 
+[14:24:31] I (799590) sx4.ble: sync transfer ended (status 0)
+[14:24:34] I (802830) sx4.house: battery 4047 mV (85%)
+[14:24:36] I (804260) sx4.radio: rx len=77 rssi=-35 snr=10 freq=918500000
+[14:24:36] I (804260) sx4.radio: payload="LMXC[\,30,1,1,0,773,0,99,47,0,769,0,160,32,0,771,0,160,32,0,769,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 36 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:24:36] I (804270) sx4.sample: stored seq=617 t=773,769,771,769 flags=0x2f
+[14:24:44] I (812830) sx4.house: battery 4047 mV (85%)
+[14:24:54] I (822830) sx4.house: battery 4047 mV (85%)
+[14:25:01] I (829840) NimBLE: GATT procedure initiated: notify; 
+[14:25:01] I (829840) NimBLE: att_handle=28
+[14:25:01] 
+[14:25:01] I (829950) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:25:01] I (829960) NimBLE: GATT procedure initiated: notify; 
+[14:25:01] I (829960) NimBLE: att_handle=28
+[14:25:01] 
+[14:25:01] I (829960) sx4.ble: sync transfer ended (status 0)
+[14:25:04] I (832830) sx4.house: battery 4047 mV (85%)
+[14:25:06] I (834490) sx4.radio: rx len=77 rssi=-33 snr=11 freq=918500000
+[14:25:06] I (834490) sx4.radio: payload="LMXC[\,30,1,1,0,773,0,99,47,0,769,0,160,32,0,773,0,160,32,0,770,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 30 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:25:06] I (834500) sx4.sample: stored seq=618 t=773,769,773,770 flags=0x2f
+[14:25:14] I (842830) sx4.house: battery 4047 mV (85%)
+[14:25:24] I (852830) sx4.house: battery 4047 mV (85%)
+[14:25:32] I (860210) NimBLE: GATT procedure initiated: notify; 
+[14:25:32] I (860210) NimBLE: att_handle=28
+[14:25:32] 
+[14:25:32] I (860330) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:25:32] I (860330) NimBLE: GATT procedure initiated: notify; 
+[14:25:32] I (860330) NimBLE: att_handle=28
+[14:25:32] 
+[14:25:32] I (860330) sx4.ble: sync transfer ended (status 0)
+[14:25:34] I (862830) sx4.house: battery 4047 mV (85%)
+[14:25:36] I (864720) sx4.radio: rx len=77 rssi=-33 snr=10 freq=918500000
+[14:25:36] I (864720) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,771,0,160,32,0,773,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:25:36] I (864730) sx4.sample: stored seq=619 t=774,771,773,771 flags=0x2f
+[14:25:44] I (872830) sx4.house: battery 4047 mV (85%)
+[14:26:33] WP:0xee
+[14:26:33] mode:DIO, clocÁ•ST Offset   Length
+[14:26:33] I (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+[14:26:33] I (63) boot:  1 phy_init         RF data          01 01 00011000 00001000
+[14:26:33] I (69) boot:  2 coredump         Unknown data     01 03 00012000 0000e000
+[14:26:33] I (76) boot:  3 factory          factory app      00 00 00020000 00200000
+[14:26:33] I (82) boot:  4 samples          Unknown data     01 40 00220000 005e0000
+[14:26:33] I (89) boot: End of partition table
+[14:26:33] I (92) esp_image: segment 0: paddr=00020020 vaddr=3c060020 size=1997ch (104828) map
+[14:26:33] I (118) esp_image: segment 1: paddr=000399a4 vaddr=3fc9b100 size=04994h ( 18836) load
+[14:26:33] I (123) esp_image: segment 2: paddr=0003e340 vaddr=40374000 size=01cd8h (  7384) load
+[14:26:33] I (125) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=5c5ech (378348) map
+[14:26:33] I (199) esp_image: segment 4: paddr=0009c614 vaddr=40375cd8 size=1531ch ( 86812) load
+[14:26:33] I (219) esp_image: segment 5: paddr=000b1938 vaddr=50000000 size=00024h (    36) load
+[14:26:33] I (219) esp_image: segment 6: paddr=000b1964 vaddr=600fe000 size=0006ch (   108) load
+[14:26:33] I (233) boot: Loaded app from partition at offset 0x20000
+[14:26:33] I (233) boot: Disabling RNG early entropy source...
+[14:26:33] I (244) cpu_start: Multicore app
+[14:26:33] I (253) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+[14:26:33] I (254) cpu_start: Pro cpu start user code
+[14:26:33] I (254) cpu_start: cpu freq: 240000000 Hz
+[14:26:33] I (255) app_init: Application information:
+[14:26:33] I (259) app_init: Project name:     sx4_bridge
+[14:26:33] I (263) app_init: App version:      df97583
+[14:26:33] I (267) app_init: Compile time:     Oct 27 2026 14:09:39
+[14:26:33] I (272) app_init: ELF file SHA256:  a8d17a99f...
+[14:26:33] I (276) app_init: ESP-IDF:          v6.0.2
+[14:26:33] I (280) efuse_init: Min chip rev:     v0.0
+[14:26:33] I (284) efuse_init: Max chip rev:     v0.99 
+[14:26:33] I (288) efuse_init: Chip rev:         v0.2
+[14:26:33] I (292) heap_init: Initializing. RAM available for dynamic allocation:
+[14:26:33] I (298) heap_init: At 3FCA2EE0 len 00046830 (282 KiB): RAM
+[14:26:33] I (303) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+[14:26:33] I (308) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+[14:26:33] I (314) heap_init: At 600FE06C len 00001F7C (7 KiB): RTCRAM
+[14:26:33] I (320) spi_flash: detected chip: gd
+[14:26:33] I (322) spi_flash: flash io: dio
+[14:26:33] I (326) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+[14:26:33] I (332) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+[14:26:33] I (338) esp_core_dump_flash: Init core dump to flash
+[14:26:33] I (343) esp_core_dump_flash: Found partition 'coredump' @ 12000 57344 bytes
+[14:26:33] I (350) main_task: Started on CPU0
+[14:26:33] I (370) main_task: Calling app_main()
+[14:26:33] I (370) sx4.boot: boot: starting
+[14:26:33] I (380) sx4.boot: nvs: ok
+[14:26:33] I (400) sx4.config: loaded: version 1
+[14:26:33] I (400) sx4.boot: bridge_config_init: ok
+[14:26:33] I (400) sx4.boot: bridge_state_init: ok
+[14:26:33] I (400) sx4.boot: board_prg_init: ok
+[14:26:33] I (500) sx4.board: Vext on (GPIO36 low), OLED reset released
+[14:26:33] I (500) sx4.batt: battery ADC ready: GPIO1/ADC1_CH0, x4.90 divider
+[14:26:33] I (500) sx4.boot: board_power_init: ok
+[14:26:33] I (540) sx4.ui: SSD1306 128x64 at 0x3c, 400000 Hz
+[14:26:33] I (560) sx4.boot: ui_init: ok
+[14:26:34] I (1470) sx4.log.flash: recovered in 905 ms: gen 081936f6, seq 0..619, next 620, 620 records, 0 sectors cleared, state OK
+[14:26:34] I (1470) sx4.boot: sample_log_init: ok
+[14:26:34] I (1470) sx4.boot: sx_protocol_init: ok
+[14:26:34] I (1480) RA01S: CONFIG_MISO_GPIO=11
+[14:26:34] I (1480) RA01S: CONFIG_MOSI_GPIO=10
+[14:26:34] I (1480) RA01S: CONFIG_SCLK_GPIO=9
+[14:26:34] I (1480) RA01S: CONFIG_NSS_GPIO=8
+[14:26:34] I (1490) RA01S: CONFIG_RST_GPIO=12
+[14:26:34] I (1490) RA01S: CONFIG_BUSY_GPIO=13
+[14:26:34] I (1490) RA01S: CONFIG_TXEN_GPIO=-1
+[14:26:34] I (1500) RA01S: CONFIG_RXEN_GPIO=-1
+[14:26:34] I (1500) RA01S: spi_bus_initialize=0
+[14:26:34] I (1500) RA01S: spi_bus_add_device=0
+[14:26:34] I (1550) RA01S: syncWord=0x1424
+[14:26:34] I (1550) RA01S: SX126x installed
+[14:26:34] W (1560) RA01S: WriteCommand2 status=0a retry=1
+[14:26:34] I (1570) RA01S: tcxoVoltage=3.300000
+[14:26:34] I (1590) RA01S: useRegulatorLDO=1
+[14:26:34] I (1610) RA01S: SetStopRxTimerOnPreambleDetect enable=0
+[14:26:35] I (1670) sx4.radio: configured: SF9 BW4 CR0x01 preamble=10 sync=0x1424 crc=1 tcxo=3.3V ldo=1 freq=918500000
+[14:26:35] I (1670) sx4.boot: sx_radio_init: ok
+[14:26:35] I (1670) sx4.boot: sample_pipe_start: ok
+[14:26:35] I (1670) sx4.boot: ble_tx_start: ok
+[14:26:35] I (1670) sx4.boot: sx_radio_start: ok
+[14:26:35] I (1670) sx4.radio: radio_rx started on core 1
+[14:26:35] I (1680) BLE_INIT: BT controller compile version [51d9dfd]
+[14:26:35] I (1690) BLE_INIT: Using main XTAL as clock source
+[14:26:35] I (1690) BLE_INIT: Feature Config, ADV:1, BLE_50:1, DTM:1, SCAN:1, CCA:0, SMP:1, CONNECT:1
+[14:26:35] I (1700) BLE_INIT: Bluetooth MAC: ac:a7:04:38:82:76
+[14:26:35] I (1700) phy_init: phy_version 712,87e8c20e,Apr 13 2026,18:51:10
+[14:26:35] I (1770) NimBLE: GAP procedure initiated: stop advertising.
+[14:26:35] 
+[14:26:35] I (1770) NimBLE: GAP procedure initiated: stop advertising.
+[14:26:35] 
+[14:26:35] I (1770) NimBLE: GAP procedure initiated: advertise; 
+[14:26:35] I (1770) NimBLE: disc_mode=2
+[14:26:35] I (1780) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[14:26:35] I (1780) NimBLE: 
+[14:26:35] 
+[14:26:35] I (1790) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[14:26:35] I (1790) sx4.ble: host synced; 1/4 bond slot(s) used
+[14:26:35] I (1800) sx4.ble: GATT service registered (8 slots), host starting
+[14:26:35] I (1800) sx4.boot: ble_service_start: ok
+[14:26:35] I (1810) sx4.house: housekeeping started: battery every 10000 ms
+[14:26:35] I (1810) sx4.house: battery 4038 mV (84%)
+[14:26:35] I (1820) sx4.boot: housekeeping_start: ok
+[14:26:35] I (1820) sx4.ui: ui task started (page 0, timeout 60 s)
+[14:26:35] I (1820) sx4.boot: ui_start: ok
+[14:26:35] I (1830) sx4.boot: boot: sequence complete
+[14:26:35] I (1830) main_task: Returned from app_main()
+[14:26:37] I (3810) sx4.radio: rx len=77 rssi=-44 snr=10 freq=918500000
+[14:26:37] I (3810) sx4.radio: payload="LMXC[\,30,1,1,0,776,0,99,47,0,771,0,160,32,0,774,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:26:37] I (3820) sx4.sample: stored seq=620 t=776,771,774,772 flags=0x2f
+[14:26:45] I (11820) sx4.house: battery 4038 mV (84%)
+[14:26:55] I (21820) sx4.house: battery 4047 mV (85%)
+[14:27:05] I (31820) sx4.house: battery 4038 mV (84%)
+[14:27:07] I (34030) sx4.radio: rx len=77 rssi=-42 snr=10 freq=918500000
+[14:27:07] I (34030) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,770,0,160,32,0,774,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:27:07] I (34040) sx4.sample: stored seq=621 t=774,770,774,771 flags=0x2f
+[14:27:15] I (41820) sx4.house: battery 4038 mV (84%)
+[14:27:25] I (51820) sx4.house: battery 4038 mV (84%)
+[14:27:35] I (61780) NimBLE: GAP procedure initiated: stop advertising.
+[14:27:35] 
+[14:27:35] I (61780) NimBLE: GAP procedure initiated: advertise; 
+[14:27:35] I (61780) NimBLE: disc_mode=2
+[14:27:35] I (61780) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=1600 adv_itvl_max=1600
+[14:27:35] I (61790) NimBLE: 
+[14:27:35] 
+[14:27:35] I (61790) sx4.ble: advertising at 1000 ms (adv 21 B, rsp 27 B)
+[14:27:35] I (61820) sx4.house: battery 4038 mV (84%)
+[14:27:37] I (64270) sx4.radio: rx len=77 rssi=-38 snr=10 freq=918500000
+[14:27:37] I (64270) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,770,0,160,32,0,774,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:27:37] I (64280) sx4.sample: stored seq=622 t=775,770,774,772 flags=0x2f
+[14:27:45] I (71820) sx4.house: battery 4047 mV (85%)
+[14:27:51] I (77930) sx4.ble: central connected (handle 1)
+[14:27:51] I (78020) sx4.ble: pairing complete (status 0, 1 bond(s))
+[14:27:51] I (78020) sx4.ble: link secured (authenticated, 1 bond(s))
+[14:27:53] I (79710) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[14:27:53] I (79710) NimBLE: GATT procedure initiated: notify; 
+[14:27:53] I (79710) NimBLE: att_handle=23
+[14:27:53] 
+[14:27:53] I (79810) NimBLE: GATT procedure initiated: notify; 
+[14:27:53] I (79810) NimBLE: att_handle=28
+[14:27:53] 
+[14:27:53] I (80070) sx4.ble: sync frame_seq snapshot: 105 B, status 0
+[14:27:53] I (80070) NimBLE: GATT procedure initiated: notify; 
+[14:27:53] I (80070) NimBLE: att_handle=28
+[14:27:53] 
+[14:27:53] I (80070) sx4.ble: sync transfer ended (status 0)
+[14:27:55] I (81820) sx4.house: battery 4038 mV (84%)
+[14:28:05] I (91820) sx4.house: battery 4047 mV (85%)
+[14:28:07] I (94510) sx4.radio: rx len=77 rssi=-39 snr=11 freq=918500000
+[14:28:07] I (94510) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,769,0,160,32,0,774,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:28:07] I (94520) sx4.sample: stored seq=623 t=774,769,774,771 flags=0x2f
+[14:28:15] I (101820) sx4.house: battery 4047 mV (85%)
+[14:28:23] I (110380) NimBLE: GATT procedure initiated: notify; 
+[14:28:23] I (110380) NimBLE: att_handle=28
+[14:28:23] 
+[14:28:23] I (110490) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:28:23] I (110490) NimBLE: GATT procedure initiated: notify; 
+[14:28:23] I (110490) NimBLE: att_handle=28
+[14:28:23] 
+[14:28:23] I (110490) sx4.ble: sync transfer ended (status 0)
+[14:28:25] I (111820) sx4.house: battery 4047 mV (85%)
+[14:28:35] I (121820) sx4.house: battery 4047 mV (85%)
+[14:28:38] I (124730) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:28:38] I (124730) sx4.radio: payload="LMXC[\,30,1,1,0,773,0,99,47,0,769,0,160,32,0,774,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:28:38] I (124740) sx4.sample: stored seq=624 t=773,769,774,771 flags=0x2f
+[14:28:45] I (131820) sx4.house: battery 4038 mV (84%)
+[14:28:54] I (140800) NimBLE: GATT procedure initiated: notify; 
+[14:28:54] I (140800) NimBLE: att_handle=28
+[14:28:54] 
+[14:28:54] I (140960) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:28:54] I (140960) NimBLE: GATT procedure initiated: notify; 
+[14:28:54] I (140960) NimBLE: att_handle=28
+[14:28:54] 
+[14:28:54] I (140960) sx4.ble: sync transfer ended (status 0)
+[14:28:55] I (141820) sx4.house: battery 4047 mV (85%)
+[14:29:03] I (149670) sx4.ble: central disconnected (reason 0x213)
+[14:29:03] I (149680) NimBLE: GAP procedure initiated: advertise; 
+[14:29:03] I (149680) NimBLE: disc_mode=2
+[14:29:03] I (149680) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[14:29:03] I (149690) NimBLE: 
+[14:29:03] 
+[14:29:03] I (149690) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[14:29:05] I (151820) sx4.house: battery 4047 mV (85%)
+[14:29:08] I (154960) sx4.radio: rx len=77 rssi=-39 snr=11 freq=918500000
+[14:29:08] I (154960) sx4.radio: payload="LMXC[\,30,1,1,0,773,0,99,47,0,769,0,160,32,0,773,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:29:08] I (154970) sx4.sample: stored seq=625 t=773,769,773,771 flags=0x2f
+[14:29:15] I (161820) sx4.house: battery 4047 mV (85%)
+[14:29:25] I (171820) sx4.house: battery 4047 mV (85%)
+[14:29:25] I (172240) sx4.ble: central connected (handle 1)
+[14:29:25] I (172330) sx4.ble: pairing complete (status 0, 1 bond(s))
+[14:29:25] I (172330) sx4.ble: link secured (authenticated, 1 bond(s))
+[14:29:27] I (174040) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[14:29:27] I (174040) NimBLE: GATT procedure initiated: notify; 
+[14:29:27] I (174050) NimBLE: att_handle=23
+[14:29:27] 
+[14:29:27] I (174190) NimBLE: GATT procedure initiated: notify; 
+[14:29:27] I (174190) NimBLE: att_handle=28
+[14:29:27] 
+[14:29:27] I (174450) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:29:27] I (174450) NimBLE: GATT procedure initiated: notify; 
+[14:29:27] I (174450) NimBLE: att_handle=28
+[14:29:27] 
+[14:29:27] I (174450) sx4.ble: sync transfer ended (status 0)
+[14:29:35] I (181820) sx4.house: battery 4047 mV (85%)
+[14:29:38] I (185190) sx4.radio: rx len=77 rssi=-38 snr=11 freq=918500000
+[14:29:38] I (185190) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,770,0,160,32,0,774,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:29:38] I (185200) sx4.sample: stored seq=626 t=774,770,774,771 flags=0x2f
+[14:29:45] I (191820) sx4.house: battery 4047 mV (85%)
+[14:29:55] I (201820) sx4.house: battery 4047 mV (85%)
+[14:29:58] I (204760) NimBLE: GATT procedure initiated: notify; 
+[14:29:58] I (204760) NimBLE: att_handle=28
+[14:29:58] 
+[14:29:58] I (204920) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[14:29:58] I (204920) NimBLE: GATT procedure initiated: notify; 
+[14:29:58] I (204920) NimBLE: att_handle=28
+[14:29:58] 
+[14:29:58] I (204920) sx4.ble: sync transfer ended (status 0)
+[14:30:05] I (211820) sx4.house: battery 4047 mV (85%)
+[14:30:08] I (215420) sx4.radio: rx len=77 rssi=-41 snr=11 freq=918500000
+[14:30:08] I (215420) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,771,0,160,32,0,775,0,160,32,0,773,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:30:08] I (215430) sx4.sample: stored seq=627 t=775,771,775,773 flags=0x2f
+[14:30:15] I (221820) sx4.house: battery 4038 mV (84%)
+[14:30:25] I (231820) sx4.house: battery 4047 mV (85%)
+[14:30:26] I (233180) sx4.ble: central disconnected (reason 0x213)
+[14:30:26] I (233190) NimBLE: GAP procedure initiated: advertise; 
+[14:30:26] I (233190) NimBLE: disc_mode=2
+[14:30:26] I (233190) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[14:30:26] I (233200) NimBLE: 
+[14:30:26] 
+[14:30:26] I (233200) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[14:30:26] I (233520) sx4.ble: central connected (handle 1)
+[14:30:26] I (233610) sx4.ble: pairing complete (status 0, 1 bond(s))
+[14:30:26] I (233610) sx4.ble: link secured (authenticated, 1 bond(s))
+[14:30:28] I (235320) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[14:30:28] I (235320) NimBLE: GATT procedure initiated: notify; 
+[14:30:28] I (235320) NimBLE: att_handle=23
+[14:30:28] 
+[14:30:28] I (235470) NimBLE: GATT procedure initiated: notify; 
+[14:30:28] I (235470) NimBLE: att_handle=28
+[14:30:28] 
+[14:30:29] I (235730) sx4.ble: sync frame_seq snapshot: 609 B, status 0
+[14:30:29] I (235740) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (235740) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (235750) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (235750) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (235770) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (235770) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (235770) sx4.ble: sync transfer ended (status 0)
+[14:30:29] I (236030) sx4.ble: sync frame_seq snapshot: 609 B, status 0
+[14:30:29] I (236030) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (236030) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (236040) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (236050) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (236060) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (236060) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (236060) sx4.ble: sync transfer ended (status 0)
+[14:30:29] I (236220) sx4.ble: sync frame_seq snapshot: 609 B, status 0
+[14:30:29] I (236220) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (236220) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (236240) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (236240) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (236260) NimBLE: GATT procedure initiated: notify; 
+[14:30:29] I (236260) NimBLE: att_handle=28
+[14:30:29] 
+[14:30:29] I (236260) sx4.ble: sync transfer ended (status 0)
+[14:30:29] I (236490) NimBLE: ATT handler not found; op=0x1d conn_handle=0x0001 cid=0x0004; packet dropped
+[14:30:29] 
+[14:30:29] I (236490) sx4.ble: central disconnected (reason 0x215)
+[14:30:29] I (236510) NimBLE: GAP procedure initiated: advertise; 
+[14:30:29] I (236510) NimBLE: disc_mode=2
+[14:30:29] I (236510) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[14:30:29] I (236510) NimBLE: 
+[14:30:29] 
+[14:30:29] I (236520) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[14:30:35] I (241820) sx4.house: battery 4047 mV (85%)
+[14:30:39] I (245650) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:30:39] I (245650) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,771,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:30:39] I (245660) sx4.sample: stored seq=628 t=775,771,775,772 flags=0x2f
+[14:30:45] I (251820) sx4.house: battery 4038 mV (84%)
+[14:30:55] I (261820) sx4.house: battery 4047 mV (85%)
+[14:31:00] I (267490) sx4.ble: central connected (handle 1)
+[14:31:00] I (267600) sx4.ble: pairing complete (status 0, 1 bond(s))
+[14:31:00] I (267600) sx4.ble: link secured (authenticated, 1 bond(s))
+[14:31:02] I (269350) NimBLE: GATT procedure initiated: notify; 
+[14:31:02] I (269350) NimBLE: att_handle=28
+[14:31:02] 
+[14:31:03] I (269820) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:03] I (269820) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (269820) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (269830) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (269840) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (269850) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (269850) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (269870) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (269870) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (269880) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (269880) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (269880) sx4.ble: sync transfer ended (status 0)
+[14:31:03] I (270010) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:03] I (270010) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270010) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270030) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270030) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270040) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270040) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270060) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270060) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270070) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270080) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270080) sx4.ble: sync transfer ended (status 0)
+[14:31:03] I (270300) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:03] I (270300) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270300) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270320) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270320) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270330) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270330) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270350) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270350) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270370) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270370) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270370) sx4.ble: sync transfer ended (status 0)
+[14:31:03] I (270540) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:03] I (270540) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270540) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270560) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270560) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270580) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270580) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270590) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270590) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270610) NimBLE: GATT procedure initiated: notify; 
+[14:31:03] I (270610) NimBLE: att_handle=28
+[14:31:03] 
+[14:31:03] I (270610) sx4.ble: sync transfer ended (status 0)
+[14:31:04] I (270840) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:04] I (270840) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (270840) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (270850) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (270850) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (270870) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (270870) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (270890) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (270890) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (270900) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (270900) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (270900) sx4.ble: sync transfer ended (status 0)
+[14:31:04] I (271120) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:04] I (271130) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271130) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271140) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271140) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271160) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271160) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271170) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271180) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271190) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271190) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271190) sx4.ble: sync transfer ended (status 0)
+[14:31:04] I (271320) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:04] I (271320) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271320) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271340) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271340) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271350) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271350) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271370) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271370) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271390) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271390) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271390) sx4.ble: sync transfer ended (status 0)
+[14:31:04] I (271560) sx4.ble: sync frame_seq snapshot: 1185 B, status 0
+[14:31:04] I (271560) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271560) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271580) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271580) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271600) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271600) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:04] I (271610) NimBLE: GATT procedure initiated: notify; 
+[14:31:04] I (271610) NimBLE: att_handle=28
+[14:31:04] 
+[14:31:05] I (271630) NimBLE: GATT procedure initiated: notify; 
+[14:31:05] I (271630) NimBLE: att_handle=28
+[14:31:05] 
+[14:31:05] I (271630) sx4.ble: sync transfer ended (status 0)
+[14:31:05] I (271820) sx4.house: battery 4047 mV (85%)
+[14:31:05] I (271850) sx4.ble: sync frame_seq snapshot: 393 B, status 0
+[14:31:05] I (271850) NimBLE: GATT procedure initiated: notify; 
+[14:31:05] I (271850) NimBLE: att_handle=28
+[14:31:05] 
+[14:31:05] I (271870) NimBLE: GATT procedure initiated: notify; 
+[14:31:05] I (271870) NimBLE: att_handle=28
+[14:31:05] 
+[14:31:05] I (271870) sx4.ble: sync transfer ended (status 0)
+[14:31:05] I (272100) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[14:31:05] I (272100) NimBLE: GATT procedure initiated: notify; 
+[14:31:05] I (272100) NimBLE: att_handle=28
+[14:31:05] 
+[14:31:05] I (272100) sx4.ble: sync transfer ended (status 0)
+[14:31:05] I (272240) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[14:31:05] I (272240) NimBLE: GATT procedure initiated: notify; 
+[14:31:05] I (272240) NimBLE: att_handle=28
+[14:31:05] 
+[14:31:05] I (272250) sx4.ble: sync transfer ended (status 0)
+[14:31:09] I (275880) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:31:09] I (275880) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,771,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:31:09] I (275890) sx4.sample: stored seq=629 t=775,771,775,772 flags=0x2f
+[14:31:15] I (281820) sx4.house: battery 4047 mV (85%)
+[14:31:25] I (291820) sx4.house: battery 4047 mV (85%)
+[14:31:30] I (296800) sx4.ble: central disconnected (reason 0x213)
+[14:31:30] I (296810) NimBLE: GAP procedure initiated: advertise; 
+[14:31:30] I (296810) NimBLE: disc_mode=2
+[14:31:30] I (296810) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[14:31:30] I (296820) NimBLE: 
+[14:31:30] 
+[14:31:30] I (296820) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[14:31:35] I (301820) sx4.house: battery 4047 mV (85%)
+[14:31:39] I (306110) sx4.radio: rx len=77 rssi=-40 snr=10 freq=918500000
+[14:31:39] I (306110) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,770,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:31:39] I (306120) sx4.sample: stored seq=630 t=775,770,775,772 flags=0x2f
+[14:31:45] I (311820) sx4.house: battery 4047 mV (85%)
+[14:31:55] I (321820) sx4.house: battery 4047 mV (85%)
+[14:32:05] I (331820) sx4.house: battery 4038 mV (84%)
+[14:32:09] I (336360) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:32:09] I (336360) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,770,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:32:09] I (336370) sx4.sample: stored seq=631 t=774,770,775,772 flags=0x2f
+[14:32:15] I (341820) sx4.house: battery 4047 mV (85%)
+[14:32:25] I (351820) sx4.house: battery 4047 mV (85%)
+[14:32:30] I (356810) NimBLE: GAP procedure initiated: stop advertising.
+[14:32:30] 
+[14:32:30] I (356810) NimBLE: GAP procedure initiated: advertise; 
+[14:32:30] I (356810) NimBLE: disc_mode=2
+[14:32:30] I (356810) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=1600 adv_itvl_max=1600
+[14:32:30] I (356820) NimBLE: 
+[14:32:30] 
+[14:32:30] I (356820) sx4.ble: advertising at 1000 ms (adv 21 B, rsp 27 B)
+[14:32:35] I (361830) sx4.house: battery 4047 mV (85%)
+[14:32:39] I (366570) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:32:39] I (366570) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,770,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:32:39] I (366580) sx4.sample: stored seq=632 t=774,770,775,772 flags=0x2f
+[14:32:45] I (371830) sx4.house: battery 4047 mV (85%)
+[14:32:55] I (381830) sx4.house: battery 4047 mV (85%)
+[14:33:05] I (391830) sx4.house: battery 4047 mV (85%)
+[14:33:10] I (396820) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:33:10] I (396820) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,770,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:33:10] I (396830) sx4.sample: stored seq=633 t=775,770,775,772 flags=0x2f
+[14:33:15] I (401830) sx4.house: battery 4047 mV (85%)
+[14:33:25] I (411830) sx4.house: battery 4047 mV (85%)
+[14:33:35] I (421830) sx4.house: battery 4047 mV (85%)
+[14:33:40] I (427050) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:33:40] I (427050) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,770,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:33:40] I (427060) sx4.sample: stored seq=634 t=774,770,775,772 flags=0x2f
+[14:33:45] I (431830) sx4.house: battery 4047 mV (85%)
+[14:33:55] I (441830) sx4.house: battery 4047 mV (85%)
+[14:34:05] I (451830) sx4.house: battery 4047 mV (85%)
+[14:34:10] I (457280) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:34:10] I (457280) sx4.radio: payload="LMXC[\,30,1,1,0,773,0,99,47,0,769,0,160,32,0,775,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:34:10] I (457290) sx4.sample: stored seq=635 t=773,769,775,771 flags=0x2f
+[14:34:15] I (461830) sx4.house: battery 4047 mV (85%)
+[14:34:25] I (471830) sx4.house: battery 4047 mV (85%)
+[14:34:35] I (481830) sx4.house: battery 4047 mV (85%)
+[14:34:40] I (487510) sx4.radio: rx len=77 rssi=-40 snr=10 freq=918500000
+[14:34:40] I (487510) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,770,0,160,32,0,776,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:34:40] I (487520) sx4.sample: stored seq=636 t=774,770,776,772 flags=0x2f
+[14:34:45] I (491830) sx4.house: battery 4047 mV (85%)
+[14:34:55] I (501830) sx4.house: battery 4047 mV (85%)
+[14:35:05] I (511830) sx4.house: battery 4047 mV (85%)
+[14:35:11] I (517740) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:35:11] I (517740) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,769,0,160,32,0,775,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:35:11] I (517750) sx4.sample: stored seq=637 t=774,769,775,771 flags=0x2f
+[14:35:15] I (521830) sx4.house: battery 4047 mV (85%)
+[14:35:25] I (531830) sx4.house: battery 4047 mV (85%)
+[14:35:35] I (541830) sx4.house: battery 4047 mV (85%)
+[14:35:41] I (547970) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:35:41] I (547970) sx4.radio: payload="LMXC[\,30,1,1,0,773,0,99,47,0,769,0,160,32,0,775,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:35:41] I (547980) sx4.sample: stored seq=638 t=773,769,775,771 flags=0x2f
+[14:35:45] I (551830) sx4.house: battery 4047 mV (85%)
+[14:35:55] I (561830) sx4.house: battery 4047 mV (85%)
+[14:36:05] I (571830) sx4.house: battery 4047 mV (85%)
+[14:36:11] I (578200) sx4.radio: rx len=77 rssi=-40 snr=10 freq=918500000
+[14:36:11] I (578200) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,769,0,160,32,0,775,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:36:11] I (578210) sx4.sample: stored seq=639 t=774,769,775,772 flags=0x2f
+[14:36:15] I (581830) sx4.house: battery 4047 mV (85%)
+[14:36:25] I (591830) sx4.house: battery 4047 mV (85%)
+[14:36:35] I (601840) sx4.house: battery 4047 mV (85%)
+[14:36:41] I (608430) sx4.radio: rx len=77 rssi=-39 snr=11 freq=918500000
+[14:36:41] I (608430) sx4.radio: payload="LMXC[\,30,1,1,0,774,0,99,47,0,769,0,160,32,0,775,0,160,32,0,771,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 36 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 31 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:36:41] I (608440) sx4.sample: stored seq=640 t=774,769,775,771 flags=0x2f
+[14:36:45] I (611840) sx4.house: battery 4047 mV (85%)
+[14:36:55] I (621840) sx4.house: battery 4047 mV (85%)
+[14:37:05] I (631840) sx4.house: battery 4047 mV (85%)
+[14:37:12] I (638660) sx4.radio: rx len=77 rssi=-40 snr=10 freq=918500000
+[14:37:12] I (638660) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,771,0,160,32,0,776,0,160,32,0,772,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:37:12] I (638670) sx4.sample: stored seq=641 t=775,771,776,772 flags=0x2f
+[14:37:15] I (641840) sx4.house: battery 4047 mV (85%)
+[14:37:25] I (651840) sx4.house: battery 4047 mV (85%)
+[14:37:35] I (661840) sx4.house: battery 4047 mV (85%)
+[14:37:42] I (668890) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:37:42] I (668890) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,771,0,160,32,0,776,0,160,32,0,773,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:37:42] I (668900) sx4.sample: stored seq=642 t=775,771,776,773 flags=0x2f
+[14:37:45] I (671840) sx4.house: battery 4038 mV (84%)
+[14:37:55] I (681840) sx4.house: battery 4047 mV (85%)
+[14:38:05] I (691840) sx4.house: battery 4047 mV (85%)
+[14:38:12] I (699120) sx4.radio: rx len=77 rssi=-40 snr=10 freq=918500000
+[14:38:12] I (699120) sx4.radio: payload="LMXC[\,30,1,1,0,776,0,99,47,0,771,0,160,32,0,776,0,160,32,0,773,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:38:12] I (699130) sx4.sample: stored seq=643 t=776,771,776,773 flags=0x2f
+[14:38:15] I (701840) sx4.house: battery 4047 mV (85%)
+[14:38:25] I (711840) sx4.house: battery 4047 mV (85%)
+[14:38:35] I (721840) sx4.house: battery 4047 mV (85%)
+[14:38:42] I (729350) sx4.radio: rx len=77 rssi=-40 snr=10 freq=918500000
+[14:38:42] I (729350) sx4.radio: payload="LMXC[\,30,1,1,0,776,0,99,47,0,771,0,160,32,0,776,0,160,32,0,773,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:38:42] I (729360) sx4.sample: stored seq=644 t=776,771,776,773 flags=0x2f
+[14:38:45] I (731840) sx4.house: battery 4047 mV (85%)
+[14:38:55] I (741840) sx4.house: battery 4047 mV (85%)
+[14:39:05] I (751840) sx4.house: battery 4047 mV (85%)
+[14:39:12] I (759600) sx4.radio: rx len=77 rssi=-39 snr=10 freq=918500000
+[14:39:13] I (759600) sx4.radio: payload="LMXC[\,30,1,1,0,775,0,99,47,0,771,0,160,32,0,776,0,160,32,0,773,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:39:13] I (759610) sx4.sample: stored seq=645 t=775,771,776,773 flags=0x2f
+[14:39:15] I (761840) sx4.house: battery 4047 mV (85%)
+[14:39:25] I (771840) sx4.house: battery 4047 mV (85%)
+[14:39:35] I (781840) sx4.house: battery 4047 mV (85%)
+[14:39:43] I (789830) sx4.radio: rx len=77 rssi=-40 snr=10 freq=918500000
+[14:39:43] I (789830) sx4.radio: payload="LMXC[\,30,1,1,0,776,0,99,47,0,771,0,160,32,0,776,0,160,32,0,773,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:39:43] I (789840) sx4.sample: stored seq=646 t=776,771,776,773 flags=0x2f
+[14:39:45] I (791840) sx4.house: battery 4047 mV (85%)
+[14:39:55] I (801840) sx4.house: battery 4047 mV (85%)
+[14:40:05] I (811840) sx4.house: battery 4047 mV (85%)
+[14:40:13] I (820060) sx4.radio: rx len=77 rssi=-40 snr=11 freq=918500000
+[14:40:13] I (820060) sx4.radio: payload="LMXC[\,30,1,1,0,776,0,99,47,0,771,0,160,32,0,776,0,160,32,0,773,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:40:13] I (820070) sx4.sample: stored seq=647 t=776,771,776,773 flags=0x2f
+[14:40:15] I (821840) sx4.house: battery 4047 mV (85%)
+[14:40:25] I (831840) sx4.house: battery 4047 mV (85%)
+[14:40:35] I (841840) sx4.house: battery 4047 mV (85%)
+[14:40:43] I (850290) sx4.radio: rx len=77 rssi=-42 snr=10 freq=918500000
+[14:40:43] I (850290) sx4.radio: payload="LMXC[\,30,1,1,0,776,0,99,47,0,772,0,160,32,0,776,0,160,32,0,774,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:40:43] I (850300) sx4.sample: stored seq=648 t=776,772,776,774 flags=0x2f
+[14:40:45] I (851840) sx4.house: battery 4047 mV (85%)
+[14:40:55] I (861840) sx4.house: battery 4047 mV (85%)
+[14:41:05] I (871840) sx4.house: battery 4047 mV (85%)
+[14:41:13] I (880470) sx4.ble: central connected (handle 1)
+[14:41:13] I (880500) sx4.radio: rx len=77 rssi=-40 snr=11 freq=918500000
+[14:41:13] I (880500) sx4.radio: payload="LMXC[\,30,1,1,0,778,0,99,47,0,773,0,160,32,0,778,0,160,32,0,775,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 37 38 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 37 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[14:41:13] I (880510) sx4.sample: stored seq=649 t=778,773,778,775 flags=0x2f
+[14:41:13] I (880560) sx4.ble: pairing complete (status 0, 1 bond(s))
+[14:41:13] I (880560) sx4.ble: link secured (authenticated, 1 bond(s))
+[14:41:15] I (881840) sx4.house: battery 4047 mV (85%)
+[14:41:15] I (882290) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[14:41:15] I (882290) NimBLE: GATT procedure initiated: notify; 
+[14:41:15] I (882290) NimBLE: att_handle=23
+[14:41:15] 
+[14:41:15] I (882380) NimBLE: GATT procedure initiated: notify; 
+[14:41:15] I (882390) NimBLE: att_handle=28
+[14:41:15] 
+[14:41:16] I (882750) sx4.ble: sync frame_seq snapshot: 411 B, status 0
+[14:41:16] I (882750) NimBLE: GATT procedure initiated: notify; 
+[14:41:16] I (882750) NimBLE: att_handle=28
+[14:41:16] 
+[14:41:16] I (882760) NimBLE: GATT procedure initiated: notify; 
+[14:41:16] I (882760) NimBLE: att_handle=28
+[14:41:16] 
+[14:41:16] I (882760) sx4.ble: sync transfer ended (status 0)
+[14:41:25] I (891840) sx4.house: battery 4047 mV (85%)
+[14:41:35] I (901840) sx4.house: battery 4047 mV (85%)
+[15:00:12] uild:Mar 27 2021
+[15:00:12] rst:0x1 (¨X.W‹¥½¹Table:
+[15:00:12] I (50) boot: ## Label            Usage          Type ST Offset   Length
+[15:00:12] I (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+[15:00:12] I (63) boot:  1 phy_init         RF data          01 01 00011000 00001000
+[15:00:12] I (69) boot:  2 coredump         Unknown data     01 03 00012000 0000e000
+[15:00:12] I (76) boot:  3 factory          factory app      00 00 00020000 00200000
+[15:00:12] I (82) boot:  4 samples          Unknown data     01 40 00220000 005e0000
+[15:00:12] I (89) boot: End of partition table
+[15:00:12] I (92) esp_image: segment 0: paddr=00020020 vaddr=3c060020 size=1997ch (104828) map
+[15:00:12] I (118) esp_image: segment 1: paddr=000399a4 vaddr=3fc9b100 size=04994h ( 18836) load
+[15:00:12] I (123) esp_image: segment 2: paddr=0003e340 vaddr=40374000 size=01cd8h (  7384) load
+[15:00:12] I (125) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=5c5ech (378348) map
+[15:00:12] I (199) esp_image: segment 4: paddr=0009c614 vaddr=40375cd8 size=1531ch ( 86812) load
+[15:00:12] I (219) esp_image: segment 5: paddr=000b1938 vaddr=50000000 size=00024h (    36) load
+[15:00:12] I (219) esp_image: segment 6: paddr=000b1964 vaddr=600fe000 size=0006ch (   108) load
+[15:00:12] I (233) boot: Loaded app from partition at offset 0x20000
+[15:00:12] I (233) boot: Disabling RNG early entropy source...
+[15:00:13] I (244) cpu_start: Multicore app
+[15:00:13] I (253) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+[15:00:13] I (254) cpu_start: Pro cpu start user code
+[15:00:13] I (254) cpu_start: cpu freq: 240000000 Hz
+[15:00:13] I (255) app_init: Application information:
+[15:00:13] I (259) app_init: Project name:     sx4_bridge
+[15:00:13] I (263) app_init: App version:      df97583
+[15:00:13] I (267) app_init: Compile time:     Oct 27 2026 14:09:39
+[15:00:13] I (272) app_init: ELF file SHA256:  a8d17a99f...
+[15:00:13] I (276) app_init: ESP-IDF:          v6.0.2
+[15:00:13] I (280) efuse_init: Min chip rev:     v0.0
+[15:00:13] I (284) efuse_init: Max chip rev:     v0.99 
+[15:00:13] I (288) efuse_init: Chip rev:         v0.2
+[15:00:13] I (292) heap_init: Initializing. RAM available for dynamic allocation:
+[15:00:13] I (298) heap_init: At 3FCA2EE0 len 00046830 (282 KiB): RAM
+[15:00:13] I (303) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+[15:00:13] I (308) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+[15:00:13] I (314) heap_init: At 600FE06C len 00001F7C (7 KiB): RTCRAM
+[15:00:13] I (320) spi_flash: detected chip: gd
+[15:00:13] I (322) spi_flash: flash io: dio
+[15:00:13] I (326) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+[15:00:13] I (332) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+[15:00:13] I (338) esp_core_dump_flash: Init core dump to flash
+[15:00:13] I (343) esp_core_dump_flash: Found partition 'coredump' @ 12000 57344 bytes
+[15:00:13] I (350) main_task: Started on CPU0
+[15:00:13] I (370) main_task: Calling app_main()
+[15:00:13] I (370) sx4.boot: boot: starting
+[15:00:13] I (380) sx4.boot: nvs: ok
+[15:00:13] I (400) sx4.config: loaded: version 1
+[15:00:13] I (400) sx4.boot: bridge_config_init: ok
+[15:00:13] I (400) sx4.boot: bridge_state_init: ok
+[15:00:13] I (400) sx4.boot: board_prg_init: ok
+[15:00:13] I (500) sx4.board: Vext on (GPIO36 low), OLED reset released
+[15:00:13] I (500) sx4.batt: battery ADC ready: GPIO1/ADC1_CH0, x4.90 divider
+[15:00:13] I (500) sx4.boot: board_power_init: ok
+[15:00:13] I (540) sx4.ui: SSD1306 128x64 at 0x3c, 400000 Hz
+[15:00:13] I (560) sx4.boot: ui_init: ok
+[15:00:14] I (1470) sx4.log.flash: recovered in 906 ms: gen 081936f6, seq 0..673, next 674, 674 records, 0 sectors cleared, state OK
+[15:00:14] I (1470) sx4.boot: sample_log_init: ok
+[15:00:14] I (1470) sx4.boot: sx_protocol_init: ok
+[15:00:14] I (1480) RA01S: CONFIG_MISO_GPIO=11
+[15:00:14] I (1480) RA01S: CONFIG_MOSI_GPIO=10
+[15:00:14] I (1480) RA01S: CONFIG_SCLK_GPIO=9
+[15:00:14] I (1490) RA01S: CONFIG_NSS_GPIO=8
+[15:00:14] I (1490) RA01S: CONFIG_RST_GPIO=12
+[15:00:14] I (1490) RA01S: CONFIG_BUSY_GPIO=13
+[15:00:14] I (1490) RA01S: CONFIG_TXEN_GPIO=-1
+[15:00:14] I (1500) RA01S: CONFIG_RXEN_GPIO=-1
+[15:00:14] I (1500) RA01S: spi_bus_initialize=0
+[15:00:14] I (1500) RA01S: spi_bus_add_device=0
+[15:00:14] I (1550) RA01S: syncWord=0x1424
+[15:00:14] I (1550) RA01S: SX126x installed
+[15:00:14] W (1560) RA01S: WriteCommand2 status=0a retry=1
+[15:00:14] I (1570) RA01S: tcxoVoltage=3.300000
+[15:00:14] I (1590) RA01S: useRegulatorLDO=1
+[15:00:14] I (1610) RA01S: SetStopRxTimerOnPreambleDetect enable=0
+[15:00:14] I (1670) sx4.radio: configured: SF9 BW4 CR0x01 preamble=10 sync=0x1424 crc=1 tcxo=3.3V ldo=1 freq=918500000
+[15:00:14] I (1670) sx4.boot: sx_radio_init: ok
+[15:00:14] I (1670) sx4.boot: sample_pipe_start: ok
+[15:00:14] I (1670) sx4.boot: ble_tx_start: ok
+[15:00:14] I (1670) sx4.boot: sx_radio_start: ok
+[15:00:14] I (1670) sx4.radio: radio_rx started on core 1
+[15:00:14] I (1680) BLE_INIT: BT controller compile version [51d9dfd]
+[15:00:14] I (1690) BLE_INIT: Using main XTAL as clock source
+[15:00:14] I (1690) BLE_INIT: Feature Config, ADV:1, BLE_50:1, DTM:1, SCAN:1, CCA:0, SMP:1, CONNECT:1
+[15:00:14] I (1700) BLE_INIT: Bluetooth MAC: ac:a7:04:38:82:76
+[15:00:14] I (1700) phy_init: phy_version 712,87e8c20e,Apr 13 2026,18:51:10
+[15:00:14] I (1770) NimBLE: GAP procedure initiated: stop advertising.
+[15:00:14] 
+[15:00:14] I (1770) NimBLE: GAP procedure initiated: stop advertising.
+[15:00:14] 
+[15:00:14] I (1770) NimBLE: GAP procedure initiated: advertise; 
+[15:00:14] I (1770) NimBLE: disc_mode=2
+[15:00:14] I (1770) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[15:00:14] I (1780) NimBLE: 
+[15:00:14] 
+[15:00:14] I (1790) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[15:00:14] I (1790) sx4.ble: host synced; 1/4 bond slot(s) used
+[15:00:14] I (1800) sx4.ble: GATT service registered (8 slots), host starting
+[15:00:14] I (1800) sx4.boot: ble_service_start: ok
+[15:00:14] I (1810) sx4.house: housekeeping started: battery every 10000 ms
+[15:00:14] I (1810) sx4.house: battery 4038 mV (84%)
+[15:00:14] I (1810) sx4.boot: housekeeping_start: ok
+[15:00:14] I (1820) sx4.ui: ui task started (page 0, timeout 60 s)
+[15:00:14] I (1820) sx4.boot: ui_start: ok
+[15:00:14] I (1830) sx4.boot: boot: sequence complete
+[15:00:14] I (1830) main_task: Returned from app_main()
+[15:00:15] I (2350) sx4.ble: central connected (handle 1)
+[15:00:15] I (2440) sx4.ble: pairing complete (status 0, 1 bond(s))
+[15:00:15] I (2440) sx4.ble: link secured (authenticated, 1 bond(s))
+[15:00:16] I (4180) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[15:00:16] I (4180) NimBLE: GATT procedure initiated: notify; 
+[15:00:16] I (4180) NimBLE: att_handle=23
+[15:00:16] 
+[15:00:17] I (4330) NimBLE: GATT procedure initiated: notify; 
+[15:00:17] I (4330) NimBLE: att_handle=28
+[15:00:17] 
+[15:00:17] I (4590) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:00:17] I (4590) NimBLE: GATT procedure initiated: notify; 
+[15:00:17] I (4590) NimBLE: att_handle=28
+[15:00:17] 
+[15:00:17] I (4590) sx4.ble: sync transfer ended (status 0)
+[15:00:24] I (11990) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+[15:00:24] I (11990) sx4.radio: payload="LMXC[\,30,1,1,0,789,0,99,47,0,785,0,160,32,0,789,0,160,32,0,787,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:00:24] I (12000) sx4.sample: stored seq=674 t=789,785,789,787 flags=0x2f
+[15:00:25] I (12810) sx4.house: battery 4038 mV (84%)
+[15:00:35] I (22810) sx4.house: battery 4038 mV (84%)
+[15:00:45] I (32810) sx4.house: battery 4038 mV (84%)
+[15:00:47] I (34950) NimBLE: GATT procedure initiated: notify; 
+[15:00:47] I (34950) NimBLE: att_handle=28
+[15:00:47] 
+[15:00:47] I (35060) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:00:47] I (35060) NimBLE: GATT procedure initiated: notify; 
+[15:00:47] I (35060) NimBLE: att_handle=28
+[15:00:47] 
+[15:00:47] I (35060) sx4.ble: sync transfer ended (status 0)
+[15:00:54] I (42230) sx4.radio: rx len=77 rssi=-29 snr=11 freq=918500000
+[15:00:55] I (42230) sx4.radio: payload="LMXC[\,30,1,1,0,789,0,99,47,0,786,0,160,32,0,789,0,160,32,0,787,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:00:55] I (42250) sx4.sample: stored seq=675 t=789,786,789,787 flags=0x2f
+[15:00:55] I (42810) sx4.house: battery 4038 mV (84%)
+[15:01:05] I (52810) sx4.house: battery 4038 mV (84%)
+[15:01:06] I (54200) sx4.ble: central disconnected (reason 0x213)
+[15:01:06] I (54210) NimBLE: GAP procedure initiated: advertise; 
+[15:01:06] I (54210) NimBLE: disc_mode=2
+[15:01:06] I (54210) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[15:01:06] I (54220) NimBLE: 
+[15:01:06] 
+[15:01:06] I (54220) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[15:01:07] I (54530) sx4.ble: central connected (handle 1)
+[15:01:07] I (54620) sx4.ble: pairing complete (status 0, 1 bond(s))
+[15:01:07] I (54620) sx4.ble: link secured (authenticated, 1 bond(s))
+[15:01:09] I (56400) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[15:01:09] I (56400) NimBLE: GATT procedure initiated: notify; 
+[15:01:09] I (56400) NimBLE: att_handle=23
+[15:01:09] 
+[15:01:09] I (56490) NimBLE: GATT procedure initiated: notify; 
+[15:01:09] I (56490) NimBLE: att_handle=28
+[15:01:09] 
+[15:01:09] I (56800) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:01:09] I (56800) NimBLE: GATT procedure initiated: notify; 
+[15:01:09] I (56800) NimBLE: att_handle=28
+[15:01:09] 
+[15:01:09] I (56800) sx4.ble: sync transfer ended (status 0)
+[15:01:15] I (62810) sx4.house: battery 4038 mV (84%)
+[15:01:25] I (72460) sx4.radio: rx len=77 rssi=-29 snr=11 freq=918500000
+[15:01:25] I (72460) sx4.radio: payload="LMXC[\,30,1,1,0,791,0,99,47,0,787,0,160,32,0,789,0,160,32,0,788,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 38 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:01:25] I (72470) sx4.sample: stored seq=676 t=791,787,789,788 flags=0x2f
+[15:01:25] I (72810) sx4.house: battery 4038 mV (84%)
+[15:01:35] I (82810) sx4.house: battery 4038 mV (84%)
+[15:01:40] I (87250) NimBLE: GATT procedure initiated: notify; 
+[15:01:40] I (87250) NimBLE: att_handle=28
+[15:01:40] 
+[15:01:40] I (87420) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:01:40] I (87420) NimBLE: GATT procedure initiated: notify; 
+[15:01:40] I (87420) NimBLE: att_handle=28
+[15:01:40] 
+[15:01:40] I (87420) sx4.ble: sync transfer ended (status 0)
+[15:01:45] I (92810) sx4.house: battery 4038 mV (84%)
+[15:01:55] I (102680) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+[15:01:55] I (102680) sx4.radio: payload="LMXC[\,30,1,1,0,791,0,99,47,0,787,0,160,32,0,789,0,160,32,0,787,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:01:55] I (102690) sx4.sample: stored seq=677 t=791,787,789,787 flags=0x2f
+[15:01:55] I (102810) sx4.house: battery 4047 mV (85%)
+[15:02:05] I (112810) sx4.house: battery 4038 mV (84%)
+[15:02:10] I (117670) NimBLE: GATT procedure initiated: notify; 
+[15:02:10] I (117670) NimBLE: att_handle=28
+[15:02:10] 
+[15:02:10] I (117790) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:02:10] I (117790) NimBLE: GATT procedure initiated: notify; 
+[15:02:10] I (117790) NimBLE: att_handle=28
+[15:02:10] 
+[15:02:10] I (117790) sx4.ble: sync transfer ended (status 0)
+[15:02:15] I (122810) sx4.house: battery 4038 mV (84%)
+[15:02:25] I (132810) sx4.house: battery 4038 mV (84%)
+[15:02:25] I (132910) sx4.radio: rx len=77 rssi=-28 snr=10 freq=918500000
+[15:02:25] I (132910) sx4.radio: payload="LMXC[\,30,1,1,0,790,0,99,47,0,785,0,160,32,0,789,0,160,32,0,787,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 30 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:02:25] I (132920) sx4.sample: stored seq=678 t=790,785,789,787 flags=0x2f
+[15:02:35] I (142810) sx4.house: battery 4047 mV (85%)
+[15:02:40] I (148050) NimBLE: GATT procedure initiated: notify; 
+[15:02:40] I (148050) NimBLE: att_handle=28
+[15:02:40] 
+[15:02:40] I (148210) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:02:40] I (148210) NimBLE: GATT procedure initiated: notify; 
+[15:02:40] I (148210) NimBLE: att_handle=28
+[15:02:40] 
+[15:02:40] I (148210) sx4.ble: sync transfer ended (status 0)
+[15:02:45] I (152810) sx4.house: battery 4038 mV (84%)
+[15:02:55] I (162810) sx4.house: battery 4038 mV (84%)
+[15:02:55] I (163140) sx4.radio: rx len=77 rssi=-28 snr=10 freq=918500000
+[15:02:55] I (163140) sx4.radio: payload="LMXC[\,30,1,1,0,788,0,99,47,0,784,0,160,32,0,789,0,160,32,0,787,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 38 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:02:55] I (163150) sx4.sample: stored seq=679 t=788,784,789,787 flags=0x2f
+[15:03:05] I (172810) sx4.house: battery 4038 mV (84%)
+[15:03:11] I (178470) NimBLE: GATT procedure initiated: notify; 
+[15:03:11] I (178470) NimBLE: att_handle=28
+[15:03:11] 
+[15:03:11] I (178580) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[15:03:11] I (178580) NimBLE: GATT procedure initiated: notify; 
+[15:03:11] I (178580) NimBLE: att_handle=28
+[15:03:11] 
+[15:03:11] I (178580) sx4.ble: sync transfer ended (status 0)
+[15:03:15] I (182810) sx4.house: battery 4047 mV (85%)
+[15:03:25] I (192810) sx4.house: battery 4038 mV (84%)
+[15:03:26] I (193370) sx4.radio: rx len=77 rssi=-28 snr=10 freq=918500000
+[15:03:26] I (193370) sx4.radio: payload="LMXC[\,30,1,1,0,788,0,99,47,0,783,0,160,32,0,789,0,160,32,0,786,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 38 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 33 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:03:26] I (193380) sx4.sample: stored seq=680 t=788,783,789,786 flags=0x2f
+[15:03:35] I (202810) sx4.house: battery 4047 mV (85%)
+[15:03:41] I (208790) NimBLE: GATT procedure initiated: notify; 
+[15:03:41] I (208790) NimBLE: att_handle=28
+[15:03:41] 
+[15:03:41] I (208900) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:03:41] I (208900) NimBLE: GATT procedure initiated: notify; 
+[15:03:41] I (208900) NimBLE: att_handle=28
+[15:03:41] 
+[15:03:41] I (208910) sx4.ble: sync transfer ended (status 0)
+[15:03:45] I (212810) sx4.house: battery 4038 mV (84%)
+[15:03:55] I (222810) sx4.house: battery 4047 mV (85%)
+[15:03:56] I (223600) sx4.radio: rx len=77 rssi=-28 snr=11 freq=918500000
+[15:03:56] I (223600) sx4.radio: payload="LMXC[\,30,1,1,0,787,0,99,47,0,782,0,160,32,0,788,0,160,32,0,786,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 37 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:03:56] I (223610) sx4.sample: stored seq=681 t=787,782,788,786 flags=0x2f
+[15:04:05] I (232810) sx4.house: battery 4047 mV (85%)
+[15:04:11] I (239160) NimBLE: GATT procedure initiated: notify; 
+[15:04:11] I (239160) NimBLE: att_handle=28
+[15:04:11] 
+[15:04:12] I (239270) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:04:12] I (239270) NimBLE: GATT procedure initiated: notify; 
+[15:04:12] I (239270) NimBLE: att_handle=28
+[15:04:12] 
+[15:04:12] I (239280) sx4.ble: sync transfer ended (status 0)
+[15:04:15] I (242810) sx4.house: battery 4047 mV (85%)
+[15:04:25] I (252810) sx4.house: battery 4047 mV (85%)
+[15:04:26] I (253850) sx4.radio: rx len=77 rssi=-28 snr=10 freq=918500000
+[15:04:26] I (253850) sx4.radio: payload="LMXC[\,30,1,1,0,787,0,99,47,0,780,0,160,32,0,787,0,160,32,0,785,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 37 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:04:26] I (253860) sx4.sample: stored seq=682 t=787,780,787,785 flags=0x2f
+[15:04:35] I (262810) sx4.house: battery 4047 mV (85%)
+[15:04:42] I (269480) NimBLE: GATT procedure initiated: notify; 
+[15:04:42] I (269480) NimBLE: att_handle=28
+[15:04:42] 
+[15:04:42] I (269600) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:04:42] I (269600) NimBLE: GATT procedure initiated: notify; 
+[15:04:42] I (269600) NimBLE: att_handle=28
+[15:04:42] 
+[15:04:42] I (269600) sx4.ble: sync transfer ended (status 0)
+[15:04:45] I (272810) sx4.house: battery 4047 mV (85%)
+[15:04:55] I (282810) sx4.house: battery 4047 mV (85%)
+[15:04:56] I (284080) sx4.radio: rx len=77 rssi=-27 snr=10 freq=918500000
+[15:04:56] I (284080) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,780,0,160,32,0,786,0,160,32,0,784,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:04:56] I (284090) sx4.sample: stored seq=683 t=785,780,786,784 flags=0x2f
+[15:05:05] I (292810) sx4.house: battery 4047 mV (85%)
+[15:05:12] I (299850) NimBLE: GATT procedure initiated: notify; 
+[15:05:12] I (299850) NimBLE: att_handle=28
+[15:05:12] 
+[15:05:12] I (299970) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:05:12] I (299970) NimBLE: GATT procedure initiated: notify; 
+[15:05:12] I (299970) NimBLE: att_handle=28
+[15:05:12] 
+[15:05:12] I (299970) sx4.ble: sync transfer ended (status 0)
+[15:05:15] I (302810) sx4.house: battery 4047 mV (85%)
+[15:05:25] I (312810) sx4.house: battery 4047 mV (85%)
+[15:05:27] I (314310) sx4.radio: rx len=77 rssi=-27 snr=11 freq=918500000
+[15:05:27] I (314310) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,780,0,160,32,0,786,0,160,32,0,784,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:05:27] I (314320) sx4.sample: stored seq=684 t=785,780,786,784 flags=0x2f
+[15:05:35] I (322810) sx4.house: battery 4047 mV (85%)
+[15:05:42] I (330180) NimBLE: GATT procedure initiated: notify; 
+[15:05:42] I (330180) NimBLE: att_handle=28
+[15:05:42] 
+[15:05:43] I (330290) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:05:43] I (330290) NimBLE: GATT procedure initiated: notify; 
+[15:05:43] I (330290) NimBLE: att_handle=28
+[15:05:43] 
+[15:05:43] I (330290) sx4.ble: sync transfer ended (status 0)
+[15:05:45] I (332810) sx4.house: battery 4047 mV (85%)
+[15:05:55] I (342810) sx4.house: battery 4047 mV (85%)
+[15:05:57] I (344540) sx4.radio: rx len=77 rssi=-27 snr=10 freq=918500000
+[15:05:57] I (344540) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,780,0,160,32,0,786,0,160,32,0,784,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:05:57] I (344550) sx4.sample: stored seq=685 t=785,780,786,784 flags=0x2f
+[15:06:05] I (352810) sx4.house: battery 4047 mV (85%)
+[15:06:13] I (360500) NimBLE: GATT procedure initiated: notify; 
+[15:06:13] I (360500) NimBLE: att_handle=28
+[15:06:13] 
+[15:06:13] I (360610) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:06:13] I (360610) NimBLE: GATT procedure initiated: notify; 
+[15:06:13] I (360610) NimBLE: att_handle=28
+[15:06:13] 
+[15:06:13] I (360620) sx4.ble: sync transfer ended (status 0)
+[15:06:15] I (362810) sx4.house: battery 4047 mV (85%)
+[15:06:25] I (372810) sx4.house: battery 4047 mV (85%)
+[15:06:27] I (374750) sx4.radio: rx len=77 rssi=-28 snr=11 freq=918500000
+[15:06:27] I (374750) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,779,0,160,32,0,785,0,160,32,0,783,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:06:27] I (374760) sx4.sample: stored seq=686 t=785,779,785,783 flags=0x2f
+[15:06:35] I (382810) sx4.house: battery 4047 mV (85%)
+[15:06:43] I (390870) NimBLE: GATT procedure initiated: notify; 
+[15:06:43] I (390870) NimBLE: att_handle=28
+[15:06:43] 
+[15:06:43] I (390980) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[15:06:43] I (390980) NimBLE: GATT procedure initiated: notify; 
+[15:06:43] I (390980) NimBLE: att_handle=28
+[15:06:43] 
+[15:06:43] I (390990) sx4.ble: sync transfer ended (status 0)
+[15:06:45] I (392810) sx4.house: battery 4047 mV (85%)
+[15:06:55] I (402810) sx4.house: battery 4047 mV (85%)
+[15:06:57] I (405000) sx4.radio: rx len=77 rssi=-28 snr=11 freq=918500000
+[15:06:57] I (405000) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,779,0,160,32,0,785,0,160,32,0,783,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:06:57] I (405010) sx4.sample: stored seq=687 t=785,779,785,783 flags=0x2f
+[15:07:05] I (412810) sx4.house: battery 4047 mV (85%)
+[15:07:13] I (421190) NimBLE: GATT procedure initiated: notify; 
+[15:07:13] I (421190) NimBLE: att_handle=28
+[15:07:13] 
+[15:07:14] I (421310) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:07:14] I (421310) NimBLE: GATT procedure initiated: notify; 
+[15:07:14] I (421310) NimBLE: att_handle=28
+[15:07:14] 
+[15:07:14] I (421310) sx4.ble: sync transfer ended (status 0)
+[15:07:15] I (422810) sx4.house: battery 4047 mV (85%)
+[15:07:25] I (432810) sx4.house: battery 4047 mV (85%)
+[15:07:27] I (435230) sx4.radio: rx len=77 rssi=-28 snr=10 freq=918500000
+[15:07:28] I (435230) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,779,0,160,32,0,785,0,160,32,0,782,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:07:28] I (435240) sx4.sample: stored seq=688 t=785,779,785,782 flags=0x2f
+[15:07:35] I (442810) sx4.house: battery 4047 mV (85%)
+[15:07:36] I (443470) NimBLE: GATT procedure initiated: notify; 
+[15:07:36] I (443470) NimBLE: att_handle=28
+[15:07:36] 
+[15:07:36] I (443590) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[15:07:36] I (443590) NimBLE: GATT procedure initiated: notify; 
+[15:07:36] I (443590) NimBLE: att_handle=28
+[15:07:36] 
+[15:07:36] I (443590) sx4.ble: sync transfer ended (status 0)
+[15:07:44] I (451520) NimBLE: GATT procedure initiated: notify; 
+[15:07:44] I (451520) NimBLE: att_handle=28
+[15:07:44] 
+[15:07:44] I (451630) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[15:07:44] I (451630) NimBLE: GATT procedure initiated: notify; 
+[15:07:44] I (451630) NimBLE: att_handle=28
+[15:07:44] 
+[15:07:44] I (451630) sx4.ble: sync transfer ended (status 0)
+[15:07:45] I (452810) sx4.house: battery 4047 mV (85%)
+[15:07:55] I (462810) sx4.house: battery 4047 mV (85%)
+[15:07:58] I (465480) sx4.radio: rx len=77 rssi=-28 snr=11 freq=918500000
+[15:07:58] I (465480) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,779,0,160,32,0,785,0,160,32,0,783,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:07:58] I (465490) sx4.sample: stored seq=689 t=785,779,785,783 flags=0x2f
+[15:08:05] I (472810) sx4.house: battery 4047 mV (85%)
+[15:08:14] I (481840) NimBLE: GATT procedure initiated: notify; 
+[15:08:14] I (481840) NimBLE: att_handle=28
+[15:08:14] 
+[15:08:14] I (481950) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:08:14] I (481950) NimBLE: GATT procedure initiated: notify; 
+[15:08:14] I (481950) NimBLE: att_handle=28
+[15:08:14] 
+[15:08:14] I (481960) sx4.ble: sync transfer ended (status 0)
+[15:08:15] I (482810) sx4.house: battery 4047 mV (85%)
+[15:08:25] I (492810) sx4.house: battery 4047 mV (85%)
+[15:08:28] I (495750) sx4.radio: rx len=77 rssi=-29 snr=10 freq=918500000
+[15:08:28] I (495750) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,779,0,160,32,0,785,0,160,32,0,782,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 37 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:08:28] I (495760) sx4.sample: stored seq=690 t=785,779,785,782 flags=0x2f
+[15:08:35] I (502810) sx4.house: battery 4047 mV (85%)
+[15:08:44] I (512160) NimBLE: GATT procedure initiated: notify; 
+[15:08:44] I (512160) NimBLE: att_handle=28
+[15:08:44] 
+[15:08:45] I (512280) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:08:45] I (512280) NimBLE: GATT procedure initiated: notify; 
+[15:08:45] I (512280) NimBLE: att_handle=28
+[15:08:45] 
+[15:08:45] I (512280) sx4.ble: sync transfer ended (status 0)
+[15:08:45] I (512810) sx4.house: battery 4047 mV (85%)
+[15:08:55] I (522810) sx4.house: battery 4038 mV (84%)
+[15:08:59] I (526410) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+[15:08:59] I (526410) sx4.radio: payload="LMXC[\,30,1,1,0,785,0,99,47,0,780,0,160,32,0,785,0,160,32,0,783,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 33 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:08:59] I (526420) sx4.sample: stored seq=691 t=785,780,785,783 flags=0x2f
+[15:09:05] I (532810) sx4.house: battery 4047 mV (85%)
+[15:09:15] I (542480) NimBLE: GATT procedure initiated: notify; 
+[15:09:15] I (542480) NimBLE: att_handle=28
+[15:09:15] 
+[15:09:15] I (542600) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:09:15] I (542600) NimBLE: GATT procedure initiated: notify; 
+[15:09:15] I (542600) NimBLE: att_handle=28
+[15:09:15] 
+[15:09:15] I (542600) sx4.ble: sync transfer ended (status 0)
+[15:09:15] I (542810) sx4.house: battery 4047 mV (85%)
+[15:09:25] I (552810) sx4.house: battery 4047 mV (85%)
+[15:09:29] I (556760) sx4.radio: rx len=77 rssi=-31 snr=11 freq=918500000
+[15:09:29] I (556760) sx4.radio: payload="LMXC[\,30,1,1,0,786,0,99,47,0,781,0,160,32,0,786,0,160,32,0,784,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:09:29] I (556770) sx4.sample: stored seq=692 t=786,781,786,784 flags=0x2f
+[15:09:35] I (562810) sx4.house: battery 4047 mV (85%)
+[15:09:45] I (572810) sx4.house: battery 4047 mV (85%)
+[15:09:45] I (572900) NimBLE: GATT procedure initiated: notify; 
+[15:09:45] I (572900) NimBLE: att_handle=28
+[15:09:45] 
+[15:09:45] I (573020) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:09:45] I (573020) NimBLE: GATT procedure initiated: notify; 
+[15:09:45] I (573020) NimBLE: att_handle=28
+[15:09:45] 
+[15:09:45] I (573020) sx4.ble: sync transfer ended (status 0)
+[15:09:55] I (582810) sx4.house: battery 4047 mV (85%)
+[15:09:59] I (587130) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+[15:09:59] I (587130) sx4.radio: payload="LMXC[\,30,1,1,0,786,0,99,47,0,782,0,160,32,0,786,0,160,32,0,784,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:09:59] I (587140) sx4.sample: stored seq=693 t=786,782,786,784 flags=0x2f
+[15:10:05] I (592810) sx4.house: battery 4047 mV (85%)
+[15:10:15] I (602820) sx4.house: battery 4047 mV (85%)
+[15:10:15] I (603230) NimBLE: GATT procedure initiated: notify; 
+[15:10:16] I (603230) NimBLE: att_handle=28
+[15:10:16] 
+[15:10:16] I (603490) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:10:16] I (603490) NimBLE: GATT procedure initiated: notify; 
+[15:10:16] I (603490) NimBLE: att_handle=28
+[15:10:16] 
+[15:10:16] I (603490) sx4.ble: sync transfer ended (status 0)
+[15:10:20] I (607910) sx4.ble: central disconnected (reason 0x213)
+[15:10:20] I (607920) NimBLE: GAP procedure initiated: advertise; 
+[15:10:20] I (607920) NimBLE: disc_mode=2
+[15:10:20] I (607920) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+[15:10:20] I (607920) NimBLE: 
+[15:10:20] 
+[15:10:20] I (607930) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+[15:10:25] I (612820) sx4.house: battery 4047 mV (85%)
+[15:10:30] I (617480) sx4.radio: rx len=77 rssi=-30 snr=11 freq=918500000
+[15:10:30] I (617480) sx4.radio: payload="LMXC[\,30,1,1,0,787,0,99,47,0,782,0,160,32,0,787,0,160,32,0,785,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 37 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:10:30] I (617490) sx4.sample: stored seq=694 t=787,782,787,785 flags=0x2f
+[15:10:35] I (622820) sx4.house: battery 4047 mV (85%)
+[15:10:45] I (632820) sx4.house: battery 4047 mV (85%)
+[15:10:50] I (638050) sx4.ble: central connected (handle 1)
+[15:10:50] I (638140) sx4.ble: pairing complete (status 0, 1 bond(s))
+[15:10:50] I (638140) sx4.ble: link secured (authenticated, 1 bond(s))
+[15:10:52] I (639890) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+[15:10:52] I (639890) NimBLE: GATT procedure initiated: notify; 
+[15:10:52] I (639890) NimBLE: att_handle=23
+[15:10:52] 
+[15:10:52] I (639980) NimBLE: GATT procedure initiated: notify; 
+[15:10:52] I (639990) NimBLE: att_handle=28
+[15:10:52] 
+[15:10:53] I (640250) sx4.ble: sync frame_seq snapshot: 69 B, status 0
+[15:10:53] I (640250) NimBLE: GATT procedure initiated: notify; 
+[15:10:53] I (640250) NimBLE: att_handle=28
+[15:10:53] 
+[15:10:53] I (640250) sx4.ble: sync transfer ended (status 0)
+[15:10:55] I (642820) sx4.house: battery 4047 mV (85%)
+[15:11:00] I (647830) sx4.radio: rx len=77 rssi=-29 snr=11 freq=918500000
+[15:11:00] I (647830) sx4.radio: payload="LMXC[\,30,1,1,0,788,0,99,47,0,784,0,160,32,0,787,0,160,32,0,786,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 38 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 36 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:11:00] I (647840) sx4.sample: stored seq=695 t=788,784,787,786 flags=0x2f
+[15:11:05] I (652820) sx4.house: battery 4047 mV (85%)
+[15:11:15] I (662820) sx4.house: battery 4047 mV (85%)
+[15:11:23] I (670600) NimBLE: GATT procedure initiated: notify; 
+[15:11:23] I (670600) NimBLE: att_handle=28
+[15:11:23] 
+[15:11:23] I (670760) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:11:23] I (670760) NimBLE: GATT procedure initiated: notify; 
+[15:11:23] I (670760) NimBLE: att_handle=28
+[15:11:23] 
+[15:11:23] I (670770) sx4.ble: sync transfer ended (status 0)
+[15:11:25] I (672820) sx4.house: battery 4038 mV (84%)
+[15:11:30] I (678100) sx4.radio: rx len=77 rssi=-30 snr=11 freq=918500000
+[15:11:30] I (678100) sx4.radio: payload="LMXC[\,30,1,1,0,789,0,99,47,0,785,0,160,32,0,789,0,160,32,0,787,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 38 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:11:30] I (678110) sx4.sample: stored seq=696 t=789,785,789,787 flags=0x2f
+[15:11:35] I (682820) sx4.house: battery 4047 mV (85%)
+[15:11:45] I (692820) sx4.house: battery 4047 mV (85%)
+[15:11:53] I (701070) NimBLE: GATT procedure initiated: notify; 
+[15:11:53] I (701070) NimBLE: att_handle=28
+[15:11:53] 
+[15:11:53] I (701180) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:11:53] I (701180) NimBLE: GATT procedure initiated: notify; 
+[15:11:53] I (701180) NimBLE: att_handle=28
+[15:11:53] 
+[15:11:53] I (701190) sx4.ble: sync transfer ended (status 0)
+[15:11:55] I (702820) sx4.house: battery 4047 mV (85%)
+[15:12:01] I (708310) sx4.radio: rx len=77 rssi=-29 snr=11 freq=918500000
+[15:12:01] I (708310) sx4.radio: payload="LMXC[\,30,1,1,0,790,0,99,47,0,786,0,160,32,0,789,0,160,32,0,787,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 30 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 37 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:12:01] I (708320) sx4.sample: stored seq=697 t=790,786,789,787 flags=0x2f
+[15:12:05] I (712820) sx4.house: battery 4047 mV (85%)
+[15:12:15] I (722820) sx4.house: battery 4047 mV (85%)
+[15:12:24] I (731490) NimBLE: GATT procedure initiated: notify; 
+[15:12:24] I (731490) NimBLE: att_handle=28
+[15:12:24] 
+[15:12:24] I (731600) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:12:24] I (731600) NimBLE: GATT procedure initiated: notify; 
+[15:12:24] I (731600) NimBLE: att_handle=28
+[15:12:24] 
+[15:12:24] I (731610) sx4.ble: sync transfer ended (status 0)
+[15:12:25] I (732820) sx4.house: battery 4047 mV (85%)
+[15:12:31] I (738560) sx4.radio: rx len=77 rssi=-29 snr=10 freq=918500000
+[15:12:31] I (738560) sx4.radio: payload="LMXC[\,30,1,1,0,791,0,99,47,0,787,0,160,32,0,789,0,160,32,0,788,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 38 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:12:31] I (738570) sx4.sample: stored seq=698 t=791,787,789,788 flags=0x2f
+[15:12:35] I (742820) sx4.house: battery 4047 mV (85%)
+[15:12:45] I (752820) sx4.house: battery 4047 mV (85%)
+[15:12:54] I (761960) NimBLE: GATT procedure initiated: notify; 
+[15:12:54] I (761960) NimBLE: att_handle=28
+[15:12:54] 
+[15:12:54] I (762070) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+[15:12:54] I (762070) NimBLE: GATT procedure initiated: notify; 
+[15:12:54] I (762070) NimBLE: att_handle=28
+[15:12:54] 
+[15:12:54] I (762070) sx4.ble: sync transfer ended (status 0)
+[15:12:55] I (762820) sx4.house: battery 4047 mV (85%)
+[15:13:01] I (768790) sx4.radio: rx len=77 rssi=-29 snr=11 freq=918500000
+[15:13:01] I (768790) sx4.radio: payload="LMXC[\,30,1,1,0,791,0,99,47,0,787,0,160,32,0,790,0,160,32,0,788,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 39 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 38 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:13:01] I (768800) sx4.sample: stored seq=699 t=791,787,790,788 flags=0x2f
+[15:13:05] I (772820) sx4.house: battery 4047 mV (85%)
+[15:13:15] I (782820) sx4.house: battery 4047 mV (85%)
+[15:13:25] I (792280) NimBLE: GATT procedure initiated: notify; 
+[15:13:25] I (792280) NimBLE: att_handle=28
+[15:13:25] 
+[15:13:25] I (792390) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:13:25] I (792390) NimBLE: GATT procedure initiated: notify; 
+[15:13:25] I (792390) NimBLE: att_handle=28
+[15:13:25] 
+[15:13:25] I (792400) sx4.ble: sync transfer ended (status 0)
+[15:13:25] I (792820) sx4.house: battery 4047 mV (85%)
+[15:13:31] I (799020) sx4.radio: rx len=77 rssi=-29 snr=10 freq=918500000
+[15:13:31] I (799020) sx4.radio: payload="LMXC[\,30,1,1,0,792,0,99,47,0,788,0,160,32,0,791,0,160,32,0,789,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 39 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:13:31] I (799030) sx4.sample: stored seq=700 t=792,788,791,789 flags=0x2f
+[15:13:35] I (802820) sx4.house: battery 4047 mV (85%)
+[15:13:45] I (812820) sx4.house: battery 4047 mV (85%)
+[15:13:55] I (822650) NimBLE: GATT procedure initiated: notify; 
+[15:13:55] I (822650) NimBLE: att_handle=28
+[15:13:55] 
+[15:13:55] I (822770) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:13:55] I (822770) NimBLE: GATT procedure initiated: notify; 
+[15:13:55] I (822770) NimBLE: att_handle=28
+[15:13:55] 
+[15:13:55] I (822770) sx4.ble: sync transfer ended (status 0)
+[15:13:55] I (822820) sx4.house: battery 4047 mV (85%)
+[15:14:02] I (829250) sx4.radio: rx len=77 rssi=-28 snr=11 freq=918500000
+[15:14:02] I (829250) sx4.radio: payload="LMXC[\,30,1,1,0,792,0,99,47,0,788,0,160,32,0,791,0,160,32,0,789,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 39 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:14:02] I (829260) sx4.sample: stored seq=701 t=792,788,791,789 flags=0x2f
+[15:14:05] I (832820) sx4.house: battery 4047 mV (85%)
+[15:14:15] I (842820) sx4.house: battery 4047 mV (85%)
+[15:14:25] I (852820) sx4.house: battery 4047 mV (85%)
+[15:14:25] I (853020) NimBLE: GATT procedure initiated: notify; 
+[15:14:25] I (853020) NimBLE: att_handle=28
+[15:14:25] 
+[15:14:25] I (853140) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+[15:14:25] I (853140) NimBLE: GATT procedure initiated: notify; 
+[15:14:25] I (853140) NimBLE: att_handle=28
+[15:14:25] 
+[15:14:25] I (853140) sx4.ble: sync transfer ended (status 0)
+[15:14:32] I (859480) sx4.radio: rx len=77 rssi=-29 snr=10 freq=918500000
+[15:14:32] I (859480) sx4.radio: payload="LMXC[\,30,1,1,0,792,0,99,47,0,788,0,160,32,0,791,0,160,32,0,789,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 39 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 38 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 39 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 38 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+[15:14:32] I (859490) sx4.sample: stored seq=702 t=792,788,791,789 flags=0x2f
+[15:14:35] I (862820) sx4.house: battery 4047 mV (85%)

@@ -1,0 +1,7 @@
+T46 seeded archive after 'Older than 30 days'
+remaining_rows: 82426
+min_recorded_ms: 1790546216695 (2026-09-27 14:56:56.695000)
+max_recorded_ms: 1793137496695 (2026-10-27 14:44:56.695000)
+bridge_row: ('AC:A7:04:38:82:76', 'SmokeX4-8276', 1793137496695, 42, 338399, 252023, 0, 338399)
+gaps: [(333749, 336629, 'Bridge off'), (336719, 337678, 'Not synced'), (338279, 338288, 'Bridge off'), (338299, 338398, 'Bridge off')]
+older_than_30d_at_15_11: 31
