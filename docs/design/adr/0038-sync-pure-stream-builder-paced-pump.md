@@ -22,7 +22,8 @@ callback must not spend tens of milliseconds pushing 75 notifications, and
 - Backward requests take the highest `max_records` sequences below the cursor
   and emit them ascending; forward requests take the next ascending window.
   `next_seq` is the first emitted sequence for backward and last + 1 for
-  forward. Full gap reporting and resume stay in T39.
+  forward. T39 added gap reporting and the drained/empty terminators on this
+  same builder (ADR 0044).
 - A record read failure ends the batch before the bad record, sets the START/END
   status to `error`, truncates `count`, and marks the last frame ERROR. A
   partial stream never contains a hole.

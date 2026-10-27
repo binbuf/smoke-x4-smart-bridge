@@ -370,22 +370,33 @@ stores a stream with a hole. It must not assume one notification per record.
 
 No ACK is required: the next `sync_ctrl` is the acknowledgement.
 
-### Implementation rules (T31)
+### Implementation rules (T31, completed by T39)
 
 - `ble_sync.c` parses the exact 10-byte `sync_ctrl` (`ver`, `cmd`, `direction`,
   `cursor_seq`, reserved, `max_records`). `max_records = 0` reads as 32; values
-  above 64 clamp to 64. A wrong length, `ver`, `cmd` or `direction` changes
-  nothing.
+  above 64 clamp to 64 (the builder applies the same rule to direct callers). A
+  wrong length, `ver`, `cmd` or `direction` changes nothing.
 - `cmd = 0` answers a standalone START/END pair (`count = 0`) with the current
   generation and extent; an empty log uses `status = empty` and
   `min_seq = max_seq = 0xFFFFFFFF`. `cmd = 2` has no response.
 - `cmd = 1` returns at most 64 records. Backward selects the highest sequences
   below the cursor and emits them ascending (`next_seq = first_seq`); forward
-  selects the next ascending window (`next_seq = last_seq + 1`). A forward
-  cursor before `min_seq` clamps to `min_seq`; gap reporting is T39.
+  selects the next ascending window (`next_seq = last_seq + 1`).
+- Forward with `min_seq > 1` and `cursor_seq < min_seq - 1` returns
+  `status = gap` and starts at `min_seq`; `min_seq = 0/1` can never gap.
+  Backward with `cursor_seq > max_seq + 1` returns `status = gap` and starts at
+  `max_seq + 1`. A gap still carries records; it says the app missed a range.
+- A drained direction is `count = 0`, `start_seq = next_seq = cursor_seq`,
+  `status = ok`, including a backward cursor of 0. `seq = 0` is a real record,
+  so the app must not read `next_seq = 0` as a stop sentinel beyond that.
 - The logical stream is START (20 B), `count × 18` B records, END (13 B). A
   record read failure truncates the batch before the bad record and sets the
-  START/END `status = error`; no hole is ever emitted.
+  START/END `status = error` with `next_seq` left at the request cursor; no hole
+  is ever emitted.
+- The START/END extent is one snapshot taken before the first record read.
+  Records written during the transfer appear in the next request. END repeats
+  `min_seq`/`max_seq`; the fixed 13 B END has no generation field, so the START
+  `generation` is the epoch for that response.
 - `ble_sync_frame_payload_max()` is `min(240, MTU-3-4)`. Frame boundaries are
   byte offsets: START is on the first frame, END/ERROR on the last, and
   `frame_seq` restarts at 0 per response. A status response sent during a
@@ -393,8 +404,10 @@ No ACK is required: the next `sync_ctrl` is the acknowledgement.
 - The write callback only parses and arms a 15 ms one-shot timer. The timer
   builds the stream once, then sends one frame per tick, so cancel/status can
   arrive between frames. One read transfer at a time; another read is ignored
-  while busy. `sync_active` is set for the duration. A mutex serialises frame
-  notifications so an interleaved status response stays contiguous.
+  while busy. `sync_active` is set for the duration. A mutex serialises sync
+  frame notifications so an interleaved status response stays contiguous; live
+  notifications use the separate `ble_tx` queue and are never held behind a
+  sync read.
 - The device does not remember a partial transfer. A dropped notification ends
   the batch; the app detects the `frame_seq` hole and re-requests.
 

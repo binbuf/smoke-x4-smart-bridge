@@ -56,4 +56,44 @@ Complete the firmware sync engine so the app can pull the whole ring in both dir
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** `firmware/components/ble_service/ble_sync.c` now completes the sync
+cursor semantics:
+
+- forward window `seq > cursor` with `next_seq = last_seq + 1`; `gap` iff
+  `min_seq > 1 && cursor < min_seq - 1`, restarting at `min_seq`;
+- backward highest records below the cursor, emitted ascending, with
+  `next_seq = first_seq`; `gap` iff `cursor > max_seq + 1`, restarting at
+  `max_seq + 1` (64-bit arithmetic);
+- drained direction `count = 0`, `start_seq = next_seq = cursor_seq`,
+  `status = ok`; empty log `status = empty`, `count = 0`,
+  `min_seq = max_seq = 0xFFFFFFFF`;
+- one extent snapshot per response: `generation`/min/max in START and min/max in
+  END; mid-transfer writes appear only in the next request;
+- `next_seq` advances on `ok`/`gap`, stays at the request cursor on `error`;
+- `max_records` normalised 1..64 (0 → 32) in the parser and the builder;
+- `cmd` 0/1/2, busy/cancel policy and the separate live path are unchanged
+  (status/cancel allowed while busy, other reads ignored).
+
+Host tests add both gap edges, `min_seq = 0/1`, the last 24-bit seq without
+overflow, a generation change with a mid-transfer write, `frame_seq` wrap, a
+disconnect mid-batch followed by a clean re-request, a 90,000-record ring
+covering 30 days then the rest down to `seq 0`, and builder max_records
+normalisation.
+
+**Deviation.** END is a fixed 13 B payload (status, next_seq, min_seq, max_seq)
+and has no generation field, so generation is reported only in START; END
+repeats the same snapshot's min/max. Adding a field would break the fixed wire
+contract and the app codec. ADR 0044 records this and the rest of the cursor
+rules.
+
+**Checks.** Host: `ctest --test-dir firmware/test/build --output-on-failure` →
+21/21 passed (ble-sync ~0.11 s). Firmware: ESP-IDF 6.0.2 Heltec build →
+`Project build complete`, image guard ok, `sx4_bridge.bin` 0x91A00 bytes (72%
+free). No board run (verification B deferred to T41/T55 as appropriate).
+
+**Next task must know.** App-side persistence/resume is T41; it must stop on
+`count = 0` (not `next_seq == 0`), treat `gap` as a permanent missed range,
+reset cursors on a generation change, and re-request on `error`/frame holes.
+Record sequences are 24-bit on the wire even though sync fields are u32. See
+`docs/progress/T39.md` for gotchas and commands.
