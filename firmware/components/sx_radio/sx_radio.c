@@ -176,8 +176,10 @@ static void radio_task(void *argument) {
                     }
                 }
             } else if (irq & SX126X_IRQ_CRC_ERR) {
+                sx_protocol_note_crc_failure();
                 ESP_LOGW(TAG, "rx CRC error");
             } else {
+                sx_protocol_note_crc_failure();
                 ESP_LOGW(TAG, "rx header error");
             }
             rearm_receive();

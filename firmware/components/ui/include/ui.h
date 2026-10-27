@@ -5,6 +5,8 @@
 #ifndef SX4_UI_H
 #define SX4_UI_H
 
+#include <stdbool.h>
+
 #include "esp_err.h"
 
 #ifdef __cplusplus
@@ -17,6 +19,15 @@ esp_err_t ui_init(void);
 
 /* Start the ui task and draw the first page. */
 esp_err_t ui_start(void);
+
+/*
+ * Cross-task dirty flag (T21 produces, T22 consumes). Marking is set-only and
+ * cheap; the renderer takes the flag atomically so a sample that arrives
+ * during a render is not lost.
+ */
+void ui_mark_dirty(void);
+bool ui_dirty_take(void);
+bool ui_dirty_pending(void);
 
 #ifdef __cplusplus
 }
