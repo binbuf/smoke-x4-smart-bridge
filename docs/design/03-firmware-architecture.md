@@ -381,6 +381,13 @@ Implementation (T20, ADR 0028):
 NimBLE, one custom GATT service. The contract is in
 [05 — BLE Contract](05-ble-contract.md).
 
+- T27 (`ble_service`) registers all eight slots and serves the open 32-byte
+  `info` read at `MTU−1` per response. `info.device_id` is the bridge MAC's last
+  two bytes; `probes` comes from the persisted Smoke X4 pairing (4 when
+  unpaired); `bonds_free` is `4 −` NimBLE's peer-security count; `caps` is the
+  MVP constant with `billows_control` always clear (ADR 0034).
+- Advertising is not started by T27. T30 owns the interval policy, scan
+  response, passkey/bond flow and restart-on-disconnect.
 - Advertising starts at boot when not connected and restarts on disconnect,
   failed connect, and advertising timeout.
 - `info` is open; everything else requires encryption; `control` and `config`
@@ -450,14 +457,18 @@ merged image plus a version string; the app displays the version but cannot
 update it.
 
 The project is a whitelist build: `firmware/CMakeLists.txt` sets
-`set(COMPONENTS main espcoredump)` so IDF does not build its whole component
-tree. After linking, `firmware/tools/check_image.py` checks
-`project_description.json` for Wi-Fi/IP/HTTP/OTA components, checks the target
-and the partition table, and fails `idf.py build` on a match (ADR 0015). `app_update` is a stock
-`esp_partition` dependency and is allowed; it contributes only the
-running-partition lookup because there is no OTA slot or update component. The
-application task stacks are asserted in `firmware/main/tasks.h` (22,528 B
-declared against a 24 KiB budget) and re-checked by the host `task-budget` test.
+`set(COMPONENTS main espcoredump bt)` so IDF does not build its whole component
+tree. The local `firmware/components/esp_wifi` override provides only the
+headers `bt` needs and compiles no Wi-Fi code; lwIP/netif stay disabled. After
+linking, `firmware/tools/check_image.py` checks `project_description.json` for
+Wi-Fi/IP/HTTP/OTA components **and the linker map for linked network objects**
+(the component list alone can include inert build deps), checks the target and
+the partition table, and fails `idf.py build` on a match (ADR 0015/0034).
+`app_update` is a stock `esp_partition` dependency and is allowed; it
+contributes only the running-partition lookup because there is no OTA slot or
+update component. The application task stacks are asserted in
+`firmware/main/tasks.h` (22,528 B declared against a 24 KiB budget) and
+re-checked by the host `task-budget` test.
 
 
 ## 3.14 Test seams

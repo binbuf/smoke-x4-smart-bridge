@@ -9,20 +9,32 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
 
 # BLE-only device: no Wi-Fi, no IP stack, no HTTP server/client and no OTA.
-# These options are deliberately off; CMakeLists.txt also runs
-# tools/check_image.py after linking so a reintroduced component fails build.
-# The network components are also outside `set(COMPONENTS main espcoredump)`, so
-# their Kconfig symbols are absent until a task adds the component to the build.
-# CONFIG_ESP_WIFI_ENABLED is not set
-# CONFIG_ESP_WIFI_REMOTE_ENABLED is not set
-# CONFIG_ESP_WIFI_NAN_ENABLED is not set
-# CONFIG_LWIP_ENABLE is not set
-# CONFIG_ESP_NETIF_ENABLE is not set
+# The local esp_wifi override in components/esp_wifi provides only the headers
+# the BLE controller needs; it compiles no Wi-Fi code. The image guard also
+# rejects linked Wi-Fi/lwIP/netif objects after every build.
+CONFIG_LWIP_ENABLE=n
+CONFIG_ESP_NETIF_TCPIP_LWIP=n
 
-# NimBLE (not Bluedroid) is the chosen BLE host, but T04 does not link `bt` yet:
-# ESP-IDF 6's bt component requires esp_wifi. T27 adds the BT build component
-# and resolves that with the image guard.
+# NimBLE (not Bluedroid) is the chosen BLE host. T27 links it for the custom
+# GATT service; advertising and passkey policy are T30. ESP-IDF 6's bt
+# component still requires esp_wifi as a build dependency even with Wi-Fi off
+# (ADR 0034): no Wi-Fi stack is initialised and no network component may run.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
 # CONFIG_BT_BLUEDROID_ENABLED is not set
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_GATT_SERVER=y
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+CONFIG_BT_NIMBLE_MAX_BONDS=4
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
+CONFIG_BT_NIMBLE_SECURITY_ENABLE=y
+CONFIG_BT_NIMBLE_SM_LEGACY=n
+CONFIG_BT_NIMBLE_SM_SC=y
+CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096
 
 # Panic evidence lives in the dedicated coredump partition (design 03 section
 # 3.11); it is read over USB, not uploaded.

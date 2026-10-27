@@ -5,5 +5,5 @@ idf_component_register(
     SRCS "bridge_config.c" "bridge_config_nvs.c"
     INCLUDE_DIRS "include"
     REQUIRES esp_common
-    PRIV_REQUIRES log nvs_flash esp_hw_support esp_system
+    PRIV_REQUIRES log nvs_flash esp_hw_support esp_system bt
 )

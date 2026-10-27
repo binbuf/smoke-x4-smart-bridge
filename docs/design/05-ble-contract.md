@@ -119,6 +119,13 @@ Fixed 32 B. Safe to read before bonding.
 | 30 | 1 | `bonds_free` (0–4) |
 | 31 | 1 | reserved |
 
+Field sources (ADR 0034): `device_id` is the last two bytes of the bridge BLE
+MAC in uppercase hex (the same suffix as the `SmokeX4-XXXX` local name);
+`probes` is the persisted Smoke X4 count when paired and 2/4, otherwise 4;
+`bonds_free` is `4 −` the NimBLE peer-security count, clamped to 0–4; `fw` and
+`model` are the build identity (`0.1.0`, `heltec3`); `proto_major`/`proto_minor`
+come from `protocol/ble.yaml`. `caps.billows_control` is always 0.
+
 ### `caps`
 
 | Bit | Meaning |
