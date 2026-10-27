@@ -287,6 +287,37 @@ abstract interface class SampleDao {
   /// Inserts already-mapped rows in one transaction.
   Future<int> insertSamples(Iterable<StoredSample> samples);
 
+  /// Stores one sync batch, its gaps and the resulting cursors atomically.
+  ///
+  /// T41's sync loop commits exactly one request/batch per transaction: either
+  /// the rows and the cursor advance land together, or the request is re-read
+  /// from the previous cursor. Passing `null` for a cursor clears it (a
+  /// generation change starts a fresh local segment).
+  Future<int> storeSyncBatch({
+    required String bridgeId,
+    required int generation,
+    required Iterable<StoredSample> samples,
+    required int? cursorAfter,
+    required int? cursorBefore,
+    required int? deviceMinSeq,
+    required int? deviceMaxSeq,
+    required int lastSeenMs,
+    Iterable<StoredGap> gaps = const <StoredGap>[],
+  });
+
+  /// Updates the sync cursors and the observed device extent in one write.
+  ///
+  /// Unlike [SavedBridge.copyWith], `null` really clears the stored value.
+  Future<void> updateSyncCursors({
+    required String bridgeId,
+    required int generation,
+    required int? cursorAfter,
+    required int? cursorBefore,
+    required int? deviceMinSeq,
+    required int? deviceMaxSeq,
+    required int lastSeenMs,
+  });
+
   Future<void> insertGaps(Iterable<StoredGap> gaps);
 
   /// Readings ordered by `recorded_ms`. The range is `[fromMs, toMs)`.
@@ -384,16 +415,145 @@ class SqfliteSampleDao implements SampleDao {
   Future<int> insertSamples(Iterable<StoredSample> samples) async {
     final rows = samples.toList(growable: false);
     if (rows.isEmpty) return 0;
+    return _db.transaction<int>((txn) => _insertRows(txn, rows));
+  }
+
+  @override
+  Future<int> storeSyncBatch({
+    required String bridgeId,
+    required int generation,
+    required Iterable<StoredSample> samples,
+    required int? cursorAfter,
+    required int? cursorBefore,
+    required int? deviceMinSeq,
+    required int? deviceMaxSeq,
+    required int lastSeenMs,
+    Iterable<StoredGap> gaps = const <StoredGap>[],
+  }) async {
+    final rows = samples.toList(growable: false);
+    final gapRows = gaps.toList(growable: false);
     return _db.transaction<int>((txn) async {
-      final before = Sqflite.firstIntValue(
-        await txn.rawQuery('SELECT COUNT(*) FROM sample'),
-      )!;
+      final inserted = rows.isEmpty ? 0 : await _insertRows(txn, rows);
       final batch = txn.batch();
-      for (final sample in rows) {
-        final values = <Object?>[
-          sample.bridgeId,
-          sample.generation,
-          sample.seq,
+      for (final gap in gapRows) {
+        batch.insert(
+          'gap',
+          gap.toRow(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      if (gapRows.isNotEmpty) await batch.commit(noResult: true);
+      await _updateCursors(
+        txn,
+        bridgeId: bridgeId,
+        generation: generation,
+        cursorAfter: cursorAfter,
+        cursorBefore: cursorBefore,
+        deviceMinSeq: deviceMinSeq,
+        deviceMaxSeq: deviceMaxSeq,
+        lastSeenMs: lastSeenMs,
+      );
+      return inserted;
+    });
+  }
+
+  @override
+  Future<void> updateSyncCursors({
+    required String bridgeId,
+    required int generation,
+    required int? cursorAfter,
+    required int? cursorBefore,
+    required int? deviceMinSeq,
+    required int? deviceMaxSeq,
+    required int lastSeenMs,
+  }) {
+    return _db.transaction<void>(
+      (txn) => _updateCursors(
+        txn,
+        bridgeId: bridgeId,
+        generation: generation,
+        cursorAfter: cursorAfter,
+        cursorBefore: cursorBefore,
+        deviceMinSeq: deviceMinSeq,
+        deviceMaxSeq: deviceMaxSeq,
+        lastSeenMs: lastSeenMs,
+      ),
+    );
+  }
+
+  Future<void> _updateCursors(
+    DatabaseExecutor txn, {
+    required String bridgeId,
+    required int generation,
+    required int? cursorAfter,
+    required int? cursorBefore,
+    required int? deviceMinSeq,
+    required int? deviceMaxSeq,
+    required int lastSeenMs,
+  }) async {
+    await txn.update(
+      'bridge',
+      <String, Object?>{
+        'generation': generation,
+        'last_seen_ms': lastSeenMs,
+        'cursor_after': cursorAfter,
+        'cursor_before': cursorBefore,
+        'device_min_seq': deviceMinSeq,
+        'device_max_seq': deviceMaxSeq,
+      },
+      where: 'id = ?',
+      whereArgs: <Object?>[bridgeId],
+    );
+  }
+
+  /// Inserts rows inside an existing transaction. Shared by [insertSamples] and
+  /// [storeSyncBatch] so a batch and its cursors never use two write paths.
+  Future<int> _insertRows(
+    DatabaseExecutor txn,
+    List<StoredSample> rows,
+  ) async {
+    final before = Sqflite.firstIntValue(
+      await txn.rawQuery('SELECT COUNT(*) FROM sample'),
+    )!;
+    final batch = txn.batch();
+    for (final sample in rows) {
+      final values = <Object?>[
+        sample.bridgeId,
+        sample.generation,
+        sample.seq,
+        sample.unixS,
+        sample.recordedMs,
+        sample.timeEstimated,
+        sample.tempsF10[0],
+        sample.tempsF10[1],
+        sample.tempsF10[2],
+        sample.tempsF10[3],
+        sample.flags,
+      ];
+      // Portable across the Android system SQLite versions: never replace an
+      // existing row, then upgrade it only if it was time-estimated and this
+      // batch has the device's real clock.
+      batch.rawInsert('''
+        INSERT OR IGNORE INTO sample (
+          bridge_id, generation, seq, unix_s, recorded_ms, time_estimated,
+          p1, p2, p3, p4, flags
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', values);
+      batch.rawUpdate(
+        '''
+        UPDATE sample SET
+          unix_s = ?,
+          recorded_ms = ?,
+          time_estimated = ?,
+          p1 = ?,
+          p2 = ?,
+          p3 = ?,
+          p4 = ?,
+          flags = ?
+        WHERE bridge_id = ? AND generation = ? AND seq = ?
+          AND time_estimated = 1 AND ? = 0
+        ''',
+        <Object?>[
           sample.unixS,
           sample.recordedMs,
           sample.timeEstimated,
@@ -402,52 +562,18 @@ class SqfliteSampleDao implements SampleDao {
           sample.tempsF10[2],
           sample.tempsF10[3],
           sample.flags,
-        ];
-        // Portable across the Android system SQLite versions: never replace an
-        // existing row, then upgrade it only if it was time-estimated and this
-        // batch has the device's real clock.
-        batch.rawInsert('''
-          INSERT OR IGNORE INTO sample (
-            bridge_id, generation, seq, unix_s, recorded_ms, time_estimated,
-            p1, p2, p3, p4, flags
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ''', values);
-        batch.rawUpdate(
-          '''
-          UPDATE sample SET
-            unix_s = ?,
-            recorded_ms = ?,
-            time_estimated = ?,
-            p1 = ?,
-            p2 = ?,
-            p3 = ?,
-            p4 = ?,
-            flags = ?
-          WHERE bridge_id = ? AND generation = ? AND seq = ?
-            AND time_estimated = 1 AND ? = 0
-          ''',
-          <Object?>[
-            sample.unixS,
-            sample.recordedMs,
-            sample.timeEstimated,
-            sample.tempsF10[0],
-            sample.tempsF10[1],
-            sample.tempsF10[2],
-            sample.tempsF10[3],
-            sample.flags,
-            sample.bridgeId,
-            sample.generation,
-            sample.seq,
-            sample.timeEstimated,
-          ],
-        );
-      }
-      await batch.commit(noResult: true);
-      final after = Sqflite.firstIntValue(
-        await txn.rawQuery('SELECT COUNT(*) FROM sample'),
-      )!;
-      return after - before;
-    });
+          sample.bridgeId,
+          sample.generation,
+          sample.seq,
+          sample.timeEstimated,
+        ],
+      );
+    }
+    await batch.commit(noResult: true);
+    final after = Sqflite.firstIntValue(
+      await txn.rawQuery('SELECT COUNT(*) FROM sample'),
+    )!;
+    return after - before;
   }
 
   @override

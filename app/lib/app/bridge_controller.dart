@@ -7,8 +7,10 @@ import '../data/ble/ble_client.dart';
 import '../data/ble/bridge_codecs.dart';
 import '../data/ble/bridge_link.dart';
 import '../data/ble/bridge_protocol.dart';
+import '../data/db/sample_dao.dart';
 import '../data/recent_history_store.dart';
 import '../data/repository.dart';
+import '../data/sync/archive_sync.dart';
 import '../domain/content.dart';
 import '../domain/models.dart';
 import 'formatters.dart';
@@ -27,6 +29,7 @@ class BridgeController extends ChangeNotifier {
     this.repository = const EmptyBridgeRepository(),
     this.content = const EmptyBridgeContent(),
     this.bleClient,
+    this.sampleDao,
   }) : bridgeRecords = content.bridgeRecords,
        bridgeCapacity = content.bridgeCapacity,
        phoneRecords = content.phoneRecords,
@@ -35,6 +38,11 @@ class BridgeController extends ChangeNotifier {
 
   final BridgeRepository repository;
   final BridgeContent content;
+
+  /// The durable archive seam. Null for review builds and tests that have no
+  /// database; then the link keeps the V0 in-memory path.
+  final SampleDao? sampleDao;
+  ArchiveSyncCoordinator? _archive;
 
   /// V0 History's data: the batches the current link session syncs. The
   /// durable archive replaces this store in T39–T41.
@@ -81,6 +89,7 @@ class BridgeController extends ChangeNotifier {
     }
     final created = BridgeLink(
       client: client,
+      archive: _ensureArchive(),
       host: BridgeLinkHost(
         onPhase: _onLinkPhase,
         onLive: _onLinkLive,
@@ -108,6 +117,68 @@ class BridgeController extends ChangeNotifier {
     )..attach();
     link = created;
     return created;
+  }
+
+  ArchiveSyncCoordinator? _ensureArchive() {
+    final dao = sampleDao;
+    if (dao == null) return null;
+    return _archive ??= ArchiveSyncCoordinator(
+      dao: dao,
+      now: () => content.now,
+      onStatus: _onArchiveStatus,
+      onBatch: _onArchiveBatch,
+    );
+  }
+
+  /// Exposes the durable sync state for tests and later History tasks.
+  ArchiveSyncCoordinator? get archiveSync => _archive;
+
+  void _onArchiveStatus(SyncStatusSnapshot snapshot) {
+    switch (snapshot.status) {
+      case SyncStatus.idle:
+        syncState = SyncState.idle;
+        break;
+      case SyncStatus.syncing:
+        syncState = snapshot.phase == SyncPhase.backfill
+            ? SyncState.backfill
+            : SyncState.recent;
+        break;
+      case SyncStatus.partial:
+        syncState = SyncState.backfill;
+        break;
+      case SyncStatus.complete:
+        syncState = SyncState.complete;
+        lastSyncedAt = content.now;
+        final hasArchive =
+            snapshot.cursorAfter != null || phoneRecords > 0;
+        hasSavedData = hasArchive;
+        savedDataEmpty = !hasArchive;
+        break;
+      case SyncStatus.error:
+        syncState = SyncState.error;
+        break;
+    }
+    final cursor = snapshot.cursorAfter;
+    if (cursor != null) localMaxSeq = cursor;
+    notifyListeners();
+  }
+
+  void _onArchiveBatch(StoredSyncBatch batch) {
+    if (batch.records.isEmpty) return;
+    // Keep the approved History shell fed from the same accepted batch; the
+    // durable rows are already committed by the coordinator.
+    unawaited(
+      recentHistory.accept(
+        BridgeSyncBatch(
+          records: batch.records,
+          startSeq: batch.records.first.seq,
+          endSeq: batch.records.last.seq,
+          nextSeq: batch.records.last.seq + 1,
+          direction: batch.direction,
+          generation: batch.generation,
+        ),
+      ),
+    );
   }
 
   void _onLinkPhase(ConnectionPhase value) {

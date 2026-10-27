@@ -1,4 +1,5 @@
 import 'db/app_database.dart';
+import 'db/sample_dao.dart';
 
 /// A small, immutable cache summary the shell can read at startup.
 ///
@@ -42,6 +43,11 @@ class SqliteBridgeRepository implements BridgeRepository {
   SqliteBridgeRepository(this._database);
 
   final AppDatabase _database;
+  SampleDao? _dao;
+
+  /// The archive DAO, used by T41's sync coordinator. Lazy so read-only
+  /// callers keep the small snapshot seam.
+  SampleDao get dao => _dao ??= SqfliteSampleDao(_database);
 
   @override
   Future<BridgeSnapshot> loadSnapshot() async {
@@ -68,5 +74,5 @@ class SqliteBridgeRepository implements BridgeRepository {
   }
 
   @override
-  Future<void> close() => _database.close();
+  Future<void> close() => _dao?.close() ?? _database.close();
 }

@@ -531,9 +531,16 @@ class BridgeSyncAssembler {
       if (_framePayload == null) {
         if (buffered.length < BridgeSyncFrame.size) return null;
         final frame = BridgeSyncFrame.decode(buffered);
+        // A response begins with a START frame at frame_seq 0. A status/error
+        // response interleaved with a transfer also starts a new sequence.
+        if (frame.start) _expectedFrameSeq = 0;
+        if (frame.frameSeq != _expectedFrameSeq) {
+          reset();
+          throw const FormatException('sync frame sequence hole');
+        }
+        _expectedFrameSeq = (_expectedFrameSeq + 1) & 0xFF;
         _framePayload = frame.payloadBytes;
         _frameFlags = frame.flags;
-        _expectedFrameSeq = frame.frameSeq;
         _discardPrefix(BridgeSyncFrame.size, buffered);
       }
       final payloadEnd = _chunk.toBytes();
