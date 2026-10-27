@@ -32,6 +32,13 @@ int main(void) {
         CHECK(task->priority >= 1 && task->priority <= 24);
         CHECK(task->core <= 1);
         CHECK_EQ_UINT(task->core, strcmp(task->name, "radio_rx") == 0 ? 1u : 0u);
+        if (strcmp(task->name, "radio_rx") == 0) {
+            /* Design 03 section 3.3 / SDK budget: 4096 bytes, priority 6,
+             * core 1 (away from the BLE host). */
+            CHECK_EQ_UINT(task->stack_bytes, 4096u);
+            CHECK_EQ_UINT(task->priority, 6u);
+            CHECK_EQ_UINT(task->core, 1u);
+        }
         total += task->stack_bytes;
 
         for (size_t j = 0; j < i; j++) {

@@ -19,8 +19,8 @@
   until the product image is flashed over it.
 
 ## Scope
-- [ ] Implement the `radio_rx` task with the declared budget from [03 §3.3](../design/03-firmware-architecture.md): 4096-byte stack, priority 6, core 1.
-- [ ] Configure the SX1262 parameter block:
+- [x] Implement the `radio_rx` task with the declared budget from [03 §3.3](../design/03-firmware-architecture.md): 4096-byte stack, priority 6, core 1.
+- [x] Configure the SX1262 parameter block:
   - spreading factor **9**,
   - bandwidth **driver index 4** (125 kHz),
   - coding rate **4/5**,
@@ -29,11 +29,11 @@
   - **CRC on**,
   - **TCXO 3.3 V LDO**,
   - frequency from persisted config when paired, otherwise the scan path owned by T16.
-- [ ] Poll the driver with `vTaskDelay(1)` per [03 §3.3](../design/03-firmware-architecture.md); DIO1 is optional.
-- [ ] Publish each received raw payload plus RSSI and SNR to a host-injectable parser seam.
-- [ ] Keep the payload buffer fixed (the observed maximum is ~120 bytes; use a 128-byte buffer) and allocate nothing per packet.
-- [ ] Never block the radio task on flash or BLE; hand off through a bounded interface.
-- [ ] Add a host test that injects a payload without a radio and reaches the parser seam.
+- [x] Poll the driver with `vTaskDelay(1)` per [03 §3.3](../design/03-firmware-architecture.md); DIO1 is optional.
+- [x] Publish each received raw payload plus RSSI and SNR to a host-injectable parser seam.
+- [x] Keep the payload buffer fixed (the observed maximum is ~120 bytes; use a 128-byte buffer) and allocate nothing per packet.
+- [x] Never block the radio task on flash or BLE; hand off through a bounded interface.
+- [x] Add a host test that injects a payload without a radio and reaches the parser seam.
 - [ ] On the board, confirm a real X4 packet reaches the log.
 
 ## Out of scope
@@ -55,18 +55,51 @@
 - Frequency selection is constrained to 902–928 MHz; retuning for pairing is T16's responsibility, not an unchecked caller's.
 
 ## Done when
-- [ ] The host test injects a payload without a radio and observes it at the parser seam.
+- [x] The host test injects a payload without a radio and observes it at the parser seam.
 - [ ] On the board, a real X4 packet appears in the log.
-- [ ] The `radio_rx` task matches the 4096/6/core-1 budget in `tasks.h`.
-- [ ] The RX path performs no heap allocation and never blocks on flash or BLE.
-- [ ] The parameter block matches [02 §2.1](../design/02-smoke-x-protocol.md) exactly.
-- [ ] Host tests pass:
+- [x] The `radio_rx` task matches the 4096/6/core-1 budget in `tasks.h`.
+- [x] The RX path performs no heap allocation and never blocks on flash or BLE.
+- [x] The parameter block matches [02 §2.1](../design/02-smoke-x-protocol.md) exactly.
+- [x] Host tests pass:
   ```bash
   cmake -S firmware/test -B firmware/test/build -G Ninja
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+Landed: `sx_radio` now configures the SX1262 with the approved block (SF9, BW
+index 4, CR 4/5, preamble 10, sync 0x12, CRC on, TCXO 3.3 V LDO) and runs a
+4096-byte / priority 6 / core 1 `radio_rx` task that polls with
+`vTaskDelay(1)`. The RX read uses driver primitives plus a fixed 128+3-byte
+scratch buffer, not the allocating `ra01s` `LoRaReceive()`. Each packet goes to
+the pure-C seam in `sx_radio_rx.h` as a 128-byte payload plus RSSI/SNR in a
+fixed 4-slot SPSC queue; publish never blocks or allocates and a full queue
+drops the newest frame with a counter. `sx_radio_set_frequency()` validates
+902–928 MHz for T16. The default remains 915 MHz until T16 applies the
+persisted pairing record.
+
+Deviations: none in scope. The board check could not be completed because the
+X4 was not transmitting during this session; 100 s on 918.5 MHz, 75 s on
+910.5 MHz and 75 s on 915 MHz logged no packet. A temporary bench-only retune
+was flashed for those attempts and removed before the final build. The board
+now runs the final product image (boot log confirms the parameters and
+`radio_rx started on core 1`).
+
+Checks: host CMake/Ninja/CTest 5/5 passed (`records`, `lora-corpus`,
+`log-io-ram`, `sx-radio-rx`, `task-budget`). Firmware build complete; image
+guard ok (esp32s3, 68 components, no Wi-Fi/HTTP/OTA). `test_sx_radio_rx`
+injects both a literal frame and a real `x4-t10-25min.loralog` state frame
+without a radio. `test_tasks` pins radio_rx to 4096/6/core 1.
+
+Remaining work: power the X4 and rerun the board log check after T16's scan or
+with the temporary `sx_radio_set_frequency(918500000u)` bench hook. Expect
+`sx4.radio: rx len=...` and `payload="LMXC[\...` every ~30 s. Details and
+commands are in `docs/progress/T13.md`.
+
+Docs changed: `docs/design/adr/0021-radio-rx-seam.md`,
+`docs/design/03-firmware-architecture.md` (§3.14),
+`firmware/test/README.md`, `docs/progress/T13.md`, and this task file.
+
