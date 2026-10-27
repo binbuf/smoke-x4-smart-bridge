@@ -92,43 +92,30 @@ void main() {
     expect(find.text('Experimental lab'), findsOneWidget);
   });
 
-  testWidgets('first-run setup advances without simulation buttons', (
-    tester,
-  ) async {
-    final controller = demoBridgeController();
-    addTearDown(controller.dispose);
-    tester.view.physicalSize = const Size(1170, 2532);
-    tester.view.devicePixelRatio = 3.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: SetupScreen(controller: controller),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'first-run setup starts on the approved screen, not a simulator',
+    (tester) async {
+      final controller = demoBridgeController();
+      addTearDown(controller.dispose);
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: SetupScreen(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Connect your Bridge'), findsOneWidget);
-    await tester.tap(find.text('Find bridge'));
-    await tester.pump(const Duration(milliseconds: 1300));
-    await tester.pumpAndSettle();
-    expect(find.text('Nearby bridges'), findsOneWidget);
-    expect(find.text('Simulate scan results'), findsNothing);
-
-    await tester.tap(find.text('SmokeX4-A4F2'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Pair'));
-    await tester.pump(const Duration(milliseconds: 1700));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('Loading history'), findsOneWidget);
-
-    await tester.tap(find.text('View live readings'));
-    await tester.pump();
-    expect(controller.phase, ConnectionPhase.live);
-    expect(controller.tab, AppTab.live);
-  });
+      expect(find.text('Connect your Bridge'), findsOneWidget);
+      expect(find.text('Find bridge'), findsOneWidget);
+      expect(find.text('Simulate scan results'), findsNothing);
+      expect(find.text('Simulate'), findsNothing);
+      expect(find.text('Prototype'), findsNothing);
+    },
+  );
 
   testWidgets('bottom navigation reaches History and Settings', (tester) async {
     final controller = demoBridgeController();

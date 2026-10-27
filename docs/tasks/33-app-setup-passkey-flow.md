@@ -69,13 +69,69 @@ A factory-fresh phone can go from `Connect your Bridge` through permissions, sca
 
 ## Done when
 - [x] A fresh phone reaches Live through named setup steps on a real phone. **Deferred to T37**; widget/fake tests are the gate now.
-- [ ] Every setup state in 13 §13.4 is widget-tested with the approved copy.
-- [ ] Wrong code, prompt timeout, stale bond, bond-full, permission (denied and blocked), unsupported-phone, and protocol-mismatch states are reachable.
-- [ ] V0 shows `Loading recent readings` / `last 15 minutes` rather than the 24-hour copy.
-- [ ] No simulation control or fake OS prompt is on a product screen.
-- [ ] The `History on this phone` escape works when saved history exists and after forget/reset.
-- [ ] `flutter test` passes, including the new setup widget tests.
-- [ ] Hand-off below filled in
+- [x] Every setup state in 13 §13.4 is widget-tested with the approved copy.
+- [x] Wrong code, prompt timeout, stale bond, bond-full, permission (denied and blocked), unsupported-phone, and protocol-mismatch states are reachable.
+- [x] V0 shows `Loading recent readings` / `last 15 minutes` rather than the 24-hour copy.
+- [x] No simulation control or fake OS prompt is on a product screen.
+- [x] The `History on this phone` escape works when saved history exists and after forget/reset.
+- [x] `flutter test` passes, including the new setup widget tests.
+- [x] Hand-off below filled in
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed**
+
+- `features/setup/setup_flow.dart` — the production setup state machine over
+  `BleClient`: platform check, primer/request, scan with 10 s stop, remembered
+  ordering, `info` read, protocol check, `bonds_free == 0`, OS bond, wrong code,
+  prompt timeout, stale bond, first sync and saved-history escape. No plugin
+  import and no simulated scan/pair timers.
+- `features/setup/setup_screen.dart` — renders every 13 §13.4 setup state with
+  the approved copy. Removed the hard-coded results list from the product flow;
+  the lab passes `previewBridges` instead. Pairing progress no longer mentions
+  GATT. First sync uses V0 `Loading recent readings` / `last 15 minutes`.
+- `data/ble/bridge_codecs.dart` — `info` and advertisement decoding for setup,
+  scan signal words and legacy-row classification. Offsets pinned by
+  `test/setup_codec_test.dart` to `protocol/gen/records.dart`.
+- Routing: `SmokeBridgeApp` mounts `SetupScreen` while `phase == setup` (or no
+  saved Bridge) and the Live shell afterwards; `bootstrap()` starts in setup and
+  creates the platform BLE client. `completeSetup()` lands on Live; there is no
+  dead summary screen.
+- Controller: `beginSetup()`, `rememberBridge()` and session fields for the
+  remembered device ID/name and negotiated MTU; `forgetPhone()`/`factoryReset()`
+  clear the remembered identity while keeping local history.
+- Tests: `test/setup_flow_test.dart` (17 widget tests) covers primer gating,
+  denied/blocked, Bluetooth off, unsupported, scanning/cancel, no results,
+  remembered/preview rows, protocol-mismatch row and `info` mismatch, passkey
+  block, full pairing-to-Live route, wrong code twice, prompt timeout, stale
+  bond, bond store full, and orphaned history after forget.
+  `test/setup_codec_test.dart` (4 tests) pins offsets, UUID and preview.
+- Docs: ADR 0040, `docs/design/06-app.md` §6.9/§6.10.
+
+**Deviations**
+
+- Success currently moves through the first-sync screen and lands on Live; the
+  actual `set_time` and recent-record sync writes remain T35's procedure work.
+  `_afterBond()` only requests MTU and advances the approved steps.
+- `Open Bluetooth settings` / `Open app settings` show a neutral instruction
+  because `BleClient` has no settings-intent method yet. The buttons do not
+  claim the settings screen opened. Follow-up below.
+- Remembered Bridge identity and the initial setup phase are session-only; there
+  is no saved-bridge store yet, so every production launch currently starts at
+  setup. Persistence belongs with T35/T50.
+
+**Checks**
+
+- `flutter analyze` — No issues found.
+- `flutter test` — 97 tests, all pass (including 21 new setup tests).
+- `flutter build apk --debug` — see progress note; run from `app/`.
+
+**Next task must know**
+
+- Use `SetupFlow` for setup behavior; do not reintroduce timers or fixed device
+  rows. `autoAdvance`/`previewBridges` are lab/review-only.
+- T35 should replace the `_afterBond` shim with real time/sync procedures and
+  persist `rememberedBridgeId`/`rememberedBridgeName`.
+- Keep `info` reads before `bond()`; a future `bonds_free == 0` test must prove
+  the OS bond never starts.
+

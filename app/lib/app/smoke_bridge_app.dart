@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'lab_gate.dart';
+import '../features/setup/setup_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../theme/app_theme.dart';
 import 'bridge_controller.dart';
@@ -22,16 +23,21 @@ class SmokeBridgeApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final needsSetup =
+            controller.phase == ConnectionPhase.setup ||
+            !controller.hasSavedBridge;
         return MaterialApp(
           title: 'Smoke X4 Smart Bridge',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: controller.themeMode,
-          home: AppShell(
-            controller: controller,
-            enableExperimentalLab: enableExperimentalLab,
-          ),
+          home: needsSetup
+              ? SetupScreen(controller: controller)
+              : AppShell(
+                  controller: controller,
+                  enableExperimentalLab: enableExperimentalLab,
+                ),
         );
       },
     );
