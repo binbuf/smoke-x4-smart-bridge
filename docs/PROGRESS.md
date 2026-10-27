@@ -25,6 +25,7 @@
 - **T23 - ui: PRG gestures and deep sleep**: **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done; `firmware/components/ui/include/ui_button.h` + `ui_button.c`
 - **T24 - board: battery ADC and power stats**: **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done; `firmware/components/board/include/board_battery.h`
 - **T25 — Bench prep: pair, stock receiver, power cut**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `artifacts/bench/T37/CHECKLIST.md` — the T37 procedure for real X4 pairing,
+- **T26 — Bench prep: cadence and display**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `tools/bench/cadence_report.py` — parses a product serial capture
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -50,6 +51,7 @@
 - [T23](progress/T23.md) — **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done
 - [T24](progress/T24.md) — **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done
 - [T25](progress/T25.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
+- [T26](progress/T26.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/
