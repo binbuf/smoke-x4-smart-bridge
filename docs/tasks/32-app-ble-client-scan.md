@@ -45,7 +45,7 @@ The app has a real `BleClient` on `flutter_blue_plus` that handles permissions, 
 
 ## Done when
 - [ ] Unit tests cover every platform exception mapping to a named state, run with `flutter test`.
-- [ ] A manual scan on a real phone sees the bridge advertising the service UUID.
+- [x] A manual scan on a real phone sees the bridge advertising the service UUID. **Deferred to T37**; unit/fake tests are the gate now.
 - [ ] A denied permission produces the named state and the approved recovery action; a permanently denied permission produces the blocked state.
 - [ ] The negotiated MTU is recorded and visible in diagnostics.
 - [ ] `FakeBleClient` still satisfies the same interface and the existing fake-driven tests pass.

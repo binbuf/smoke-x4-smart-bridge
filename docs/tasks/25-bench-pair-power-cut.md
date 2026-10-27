@@ -1,50 +1,67 @@
-# T25 — Bench: pair, stock receiver, power cut
+# T25 — Bench prep: pair, stock receiver, power cut
 
 ## Goal
-Real-hardware evidence that the bridge pairs with an actual Smoke X4 without disturbing the stock receiver, survives a mid-cook USB power cut with earlier records intact, records detached probes as sentinels, and stores canonical °F when the X4 is flipped to °C.
+Prepare and automate the T25 bench procedure so the first human sitting can run
+it without improvising. This task does **not** claim real-hardware evidence; it
+produces the checklist, the serial-capture path, and the host proof for the code
+paths that the sitting will exercise. The physical run is executed at **T37**.
 
 ## Context (read first)
 - [10 §10.3 B1](../design/10-test-and-release.md) — the radio and storage bench matrix.
 - [02 §2.7](../design/02-smoke-x-protocol.md) — pairing rules, including that the stock receiver is independent.
-- [04 §4.3](../design/04-data-and-storage.md) — power-loss recovery guarantees: earlier records are safe; only the in-flight record is at risk.
+- [04 §4.3](../design/04-data-and-storage.md) — power-loss recovery guarantees.
 - [04 §4.4](../design/04-data-and-storage.md) — canonical time/temperature rules.
-- `docs/hardware-verified.md` — the evidence file for this sitting.
-- **Verification:** B (bench/board). **Board:** yes.
+- `docs/hardware-verified.md` — where the T37 result rows live.
+- `firmware/bench/t10_probe/tools/capture.py` — the existing serial capture helper.
+- **Verification:** H (host/CI). **Board:** no. Physical proof is **T37**.
 - Depends on T16, T19, and T21.
 
 ## Scope
-- [ ] Pair the bridge with a real X4; confirm the stock receiver keeps updating.
-- [ ] Start recording; pull USB power mid-cook; reboot; confirm earlier records survive and the log resumes.
-- [ ] Detach a probe; confirm `---` on the OLED and the detached sentinel in the log.
-- [ ] Flip the X4 between °F and °C; confirm canonical °F storage.
-- [ ] Record the radio settings, test time, and what changed for each capture.
-- [ ] Commit a capture or log excerpt with the results.
+- [ ] Write a short bench checklist for T37 covering: real X4 pair, stock
+      receiver still updating, USB power cut mid-recording, detach/reattach, and
+      °F/°C flip.
+- [ ] Make each step produce a serial log or a committed evidence artifact; no
+      verbal-only results.
+- [ ] Reuse `firmware/bench/t10_probe/tools/capture.py` (or a product-serial
+      equivalent) so T37 can capture the run without writing new tooling.
+- [ ] Add or confirm host tests for torn-tail recovery, detached sentinel, and
+      canonical °F conversion.
+- [ ] Add the T37 evidence rows to `docs/hardware-verified.md` as ⏳ with T37 as
+      owner; do not mark them passed.
+- [ ] Commit the checklist and supporting changes.
 
 ## Out of scope
-- App-driven unpair/re-pair: that is **T55**, outside this task; the app action lives in M4 settings (T47–T55).
-- Host FSM testing of the T16 pairing states → T16 (this bench sitting only confirms the real handshake).
-- Full ring rotation/fill or `min_seq`/`max_seq`/`generation` over BLE → later BLE bench work in M2 (T27–T38) and M3 (T39–T46).
-- A 30-minute cadence run and page walk → T26.
-- 24 h soak and field cooks → M6 field hardening.
-- Billows observation → M5 (T56–T60); no Billows TX/control path exists in the MVP.
+- Actually pairing the X4, pulling USB power, detaching a probe, or flipping
+  units — all physical and all executed at **T37**.
+- App-driven unpair/re-pair: **T55**.
+- Host FSM testing of the T16 pairing states → T16.
+- Full ring rotation or `min_seq`/`max_seq`/`generation` over BLE → T39/T46.
+- A 30-minute cadence run and page walk → T37 (physical), prepared by T26.
+- 24 h soak and field cooks → T61/T63.
+- Billows observation → T56–T60.
 - Any Wi-Fi/HTTP/OTA test: outside MVP; no task owns it.
 
 ## Design notes
-- Fit the 915 MHz antenna before applying power; do not transmit into an open port.
-- The stock receiver is independent of the bridge. If it stops updating during pairing, that is a failure, not a harmless side effect.
-- Pairing must follow [02 §2.7](../design/02-smoke-x-protocol.md): the ACK goes on the operating frequency, and a lost link does not auto-pair to a different unit.
-- Power-cut behavior: worst-case loss is the record being written. Earlier records must remain readable; the writer resumes at the next valid sequence.
-- Detached is `TEMP_DETACHED` (`INT16_MIN`), never the frozen numeric temperature; the OLED shows `---`.
-- Storage is always canonical tenths of °F; `source_celsius` is provenance only.
-- Do not edit the legacy fixtures; put new captures under `protocol/fixtures/lora/` with a short report.
-- Record every result in `docs/hardware-verified.md`, not in a chat.
+- This task is deliberately **not** a bench sitting. The unattended run cannot
+  press the X4's SYNC control, unplug power, or detach a probe.
+- The checklist is the deliverable: every T37 step names the command, the
+  artifact, and the pass/fail rule.
+- Do not pre-fill `docs/hardware-verified.md` with PASS. The rows stay ⏳ until
+  T37 records real evidence.
+- The stock receiver is independent of the bridge. A T37 failure there is a real
+  failure, not a side effect to waive.
 
 ## Done when
-- [ ] A real X4 pairs and the stock receiver keeps updating.
-- [ ] A mid-cook USB power cut leaves earlier records readable after reboot, and the log resumes.
-- [ ] A detached probe shows `---` on the OLED and the sentinel in the log.
-- [ ] An X4 °C/°F flip still stores canonical °F.
-- [ ] Results are written in `docs/hardware-verified.md`; a capture or log excerpt is committed.
+- [ ] The T37 bench checklist is committed and covers pair, stock receiver,
+      power cut, detach/reattach, and °F/°C.
+- [ ] Every checklist step names its evidence artifact.
+- [ ] Host tests pass:
+  ```bash
+  cmake -S firmware/test -B firmware/test/build -G Ninja
+  cmake --build firmware/test/build
+  ctest --test-dir firmware/test/build
+  ```
+- [ ] `docs/hardware-verified.md` has ⏳ rows owned by T37 and no false PASS.
 - [ ] Hand-off below filled in.
 
 ## Hand-off

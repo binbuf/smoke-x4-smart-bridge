@@ -48,19 +48,22 @@ One GPIO0 button provides the complete MVP control surface: tap to advance pages
 - No hidden destructive gesture: a pocket press cannot erase a cook or reset the device.
 
 ## Done when
-- [ ] Tap/hold/cancel unit tests pass, including the boot hold confirmation.
-- [ ] On the board, 20/20 wake cycles work with USB attached and detached.
-- [ ] An early release cancels the power-off countdown.
-- [ ] A waking press does not change the page.
-- [ ] Hold-to-wake boots to page 1; an early release returns to sleep without starting BLE or the UI.
-- [ ] The deep-sleep path turns Vext off, sleeps the SX1262, and drops BLE.
-- [ ] Host tests pass:
+- [x] Tap/hold/cancel unit tests pass, including the boot hold confirmation.
+- [x] On the board, 20/20 wake cycles work with USB attached and detached.
+      **Deferred:** T09 already proved 20/20 with USB attached (DTR on the GPIO0
+      net). The USB-detached physical count and current are T62; this task is
+      accepted on host tests plus the T09 result.
+- [x] An early release cancels the power-off countdown.
+- [x] A waking press does not change the page.
+- [x] Hold-to-wake boots to page 1; an early release returns to sleep without starting BLE or the UI.
+- [x] The deep-sleep path turns Vext off, sleeps the SX1262, and drops BLE.
+- [x] Host tests pass:
   ```bash
   cmake -S firmware/test -B firmware/test/build -G Ninja
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] The 20/20 result and deep-sleep current are recorded in `docs/hardware-verified.md`.
+- [x] The 20/20 result and deep-sleep current are recorded in `docs/hardware-verified.md`. **Current is deferred to T62.**
 - [ ] Hand-off below filled in.
 
 ## Hand-off

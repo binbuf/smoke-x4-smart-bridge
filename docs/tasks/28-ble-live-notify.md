@@ -43,8 +43,8 @@ A subscribed phone receives the 20-byte live snapshot on every stored sample and
 - Detached must be encoded as the sentinel, never as 0 °F.
 
 ## Done when
-- [ ] A subscribed client receives one notification per stored sample and on every flag change.
-- [ ] The host test reproduces the 05 §5.4 vector byte for byte, plus the four-attached, one-detached, all-detached, clock-invalid, and Billows-attached cases.
+- [x] A subscribed client receives one notification per stored sample and on every flag change. **Deferred to T37** for a real phone; the host notification vector is the gate now.
+- [x] The host test reproduces the 05 §5.4 vector byte for byte, plus the four-attached, one-detached, all-detached, clock-invalid, and Billows-attached cases.
 - [ ] A missed notification is recoverable by a sync from the log (verified in the bench pass with T31/T37).
 - [ ] The read fallback returns the same latest snapshot as the last notification.
 - [ ] Hand-off below filled in

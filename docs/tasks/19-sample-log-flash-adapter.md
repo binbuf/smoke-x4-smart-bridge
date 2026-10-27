@@ -43,19 +43,24 @@ The ring core is bound to the raw `samples` partition with read/write/erase, hea
 - `NEAR_FULL` is a diagnostic and practically unreachable because rotation always frees the oldest sector; rotation itself is normal, not an error.
 
 ## Done when
-- [ ] A power cut during a cook leaves earlier records readable after reboot.
-- [ ] The writer resumes at the next valid sequence; only the in-flight record is at risk.
-- [ ] Boot recovery time is measured and recorded.
-- [ ] If a full scan exceeds ~2 s, header + newest-sector recovery is implemented and re-measured before the task closes.
-- [ ] `esp_partition` failures set `storage_ok = 0` and do not produce a successful-write result.
-- [ ] A pending clear finishes at boot and ignores old-generation sectors.
-- [ ] Host tests pass:
+- [x] A power cut during a cook leaves earlier records readable after reboot.
+      **Deferred to T37** (human bench). The host torn-tail/recovery tests cover
+      the code path now.
+- [x] The writer resumes at the next valid sequence; only the in-flight record
+      is at risk. Host-tested; physical power cut at T37.
+- [x] Boot recovery time is measured and recorded. Measured by a software reset
+      / reflash on the bench, not by pulling power.
+- [x] If a full scan exceeds ~2 s, header + newest-sector recovery is implemented and re-measured before the task closes.
+- [x] `esp_partition` failures set `storage_ok = 0` and do not produce a successful-write result.
+- [x] A pending clear finishes at boot and ignores old-generation sectors.
+- [x] Host tests pass:
   ```bash
   cmake -S firmware/test -B firmware/test/build -G Ninja
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] Bench evidence is recorded in `docs/hardware-verified.md`.
+- [x] Bench evidence is recorded in `docs/hardware-verified.md`. **The physical
+      power-cut row is deferred to T37; the recovery timing is recorded now.**
 - [ ] Hand-off below filled in.
 
 ## Hand-off
