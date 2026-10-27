@@ -4,6 +4,9 @@
 The V0 build is exercised end to end on a factory-fresh install and a real board: advertising, pairing with the OLED code, four live temperatures, the last 15 minutes in the full History shell, disconnect/reconnect, offline cache, and a power cycle. This is the first deployable end-to-end proof and the gate before any field use.
 
 ## Context (read first)
+- **Human checkpoint before this task.** T36 carries `hitl: true`, so the
+  harness places `.stop` after T36 and pauses here. T37 starts only after a
+  human removes the sentinel and confirms the phone/board bench setup.
 - [10 §10.3 B2/B3](../design/10-test-and-release.md) — the BLE and app bench matrices this run executes.
 - [13 §13.4](../design/13-ui-implementation-contract.md#134-complete-state-inventory) — the setup and Live states to walk on the phone.
 - [10 §10.6](../design/10-test-and-release.md) — the acceptance matrix: four probes, BLE health/reconnect, History, and the UI state matrix.

@@ -1,9 +1,16 @@
+---
+hitl: true
+---
 # T36 — app: recent History (V0)
 
 ## Goal
 The approved History UI is mounted in production and shows the last 15 minutes synced from the bridge: filter card, chart shell, Summary, Cooks card, and the empty/offline states. V0 uses the real History shell rather than a second simplified screen, so M3 can complete it instead of replacing it.
 
 ## Context (read first)
+- **Human checkpoint.** This task carries `hitl: true`, so the harness pauses
+  after T36 finishes and before T37 starts. T37 is the first V0 bench run and
+  needs a factory-fresh phone install plus the real board; do not let it start
+  unattended.
 - [06 §6.6](../design/06-app.md) — History layout, filters, Summary, Cooks, and data rules.
 - [13 §13.4 History](../design/13-ui-implementation-contract.md#history) — the state inventory.
 - [13 §13.5 History](../design/13-ui-implementation-contract.md#135-ui-lifecycle-flows) — default range, probe-tile entry, and persistence.
