@@ -353,6 +353,15 @@ The app concatenates payload bytes until the END frame. The logical stream is:
 - If the link drops, the app resumes from its last fully stored record. The
   device does not remember a partial transfer.
 
+### Implementation (T31)
+
+`firmware/components/ble_service/ble_sync.c` owns the pure request parser, the
+START/RECORDS/END builder and the MTU-bounded framer; `ble_service.c` binds it
+to the ring (`sample_log_get_info` / `sample_log_read_seq`) and paces one frame
+per 15 ms timer tick. The builder snapshots the extent once, so records written
+during a transfer appear only in the next request. T39 adds gap/generation/
+resume on top of this same stream; ADR 0038 records the seam.
+
 ### First sync (recent first)
 
 1. Read `stats` or issue `cmd=status` to learn `generation`, `min_seq`,

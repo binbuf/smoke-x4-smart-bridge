@@ -12,17 +12,17 @@ The bridge answers `sync_ctrl` status and serves up to 64 records in either dire
 - Depends on T27, T18, and T19.
 
 ## Scope
-- [ ] Parse the fixed 10-byte `sync_ctrl` write: `ver`, `cmd` (0 status, 1 read, 2 cancel), `direction` (0 forward, 1 backward), `cursor_seq` u32, reserved, `max_records` u16.
-- [ ] Implement `cmd = 0` status: return a START/END pair with `count = 0`, plus the current generation and extent; `status = empty` when the log has no records.
-- [ ] Implement `cmd = 1` read in both directions for up to **64** records (`0` reads as `32`), with records emitted ascending by `seq`.
-- [ ] Implement `cmd = 2` cancel, allowed while a transfer is in flight.
-- [ ] Emit the framed `sync_data` stream: 4-byte frame header (`ver`, `frame_seq`, `flags` with START/END/ERROR, `len`) followed by payload.
-- [ ] Emit START (20 B), RECORDS (`count × 18` B), and END (13 B) exactly as 04 §4.5 defines.
-- [ ] Keep `len ≤ 240` and `len ≤ MTU − 3 − 4`; at MTU 23 that is 16 B, so the 20 B START spans two frames.
-- [ ] Snapshot `generation`, `min_seq`, and `max_seq` at START; records written during the transfer appear in the next request.
-- [ ] Allow only one record transfer at a time; a second status or cancel is allowed while busy, other reads are ignored.
-- [ ] Handle negotiated MTU 23 and MTU 247; never assume one notification per record and never require an ACK.
-- [ ] Add host tests: a split frame at MTU 23, a multi-frame batch at MTU 247, and a record split across frames.
+- [x] Parse the fixed 10-byte `sync_ctrl` write: `ver`, `cmd` (0 status, 1 read, 2 cancel), `direction` (0 forward, 1 backward), `cursor_seq` u32, reserved, `max_records` u16.
+- [x] Implement `cmd = 0` status: return a START/END pair with `count = 0`, plus the current generation and extent; `status = empty` when the log has no records.
+- [x] Implement `cmd = 1` read in both directions for up to **64** records (`0` reads as `32`), with records emitted ascending by `seq`.
+- [x] Implement `cmd = 2` cancel, allowed while a transfer is in flight.
+- [x] Emit the framed `sync_data` stream: 4-byte frame header (`ver`, `frame_seq`, `flags` with START/END/ERROR, `len`) followed by payload.
+- [x] Emit START (20 B), RECORDS (`count × 18` B), and END (13 B) exactly as 04 §4.5 defines.
+- [x] Keep `len ≤ 240` and `len ≤ MTU − 3 − 4`; at MTU 23 that is 16 B, so the 20 B START spans two frames.
+- [x] Snapshot `generation`, `min_seq`, and `max_seq` at START; records written during the transfer appear in the next request.
+- [x] Allow only one record transfer at a time; a second status or cancel is allowed while busy, other reads are ignored.
+- [x] Handle negotiated MTU 23 and MTU 247; never assume one notification per record and never require an ACK.
+- [x] Add host tests: a split frame at MTU 23, a multi-frame batch at MTU 247, and a record split across frames.
 
 ## Out of scope
 - Full cursor/gap/generation-change/resume logic and long backfill → T39 (M3).
@@ -46,12 +46,46 @@ The bridge answers `sync_ctrl` status and serves up to 64 records in either dire
 - `max_records = 64` is 1,152 B of records — roughly 6–7 notifications at MTU 247 and ~74 at MTU 23; the app should prefer 32 for predictable latency.
 
 ## Done when
-- [ ] A host test reassembles a START/record stream split across frames at MTU 23 (including the 20 B START spanning two frames).
-- [ ] A host test reassembles a multi-frame batch at MTU 247.
-- [ ] A record split across frame boundaries is reassembled correctly, and non-contiguous `frame_seq` is detectable by the client.
-- [ ] `cmd = 0` returns generation/extent and `empty` for an empty log.
-- [ ] A backward request returns records ascending, and the app can read the last 15 minutes in one request.
-- [ ] Hand-off below filled in
+- [x] A host test reassembles a START/record stream split across frames at MTU 23 (including the 20 B START spanning two frames).
+- [x] A host test reassembles a multi-frame batch at MTU 247.
+- [x] A record split across frame boundaries is reassembled correctly, and non-contiguous `frame_seq` is detectable by the client.
+- [x] `cmd = 0` returns generation/extent and `empty` for an empty log.
+- [x] A backward request returns records ascending, and the app can read the last 15 minutes in one request.
+- [x] Hand-off below filled in
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+Implemented. `ble_sync.h`/`ble_sync.c` are the pure C11 seam (exact 10 B
+`sync_ctrl` parse, busy plan, START/RECORDS/END builder over `get_extent` +
+`read_record` callbacks, and the MTU-bounded framer). `ble_service.c` binds the
+callbacks to `sample_log_get_info` / `sample_log_read_seq`, routes `sync_ctrl`,
+tracks the `sync_data` CCCD, and pumps one frame per 15 ms one-shot timer tick
+so `status`/`cancel` can land mid-transfer. `sync_active` is raised for the
+duration. ADR 0038 records the seam; design 04 §4.5 and 05 §5.7/5.8 are updated.
+
+Deviations:
+- Forward requests clamp to `min_seq` without a `gap` status; full gap/resume
+  logic stays in T39 as scoped.
+- A record read failure truncates the batch before the bad record and sets the
+  START/END `status = error` (ERROR flag on the final frame). No hole is ever
+  emitted.
+- `frame_seq` restarts at 0 per response. A status response sent during a read
+  is therefore a fresh response identified by its START flag; the client must
+  reset its reassembly on START.
+- Writes with `len != 10` return `ATT Invalid Attribute Value Length`; malformed
+  `ver`/`cmd`/`direction` are silently ignored (no state change).
+- `max_records` above 64 clamps to 64 (0 still reads as 32).
+
+Checks:
+- `ctest --test-dir firmware/test/build --output-on-failure` → 100%, 21/21
+  (new `ble-sync` suite covers split START at MTU 23, 3-frame MTU 247 batch,
+  75-frame 64-record batch, split records, dropped `frame_seq`, empty status,
+  backward ascending last-15-min, forward, error truncation and buffer refusal).
+- ESP-IDF 6.0.2 build → `Project build complete`; image guard ok (84 components,
+  no Wi-Fi/lwIP/netif, no HTTP/OTA); `sx4_bridge.bin` 0x91470 B, 72% free.
+
+Next: T35/T39 must subscribe to `sync_data` before the first read, treat any
+START as a reassembly reset, and re-request on a `frame_seq` hole. T39 extends
+the same builder with gap/generation/resume rather than adding a second stream.
+Board/phone verification (real notification pacing, cancel latency) is T37.
+

@@ -370,6 +370,34 @@ stores a stream with a hole. It must not assume one notification per record.
 
 No ACK is required: the next `sync_ctrl` is the acknowledgement.
 
+### Implementation rules (T31)
+
+- `ble_sync.c` parses the exact 10-byte `sync_ctrl` (`ver`, `cmd`, `direction`,
+  `cursor_seq`, reserved, `max_records`). `max_records = 0` reads as 32; values
+  above 64 clamp to 64. A wrong length, `ver`, `cmd` or `direction` changes
+  nothing.
+- `cmd = 0` answers a standalone START/END pair (`count = 0`) with the current
+  generation and extent; an empty log uses `status = empty` and
+  `min_seq = max_seq = 0xFFFFFFFF`. `cmd = 2` has no response.
+- `cmd = 1` returns at most 64 records. Backward selects the highest sequences
+  below the cursor and emits them ascending (`next_seq = first_seq`); forward
+  selects the next ascending window (`next_seq = last_seq + 1`). A forward
+  cursor before `min_seq` clamps to `min_seq`; gap reporting is T39.
+- The logical stream is START (20 B), `count × 18` B records, END (13 B). A
+  record read failure truncates the batch before the bad record and sets the
+  START/END `status = error`; no hole is ever emitted.
+- `ble_sync_frame_payload_max()` is `min(240, MTU-3-4)`. Frame boundaries are
+  byte offsets: START is on the first frame, END/ERROR on the last, and
+  `frame_seq` restarts at 0 per response. A status response sent during a
+  transfer is therefore a new response beginning with a START frame.
+- The write callback only parses and arms a 15 ms one-shot timer. The timer
+  builds the stream once, then sends one frame per tick, so cancel/status can
+  arrive between frames. One read transfer at a time; another read is ignored
+  while busy. `sync_active` is set for the duration. A mutex serialises frame
+  notifications so an interleaved status response stays contiguous.
+- The device does not remember a partial transfer. A dropped notification ends
+  the batch; the app detects the `frame_seq` hole and re-requests.
+
 ## 5.9 `0007 config` — Read/Write, authenticated
 
 Fixed 80 B.

@@ -8,6 +8,11 @@
  * Advertising and the security policy came with T30: the PDU/scan response are
  * built by the pure helpers in ble_adv.c, the passkey lifetime and bond limit
  * live in ble_security.c, and this file owns the NimBLE glue.
+ *
+ * T31 adds `sync_ctrl`: the request parser and the START/RECORDS/END stream are
+ * built by the pure ble_sync.c, while this file owns the ring adapter and the
+ * paced sync_data notifications (one frame per timer tick, so `cancel` can land
+ * while a transfer is in flight).
  */
 #include "ble_service.h"
 
@@ -23,12 +28,15 @@
 #include "ble_info.h"
 #include "ble_live.h"
 #include "ble_security.h"
+#include "ble_sync.h"
 #include "ble_tx.h"
 #include "bridge_config.h"
 #include "bridge_state.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "host/ble_att.h"
 #include "host/ble_gap.h"
 #include "host/ble_gatt.h"
@@ -40,6 +48,7 @@
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "records.h"
+#include "sample_log.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
@@ -120,6 +129,21 @@ static esp_timer_handle_t s_adv_restart_timer;
 static esp_timer_handle_t s_passkey_timer;
 static ble_service_passkey_fn s_passkey_cb;
 static void *s_passkey_ctx;
+
+/* T31 sync transfer: one record request at a time, paced by a timer. The
+ * ~15 ms tick matches the contract's MTU-23 timing note (~50 s for 24 h) and
+ * leaves room for a cancel/status write between frames. */
+#define BLE_SERVICE_SYNC_TICK_US 15000u
+static bool s_sync_subscribed;
+static volatile bool s_sync_busy;
+static uint8_t s_sync_stream[BLE_SYNC_STREAM_MAX];
+static size_t s_sync_stream_len;
+static size_t s_sync_offset;
+static uint8_t s_sync_status;
+static ble_sync_framer_t s_sync_framer;
+static ble_sync_request_t s_sync_request;
+static esp_timer_handle_t s_sync_timer;
+static SemaphoreHandle_t s_sync_mutex;
 
 #define BLE_SERVICE_PASSKEY_TERM_REASON 0x05u /* Authentication Failure */
 #define BLE_SERVICE_ADV_RESTART_DELAY_US 10000u
@@ -681,6 +705,247 @@ static int write_control(uint16_t conn_handle,
     return 0;
 }
 
+/* ---- sync_ctrl / sync_data (T31) --------------------------------------- */
+
+static bool sync_get_extent(void *ctx, ble_sync_extent_t *out) {
+    log_ring_info_t info;
+    (void)ctx;
+    if (!sample_log_get_info(&info)) {
+        return false;
+    }
+    out->generation = info.generation;
+    out->count = info.count;
+    out->min_seq = info.min_seq;
+    out->max_seq = info.max_seq;
+    return true;
+}
+
+static bool sync_read_record(void *ctx, uint32_t seq,
+                             uint8_t out[SX4_RECORD_SIZE]) {
+    sx4_sample_rec_t rec;
+    (void)ctx;
+    if (sample_log_read_seq(seq, &rec) != ESP_OK) {
+        return false;
+    }
+    return sample_log_record_encode(&rec, out, SX4_RECORD_SIZE) ==
+           SAMPLE_LOG_OK;
+}
+
+static const ble_sync_source_t s_sync_source = {
+    .get_extent = sync_get_extent,
+    .read_record = sync_read_record,
+    .ctx = NULL,
+};
+
+static bool notify_sync_payload(const uint8_t *data, size_t len) {
+    if (!s_sync_subscribed || s_sync_data_handle == 0u ||
+        s_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+        return false;
+    }
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(data, len);
+    if (om == NULL) {
+        ESP_LOGW(TAG, "no mbuf for sync_data frame");
+        return false;
+    }
+    int rc = ble_gatts_notify_custom(s_conn_handle, s_sync_data_handle, om);
+    if (rc != 0) {
+        ESP_LOGD(TAG, "sync_data notify failed (%d)", rc);
+        return false;
+    }
+    return true;
+}
+
+/* Keeps a status response contiguous when it interleaves with a read. */
+static bool sync_lock(void) {
+    return s_sync_mutex == NULL ||
+           xSemaphoreTake(s_sync_mutex, portMAX_DELAY) == pdTRUE;
+}
+
+static void sync_unlock(void) {
+    if (s_sync_mutex != NULL) {
+        (void)xSemaphoreGive(s_sync_mutex);
+    }
+}
+
+static void sync_transfer_finish(void) {
+    if (s_sync_timer != NULL) {
+        (void)esp_timer_stop(s_sync_timer);
+    }
+    if (s_sync_busy) {
+        ESP_LOGI(TAG, "sync transfer ended (status %u)",
+                 (unsigned)s_sync_status);
+    }
+    s_sync_busy = false;
+    s_sync_stream_len = 0;
+    s_sync_offset = 0;
+    /* Clears live.flags.sync_active through the bridge_state hook. */
+    bridge_state_set_sync_active(false);
+}
+
+static void sync_pump(void) {
+    if (!s_sync_busy) {
+        return;
+    }
+    if (s_sync_stream_len == 0u) {
+        size_t len = 0;
+        uint8_t status = SX4_SYNC_STATUS_ERROR;
+        ble_sync_build_status_t built =
+            ble_sync_build(&s_sync_request, &s_sync_source, s_sync_stream,
+                           sizeof(s_sync_stream), &len, &status);
+        if (built != BLE_SYNC_BUILD_OK) {
+            ESP_LOGW(TAG, "sync build failed (%d)", (int)built);
+            sync_transfer_finish();
+            return;
+        }
+        s_sync_stream_len = len;
+        s_sync_status = status;
+        ble_sync_framer_init(&s_sync_framer, 0u);
+        ESP_LOGI(TAG, "sync frame_seq snapshot: %u B, status %u",
+                 (unsigned)len, (unsigned)status);
+    }
+
+    uint16_t mtu = s_conn_handle == BLE_HS_CONN_HANDLE_NONE
+                       ? BLE_ATT_MTU_DFLT
+                       : ble_att_mtu(s_conn_handle);
+    uint8_t frame[SX4_SYNC_FRAME_SIZE + SX4_BLE_SYNC_FRAME_MAX_PAYLOAD];
+    bool error = s_sync_status == SX4_SYNC_STATUS_ERROR;
+    size_t n = ble_sync_next_frame(&s_sync_framer, s_sync_stream,
+                                   s_sync_stream_len, &s_sync_offset, mtu,
+                                   error, frame, sizeof(frame));
+    if (n == 0u) {
+        sync_transfer_finish();
+        return;
+    }
+    bool sent = sync_lock();
+    if (sent) {
+        sent = notify_sync_payload(frame, n);
+        sync_unlock();
+    }
+    if (!sent) {
+        /* No ACK exists, so a failed notification ends the batch; the app
+         * notices the missing frame_seq and re-requests. */
+        ESP_LOGW(TAG, "sync frame dropped at offset %u",
+                 (unsigned)s_sync_offset);
+        sync_transfer_finish();
+        return;
+    }
+    if (s_sync_offset >= s_sync_stream_len) {
+        sync_transfer_finish();
+    }
+}
+
+static void sync_timer_cb(void *arg) {
+    (void)arg;
+    sync_pump();
+}
+
+static bool sync_start_transfer(const ble_sync_request_t *request) {
+    if (s_sync_busy) {
+        return false;
+    }
+    if (!ensure_timer(&s_sync_timer, "ble_sync", sync_timer_cb)) {
+        ESP_LOGW(TAG, "no timer for sync transfer");
+        return false;
+    }
+    s_sync_request = *request;
+    s_sync_busy = true;
+    s_sync_stream_len = 0;
+    s_sync_offset = 0;
+    s_sync_status = SX4_SYNC_STATUS_ERROR;
+    bridge_state_set_sync_active(true);
+    (void)esp_timer_stop(s_sync_timer);
+    if (esp_timer_start_once(s_sync_timer, BLE_SERVICE_SYNC_TICK_US) !=
+        ESP_OK) {
+        sync_transfer_finish();
+        return false;
+    }
+    return true;
+}
+
+static void sync_cancel(void) {
+    if (!s_sync_busy) {
+        return;
+    }
+    ESP_LOGI(TAG, "sync transfer cancelled");
+    sync_transfer_finish();
+}
+
+/* Status is small (33 B) and may run while a record transfer is in flight. */
+static void sync_send_status(uint16_t conn_handle,
+                             const ble_sync_request_t *request) {
+    uint8_t stream[SX4_SYNC_START_SIZE + SX4_SYNC_END_SIZE];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_ERROR;
+    if (ble_sync_build(request, &s_sync_source, stream, sizeof(stream), &len,
+                       &status) != BLE_SYNC_BUILD_OK) {
+        return;
+    }
+    ble_sync_framer_t framer;
+    ble_sync_framer_init(&framer, 0u);
+    uint16_t mtu = conn_handle == BLE_HS_CONN_HANDLE_NONE
+                       ? BLE_ATT_MTU_DFLT
+                       : ble_att_mtu(conn_handle);
+    uint8_t frame[SX4_SYNC_FRAME_SIZE + SX4_BLE_SYNC_FRAME_MAX_PAYLOAD];
+    size_t offset = 0;
+    bool locked = sync_lock();
+    for (;;) {
+        size_t n = ble_sync_next_frame(
+            &framer, stream, len, &offset, mtu,
+            status == SX4_SYNC_STATUS_ERROR, frame, sizeof(frame));
+        if (n == 0u) {
+            break;
+        }
+        if (!notify_sync_payload(frame, n)) {
+            break;
+        }
+    }
+    if (locked) {
+        sync_unlock();
+    }
+}
+
+static int write_sync_ctrl(uint16_t conn_handle,
+                           struct ble_gatt_access_ctxt *ctxt) {
+    uint8_t scratch[SX4_SYNC_CTRL_SIZE];
+    uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
+    uint16_t written = 0;
+
+    if (len != sizeof(scratch)) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (ble_hs_mbuf_to_flat(ctxt->om, scratch, sizeof(scratch), &written) !=
+        0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    ble_sync_request_t request;
+    if (ble_sync_parse_ctrl(scratch, len, &request) != BLE_SYNC_REQUEST_OK) {
+        ESP_LOGD(TAG, "malformed sync_ctrl ignored");
+        return 0;
+    }
+
+    switch (ble_sync_plan(s_sync_busy, &request)) {
+    case BLE_SYNC_ACTION_STATUS:
+        sync_send_status(conn_handle, &request);
+        break;
+    case BLE_SYNC_ACTION_CANCEL:
+        sync_cancel();
+        break;
+    case BLE_SYNC_ACTION_READ:
+        if (!s_sync_subscribed) {
+            ESP_LOGD(TAG, "sync read ignored: no sync_data subscriber");
+            break;
+        }
+        (void)sync_start_transfer(&request);
+        break;
+    case BLE_SYNC_ACTION_NONE:
+    default:
+        ESP_LOGD(TAG, "sync read ignored while busy");
+        break;
+    }
+    return 0;
+}
+
 static int write_value(uint16_t conn_handle,
                        struct ble_gatt_access_ctxt *ctxt,
                        const ble_gatt_spec_t *spec) {
@@ -691,10 +956,13 @@ static int write_value(uint16_t conn_handle,
     if (spec->slot == SX4_BLE_CHAR_CONTROL_SLOT) {
         return write_control(conn_handle, ctxt);
     }
+    if (spec->slot == SX4_BLE_CHAR_SYNC_CTRL_SLOT) {
+        return write_sync_ctrl(conn_handle, ctxt);
+    }
 
     /*
-     * T31 (sync_ctrl) and T47 (config) replace these no-op handlers. Draining
-     * the mbuf here keeps the GATT attribute write legal.
+     * T47 (config) replaces this no-op handler. Draining the mbuf here keeps
+     * the GATT attribute write legal.
      */
     if (len > sizeof(scratch)) {
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
@@ -743,6 +1011,7 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
             s_connected = true;
             s_conn_handle = event->connect.conn_handle;
             s_result_subscribed = false;
+            s_sync_subscribed = false;
             ble_tx_on_connect(event->connect.conn_handle);
             adv_apply_event(BLE_ADV_EVENT_CONNECTED, false);
             bridge_state_set_sync_active(false);
@@ -760,6 +1029,9 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
         s_connected = false;
         s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
         s_result_subscribed = false;
+        s_sync_subscribed = false;
+        /* A history transfer cannot outlive the link. */
+        sync_cancel();
         ble_tx_on_disconnect();
         passkey_clear();
         /* A history transfer cannot outlive the link. */
@@ -838,6 +1110,11 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
             ble_tx_on_live_subscribe(event->subscribe.cur_notify != 0);
         } else if (event->subscribe.attr_handle == s_result_handle) {
             s_result_subscribed = event->subscribe.cur_notify != 0;
+        } else if (event->subscribe.attr_handle == s_sync_data_handle) {
+            s_sync_subscribed = event->subscribe.cur_notify != 0;
+            if (!s_sync_subscribed) {
+                sync_cancel();
+            }
         }
         break;
     default:
@@ -878,6 +1155,8 @@ static void on_reset(int reason) {
     s_synced = false;
     s_connected = false;
     s_result_subscribed = false;
+    s_sync_subscribed = false;
+    s_sync_busy = false;
     s_adv_active = false;
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
     ble_adv_state_init(&s_adv_state);
@@ -916,6 +1195,13 @@ esp_err_t ble_service_start(void) {
 
     if (s_started) {
         return ESP_OK;
+    }
+
+    if (s_sync_mutex == NULL) {
+        s_sync_mutex = xSemaphoreCreateMutex();
+        if (s_sync_mutex == NULL) {
+            ESP_LOGW(TAG, "no mutex for sync_data framing");
+        }
     }
 
     err = nimble_port_init();
@@ -982,6 +1268,8 @@ esp_err_t ble_service_stop(void) {
     }
     ble_tx_on_disconnect();
     s_result_subscribed = false;
+    s_sync_subscribed = false;
+    sync_cancel();
     s_pending_action = BLE_CONTROL_ACTION_NONE;
     if (s_action_timer != NULL) {
         (void)esp_timer_stop(s_action_timer);
@@ -1002,6 +1290,14 @@ esp_err_t ble_service_stop(void) {
     if (s_passkey_timer != NULL) {
         (void)esp_timer_delete(s_passkey_timer);
         s_passkey_timer = NULL;
+    }
+    if (s_sync_timer != NULL) {
+        (void)esp_timer_delete(s_sync_timer);
+        s_sync_timer = NULL;
+    }
+    if (s_sync_mutex != NULL) {
+        vSemaphoreDelete(s_sync_mutex);
+        s_sync_mutex = NULL;
     }
     ble_adv_state_init(&s_adv_state);
     s_adv_active = false;

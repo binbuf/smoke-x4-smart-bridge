@@ -280,6 +280,22 @@ add_executable(test_ble_control test_ble_control.c)
 target_link_libraries(test_ble_control PRIVATE sx4_ble_control sx4_test_support)
 add_test(NAME ble-control COMMAND test_ble_control)
 
+# sync_ctrl parsing, the logical START/RECORDS/END stream and the MTU-bounded
+# sync_data framer are pure C11 (T31). The test is a client-style reassembler:
+# it covers MTU 23 (split START and split records), MTU 247, backward/forward
+# cursors, status/empty and a dropped frame_seq.
+add_library(sx4_ble_sync STATIC
+    "${REPO_ROOT}/firmware/components/ble_service/ble_sync.c"
+)
+target_include_directories(sx4_ble_sync
+    PUBLIC "${REPO_ROOT}/firmware/components/ble_service/include"
+)
+target_link_libraries(sx4_ble_sync PUBLIC sx4_protocol_gen)
+
+add_executable(test_ble_sync test_ble_sync.c)
+target_link_libraries(test_ble_sync PRIVATE sx4_ble_sync sx4_test_support)
+add_test(NAME ble-sync COMMAND test_ble_sync)
+
 # Advertising AD structures, the 250 ms -> 1,000 ms state machine, the bond
 # limit and the passkey lifetime are pure C11 (T30). NimBLE is not linked; the
 # byte vectors and the state transitions are the host gate.
