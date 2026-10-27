@@ -38,6 +38,53 @@ String shortDate(DateTime time) => '${_months[time.month - 1]} ${time.day}';
 
 String shortDateWithYear(DateTime time) => '${shortDate(time)}, ${time.year}';
 
+/// Compact date span used by History & storage and its delete sheets.
+///
+/// Same-year spans name the year once (`Sep 1 – Oct 24, 2026`); a span across
+/// years keeps both. Same-day spans keep the date once.
+String dateRangeLabel(DateTime start, DateTime end) {
+  if (start.year == end.year &&
+      start.month == end.month &&
+      start.day == end.day) {
+    return shortDateWithYear(start);
+  }
+  if (start.year == end.year) {
+    return '${shortDate(start)} – ${shortDateWithYear(end)}';
+  }
+  return '${shortDateWithYear(start)} – ${shortDateWithYear(end)}';
+}
+
+String dateTimeLabel(DateTime time, {bool use24Hour = false}) =>
+    '${shortDateWithYear(time)} at ${clockLabel(time, use24Hour: use24Hour)}';
+
+/// Absolute first–last reading span with times, used in deletion confirmations.
+/// Unlike [historyWindowLabel] this is not tied to a [HistoryRange].
+String absoluteRangeLabel(
+  DateTime start,
+  DateTime end, {
+  bool use24Hour = false,
+}) {
+  final sameDay =
+      start.year == end.year &&
+      start.month == end.month &&
+      start.day == end.day;
+  if (sameDay) {
+    return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
+  }
+  if (start.year == end.year) {
+    return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${shortDateWithYear(end)}, ${clockLabel(end, use24Hour: use24Hour)}';
+  }
+  return '${dateTimeLabel(start, use24Hour: use24Hour)} – ${dateTimeLabel(end, use24Hour: use24Hour)}';
+}
+
+/// Decimal storage size, matching the storage figures in 04 §4.9.
+String storageSizeLabel(int bytes) {
+  if (bytes <= 0) return '0 B';
+  if (bytes < 1000) return '$bytes B';
+  if (bytes < 1000000) return '${(bytes / 1000).toStringAsFixed(1)} KB';
+  return '${(bytes / 1000000).toStringAsFixed(1)} MB';
+}
+
 String clockLabel(DateTime time, {bool use24Hour = false}) {
   if (use24Hour) {
     final hour = time.hour.toString().padLeft(2, '0');

@@ -22,6 +22,7 @@ class BridgeLinkHost {
     required this.onPhase,
     required this.onLive,
     this.onInfo,
+    this.onStats,
     this.onSync,
     this.onReconnect,
     this.onRssi,
@@ -32,6 +33,7 @@ class BridgeLinkHost {
   final void Function(ConnectionPhase phase) onPhase;
   final void Function(BridgeLiveUpdate update) onLive;
   final void Function(BridgeInfo info)? onInfo;
+  final void Function(BridgeStats stats)? onStats;
   final void Function(BridgeSyncProgress progress)? onSync;
 
   /// RSSI of the phone→Bridge Bluetooth link.
@@ -394,6 +396,7 @@ class BridgeLink implements SyncTransport {
     await _ensureSecure();
     _secure = true;
     await _subscribeAll();
+    await _refreshStats();
 
     final live = await _readLiveWithBond();
     await _setTimeIfNeeded(force: firstSync, live: live);
@@ -423,6 +426,19 @@ class BridgeLink implements SyncTransport {
     _startPeriodicSync();
     unawaited(_refreshRssi());
     return bridgeInfo;
+  }
+
+  /// Best-effort `stats` read for History & storage. A failed read never changes
+  /// link health; the next connect or quiet sync retries it.
+  Future<void> _refreshStats() async {
+    if (_disposed || !_secure || host.onStats == null) return;
+    try {
+      host.onStats?.call(
+        BridgeStats.decode(await client.read(bleStatsCharacteristicUuid)),
+      );
+    } catch (_) {
+      // Storage figures are observation only. Local deletion stays available.
+    }
   }
 
   Future<void> _refreshRssi() async {
@@ -458,6 +474,7 @@ class BridgeLink implements SyncTransport {
     _periodicSyncBusy = true;
     try {
       await _refreshRssi();
+      await _refreshStats();
       await syncForward(quiet: true);
       // Quiet suppresses the card, not the "last synced" truth.
       host.onSync?.call(

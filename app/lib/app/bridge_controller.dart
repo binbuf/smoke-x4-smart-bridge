@@ -9,6 +9,7 @@ import '../data/ble/bridge_link.dart';
 import '../data/ble/bridge_protocol.dart';
 import '../data/db/sample_dao.dart';
 import '../data/history/history_archive.dart';
+import '../data/history/history_deletion.dart';
 import '../data/recent_history_store.dart';
 import '../data/repository.dart';
 import '../data/sync/archive_sync.dart';
@@ -45,6 +46,13 @@ class BridgeController extends ChangeNotifier {
   final SampleDao? sampleDao;
   ArchiveSyncCoordinator? _archive;
   HistoryArchive? _historyArchive;
+  HistoryDeletionService? _historyDeletion;
+
+  /// Average SQLite cost of one stored reading. 04 §4.9 puts a 30-day archive at
+  /// 5–8 MB for 86,400 readings, so 72 B is the approved mid-point. The screen
+  /// labels the result "Storage used"; it is an estimate, not a file-system
+  /// measurement, and never drives automatic deletion.
+  static const int estimatedStoredBytesPerReading = 72;
 
   /// Incremented whenever committed archive rows change, so the History screen
   /// reloads its SQL window after a sync batch instead of caching stale data.
@@ -70,6 +78,39 @@ class BridgeController extends ChangeNotifier {
     hasSavedData = snapshot.readingCount > 0;
     savedDataEmpty = snapshot.readingCount == 0;
     _initialized = true;
+    // The DAO also knows the exact time range and the per-reading storage
+    // estimate; the small repository snapshot only carries the count.
+    await refreshLocalHistorySummary();
+    notifyListeners();
+  }
+
+  /// Re-reads the phone copy's count, real date range and estimated storage.
+  ///
+  /// Only an explicit read or a completed deletion calls this. It is deliberately
+  /// not a cleanup path: nothing is ever deleted on launch, sync, generation
+  /// change or low storage.
+  Future<void> refreshLocalHistorySummary() async {
+    final dao = sampleDao;
+    if (dao == null) return;
+    final extent = await dao.extent();
+    if (extent == null) {
+      phoneRecords = 0;
+      savedDataRange = '—';
+      savedDataSize = '0 B';
+      savedDataEmpty = true;
+      hasSavedData = false;
+    } else {
+      phoneRecords = extent.count;
+      savedDataRange = dateRangeLabel(
+        DateTime.fromMillisecondsSinceEpoch(extent.minRecordedMs),
+        DateTime.fromMillisecondsSinceEpoch(extent.maxRecordedMs),
+      );
+      savedDataSize = storageSizeLabel(
+        extent.count * estimatedStoredBytesPerReading,
+      );
+      savedDataEmpty = false;
+      hasSavedData = true;
+    }
     notifyListeners();
   }
 
@@ -83,12 +124,12 @@ class BridgeController extends ChangeNotifier {
     SavedBridge? saved;
     if (dao != null) {
       saved = await dao.savedBridge();
+      await refreshLocalHistorySummary();
       final newest = await dao.newestSamples(limit: 1);
       if (newest.isNotEmpty) {
         final row = newest.single;
         liveProbeTemps = <double?>[
-          for (final value in row.tempsF10)
-            value == null ? null : value / 10,
+          for (final value in row.tempsF10) value == null ? null : value / 10,
         ];
         lastKnownReadingAt = DateTime.fromMillisecondsSinceEpoch(
           row.recordedMs,
@@ -227,25 +268,27 @@ class BridgeController extends ChangeNotifier {
       finish(const _LaunchScanResult());
     });
     try {
-      subscription = client.scan(timeout: launchScanWindow).listen(
-        (device) {
-          if (!device.isCompatibleBridge) return;
-          final match = selectPreferredBridge(
-            <BleDevice>[device],
-            rememberedDeviceId: saved.id,
-            rememberedName: saved.name,
+      subscription = client
+          .scan(timeout: launchScanWindow)
+          .listen(
+            (device) {
+              if (!device.isCompatibleBridge) return;
+              final match = selectPreferredBridge(
+                <BleDevice>[device],
+                rememberedDeviceId: saved.id,
+                rememberedName: saved.name,
+              );
+              if (match == null) return;
+              unawaited(subscription?.cancel());
+              unawaited(client.stopScan());
+              finish(_LaunchScanResult(device: match));
+            },
+            onError: (Object error) {
+              final blocked = error is BleException ? error.appState : null;
+              finish(_LaunchScanResult(blockedBy: blocked));
+            },
+            onDone: () => finish(const _LaunchScanResult()),
           );
-          if (match == null) return;
-          unawaited(subscription?.cancel());
-          unawaited(client.stopScan());
-          finish(_LaunchScanResult(device: match));
-        },
-        onError: (Object error) {
-          final blocked = error is BleException ? error.appState : null;
-          finish(_LaunchScanResult(blockedBy: blocked));
-        },
-        onDone: () => finish(const _LaunchScanResult()),
-      );
     } on BleException catch (error) {
       finish(_LaunchScanResult(blockedBy: error.appState));
     } catch (_) {
@@ -423,6 +466,7 @@ class BridgeController extends ChangeNotifier {
         onPhase: _onLinkPhase,
         onLive: _onLinkLive,
         onInfo: _onLinkInfo,
+        onStats: _onLinkStats,
         onSync: _onLinkSync,
         onReconnect: _onLinkReconnect,
         onRssi: _onLinkRssi,
@@ -468,6 +512,16 @@ class BridgeController extends ChangeNotifier {
     return _historyArchive ??= HistoryArchive(dao: dao, now: () => content.now);
   }
 
+  /// The explicit deletion seam, or null for review builds without a database.
+  HistoryDeletionService? get historyDeletion {
+    final dao = sampleDao;
+    if (dao == null) return null;
+    return _historyDeletion ??= HistoryDeletionService(
+      dao: dao,
+      now: () => content.now,
+    );
+  }
+
   /// Exposes the durable sync state for tests and later History tasks.
   ArchiveSyncCoordinator? get archiveSync => _archive;
 
@@ -488,8 +542,8 @@ class BridgeController extends ChangeNotifier {
         syncState = SyncState.complete;
         lastSyncedAt = content.now;
         historyRevision++;
-        final hasArchive =
-            snapshot.cursorAfter != null || phoneRecords > 0;
+        unawaited(refreshLocalHistorySummary());
+        final hasArchive = snapshot.cursorAfter != null || phoneRecords > 0;
         hasSavedData = hasArchive;
         savedDataEmpty = !hasArchive;
         break;
@@ -629,6 +683,25 @@ class BridgeController extends ChangeNotifier {
     billowsObserveCap = info.billowsObserve;
   }
 
+  void _onLinkStats(BridgeStats stats) {
+    bridgeRecords = stats.hasReadings ? stats.recordsStored : 0;
+    if (stats.recordsCapacity > 0) {
+      bridgeCapacity = stats.recordsCapacity;
+    }
+    bridgeGeneration = stats.generation;
+    bridgeOldestReadingAt = _statsTime(stats.oldestUnixS);
+    bridgeNewestReadingAt = _statsTime(stats.newestUnixS);
+    notifyListeners();
+  }
+
+  DateTime? _statsTime(int unixS) {
+    if (unixS <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(
+      unixS * 1000,
+      isUtc: true,
+    ).toLocal();
+  }
+
   void _onLinkSync(BridgeSyncProgress progress) {
     syncState = progress.state;
     syncProgressPercent = progress.percent;
@@ -763,6 +836,16 @@ class BridgeController extends ChangeNotifier {
   int phoneRecords;
   String savedDataRange;
   String savedDataSize;
+
+  /// Bridge `stats.oldest_unix_s` / `newest_unix_s`. Null until the Bridge has
+  /// answered or when the field is 0 (unknown). These are Bridge-side values,
+  /// never derived from the phone archive.
+  DateTime? bridgeOldestReadingAt;
+  DateTime? bridgeNewestReadingAt;
+
+  /// Bridge generation from the last `stats` read. Used only to notice a clear
+  /// boundary; a generation change never deletes phone history.
+  int? bridgeGeneration;
 
   String deviceId = 'A4F2';
   String firmware = '0.1.0';
@@ -1810,6 +1893,8 @@ class BridgeController extends ChangeNotifier {
     phoneRecords: phoneRecords,
     bridgeRecords: bridgeRecords,
     bridgeCapacity: bridgeCapacity,
+    bridgeOldestReadingAt: bridgeOldestReadingAt,
+    bridgeNewestReadingAt: bridgeNewestReadingAt,
     phoneRecordsLabel: commaInt(phoneRecords),
     bridgeRecordsLabel: commaInt(bridgeRecords),
     savedDataRange: savedDataRange,
@@ -2064,24 +2149,99 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Local outcome of a confirmed Bridge clear. T49/T52 replace this with the
+  /// `clear_history` command and generation boundary; T44 owns the confirmation,
+  /// the separate copy and keeping phone history.
   void clearBridgeHistory() {
     bridgeRecords = 0;
+    bridgeOldestReadingAt = null;
+    bridgeNewestReadingAt = null;
     notifyListeners();
   }
 
-  void deleteLocalData(String scope) {
-    switch (scope) {
-      case '30':
-        phoneRecords = (phoneRecords - 12430).clamp(0, 999999);
+  /// Builds the counted plan the delete sheet shows. The same plan is passed to
+  /// [applyLocalDeletion] after confirmation, so the stated loss is the loss.
+  Future<HistoryDeletionPlan> planLocalDeletion(
+    HistoryDeletionScope scope,
+  ) async {
+    final service = historyDeletion;
+    if (service == null) return _simulatedDeletionPlan(scope);
+    return service.plan(scope);
+  }
+
+  /// Applies one already-confirmed plan. An empty plan never calls the DAO.
+  Future<HistoryDeletionOutcome> applyLocalDeletion(
+    HistoryDeletionPlan plan,
+  ) async {
+    final service = historyDeletion;
+    if (service == null) {
+      _applySimulatedDeletion(plan);
+      return HistoryDeletionOutcome(
+        plan: plan,
+        deletion: const HistoryDeletion(
+          samplesDeleted: 0,
+          gapsDeleted: 0,
+          gapsTrimmed: 0,
+        ),
+      );
+    }
+    final outcome = await service.delete(plan);
+    await refreshLocalHistorySummary();
+    historyHasData = phoneRecords > 0;
+    // History's read model reloads on this revision; deletion does not wait for
+    // a sync batch to become visible.
+    historyRevision++;
+    notifyListeners();
+    return outcome;
+  }
+
+  /// Lab/screenshot compatibility. Production UI calls [planLocalDeletion] then
+  /// [applyLocalDeletion]; this wrapper is otherwise equivalent.
+  Future<HistoryDeletionOutcome> deleteLocalData(String scope) async {
+    final plan = await planLocalDeletion(_scopeFromWire(scope));
+    return applyLocalDeletion(plan);
+  }
+
+  HistoryDeletionScope _scopeFromWire(String scope) => switch (scope) {
+    '30' => HistoryDeletionScope.olderThan30Days,
+    '90' => HistoryDeletionScope.olderThan90Days,
+    _ => HistoryDeletionScope.all,
+  };
+
+  HistoryDeletionPlan _simulatedDeletionPlan(HistoryDeletionScope scope) {
+    final count = switch (scope) {
+      HistoryDeletionScope.olderThan30Days =>
+        phoneRecords > 12430 ? 12430 : phoneRecords,
+      HistoryDeletionScope.olderThan90Days => phoneRecords,
+      HistoryDeletionScope.all => phoneRecords,
+    };
+    final range = switch (scope) {
+      HistoryDeletionScope.olderThan30Days => 'Sep 25 – Oct 24, 2026',
+      HistoryDeletionScope.olderThan90Days => 'Jul 27 – Oct 24, 2026',
+      HistoryDeletionScope.all => savedDataRange,
+    };
+    return HistoryDeletionPlan(
+      scope: scope,
+      fromMs: 0,
+      toMs: 0,
+      count: count,
+      rangeLabelOverride: range,
+    );
+  }
+
+  void _applySimulatedDeletion(HistoryDeletionPlan plan) {
+    switch (plan.scope) {
+      case HistoryDeletionScope.olderThan30Days:
+        phoneRecords = (phoneRecords - plan.count).clamp(0, 999999);
         break;
-      case '90':
-        phoneRecords = 0;
-        break;
-      default:
+      case HistoryDeletionScope.olderThan90Days:
+      case HistoryDeletionScope.all:
         phoneRecords = 0;
         savedDataEmpty = true;
         break;
     }
+    historyHasData = phoneRecords > 0;
+    historyRevision++;
     notifyListeners();
   }
 
@@ -2172,6 +2332,9 @@ class BridgeController extends ChangeNotifier {
     saveState = SettingsSaveState.idle;
     bridgeRecords = content.bridgeRecords;
     bridgeCapacity = content.bridgeCapacity;
+    bridgeOldestReadingAt = null;
+    bridgeNewestReadingAt = null;
+    bridgeGeneration = null;
     phoneRecords = content.phoneRecords;
     savedDataRange = content.savedDataRange;
     savedDataSize = content.savedDataSize;

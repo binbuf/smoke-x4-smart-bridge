@@ -99,7 +99,7 @@ the approved UI contract.
 - [x] T41 — app: repository and two-phase sync → [tasks/41-app-repository-two-phase-sync.md](tasks/41-app-repository-two-phase-sync.md)
 - [x] T43 — app: connection health, saved Bridge and launch auto-connect → [tasks/43-app-connection-health.md](tasks/43-app-connection-health.md)
 - [x] T42 — app: full History chart, Summary and Cooks → [tasks/42-app-history-chart-summary-cooks.md](tasks/42-app-history-chart-summary-cooks.md)
-- [ ] T44 — app: data use and explicit deletion → [tasks/44-app-data-use-deletion.md](tasks/44-app-data-use-deletion.md)
+- [x] T44 — app: data use and explicit deletion → [tasks/44-app-data-use-deletion.md](tasks/44-app-data-use-deletion.md)
 - [ ] T45 — app: History/data empty and error states → [tasks/45-app-history-empty-error-states.md](tasks/45-app-history-empty-error-states.md)
 - [ ] T46 — Bench: full history and resume → [tasks/46-bench-full-history-resume.md](tasks/46-bench-full-history-resume.md)
 
@@ -181,11 +181,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T19:42:37Z · 42/66 done
+**Pipeline status** — updated 2026-10-27T19:57:46Z · 43/66 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44
 - Blocked: none
 - Failed: none
-- Remaining: T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T42 — done · Durable archive-backed History chart, filters, custom range, Summary sorting and detected Cooks landed; 194 tests pass and analyze is clean.
+- Remaining: T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T44 — done · History & storage now uses real phone and Bridge copies with counted explicit 30/90/all deletion, gap/cursor reconciliation, and tests; analyze clean and 208/208 tests pass.
 <!-- /symphony:status -->

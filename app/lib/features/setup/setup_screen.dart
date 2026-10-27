@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
+import '../../app/formatters.dart';
 import '../../app/view_state.dart';
 import '../../data/ble/bridge_codecs.dart';
+import '../../data/history/history_deletion.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -1144,20 +1146,33 @@ class _SavedDataStep extends StatelessWidget {
   }
 
   Future<void> _deleteSavedData(BuildContext context) async {
+    final plan = await controller.planLocalDeletion(HistoryDeletionScope.all);
+    if (!context.mounted) return;
+    if (plan.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('There are no readings to delete.')),
+      );
+      return;
+    }
+    final first = plan.firstReadingAt;
+    final last = plan.lastReadingAt;
+    final range = first == null || last == null
+        ? view.savedDataRange
+        : absoluteRangeLabel(first, last);
     final confirmed = await showLossSheet(
       context,
       title: 'Delete all history from this phone?',
       intro: 'This deletes every reading stored on this phone. It can’t be undone.',
       bullets: [
-        '${view.phoneRecordsLabel} readings',
-        view.savedDataRange,
+        '${commaInt(plan.count)} readings',
+        range,
         'The Bridge isn’t changed and keeps recording.',
       ],
       keepNote: 'This is the only copy of the history on this phone.',
-      confirmLabel: 'Delete ${view.phoneRecordsLabel} readings',
+      confirmLabel: 'Delete ${commaInt(plan.count)} readings',
     );
     if (confirmed == true && context.mounted) {
-      controller.deleteLocalData('all');
+      await controller.applyLocalDeletion(plan);
     }
   }
 }

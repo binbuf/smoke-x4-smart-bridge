@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
 import '../../app/formatters.dart';
+import '../../data/history/history_deletion.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/connection_log.dart';
 import '../../widgets/prototype_app_bar.dart';
@@ -208,10 +209,7 @@ class AboutScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        KeyValueRow(
-                          label: 'Firmware',
-                          value: view.firmware,
-                        ),
+                        KeyValueRow(label: 'Firmware', value: view.firmware),
                         KeyValueRow(
                           label: 'Bridge protocol',
                           value: view.protocol,
@@ -480,21 +478,29 @@ class SavedDataScreen extends StatelessWidget {
   }
 
   Future<void> deleteSavedData(BuildContext context) async {
-    final view = controller.settingsView;
+    final plan = await controller.planLocalDeletion(HistoryDeletionScope.all);
+    if (!context.mounted) return;
+    if (plan.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('There are no readings to delete.')),
+      );
+      return;
+    }
     final confirmed = await showLossSheet(
       context,
       title: 'Delete all history from this phone?',
       intro: 'This deletes every reading stored on this phone. It can’t be undone.',
       bullets: [
-        '${view.phoneRecordsLabel} readings',
-        view.savedDataRange,
+        '${commaInt(plan.count)} readings',
+        _deletionRangeLabel(plan),
         'The Bridge isn’t changed and keeps recording.',
       ],
       keepNote: 'This is the only copy of this history.',
-      confirmLabel: 'Delete ${view.phoneRecordsLabel} readings',
+      confirmLabel: 'Delete ${commaInt(plan.count)} readings',
     );
     if (confirmed == true && context.mounted) {
-      controller.deleteLocalData('all');
+      await controller.applyLocalDeletion(plan);
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('History deleted from this phone.')),
       );
@@ -693,40 +699,40 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
       case DestructiveKind.delete30:
       case DestructiveKind.delete90:
       case DestructiveKind.deleteAll:
-        final scope = switch (widget.kind) {
-          DestructiveKind.delete30 => '30',
-          DestructiveKind.delete90 => '90',
-          _ => 'all',
+        final deletionScope = switch (widget.kind) {
+          DestructiveKind.delete30 => HistoryDeletionScope.olderThan30Days,
+          DestructiveKind.delete90 => HistoryDeletionScope.olderThan90Days,
+          _ => HistoryDeletionScope.all,
         };
-        final count = switch (scope) {
-          '30' => 12430,
-          '90' => 128430,
-          _ => view.phoneRecords,
-        };
-        final range = switch (scope) {
-          '30' => 'Sep 25 – Oct 24, 2026',
-          '90' => 'Jul 27 – Oct 24, 2026',
-          _ => view.savedDataRange,
-        };
+        final plan = await widget.controller.planLocalDeletion(deletionScope);
+        if (!mounted) return;
+        if (plan.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('There are no readings to delete.')),
+          );
+          break;
+        }
+        final days = deletionScope.age?.inDays;
         final confirmed = await showLossSheet(
           context,
-          title: scope == 'all'
+          title: days == null
               ? 'Delete all history from this phone?'
-              : 'Delete history older than $scope days?',
-          intro: scope == 'all'
+              : 'Delete history older than $days days?',
+          intro: days == null
               ? 'All readings stored on this phone will be deleted. This can’t be undone.'
-              : 'Only readings older than $scope days will be deleted. This can’t be undone.',
+              : 'Only readings older than $days days will be deleted. This can’t be undone.',
           bullets: [
-            'Date range: $range',
+            'Date range: ${_deletionRangeLabel(plan)}',
             'This doesn’t change the Bridge',
-            scope == 'all'
+            days == null
                 ? 'All readings on this phone are deleted'
                 : 'Only the selected readings are deleted',
           ],
-          confirmLabel: 'Delete ${commaInt(count)} readings',
+          confirmLabel: 'Delete ${commaInt(plan.count)} readings',
         );
         if (confirmed == true && mounted) {
-          widget.controller.deleteLocalData(scope);
+          await widget.controller.applyLocalDeletion(plan);
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('History deleted from this phone.')),
           );
@@ -846,42 +852,52 @@ Future<void> clearBridgeHistory(
 Future<void> deleteLocalData(
   BuildContext context,
   BridgeController controller,
-  String scope,
-) async {
-  final view = controller.settingsView;
-  final count = switch (scope) {
-    '30' => 12430,
-    '90' => 128430,
-    _ => view.phoneRecords,
-  };
-  final range = switch (scope) {
-    '30' => 'Sep 25 – Oct 24, 2026',
-    '90' => 'Jul 27 – Oct 24, 2026',
-    _ => view.savedDataRange,
-  };
+  HistoryDeletionScope scope, {
+  HistoryDeletionPlan? plan,
+}) async {
+  final confirmedPlan = plan ?? await controller.planLocalDeletion(scope);
+  if (!context.mounted) return;
+  if (confirmedPlan.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('There are no readings to delete.')),
+    );
+    return;
+  }
+  final days = scope.age?.inDays;
   final confirmed = await showLossSheet(
     context,
-    title: scope == 'all'
+    title: days == null
         ? 'Delete all history from this phone?'
-        : 'Delete history older than $scope days?',
-    intro: scope == 'all'
+        : 'Delete history older than $days days?',
+    intro: days == null
         ? 'All readings stored on this phone will be deleted. This can’t be undone.'
-        : 'Only readings older than $scope days will be deleted. This can’t be undone.',
+        : 'Only readings older than $days days will be deleted. This can’t be undone.',
     bullets: [
-      'Date range: $range',
+      'Date range: ${_deletionRangeLabel(confirmedPlan)}',
+      '${commaInt(confirmedPlan.count)} readings will be deleted',
       'This doesn’t change the Bridge',
-      scope == 'all'
+      days == null
           ? 'All readings on this phone are deleted'
           : 'Only the selected readings are deleted',
     ],
-    confirmLabel: 'Delete ${commaInt(count)} readings',
+    confirmLabel: 'Delete ${commaInt(confirmedPlan.count)} readings',
   );
   if (confirmed == true && context.mounted) {
-    controller.deleteLocalData(scope);
+    await controller.applyLocalDeletion(confirmedPlan);
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('History deleted from this phone.')),
     );
   }
+}
+
+String _deletionRangeLabel(HistoryDeletionPlan plan) {
+  final override = plan.rangeLabelOverride;
+  if (override != null) return override;
+  final first = plan.firstReadingAt;
+  final last = plan.lastReadingAt;
+  if (first == null || last == null) return 'No readings in this range';
+  return absoluteRangeLabel(first, last);
 }
 
 Future<void> powerOff(BuildContext context, BridgeController controller) async {
