@@ -374,8 +374,10 @@ declared against a 24 KiB budget) and re-checked by the host `task-budget` test.
   validates. `firmware/test/test_sx_protocol.c` is the product-parser suite
   (`sx-protocol` CTest) and replays every corpus vector and real capture.
 - `sample_log` core takes a `log_io` interface (`read`, `write`, `erase`) so a
-  RAM-backed fake can simulate wrap, torn writes, and corruption. The seam is
-  `firmware/components/sample_log/include/log_io.h`; the fake and failure
+  RAM-backed fake can simulate wrap, torn writes, and corruption. Header
+  recovery, generation filtering, append/rotation and sequence bookkeeping live
+  in `log_core.c` (`log_ring_*`); the seam is
+  `firmware/components/sample_log/include/log_io.h`, and the fake plus failure
   injection are in `firmware/test/support/ram_log_io.*`.
 - `bridge_state` takes a clock function.
 - `ble_service` payload encoders are pure functions; the NimBLE callbacks are

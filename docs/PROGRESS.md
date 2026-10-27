@@ -17,6 +17,7 @@
 - **T15 — bridge_config: typed NVS store**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/bridge_config/include/bridge_config.h` — the typed API:
 - **T16 — sx_radio: pairing state machine and TX guard**: **Date:** 2026-10-26 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/sx_radio/include/sx_radio_pair.h` — pure-C pairing API:
 - **T17 - sample_log: record codec**: `firmware/components/sample_log/include/log_core.h` / `log_core.c`:; `SAMPLE_LOG_RECORD_SIZE` (18) and `sample_log_record_size()`;
+- **T18 — sample_log: ring geometry**: `firmware/components/sample_log/include/log_core.h`; geometry constants: 4,096 sector, 32 header (two 16-byte copies), 225
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -34,6 +35,7 @@
 - [T15](progress/T15.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 - [T16](progress/T16.md) — **Date:** 2026-10-26 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T17](progress/T17.md) — `firmware/components/sample_log/include/log_core.h` / `log_core.c`:
+- [T18](progress/T18.md) — `firmware/components/sample_log/include/log_core.h`
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

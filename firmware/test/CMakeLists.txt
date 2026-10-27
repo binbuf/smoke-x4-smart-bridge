@@ -40,6 +40,13 @@ add_executable(test_sample_log_rec test_sample_log_rec.c)
 target_link_libraries(test_sample_log_rec PRIVATE sx4_sample_log_core)
 add_test(NAME sample-log-rec COMMAND test_sample_log_rec)
 
+# The ring core (T18) is the same log_core.c over a RAM log_io fake.
+add_executable(test_sample_log_ring test_sample_log_ring.c)
+target_link_libraries(test_sample_log_ring
+    PRIVATE sx4_sample_log_core sx4_test_support
+)
+add_test(NAME sample-log-ring COMMAND test_sample_log_ring)
+
 # Shared test-only support: assertions, corpus readers, RAM log_io fake.
 add_library(sx4_test_support STATIC
     support/test_util.c
