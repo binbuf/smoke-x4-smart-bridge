@@ -44,7 +44,9 @@ firmware/
 
 `BLE service` and `ui` are ESP-IDF components; their **models and renderers**
 are pure C and host-tested. `sample_log` splits into `log_core.c` (pure ring
-geometry and record encoding) and `log_flash.c` (partition read/write/erase).
+geometry and record encoding), `log_flash_core.c` (pure boot recovery, pending
+clear and storage state), `log_flash.c` (raw `esp_partition` read/write/erase)
+and `sample_log.c` (the firmware singleton and public API).
 
 ### What is reused from `legacy/`
 
@@ -169,6 +171,15 @@ path.
 Rotation is normal and must not be surfaced as an error. `NEAR_FULL` is
 practically unreachable because the ring always frees the oldest sector; keep it
 as a diagnostic.
+
+T19 exposes the state as `sample_log_storage_state()` and
+`sample_log_storage_ok()`. `OK` means the ring mounted and accepts appends;
+`NEAR_FULL` means the live count is within one sector of capacity and still
+records; `READ_ONLY` means the mount failed or any `esp_partition`
+read/write/erase failed. `READ_ONLY` is persistent until reboot, rejects further
+appends, and maps to `stats.flags.storage_ok = 0` / `live.flags.storage_ok = 0`.
+A bad record (`SAMPLE_LOG_ERR_LAYOUT`/`ARGUMENT`) is not a storage failure and
+does not change the state.
 
 ## 3.6 Sample pipeline
 
