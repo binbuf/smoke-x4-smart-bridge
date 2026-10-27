@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../data/ble/ble_client.dart';
 import '../data/repository.dart';
 import '../domain/content.dart';
 import '../domain/models.dart';
@@ -20,6 +21,7 @@ class BridgeController extends ChangeNotifier {
   BridgeController({
     this.repository = const EmptyBridgeRepository(),
     this.content = const EmptyBridgeContent(),
+    this.bleClient,
   }) : bridgeRecords = content.bridgeRecords,
        bridgeCapacity = content.bridgeCapacity,
        phoneRecords = content.phoneRecords,
@@ -28,6 +30,10 @@ class BridgeController extends ChangeNotifier {
 
   final BridgeRepository repository;
   final BridgeContent content;
+
+  /// The BLE seam. Production bootstrap passes the platform-backed client
+  /// (M2); tests pass the scripted fake. `null` means no link is configured.
+  final BleClient? bleClient;
   bool _initialized = false;
 
   /// Reads the cached summary once. Call from bootstrap after opening the DB.
@@ -1170,6 +1176,7 @@ class BridgeController extends ChangeNotifier {
   @override
   void dispose() {
     unawaited(repository.close());
+    unawaited(bleClient?.dispose() ?? Future<void>.value());
     super.dispose();
   }
 }

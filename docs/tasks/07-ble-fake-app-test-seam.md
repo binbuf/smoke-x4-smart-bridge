@@ -13,13 +13,13 @@ board. This is the decoupling point between the firmware and app lanes.
   app tests too.
 
 ## Scope
-- [ ] Implement `BleClient` as an interface.
-- [ ] Implement `FakeBleClient` with scripted advertisements.
-- [ ] Support connect/bond states, MTU, reads/writes, and notifications in the
+- [x] Implement `BleClient` as an interface.
+- [x] Implement `FakeBleClient` with scripted advertisements.
+- [x] Support connect/bond states, MTU, reads/writes, and notifications in the
       fake.
-- [ ] Add a `FakeBridge` that serves `info`, `live`, `config`, `stats`, and a
+- [x] Add a `FakeBridge` that serves `info`, `live`, `config`, `stats`, and a
       small sync stream.
-- [ ] Use the generated codecs in `FakeBridge` for all payloads.
+- [x] Use the generated codecs in `FakeBridge` for all payloads.
 
 ## Out of scope
 - Real BLE transport and platform permissions — M2.
@@ -44,10 +44,72 @@ board. This is the decoupling point between the firmware and app lanes.
   testable.
 
 ## Done when
-- [ ] A widget test can drive scan → connect → bond → subscribe → one live
+- [x] A widget test can drive scan → connect → bond → subscribe → one live
       sample with no radio.
-- [ ] A disconnect moves the UI to the right state.
-- [ ] Hand-off below filled in.
+- [x] A disconnect moves the UI to the right state.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+### What landed
+
+- `app/lib/data/ble/ble_client.dart`: the single app-side BLE seam. It defines
+  `BleClient`, `BleDevice`, `BleConnectionState`, `BleBondState`, `BleFailure`
+  and `BleException`, with scan, stopScan, connect/disconnect, bonding, MTU
+  request, complete characteristic read/write, notifications and setNotify.
+- `BridgeController` and `createBridgeController` accept an optional
+  `BleClient`; `main.dart` is untouched, and the controller disposes an injected
+  client. `createBridgeController` can be used from tests directly.
+- `app/test/support/fake_ble_client.dart`: scripted advertisements,
+  connect/disconnect transitions, expected-passkey bonding (wrong-passkey
+  supported), forced bond failures, MTU negotiation, encryption requirements
+  from the generated characteristic metadata, and notification chunking at
+  `MTU-3`.
+- `app/test/support/fake_bridge.dart`: GATT server for `info`, `live`, `config`,
+  `stats`, `control` results and a framed `sync_ctrl`/`sync_data` batch. Every
+  payload is encoded/decoded with the T02 generated codecs; config writes are
+  validated (units, display timeout, Billows mode 0).
+- `app/test/support/fake_bridge_session.dart`: test-only link harness that
+  decodes live notifications into a `BridgeContent` and maps fake disconnect to
+  the controller's offline state. It lives in test support, not `lib/`.
+- `app/test/ble_fake_test.dart`: 8 tests for advertisement decode, security,
+  bond states, MTU, reads/writes, notifications, framed sync, disconnect,
+  bootstrap injection and a release-import guard.
+- `app/test/ble_widget_flow_test.dart`: one widget test drives scan → connect →
+  bond → subscribe → one live sample and asserts the approved Live UI, then a
+  fake disconnect asserts the offline UI.
+- Docs: `docs/design/adr/0018-ble-client-seam-and-scripted-fake.md`,
+  `docs/design/06-app.md` (§6.2 and §6.10), `docs/progress/T07.md`.
+
+### Deviations and boundaries
+
+- No production `flutter_blue_plus` adapter exists yet; that is T32. The
+  `BleClient` interface is the full seam T32 implements.
+- `SetupScreen` still uses its own review timers (T33 owns), so the widget test
+  drives the BLE seam through `FakeBridgeSession` and then asserts the approved
+  UI rather than tapping simulated setup buttons. The seam, bond states and
+  disconnect path are exercised end to end.
+- Dart package rules do not allow `app/lib/` to import `protocol/gen`. The fake
+  and tests reach the generated codec through `app/test/support/codecs.dart`.
+  T32 must package/relocate the generated Dart for production; this is recorded
+  in ADR 0018 and the T07 progress notes.
+- Fake config write validation is test-scoped; production read/write handling
+  remains M4/T47.
+
+### Checks run
+
+```text
+make app-check        -> analyze clean; 47 tests passed
+make protocol-check   -> protocol/gen is current
+cd app && flutter test test/ble_fake_test.dart test/ble_widget_flow_test.dart
+                      -> 9 tests passed
+```
+
+### Next task must know
+
+- T08 CI should run `make app-check`; it now includes the fake BLE suite.
+- T32 implements `BleClient` over `flutter_blue_plus`, handles Read Blob and
+  chunked notifications, and must package the generated codec for `app/lib/`.
+- T33/T34 can reuse the flow encoded in `FakeBridgeSession` for setup and Live
+  wiring; do not import `test/support/` from production.
+- T64 must prove no `test/support/` import reaches the release graph.

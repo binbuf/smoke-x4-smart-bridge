@@ -56,3 +56,6 @@ docs/*
 # symphony harness (local tool, not tracked)
 .symphony/
 .stop
+
+# added by symphony (ephemeral/secret files)
+.vscode/

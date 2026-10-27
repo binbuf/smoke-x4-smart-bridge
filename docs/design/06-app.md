@@ -112,6 +112,11 @@ The prototype already contains the approved UI layer. In production:
   do not import them. `domain/content.dart` is the data seam; production uses
   `EmptyBridgeContent` until M2/M3, while tests and the screenshot tool inject
   `DemoBridgeContent`;
+- T07 added the BLE seam in `app/lib/data/ble/ble_client.dart`: scan, connect,
+  bond, MTU, read, write and notification methods over raw payloads with named
+  security failures. `BridgeController` and `createBridgeController` accept an
+  optional `BleClient`; production still passes none until M2. The scripted
+  fake and fake GATT bridge live under `app/test/support/`, never in `lib/`;
 - keep simulation timers and fake OS prompts under debug/test only. They must not
   be reachable from a release build.
 
@@ -731,8 +736,16 @@ platform exceptions to these named states.
 - **Sync**: fake device cursor scenarios — recent-first, backward backfill,
   forward catch-up, generation change, gap, rollover, disconnect mid-batch.
 - **Database**: in-memory SQLite; bulk insert idempotency; deletion ranges.
-- **BLE**: `FakeBleClient` drives the whole connect → pair → subscribe → sync →
-  live path with no radio. `flutter test` runs it.
+- **BLE**: `app/lib/data/ble/ble_client.dart` is the only radio seam (scan,
+  connect, bond, MTU, read, write, notify). `app/test/support/fake_ble_client.dart`
+  scripts advertisements, link/bond transitions and security failures, while
+  `fake_bridge.dart` implements the GATT server with the generated codecs. A
+  widget test drives scan → connect → bond → subscribe → live → disconnect with
+  no radio; `flutter test` runs it. The fake stays in test support, never in the
+  release import graph. Generated Dart is reached through
+  `app/test/support/codecs.dart` because `app/lib/` may not import across the
+  package root; the production client will need its own packaged codec import in
+  M2.
 - **Widget**: the full state inventory in
   [13 §13.4](13-ui-implementation-contract.md#134-complete-state-inventory) —
   Live healthy/aging/stale/frozen/detached/no-probes/offline-cache/no-cache,
