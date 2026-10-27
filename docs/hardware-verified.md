@@ -79,10 +79,13 @@ no independent scanner was used in this session.
 
 | Check | Result | Evidence |
 |---|---|---|
+| Raw `samples` partition mounts; boot recovery measured under ~2 s | ⏳ 2026-10-26 - PASS on the T19 image: `sample_log_init` recovered the raw 6,160,384-byte partition in **899 ms** on a cold boot (`gen 081936f6`, 0 records, state `OK`); the earlier header-cache pass measured 1,457 ms, so the header bypass was added and re-measured. The scan reads all 1,504 sectors once; a populated ring has the same read volume. No filesystem is involved. | [`T19/recovery/cold-boot-optimized.txt`](../artifacts/bench/T19/recovery/cold-boot-optimized.txt), [`T19/recovery/cold-boot.txt`](../artifacts/bench/T19/recovery/cold-boot.txt) |
+| `esp_partition` failure sets `storage_ok = 0`, no successful write | ⏳ 2026-10-26 - host-tested (`sample-log-flash`): injected write/read/erase failures flip the log to `READ_ONLY`, reject later appends and never advance `next_seq`; reboot recovery resumes at the last valid sequence. | `firmware/test/test_sample_log_flash.c` |
+| Pending clear finishes at boot and ignores old-generation sectors | ⏳ 2026-10-26 - host-tested (`sample-log-flash`): a simulated interrupted clear erases only the remaining non-blank sector, clears `clear_pending`, reports generation B, and old sequences read as out of range. Bench execution belongs to T48/T55. | `firmware/test/test_sample_log_flash.c` |
 | Real X4 pairs; stock receiver keeps updating | ⏳ | |
 | Unpair/re-pair; stock receiver unaffected | ⏳ | |
 | Four probes, detached probe, °F/°C flip | ⏳ | |
-| Power cut mid-cook; earlier records survive | ⏳ | |
+| Power cut mid-cook; earlier records survive | ⏳ Deferred to T37 (physical power cut). Host torn-tail recovery passes; bench recovery timing is recorded above. | |
 | Ring rotation (fill/wrap) | ⏳ | |
 | `min_seq`/`max_seq`/`generation` through BLE | ⏳ | |
 

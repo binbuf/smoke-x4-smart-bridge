@@ -18,6 +18,7 @@
 - **T16 — sx_radio: pairing state machine and TX guard**: **Date:** 2026-10-26 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/sx_radio/include/sx_radio_pair.h` — pure-C pairing API:
 - **T17 - sample_log: record codec**: `firmware/components/sample_log/include/log_core.h` / `log_core.c`:; `SAMPLE_LOG_RECORD_SIZE` (18) and `sample_log_record_size()`;
 - **T18 — sample_log: ring geometry**: `firmware/components/sample_log/include/log_core.h`; geometry constants: 4,096 sector, 32 header (two 16-byte copies), 225
+- **T19 — sample_log: flash adapter and boot recovery**: `firmware/components/sample_log/include/sample_log.h` — firmware API:; `include/log_storage.h` — pure-C `sample_log_storage_state_t`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -36,6 +37,7 @@
 - [T16](progress/T16.md) — **Date:** 2026-10-26 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T17](progress/T17.md) — `firmware/components/sample_log/include/log_core.h` / `log_core.c`:
 - [T18](progress/T18.md) — `firmware/components/sample_log/include/log_core.h`
+- [T19](progress/T19.md) — `firmware/components/sample_log/include/sample_log.h` — firmware API:
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

@@ -191,6 +191,39 @@ adapter in firmware (T19). No heap and no ESP-IDF dependency.
   sectors, 32 header bytes, 225 records/sector, 1,504 sectors and
   **338,400** records.
 
+### Flash adapter and boot recovery (T19)
+
+`firmware/components/sample_log/log_flash_core.c` is the pure recovery policy
+over `log_io` + a small NVS hook seam; `log_flash.c` is the ESP-IDF adapter and
+`sample_log.c` is the firmware singleton (`sample_log_init`, `sample_log_append`,
+storage state). Host tests run the policy against the RAM fake.
+
+- The adapter binds the raw `samples` partition found by
+  `esp_partition_find_first(data, 0x40, "samples")` and calls
+  `esp_partition_read/write/erase_range` directly. There is no LittleFS, wear
+  levelling or OTA slot involved.
+- Reads are served from a one-sector (4 KB) cache, so recovery loads each sector
+  once. The 32-byte sector-header reads bypass the cache and read only the
+  header. Sector-header A/B write and read-back verification stays in
+  `log_core.c` (`write_sector_header`), so the adapter cannot skip it.
+- On boot the NVS generation wins and `log_ring_mount()` runs before the writer
+  accepts records. If NVS is lost, the newest valid sector header restores the
+  generation and it is persisted with `set_generation()`. A blank, wholly
+  unusable log regenerates the generation in NVS and lazy-formats the ring.
+- `clear_pending` is completed synchronously at boot: every non-blank sector is
+  erased (blank sectors are skipped, so a clear interrupted by power loss
+  resumes with only the remaining work), then `finish_log_clear()` clears the
+  flag before mount. No current-generation records can exist because the writer
+  has not started. Old-generation records are never resurrected.
+- Any `esp_partition` read/write/erase or NVS hook failure leaves the log
+  `READ_ONLY`: `ready = false`, `storage_ok = 0`, and no append is reported as
+  successful. A failed header-repair read-back also fails the mount rather than
+  silently reclaiming a sector with records.
+- Measured boot recovery on the 6,160,384-byte partition is **899 ms** (blank
+  partition, one full 6 MB read; the populated-record read volume is the same)
+  on the bench board. That is below the ~2 s budget, so the header +
+  newest-sector-only fast path is not implemented.
+
 ### Capacity arithmetic
 
 ```

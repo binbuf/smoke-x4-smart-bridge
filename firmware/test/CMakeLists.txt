@@ -47,6 +47,23 @@ target_link_libraries(test_sample_log_ring
 )
 add_test(NAME sample-log-ring COMMAND test_sample_log_ring)
 
+# The boot recovery/clear policy (T19) is plain C over log_io + an NVS hook
+# seam. Host tests inject a RAM partition and in-memory NVS; the firmware links
+# the esp_partition adapter in log_flash.c.
+add_library(sx4_sample_log_flash STATIC
+    "${REPO_ROOT}/firmware/components/sample_log/log_flash_core.c"
+)
+target_include_directories(sx4_sample_log_flash
+    PUBLIC "${REPO_ROOT}/firmware/components/sample_log/include"
+)
+target_link_libraries(sx4_sample_log_flash PUBLIC sx4_sample_log_core)
+
+add_executable(test_sample_log_flash test_sample_log_flash.c)
+target_link_libraries(test_sample_log_flash
+    PRIVATE sx4_sample_log_flash sx4_test_support
+)
+add_test(NAME sample-log-flash COMMAND test_sample_log_flash)
+
 # Shared test-only support: assertions, corpus readers, RAM log_io fake.
 add_library(sx4_test_support STATIC
     support/test_util.c
