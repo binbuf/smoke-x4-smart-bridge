@@ -7,6 +7,13 @@ This is a **new service**, not the legacy `7f9a…` contract. The UUID base is
 bumped so a legacy app cannot accidentally connect and misread a payload. The
 payload encoders may reuse code patterns, but the contract is defined here.
 
+The machine-readable form of this document is `protocol/ble.yaml`: the service
+UUID, characteristic slots/properties/security, payload layouts, control ops,
+result statuses, flags, and enums. It is generated together with
+`protocol/records.yaml` into `protocol/gen/records.h`, `records.c`, and
+`records.dart`. Generated output is committed; `make protocol` regenerates it
+and `make protocol-check` fails on drift.
+
 ## 5.1 Service and characteristics
 
 Base UUID:
