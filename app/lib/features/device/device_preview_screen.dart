@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../prototype/formatters.dart';
 import '../../app/bridge_controller.dart';
+import '../../app/formatters.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 
@@ -222,9 +222,11 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
   }
 
   Widget _pageContent() {
+    final live = widget.controller.liveView;
+    final details = widget.controller.bridgeDetailsView;
     switch (_page) {
       case 1:
-        final probes = widget.controller.probes;
+        final probes = live.probes;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -232,16 +234,16 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
               _oledRow(
                 'P${i + 1}',
                 probes[i].connected
-                    ? '${widget.controller.valueFor(probes[i].tempF)}${widget.controller.unitSuffix}'
+                    ? '${probes[i].valueText}${live.unitSuffix}'
                     : '---',
               ),
             const Spacer(),
-            _oledRow('• App   • X4', '${widget.controller.batteryPercent}%'),
+            _oledRow('• App   • X4', '${live.batteryPercent}%'),
           ],
         );
       case 2:
-        final linked = widget.controller.isConnected;
-        final x4 = switch (widget.controller.smokeXStatus) {
+        final linked = live.isConnected;
+        final x4 = switch (live.smokeXStatus) {
           SmokeXStatus.pairedLive => 'paired',
           SmokeXStatus.pairedLost => 'no data 14m',
           SmokeXStatus.unpaired => 'not paired',
@@ -250,36 +252,30 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _oledRow('App', linked ? 'connected' : 'ready to pair'),
-            _oledRow('Name', 'SmokeX4-${widget.controller.deviceId}'),
+            _oledRow('Name', 'SmokeX4-${details.deviceId}'),
             _oledRow('Phones paired', '2/4'),
             const SizedBox(height: 8),
             _oledRow('X4', x4),
             _oledRow('Radio', '910.5 MHz'),
-            _oledRow('Signal ${widget.controller.rssi}', 'last 12s'),
+            _oledRow('Signal ${live.rssi}', 'last 12s'),
           ],
         );
       case 3:
-        final pit = widget.controller.probes[3];
+        final pit = live.probes[3];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _oledRow(
               'BILLOWS',
-              widget.controller.billowsDetected ? 'DETECTED' : 'NOT DETECTED',
+              live.billows!.detected ? 'DETECTED' : 'NOT DETECTED',
             ),
             _oledRow(
               'SET',
-              widget.controller.smokeXChannel4SetKnown
-                  ? widget.controller.tempFor(
-                      widget.controller.smokeXChannel4SetF.toDouble(),
-                    )
-                  : '—',
+              live.billows!.setTempKnown ? live.billows!.setTempText : '—',
             ),
             _oledRow(
               'P4',
-              pit.connected
-                  ? '${widget.controller.valueFor(pit.tempF)}${widget.controller.unitSuffix}'
-                  : '—',
+              pit.connected ? '${pit.valueText}${live.unitSuffix}' : '—',
             ),
             const Spacer(),
             const Text('Set on the Smoke X4'),
@@ -289,10 +285,10 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _oledRow('BRIDGE', 'v${widget.controller.firmware}'),
-            _oledRow('Battery', '3.89V  ${widget.controller.batteryPercent}%'),
+            _oledRow('BRIDGE', 'v${details.firmware}'),
+            _oledRow('Battery', '3.89V  ${live.batteryPercent}%'),
             _oledRow('Log', '12.4 days left'),
-            _oledRow('Readings', commaInt(widget.controller.bridgeRecords)),
+            _oledRow('Readings', commaInt(details.bridgeRecords)),
             _oledRow('Uptime', '14:15:30'),
             _oledRow('Memory', '142k (low 128k)'),
           ],

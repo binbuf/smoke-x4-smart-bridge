@@ -103,12 +103,17 @@ The prototype already contains the approved UI layer. In production:
 - T05 moved the controller to `app/lib/app/bridge_controller.dart`, added
   `app/lib/app/bootstrap.dart`, `data/repository.dart` and the `AppDatabase`
   open path, and removed the Windows/web targets;
-- T06 moves `app/lib/prototype/formatters.dart` into the production formatter
-  layer, makes time/date output locale-aware, and introduces immutable
+- T06 moved formatters to `app/lib/app/formatters.dart` and introduced immutable
   `LiveViewState`, `HistoryViewState`, `SetupViewState`, `SettingsViewState` and
-  `BridgeDetailsViewState` objects behind `BridgeController`;
-- keep `fixtures.dart`, `scenario_lab.dart` and simulation timers under
-  debug/test only. They must not be reachable from a release build.
+  `BridgeDetailsViewState` objects in `app/lib/app/view_state.dart`. Widgets
+  render those objects; they never read the controller's mutable fields;
+- fixture generators and the scenario lab live under `app/lib/debug/`
+  (`fixtures.dart`, `demo_content.dart`, `scenario_lab.dart`). Production screens
+  do not import them. `domain/content.dart` is the data seam; production uses
+  `EmptyBridgeContent` until M2/M3, while tests and the screenshot tool inject
+  `DemoBridgeContent`;
+- keep simulation timers and fake OS prompts under debug/test only. They must not
+  be reachable from a release build.
 
 Do not rebuild the screens “properly later”. Wire the approved widgets to real
 state and let the tests prove every state in

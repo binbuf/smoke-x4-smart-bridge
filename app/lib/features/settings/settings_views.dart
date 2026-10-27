@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/formatters.dart';
 import '../../app/bridge_controller.dart';
+import '../../app/formatters.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -17,11 +17,10 @@ class HistoryStorageScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.settingsView;
         final scheme = Theme.of(context).colorScheme;
-        final connected = controller.isConnected;
-        final bridgeFraction = controller.bridgeCapacity == 0
-            ? 0.0
-            : controller.bridgeRecords / controller.bridgeCapacity;
+        final connected = view.connected;
+        final bridgeFraction = view.bridgeFraction;
         return Scaffold(
           appBar: prototypeAppBar(context, controller, 'History & storage'),
           body: ListView(
@@ -50,7 +49,7 @@ class HistoryStorageScreen extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                controller.savedDataSize,
+                                view.savedDataSize,
                                 style: Theme.of(context).textTheme.labelLarge
                                     ?.copyWith(color: scheme.onSurfaceVariant),
                               ),
@@ -59,11 +58,11 @@ class HistoryStorageScreen extends StatelessWidget {
                           const SizedBox(height: 10),
                           KeyValueRow(
                             label: 'Readings',
-                            value: commaInt(controller.phoneRecords),
+                            value: view.phoneRecordsLabel,
                           ),
                           KeyValueRow(
                             label: 'Date range',
-                            value: controller.savedDataRange,
+                            value: view.savedDataRange,
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -107,7 +106,7 @@ class HistoryStorageScreen extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '${(bridgeFraction * 100).toStringAsFixed(1)}%',
+                                view.bridgeFractionLabel,
                                 style: Theme.of(context).textTheme.labelLarge
                                     ?.copyWith(color: scheme.onSurfaceVariant),
                               ),
@@ -123,7 +122,7 @@ class HistoryStorageScreen extends StatelessWidget {
                           KeyValueRow(
                             label: 'Readings',
                             value:
-                                '${commaInt(controller.bridgeRecords)} of ${commaInt(controller.bridgeCapacity)}',
+                                '${view.bridgeRecordsLabel} of ${commaInt(view.bridgeCapacity)}',
                           ),
                           KeyValueRow(
                             label: 'Capacity',
@@ -186,7 +185,8 @@ class HistoryStorageScreen extends StatelessWidget {
   }
 
   Future<void> _showDeleteOptions(BuildContext context) async {
-    final count = controller.phoneRecords;
+    final view = controller.settingsView;
+    final count = view.phoneRecords;
     final older30 = count > 12430 ? 12430 : count;
     final older90 = count;
     await showModalBottomSheet<void>(
@@ -280,6 +280,7 @@ class AppearanceScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.settingsView;
         return Scaffold(
           appBar: prototypeAppBar(context, controller, 'Appearance'),
           body: ListView(
@@ -290,27 +291,27 @@ class AppearanceScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       _ThemeOption(
-                        mode: ThemeMode.system,
                         icon: Icons.brightness_auto_outlined,
                         title: 'System',
                         subtitle: 'Match your phone',
-                        controller: controller,
+                        selected: view.themeModeLabel == 'System',
+                        onTap: () => controller.setThemeMode(ThemeMode.system),
                       ),
                       const Divider(),
                       _ThemeOption(
-                        mode: ThemeMode.light,
                         icon: Icons.light_mode_outlined,
                         title: 'Light',
                         subtitle: 'Always use light',
-                        controller: controller,
+                        selected: view.themeModeLabel == 'Light',
+                        onTap: () => controller.setThemeMode(ThemeMode.light),
                       ),
                       const Divider(),
                       _ThemeOption(
-                        mode: ThemeMode.dark,
                         icon: Icons.dark_mode_outlined,
                         title: 'Dark',
                         subtitle: 'Always use dark',
-                        controller: controller,
+                        selected: view.themeModeLabel == 'Dark',
+                        onTap: () => controller.setThemeMode(ThemeMode.dark),
                       ),
                     ],
                   ),
@@ -326,22 +327,21 @@ class AppearanceScreen extends StatelessWidget {
 
 class _ThemeOption extends StatelessWidget {
   const _ThemeOption({
-    required this.mode,
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.controller,
+    required this.selected,
+    required this.onTap,
   });
 
-  final ThemeMode mode;
   final IconData icon;
   final String title;
   final String subtitle;
-  final BridgeController controller;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final selected = controller.themeMode == mode;
     final scheme = Theme.of(context).colorScheme;
     return ListTile(
       leading: Icon(icon, color: selected ? scheme.primary : null),
@@ -350,7 +350,7 @@ class _ThemeOption extends StatelessWidget {
       trailing: selected
           ? Icon(Icons.check_circle, color: StatusColors.live(context))
           : null,
-      onTap: () => controller.setThemeMode(mode),
+      onTap: onTap,
     );
   }
 }
@@ -364,6 +364,7 @@ Future<void> showBridgeTimeoutSheet(
     showDragHandle: true,
     builder: (sheetContext) => StatefulBuilder(
       builder: (sheetContext, setSheetState) {
+        final view = controller.bridgeDetailsView;
         return SafeArea(
           top: false,
           child: Padding(
@@ -397,7 +398,7 @@ Future<void> showBridgeTimeoutSheet(
                               ? '$option sec'
                               : '${option ~/ 60} min',
                         ),
-                        selected: controller.displayTimeoutSeconds == option,
+                        selected: view.displayTimeoutSeconds == option,
                         onSelected: (_) {
                           controller.setDisplayTimeout(option);
                           setSheetState(() {});
@@ -426,7 +427,7 @@ Future<void> showBridgeNameDialog(
   BuildContext context,
   BridgeController controller,
 ) async {
-  var draft = controller.deviceName;
+  var draft = controller.bridgeDetailsView.deviceName;
   final result = await showDialog<String>(
     context: context,
     builder: (dialogContext) => AlertDialog(

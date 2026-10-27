@@ -43,7 +43,7 @@ review build needs it. The lab is review-only and is not part of the release
 entrypoint.
 
 Reference screenshots live in [`screenshots/`](screenshots/). They are generated
-from the real widget tree:
+from the production screens, seeded through the debug-only demo adapter:
 
 ```bash
 flutter test --update-goldens tool/ui_screenshots_test.dart
@@ -57,9 +57,10 @@ test suite.
 ```text
 lib/
 ├── main.dart                  production entrypoint
-├── app/                       bootstrap, app widget, BridgeController
+├── app/                       bootstrap, BridgeController, view state, formatters
+├── domain/                    Flutter-free models and BridgeContent data seam
 ├── data/                      repository seam and SQLite open path
-├── prototype/                 fixtures, formatters and experimental lab (review/test)
+├── debug/                     fixtures, demo adapter and experimental lab (review/test)
 ├── theme/                     light/dark design tokens
 ├── widgets/                   shared cards, banner, chart
 └── features/                  setup, shell, live, history, settings, device

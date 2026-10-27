@@ -102,10 +102,10 @@ Retain the prototype's visual layer and move all state ownership behind it.
 | `app/lib/theme/` | Keep. It is the design-token source. |
 | `app/lib/widgets/` | Keep the shared cards, banners, status LED, signal meter, tiles, chart, sparkline, pills and loss sheet. Remove lab-only helpers from release. |
 | `app/lib/features/` | Keep the screens and composition. Rename imports from `prototype/` to view models/controller. |
-| `app/lib/prototype/prototype_controller.dart` → `app/lib/app/bridge_controller.dart` | T05 moved the controller to the production seam. T06 replaces its screen-facing fields with view states. The scenario switchboard and fixture getters must not ship. |
-| `app/lib/prototype/fixtures.dart` | Test-only fixtures. Production data comes from SQLite/sync. |
-| `app/lib/prototype/scenario_lab.dart` | Debug/review only. Never reachable in a release build unless explicitly enabled. |
-| `app/lib/prototype/formatters.dart` | Move reusable formatting into a locale-aware production formatter; keep pure functions testable. |
+| `app/lib/prototype/prototype_controller.dart` → `app/lib/app/bridge_controller.dart` | T05 moved the controller to the production seam. T06 added `app/lib/app/view_state.dart`: widgets render immutable `LiveViewState`, `HistoryViewState`, `SetupViewState`, `SettingsViewState` and `BridgeDetailsViewState` from the controller instead of its mutable fields. The scenario switchboard and fixture getters do not ship. |
+| `app/lib/prototype/fixtures.dart` → `app/lib/debug/fixtures.dart` + `app/lib/debug/demo_content.dart` | Test/review only. `app/lib/domain/content.dart` is the production data seam (`EmptyBridgeContent` until M2/M3); the demo adapter supplies fixtures to tests, the screenshot tool and the lab. |
+| `app/lib/prototype/scenario_lab.dart` → `app/lib/debug/scenario_lab.dart` | Debug/review only. Gated by `app/lib/app/lab_gate.dart` (`kDebugMode` or `ENABLE_EXPERIMENTAL_LAB`); never reachable in a release build unless explicitly enabled. |
+| `app/lib/prototype/formatters.dart` → `app/lib/app/formatters.dart` | Reusable formatting now lives in the production formatter layer; pure functions stay host-testable. Full locale plumbing remains T53. |
 | `app/test/widget_test.dart` | Reuse the state cases; retarget to production controllers and add golden coverage. |
 | `app/tool/ui_screenshots_test.dart` | Keep as the review/golden generator; update names only when the UI intentionally changes. |
 
@@ -160,6 +160,11 @@ class HistoryViewState {
 The same pattern applies to `SetupViewState`, `BridgeDetailsViewState` and
 `SettingsViewState`. Per-field save state is `idle / saving / saved / error`, not
 one global flag.
+
+T06 implements these classes and their constructors in
+`app/lib/app/view_state.dart`. Labels and formatted values are computed once by
+the controller's `liveView`, `historyView`, `setupView`, `settingsView` and
+`bridgeDetailsView` getters, so widgets only lay out text and draw charts.
 
 ### State-source mapping
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app/bridge_controller.dart';
 import '../features/device/device_preview_screen.dart';
 import '../features/settings/bridge_details.dart';
 import '../features/settings/settings_details.dart';
@@ -8,7 +9,6 @@ import '../features/setup/setup_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../widgets/prototype_app_bar.dart';
 import '../widgets/prototype_widgets.dart';
-import '../app/bridge_controller.dart';
 
 class ScenarioLabScreen extends StatefulWidget {
   const ScenarioLabScreen({super.key, required this.controller});

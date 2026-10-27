@@ -3,9 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../prototype/fixtures.dart';
-import '../../prototype/formatters.dart';
-import '../../app/bridge_controller.dart';
+import '../../app/formatters.dart';
+import '../../app/view_state.dart';
+import '../../domain/models.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/probe_chart.dart';
 
@@ -15,14 +15,12 @@ import '../../widgets/probe_chart.dart';
 class HistoryChartPanel extends StatefulWidget {
   const HistoryChartPanel({
     super.key,
-    required this.controller,
-    required this.fixture,
+    required this.view,
     this.expanded = false,
     this.historical = false,
   });
 
-  final BridgeController controller;
-  final HistoryFixture fixture;
+  final HistoryViewState view;
 
   /// Fills the available height instead of using the inline 300 px height.
   final bool expanded;
@@ -42,7 +40,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
   double _scaleStartFocalX = 0;
   DateTime? _cursorTime;
 
-  BridgeController get controller => widget.controller;
+  HistoryViewState get view => widget.view;
 
   bool get _panned => _viewStart > 0.001 || _viewEnd < 0.999;
 
@@ -57,7 +55,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final fixture = widget.fixture;
+    final fixture = widget.view.fixture;
     final chart = widget.expanded
         ? Expanded(
             child: LayoutBuilder(
@@ -124,9 +122,9 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
         onScaleUpdate: (details) => _updateViewport(details, plot),
         child: HistoryChart(
           fixture: fixture,
-          units: controller.units,
+          units: view.units,
           colors: ProbeColors.of(context),
-          visibleProbe: controller.historyProbe,
+          visibleProbe: view.probe,
           viewStart: _viewStart,
           viewEnd: _viewEnd,
           cursorTime: _cursorTime,
@@ -138,9 +136,9 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
   }
 
   Widget _chartLegend(BuildContext context, HistoryFixture fixture) {
-    final probes = controller.historyProbe == null
+    final probes = view.probe == null
         ? [1, 2, 3, 4]
-        : [controller.historyProbe!];
+        : [view.probe!];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -186,7 +184,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
 
   String _latestLabel(ProbeRangeStats stats) {
     if (stats.last == null) return '—';
-    return '${controller.valueFor(stats.last)}°';
+    return '${view.valueFor(stats.last)}°';
   }
 
   Widget _chartControls(BuildContext context) {
@@ -256,7 +254,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
       return;
     }
     final fraction = ((position.dx - plot.left) / plot.width).clamp(0.0, 1.0);
-    final fixture = widget.fixture;
+    final fixture = view.fixture;
     final start = fixture.start.add(
       Duration(
         milliseconds:
@@ -299,9 +297,9 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
         .clamp(0.0, 1.0);
     final x = plot.left + plot.width * fraction;
     final alignLeft = x > plot.center.dx;
-    final probes = controller.historyProbe == null
+    final probes = view.probe == null
         ? [1, 2, 3, 4]
-        : [controller.historyProbe!];
+        : [view.probe!];
     final rows = <Widget>[];
     for (final probe in probes) {
       final series = fixture.series[probe - 1];
@@ -339,7 +337,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
               Text(
                 nearest?.valueF == null
                     ? 'No reading'
-                    : controller.tempFor(nearest!.valueF),
+                    : view.tempFor(nearest!.valueF),
                 style: Theme.of(context).textTheme.labelMedium
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),

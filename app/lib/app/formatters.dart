@@ -1,4 +1,11 @@
-import '../app/bridge_controller.dart';
+import '../domain/models.dart';
+
+/// Production formatter layer.
+///
+/// Everything here is a pure function so it can be unit-tested on the host and
+/// reused by screens, the chart and the debug screenshot generator. Dates and
+/// times take `use24Hour` from the widget layer; full locale plumbing lands with
+/// T53, which owns units/time/theme end-to-end.
 
 String commaInt(int value) {
   final text = value.abs().toString();
@@ -104,21 +111,14 @@ String historyWindowLabel(
   DateTime end, {
   bool use24Hour = false,
 }) {
-  switch (range) {
-    case HistoryRange.oneHour:
-    case HistoryRange.sixHours:
-    case HistoryRange.twentyFourHours:
-    case HistoryRange.twoDays:
-    case HistoryRange.custom:
-      final sameDay =
-          start.year == end.year &&
-          start.month == end.month &&
-          start.day == end.day;
-      if (sameDay) {
-        return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
-      }
-      return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${shortDate(end)}, ${clockLabel(end, use24Hour: use24Hour)}';
+  final sameDay =
+      start.year == end.year &&
+      start.month == end.month &&
+      start.day == end.day;
+  if (sameDay) {
+    return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${clockLabel(end, use24Hour: use24Hour)}';
   }
+  return '${shortDate(start)}, ${clockLabel(start, use24Hour: use24Hour)} – ${shortDate(end)}, ${clockLabel(end, use24Hour: use24Hour)}';
 }
 
 String timeRangeLabel(DateTime start, DateTime end, {bool use24Hour = false}) {
@@ -162,7 +162,7 @@ String durationLong(Duration duration) {
 }
 
 String dayLabel(DateTime day, {DateTime? relativeTo}) {
-  final today = relativeTo ?? DateTime(2026, 10, 25);
+  final today = relativeTo ?? DateTime.now();
   final normalized = DateTime(day.year, day.month, day.day);
   final todayOnly = DateTime(today.year, today.month, today.day);
   if (normalized == todayOnly) return 'Today';

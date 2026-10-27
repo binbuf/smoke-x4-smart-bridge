@@ -1,76 +1,21 @@
 import 'dart:math' as math;
 
-import '../app/bridge_controller.dart';
+import '../domain/models.dart';
 
-class ChartPoint {
-  const ChartPoint(this.time, this.valueF);
-
-  final DateTime time;
-
-  /// Null means "no reading". The prototype encodes graph gaps as nulls; the
-  /// production chart will split at >90 s using the real sample cadence.
-  final double? valueF;
+/// Debug/test-only fixture generators.
+///
+/// Production code must not import this file. The screenshot tool, widget
+/// tests and the Experimental lab opt in through `demo_content.dart`.
+class DebugFixtures {
+  DebugFixtures._();
 }
 
-class ChartSeries {
-  const ChartSeries(this.index, this.points);
+/// Stable fixture clock used by History and cook detection. Production replaces
+/// it with the newest synced sample from the Bridge.
+final DateTime fixtureNow = DateTime(2026, 10, 25, 18, 30);
 
-  final int index;
-  final List<ChartPoint> points;
-}
-
-enum HistoryGapReason { noSignal, bridgeOff, bridgeRotated }
-
-class HistoryFixture {
-  const HistoryFixture({
-    required this.start,
-    required this.end,
-    required this.series,
-    required this.gapStart,
-    required this.gapEnd,
-    required this.gapReason,
-    required this.estimated,
-    required this.missingFromBridge,
-  });
-
-  final DateTime start;
-  final DateTime end;
-  final List<ChartSeries> series;
-  final DateTime gapStart;
-  final DateTime gapEnd;
-  final HistoryGapReason gapReason;
-  final bool estimated;
-  final bool missingFromBridge;
-
-  bool get hasValues =>
-      series.any((item) => item.points.any((point) => point.valueF != null));
-
-  bool seriesHasValues(int probe) =>
-      series[probe].points.any((point) => point.valueF != null);
-}
-
-/// A detectable cook in the recorded archive. Cooks are inferred from the
-/// readings themselves (continuous runs separated by long idle periods), not
-/// named or scheduled by the user.
-class CookSession {
-  const CookSession({
-    required this.start,
-    required this.end,
-    required this.probes,
-    required this.hasGap,
-  });
-
-  final DateTime start;
-  final DateTime end;
-  final int probes;
-  final bool hasGap;
-
-  Duration get duration => end.difference(start);
-}
-
-/// Stable archive data for the prototype. The production app derives the same
-/// shape from recorded samples; the mockup keeps it deterministic so every
-/// review sees the same past-cook list.
+/// A deterministic archive used by the review build. Production derives the
+/// same shape from recorded samples (M3).
 List<CookSession> buildCookSessions() {
   CookSession session(
     DateTime start,
@@ -126,10 +71,6 @@ List<CookSession> buildCookSessions() {
   ];
 }
 
-/// The fixture clock used by History and cook detection. Production replaces it
-/// with the newest synced sample from the Bridge.
-final DateTime fixtureNow = DateTime(2026, 10, 25, 18, 30);
-
 CookSession? latestCookSession() {
   final cooks = buildCookSessions();
   return cooks.isEmpty ? null : cooks.first;
@@ -152,68 +93,6 @@ bool isCookInProgress(CookSession cook) {
   return current.start == cook.start && current.end == cook.end;
 }
 
-class ProbeRangeStats {
-  const ProbeRangeStats({
-    required this.probe,
-    required this.first,
-    required this.last,
-    required this.min,
-    required this.max,
-    required this.average,
-    required this.readingCount,
-    required this.lastSampleAt,
-  });
-
-  final int probe;
-  final double? first;
-  final double? last;
-  final double? min;
-  final double? max;
-  final double? average;
-  final int readingCount;
-  final DateTime? lastSampleAt;
-
-  bool get hasData => last != null;
-
-  double? get change {
-    if (first == null || last == null) return null;
-    return last! - first!;
-  }
-
-  static ProbeRangeStats fromSeries(ChartSeries series) {
-    final values = <double>[];
-    DateTime? lastAt;
-    for (final point in series.points) {
-      if (point.valueF == null) continue;
-      values.add(point.valueF!);
-      lastAt = point.time;
-    }
-    if (values.isEmpty) {
-      return ProbeRangeStats(
-        probe: series.index + 1,
-        first: null,
-        last: null,
-        min: null,
-        max: null,
-        average: null,
-        readingCount: 0,
-        lastSampleAt: null,
-      );
-    }
-    final total = values.fold<double>(0, (sum, value) => sum + value);
-    return ProbeRangeStats(
-      probe: series.index + 1,
-      first: values.first,
-      last: values.last,
-      min: values.reduce(math.min),
-      max: values.reduce(math.max),
-      average: total / values.length,
-      readingCount: values.length,
-      lastSampleAt: lastAt,
-    );
-  }
-}
-
 HistoryFixture buildHistoryFixture(
   HistoryRange range, {
   bool empty = false,
@@ -224,7 +103,7 @@ HistoryFixture buildHistoryFixture(
   DateTime? customStart,
   DateTime? customEnd,
 }) {
-  final now = DateTime(2026, 10, 25, 18, 30);
+  final now = fixtureNow;
   final Duration span;
   final int count;
   final double gapPosition;
@@ -282,8 +161,7 @@ HistoryFixture buildHistoryFixture(
       ? start.add(
           Duration(
             milliseconds:
-                (effectiveSpan.inMilliseconds * (gapPosition + gapWidth))
-                    .round(),
+                (effectiveSpan.inMilliseconds * (gapPosition + gapWidth)).round(),
           ),
         )
       : start;
@@ -304,8 +182,7 @@ HistoryFixture buildHistoryFixture(
         Duration(milliseconds: (effectiveSpan.inMilliseconds * ratio).round()),
       );
       final inGap = hasGap && time.isAfter(gapStart) && time.isBefore(gapEnd);
-      final drift =
-          (range == HistoryRange.twoDays || range == HistoryRange.custom)
+      final drift = (range == HistoryRange.twoDays || range == HistoryRange.custom)
           ? math.sin(ratio * math.pi * 2) * 4
           : 0.0;
       final value =
@@ -340,7 +217,7 @@ List<ChartPoint> buildSparklinePoints(
   int count = 44,
 }) {
   if (!hasData) return const [];
-  final now = DateTime(2026, 10, 25, 18, 30);
+  final now = fixtureNow;
   const span = Duration(hours: 1);
   const bases = [165.0, 164.0, 151.0, 224.0];
   const amplitudes = [4.0, 3.0, 5.0, 6.0];

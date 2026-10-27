@@ -18,13 +18,14 @@ class BridgeDetailsScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.bridgeDetailsView;
         final scheme = Theme.of(context).colorScheme;
-        final connected = controller.isConnected;
+        final connected = view.connected;
         final statusColor = connected
             ? StatusColors.live(context)
-            : controller.phase == ConnectionPhase.reconnecting
+            : view.phase == ConnectionPhase.reconnecting
             ? StatusColors.aging(context)
-            : controller.phase == ConnectionPhase.blocked
+            : view.phase == ConnectionPhase.blocked
             ? scheme.error
             : StatusColors.stale(context);
         return Scaffold(
@@ -59,13 +60,13 @@ class BridgeDetailsScreen extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      controller.deviceName,
+                                      view.deviceName,
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleMedium,
                                     ),
                                     Text(
-                                      'Bridge ${controller.deviceId}',
+                                      'Bridge ${view.deviceId}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -84,7 +85,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                               StatusLed(color: statusColor, active: connected),
                               const SizedBox(width: 2),
                               Text(
-                                controller.bridgeLinkStatusLabel,
+                                view.bridgeLinkStatusLabel,
                                 style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(
                                       color: statusColor,
@@ -94,7 +95,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                               const Spacer(),
                               if (connected)
                                 Text(
-                                  'Battery ${controller.batteryPercent}%',
+                                  'Battery ${view.batteryPercent}%',
                                   style: Theme.of(context).textTheme.labelSmall
                                       ?.copyWith(
                                         color: scheme.onSurfaceVariant,
@@ -116,17 +117,17 @@ class BridgeDetailsScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 9),
                                 SignalBars(
-                                  level: controller.signalBars,
+                                  level: view.signalBars,
                                   color: StatusColors.signal(
                                     context,
-                                    controller.signalBars,
+                                    view.signalBars,
                                   ),
                                   semanticLabel:
-                                      '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
+                                      '${view.signalQualityLabel} signal, ${view.rssi} dBm',
                                 ),
                                 const SizedBox(width: 7),
                                 Text(
-                                  controller.signalQualityLabel,
+                                  view.signalQualityLabel,
                                   style: Theme.of(context).textTheme.labelSmall
                                       ?.copyWith(
                                         color: scheme.onSurfaceVariant,
@@ -138,7 +139,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                           ],
                           const SizedBox(height: 3),
                           Text(
-                            controller.bridgeLastContactDetail,
+                            view.bridgeLastContactDetail,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
@@ -224,10 +225,10 @@ class BridgeDetailsScreen extends StatelessWidget {
                                 ),
                               ),
                               Pill(
-                                label: controller.smokeXLabel,
+                                label: view.smokeXLabel,
                                 color: !connected
                                     ? StatusColors.stale(context)
-                                    : controller.smokeXReceiving
+                                    : view.smokeXReceiving
                                     ? StatusColors.live(context)
                                     : StatusColors.aging(context),
                               ),
@@ -235,7 +236,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            controller.smokeXSubtitle,
+                            view.smokeXSubtitle,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
@@ -273,10 +274,10 @@ class BridgeDetailsScreen extends StatelessWidget {
                             key: const Key('bridge.name'),
                             icon: Icons.badge_outlined,
                             title: 'Bridge name',
-                            subtitle: controller.canEdit
-                                ? controller.deviceName
-                                : '${controller.deviceName}\nConnect to change',
-                            onTap: controller.canEdit
+                            subtitle: view.canEdit
+                                ? view.deviceName
+                                : '${view.deviceName}\nConnect to change',
+                            onTap: view.canEdit
                                 ? () =>
                                       showBridgeNameDialog(context, controller)
                                 : null,
@@ -286,10 +287,10 @@ class BridgeDetailsScreen extends StatelessWidget {
                             key: const Key('bridge.timeout'),
                             icon: Icons.timer_outlined,
                             title: 'Bridge screen timeout',
-                            subtitle: controller.canEdit
-                                ? _timeoutSubtitle()
-                                : '${_timeoutSubtitle()}\nConnect to change',
-                            onTap: controller.canEdit
+                            subtitle: view.canEdit
+                                ? view.timeoutSubtitle
+                                : '${view.timeoutSubtitle}\nConnect to change',
+                            onTap: view.canEdit
                                 ? () => showBridgeTimeoutSheet(
                                     context,
                                     controller,
@@ -301,7 +302,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                             key: const Key('bridge.billows'),
                             icon: Icons.air,
                             title: 'Billows',
-                            subtitle: controller.billowsSettingsSubtitle,
+                            subtitle: view.billows.settingsSubtitle,
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) => BillowsSettingsScreen(
@@ -341,35 +342,35 @@ class BridgeDetailsScreen extends StatelessWidget {
                           children: [
                             KeyValueRow(
                               label: 'Bridge ID',
-                              value: controller.deviceId,
+                              value: view.deviceId,
                             ),
                             KeyValueRow(
                               label: 'Firmware',
-                              value: controller.firmware,
+                              value: view.firmware,
                             ),
                             KeyValueRow(
                               label: 'Protocol',
-                              value: controller.protocol,
+                              value: view.protocol,
                             ),
                             KeyValueRow(
                               label: 'Signal',
-                              value: '${controller.rssi} dBm',
+                              value: '${view.rssi} dBm',
                             ),
                             KeyValueRow(
                               label: 'MTU',
-                              value: controller.slowLink
+                              value: view.slowLink
                                   ? '23 · slow connection'
                                   : '247',
                             ),
                             KeyValueRow(
                               label: 'Connected for',
-                              value: controller.isConnected
-                                  ? controller.bridgeConnectedForLabel
+                              value: view.connected
+                                  ? view.bridgeConnectedForLabel
                                   : '—',
                             ),
                             KeyValueRow(
                               label: 'Last synced',
-                              value: controller.lastSyncedLabel.replaceFirst(
+                              value: view.lastSyncedLabel.replaceFirst(
                                 'Synced ',
                                 '',
                               ),
@@ -404,7 +405,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                           subtitle: const Text(
                             'Bridge, Smoke X4, and Billows events',
                           ),
-                          children: [ConnectionLogList(controller: controller)],
+                          children: [ConnectionLogList(events: view.connectionLog)],
                         ),
                       ),
                     ),
@@ -487,8 +488,4 @@ class BridgeDetailsScreen extends StatelessWidget {
     );
   }
 
-  String _timeoutSubtitle() {
-    if (controller.displayTimeoutSeconds == 0) return 'Screen stays on';
-    return '${controller.displayTimeoutLabel} · screen turns off';
-  }
 }

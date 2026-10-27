@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/lab_gate.dart';
 import '../../app/bridge_controller.dart';
-import '../../prototype/scenario_lab.dart';
+import '../../app/lab_gate.dart';
+import '../../debug/scenario_lab.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 import '../history/history_screen.dart';
@@ -10,9 +10,14 @@ import '../live/live_screen.dart';
 import '../settings/settings_screen.dart';
 
 class AppShell extends StatelessWidget {
-  const AppShell({super.key, required this.controller});
+  const AppShell({
+    super.key,
+    required this.controller,
+    this.enableExperimentalLab = experimentalLabEnabled,
+  });
 
   final BridgeController controller;
+  final bool enableExperimentalLab;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +33,7 @@ class AppShell extends StatelessWidget {
             titles[tab.index],
             highlightedTitle: false,
             actions: [
-              if (experimentalLabEnabled)
+              if (enableExperimentalLab)
                 PopupMenuButton<String>(
                   key: const Key('nav.experimental'),
                   tooltip: 'App menu',
@@ -60,14 +65,20 @@ class AppShell extends StatelessWidget {
           body: Column(
             children: [
               if (tab == AppTab.history)
-                ConnectionBanner(controller: controller),
+                ConnectionBanner(
+                  view: controller.liveView,
+                  onRetry: controller.retryConnection,
+                ),
               Expanded(
                 child: IndexedStack(
                   index: tab.index,
                   children: [
                     LiveScreen(controller: controller),
                     HistoryScreen(controller: controller),
-                    SettingsScreen(controller: controller),
+                    SettingsScreen(
+                      controller: controller,
+                      enableExperimentalLab: enableExperimentalLab,
+                    ),
                   ],
                 ),
               ),
