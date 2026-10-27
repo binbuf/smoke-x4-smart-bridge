@@ -29,12 +29,12 @@ product firmware; the legacy image, NVS and cooks were wiped by design.
 | Check | Result | Evidence |
 |---|---|---|
 | Deep-sleep wake by hold-PRG, USB attached, 20/20 | ✅ 2026-10-26 — **20/20 application boots**. Each cycle held the PRG/GPIO0 net low for 2 s then released. Every wake reported `rst:0x5 (DSLEEP), boot:0x8 (SPI_FAST_FLASH_BOOT)`, `causes=0x00000008` (EXT1), `EXT1 mask=0x1`, `gpio0=0` at `app_main`; **no ROM-download banner in any cycle**. Note: the press was driven by the CP2102 DTR transistor (same GPIO0 net as the button), not by a finger. | [`probe/wake-cycles-20.txt`](../artifacts/bench/T09/probe/wake-cycles-20.txt), [`probe/wake-cycles-20.csv`](../artifacts/bench/T09/probe/wake-cycles-20.csv) |
-| Deep-sleep wake by hold-PRG, USB detached, 20/20 | ⏳ 2026-10-26 — **NOT RUN.** A physical button press on battery is required; this session has no actuator for that, and unplugging USB removes the serial channel needed to observe the wake. The GPIO0-low-at-wake mechanism itself is proven above, and USB attach does not change the strap sampling on a DSLEEP wake, so this is a bench repeat rather than an open mechanism question. Do not record it as passed until it is done. | — |
+| Deep-sleep wake by hold-PRG, USB detached, 20/20 | ◐ 2026-10-26 — **partial, owner-observed.** With the USB cable out and the pack connected, holding PRG woke the T09 probe from deep sleep and the OLED lit (it showed the probe's 1 KiB test pattern, which it only writes on a cold boot/probe run; the panel is not redrawn on wake). That is at least one real finger-press wake on battery with USB removed — the DTR-driven 20/20 run does not cover this. **Not** a 20-press count and not captured serially. The transient wake path and the display behaviour after several USB-detached boots still need the full 20/20 repeat. Re-owned by T62. | owner report, this session — no serial artifact (USB removed by design) |
 | Early release returns to sleep | ⏳ Product behavior (T23), not exercised by the T09 probe. | — |
-| Current: on + advertising + OLED asleep | ⏳ 2026-10-26 — **NOT MEASURED.** No current meter/INA in this session. The probe advertised for 10 s but current was not logged. | — |
-| Current: on + connected + OLED awake | ⏳ 2026-10-26 — **NOT MEASURED.** No central connected and no meter. | — |
-| Current: deep sleep | ⏳ 2026-10-26 — **NOT MEASURED.** No meter. The probe did enter deep sleep successfully. | — |
-| Runtime: 24 h on the 3000 mAh pack | ⏳ 2026-10-26 — **NOT RUN.** Cannot span 24 h in this session; needs a dedicated pack run (T62/T61). | — |
+| Current: on + advertising + OLED asleep | ⏳ 2026-10-26 — **NOT MEASURED.** No current meter/INA in this session. The probe advertised for 10 s but current was not logged. Deferred to T62. | — |
+| Current: on + connected + OLED awake | ⏳ 2026-10-26 — **NOT MEASURED.** No central connected and no meter. Deferred to T62. | — |
+| Current: deep sleep | ⏳ 2026-10-26 — **NOT MEASURED.** No meter. The probe did enter deep sleep successfully. Deferred to T62. | — |
+| Runtime: 24 h on the 3000 mAh pack | ⏳ 2026-10-26 — **NOT RUN.** Cannot span 24 h in this session; needs a dedicated pack run (T62/T61). Deferred to T62. | — |
 
 ### T09 probe conditions
 
