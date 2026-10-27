@@ -121,6 +121,45 @@ class ChartSeries {
 
 enum HistoryGapReason { noSignal, bridgeOff, bridgeRotated }
 
+extension HistoryGapReasonLabels on HistoryGapReason {
+  /// The approved label rendered in a gap band and its explanation sheet.
+  String get label {
+    switch (this) {
+      case HistoryGapReason.noSignal:
+        return 'No signal';
+      case HistoryGapReason.bridgeOff:
+        return 'Bridge off';
+      case HistoryGapReason.bridgeRotated:
+        return 'Not synced';
+    }
+  }
+
+  String get explanation {
+    switch (this) {
+      case HistoryGapReason.noSignal:
+        return 'The Bridge did not receive a reading from the Smoke X4 during this period.';
+      case HistoryGapReason.bridgeOff:
+        return 'The Bridge was off, so it recorded nothing during this period.';
+      case HistoryGapReason.bridgeRotated:
+        return 'The Bridge overwrote this part of its history before it reached your phone. The readings can’t be recovered, so the chart leaves this period blank.';
+    }
+  }
+}
+
+/// One labelled break in the recorded line. The archive can contain several;
+/// V0 fixtures only had one. [HistoryFixture.allGaps] presents both shapes.
+class HistoryGapBand {
+  const HistoryGapBand({
+    required this.start,
+    required this.end,
+    required this.reason,
+  });
+
+  final DateTime start;
+  final DateTime end;
+  final HistoryGapReason reason;
+}
+
 /// Design rule 06 §6.6: a line never crosses an interval longer than this
 /// between adjacent readings. The chart and the recent-history store share it.
 const Duration historyGapThreshold = Duration(seconds: 90);
@@ -166,6 +205,8 @@ class HistoryFixture {
     required this.gapReason,
     required this.estimated,
     required this.missingFromBridge,
+    this.bands = const <HistoryGapBand>[],
+    this.decimated = false,
   });
 
   final DateTime start;
@@ -176,6 +217,25 @@ class HistoryFixture {
   final HistoryGapReason gapReason;
   final bool estimated;
   final bool missingFromBridge;
+
+  /// Every labelled gap in the window, when the archive reports more than the
+  /// single V0 band. Empty means "use [gapStart]/[gapEnd]/[gapReason]".
+  final List<HistoryGapBand> bands;
+
+  /// True when the series were decimated or SQL-bucketed. A decimated series
+  /// can legitimately be more than 90 s apart; only its explicit `null` points
+  /// break the line. Raw fixture series keep the >90 s rule.
+  final bool decimated;
+
+  List<HistoryGapBand> get allGaps {
+    if (bands.isNotEmpty) return bands;
+    if (gapEnd.isAfter(gapStart)) {
+      return <HistoryGapBand>[
+        HistoryGapBand(start: gapStart, end: gapEnd, reason: gapReason),
+      ];
+    }
+    return const <HistoryGapBand>[];
+  }
 
   bool get hasValues =>
       series.any((item) => item.points.any((point) => point.valueF != null));
