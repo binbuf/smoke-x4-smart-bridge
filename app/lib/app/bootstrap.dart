@@ -27,11 +27,11 @@ Future<BridgeController> createBridgeController({
   final controller = BridgeController(
     repository: data,
     bleClient: bleClient ?? FlutterBluePlusBleClient(),
+    sampleDao: data is SqliteBridgeRepository ? data.dao : null,
   );
   await controller.initialize();
-  // V0 has no durable archive yet: the recent History store fills from the
-  // link's first sync. Until then History must show its empty state, never a
-  // fixture preview.
+  // The recent History store fills from the durable archive's accepted batches.
+  // A launch with no rows shows the empty state, never a fixture preview.
   controller.historyHasData = controller.phoneRecords > 0;
   return controller;
 }

@@ -64,4 +64,59 @@ Build the repository that turns raw BLE sync batches into a durable, resumable l
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Status: done (host/CI).** No board run; a real-phone 30-day transfer is left
+for T55.
+
+### What landed
+- `app/lib/data/sync/archive_sync.dart`: `ArchiveSyncCoordinator` + the
+  `SyncStatus {idle, syncing, partial, complete, error}` model and internal
+  `SyncPhase {idle, recent, backfill, forward}`. It reads `sync_ctrl cmd = 0`,
+  runs backward recent-first (32 records/page, 2,880 = 24 h), continues the
+  older backfill in the background (64/page), resumes an interrupted backfill,
+  then catches forward from the local maximum `seq`. Transport calls are
+  serialised, so the existing connect path and 30 s timer never interleave.
+- `SampleDao.storeSyncBatch` writes rows + gap rows + both cursors in one
+  transaction; `updateSyncCursors` can clear nullable cursors.
+- `BridgeSyncAssembler` rejects a non-contiguous `frame_seq` (a partial batch is
+  discarded and re-requested, never stored).
+- `BridgeLink` implements `SyncTransport`, delegates to the archive in
+  production, appends live notifications by `seq`, and keeps exactly one 30 s
+  timer. `BridgeController`/bootstrap wire the DAO and feed the approved History
+  store from the same accepted batch.
+- Tests: 11 archive cases (status/empty, 30-day recent-first + backfill,
+  record 0, mid-batch disconnect resume, 338,400-record ring + resume, generation
+  change, forward gap, every status branch, live append, frame hole, real
+  BridgeLink integration) plus an atomic DAO case.
+- Docs: 04 §4.7 implementation note; ADR 0046; `docs/progress/T41.md`.
+
+### Deviations
+- The recent pass returns `partial` after 2,880 records; the remaining backfill
+  runs as a background future rather than blocking the Live transition. Tests
+  await `ArchiveSyncCoordinator.backfillDone`.
+- `SyncStatus` is separate from the UI's existing `domain/models.dart`
+  `SyncState`; the controller maps one to the other. `backfill` remains internal
+  and product copy is unchanged.
+- The 338,400-record proof is a host/in-memory SQLite run, not a phone run.
+- `T42` still needs to make the durable archive the History query source; T41
+  feeds the existing in-session store through the same batch callback so the UI
+  stays green.
+
+### Checks
+```powershell
+cd app
+flutter analyze                       # No issues found
+flutter test test\archive_sync_test.dart   # 11/11
+flutter test                          # 169/169
+```
+
+### Next task must know
+- Reuse `connectSync` on reconnect and `catchUp` for the 30 s pass; do not add a
+  second timer or cursor.
+- After T44 deletion, cursors must be recomputed/cleared before the next sync.
+- Real-phone verification of the long ring/gap/generation paths is still open in
+  T55.
+
+## Follow-ups
+See `docs/progress/T41.md` (History queries T42, launch/touch T43, deletion
+cursor reconciliation T44, board run T55).

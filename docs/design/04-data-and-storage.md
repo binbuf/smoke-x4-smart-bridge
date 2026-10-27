@@ -488,6 +488,37 @@ that overlap the deleted sequence extent. The saved connection is the `bridge`
 row; forgetting it deletes only that row and leaves `sample`/`gap` readable as
 orphaned history. See ADR 0045.
 
+### Implementation note (T41): durable two-phase sync
+
+`app/lib/data/sync/archive_sync.dart` owns the repository sync engine. It
+implements the 4.5 sequence over one `SyncTransport` request at a time:
+
+- `connectSync` issues `sync_ctrl cmd = 0` for `generation`, `min_seq`,
+  `max_seq` and storage state. An empty log (`0xFFFFFFFF` extent) completes with
+  `deviceEmpty` and creates no gap.
+- With no local rows for the generation, the backward recent pass uses
+  `max_records = 32` from `max_seq + 1` until 2,880 records (24 h) are stored.
+  It then reports `partial` and returns, so Live is available immediately; the
+  older backfill continues in the background with 64-record pages.
+- A resumed session finishes an interrupted backfill when
+  `cursor_before > device_min_seq`, then uses forward catch-up from the local
+  maximum `seq`. The 30 s quiet pass runs the same forward request path.
+- One request/batch is one transaction: `SampleDao.storeSyncBatch` writes the
+  rows, gap rows and `cursor_after`/`cursor_before` together. A crash or link
+  drop therefore resumes at the last fully stored `seq`.
+- Backward stops only on `count = 0`; `next_seq = 0` is an exclusive cursor, so
+  record 0 is fetched normally.
+- A forward `status = gap` stores the missed range with reason `Not synced`
+  before continuing from the device extent. A generation change keeps old rows
+  and starts a new local segment with null cursors.
+- Live notifications are appended by `seq`. The cursor advances only for a
+  contiguous record; a missed sequence is left for the next forward pass.
+- `BridgeLink` no longer adds a second cadence: the archive is driven from the
+  existing connect and 30 s timer, and the same accepted batch feeds the
+  in-session History store.
+
+See ADR 0046.
+
 ## 4.8 Retention and deletion
 
 ### Bridge

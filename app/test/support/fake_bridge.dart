@@ -374,7 +374,7 @@ class FakeBridge implements FakeGattServer {
               .where(
                 (record) => backwards
                     ? record.seq < ctrl.cursorSeq
-                    : record.seq >= ctrl.cursorSeq,
+                    : record.seq > ctrl.cursorSeq,
               )
               .toList();
     if (backwards) {
@@ -391,6 +391,8 @@ class FakeBridge implements FakeGattServer {
         ? _records.map((record) => record.seq).reduce(math.max)
         : seqNone;
     final nextSeq = selected.isEmpty ? ctrl.cursorSeq : selected.last.seq + 1;
+    // A drained direction is `ok`; only a whole empty log is `empty` (T39).
+    final status = hasRecords ? SyncStatus.ok.wire : SyncStatus.empty.wire;
 
     final bytes = BytesBuilder(copy: false)
       ..add(
@@ -400,7 +402,7 @@ class FakeBridge implements FakeGattServer {
           maxSeq: maxSeq,
           startSeq: selected.isEmpty ? nextSeq : selected.first.seq,
           count: selected.length,
-          status: selected.isEmpty ? SyncStatus.empty.wire : SyncStatus.ok.wire,
+          status: status,
         ).encode(),
       );
     for (final record in selected) {
@@ -408,7 +410,7 @@ class FakeBridge implements FakeGattServer {
     }
     bytes.add(
       SyncEnd(
-        status: selected.isEmpty ? SyncStatus.empty.wire : SyncStatus.ok.wire,
+        status: status,
         nextSeq: nextSeq,
         minSeq: minSeq,
         maxSeq: maxSeq,

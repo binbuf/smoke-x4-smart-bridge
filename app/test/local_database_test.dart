@@ -363,6 +363,65 @@ void main() {
     await reopened.close();
   });
 
+  test('storeSyncBatch commits rows, gaps and cursors together', () async {
+    await dao.saveBridge(
+      const SavedBridge(
+        id: 'bridge-a',
+        name: 'SmokeX4-1A2B',
+        lastSeenMs: 1,
+        generation: 7,
+      ),
+    );
+
+    final inserted = await dao.storeSyncBatch(
+      bridgeId: 'bridge-a',
+      generation: 7,
+      samples: <StoredSample>[_stored(10, generation: 7), _stored(11, generation: 7)],
+      cursorAfter: 11,
+      cursorBefore: 10,
+      deviceMinSeq: 10,
+      deviceMaxSeq: 11,
+      lastSeenMs: 99,
+      gaps: const <StoredGap>[
+        StoredGap(
+          bridgeId: 'bridge-a',
+          generation: 7,
+          fromSeq: 4,
+          toSeq: 9,
+          reason: 'Not synced',
+          detectedMs: 98,
+        ),
+      ],
+    );
+
+    expect(inserted, 2);
+    final bridge = await dao.bridgeById('bridge-a');
+    expect(bridge!.generation, 7);
+    expect(bridge.cursorAfter, 11);
+    expect(bridge.cursorBefore, 10);
+    expect(bridge.deviceMinSeq, 10);
+    expect(bridge.deviceMaxSeq, 11);
+    expect(bridge.lastSeenMs, 99);
+    expect(await dao.gaps(bridgeId: 'bridge-a'), hasLength(1));
+
+    // Null clears a cursor, which copyWith cannot do.
+    await dao.updateSyncCursors(
+      bridgeId: 'bridge-a',
+      generation: 8,
+      cursorAfter: null,
+      cursorBefore: null,
+      deviceMinSeq: null,
+      deviceMaxSeq: null,
+      lastSeenMs: 100,
+    );
+    final reset = await dao.bridgeById('bridge-a');
+    expect(reset!.cursorAfter, isNull);
+    expect(reset.cursorBefore, isNull);
+    expect(reset.deviceMinSeq, isNull);
+    expect(reset.deviceMaxSeq, isNull);
+    expect(reset.generation, 8);
+  });
+
   test('a version-1 empty database migrates to the archive schema', () async {
     final directory = await Directory.systemTemp.createTemp('smoke_db_v1');
     final path = '${directory.path}${Platform.pathSeparator}v1.db';

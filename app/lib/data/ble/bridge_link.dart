@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../../domain/models.dart';
+import '../sync/archive_sync.dart';
 import 'ble_client.dart';
 import 'bridge_codecs.dart';
 import 'bridge_protocol.dart';
@@ -181,12 +182,13 @@ class BridgeLinkException implements Exception {
 ///
 /// The class is free of Flutter imports and talks only to [BleClient], so the
 /// scripted fake drives every path in `flutter test`.
-class BridgeLink {
+class BridgeLink implements SyncTransport {
   BridgeLink({
     required this.client,
     required this.host,
     this.settings = const BridgeLinkSettings(),
     this.sink = const NullBridgeSyncSink(),
+    this.archive,
     this.localMaxSeq,
     this.onLocalMaxSeq,
     this.readLocalMaxSeq,
@@ -204,6 +206,11 @@ class BridgeLink {
   final BridgeLinkHost host;
   final BridgeLinkSettings settings;
   final BridgeSyncSink sink;
+
+  /// The durable archive coordinator. When present it owns the cursor, recent
+  /// and backfill passes; the V0 sink path stays only for callers that have not
+  /// been wired to a database.
+  final ArchiveSyncCoordinator? archive;
 
   /// The newest locally stored sequence, or `null` when the phone has no data.
   final int? Function()? localMaxSeq;
@@ -383,7 +390,18 @@ class BridgeLink {
     final live = await _readLiveWithBond();
     await _setTimeIfNeeded(force: firstSync, live: live);
 
-    if (firstSync) {
+    final durable = archive;
+    if (durable != null) {
+      // One path decides recent-first, backfill and forward catch-up from the
+      // durable cursors; reconnect never re-reads a completed recent window.
+      await durable.connectSync(
+        transport: this,
+        bridgeId: bridgeInfo.deviceId,
+        bridgeName: _info?.deviceId ?? bridgeInfo.deviceId,
+      );
+      _lastSyncCursor = durable.cursorAfter;
+      if (_lastSyncCursor != null) onLocalMaxSeq?.call(_lastSyncCursor!);
+    } else if (firstSync) {
       await _syncRecent(live: live);
     } else {
       await syncForward();
@@ -571,6 +589,16 @@ class BridgeLink {
     _lastClockValid = live.clockValid;
     _lastLiveReceipt = _nowUtc();
     host.onLive(BridgeLiveUpdate(live: live, receivedAt: _lastLiveReceipt!));
+    final recorder = archive;
+    if (recorder != null) {
+      // The durable archive appends every live notification by seq. A failed
+      // append never affects the live screen; the next forward pass repairs it.
+      unawaited(
+        recorder
+            .recordLive(live: live, receivedAt: _lastLiveReceipt!)
+            .catchError((Object _) {}),
+      );
+    }
     return live;
   }
 
@@ -772,6 +800,30 @@ class BridgeLink {
     if (!_secure) {
       throw const BridgeLinkException(BridgeLinkFailure.notSecured);
     }
+    final durable = archive;
+    if (durable != null) {
+      if (!quiet) {
+        host.onSync?.call(
+          const BridgeSyncProgress(state: SyncState.recent, percent: 10),
+        );
+      }
+      final snapshot = await durable.catchUp(transport: this);
+      _lastSyncCursor = snapshot.cursorAfter;
+      if (_lastSyncCursor != null) onLocalMaxSeq?.call(_lastSyncCursor!);
+      if (!quiet) {
+        host.onSync?.call(
+          BridgeSyncProgress(
+            state: snapshot.status == SyncStatus.error
+                ? SyncState.error
+                : SyncState.complete,
+            percent: snapshot.status == SyncStatus.error ? 0 : 100,
+            storedRecords: _storedRecords,
+            error: snapshot.error,
+          ),
+        );
+      }
+      return;
+    }
     final startCursor = localMax();
     if (startCursor == null) {
       // No forward cursor yet: behave like a first sync rather than duplicating
@@ -872,6 +924,11 @@ class BridgeLink {
       onLocalMaxSeq?.call(next);
     }
   }
+
+  /// [SyncTransport] over the live `sync_ctrl`/`sync_data` characteristics.
+  @override
+  Future<BridgeSyncStream> request(BridgeSyncRequest request) =>
+      _requestSync(request);
 
   Future<BridgeSyncStream> _requestSync(BridgeSyncRequest request) async {
     final completer = Completer<BridgeSyncStream>();
