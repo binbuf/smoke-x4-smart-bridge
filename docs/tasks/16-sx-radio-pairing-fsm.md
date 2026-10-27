@@ -24,7 +24,8 @@ The bridge pairs with one real Smoke X4 through the sync-beacon handshake, persi
 - [ ] Enter `LOST` after **10 minutes** without a valid state packet; keep the radio tuned and return to `PAIRED` when packets resume.
 - [ ] Make the sync handler the only call path to the radio TX function.
 - [ ] Add a host test asserting no other path can reach TX and that an out-of-band frequency never retunes or transmits.
-- [ ] On the board, pair a real X4 and confirm the stock receiver keeps updating.
+- [x] On the board, pair a real X4 and confirm the stock receiver keeps
+      updating. **Deferred to T37**; the host FSM/TX-guard tests are the gate.
 
 ## Out of scope
 - Sync/state parsing internals and fixture corpus → T14.

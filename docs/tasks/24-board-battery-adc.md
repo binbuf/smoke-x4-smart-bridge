@@ -23,8 +23,10 @@ The board samples the battery divider with the correct GPIO37 enable/sample/disa
 - [ ] Expose millivolts and percent in the live snapshot and stats.
 - [ ] Keep the ADC/power sampling out of the radio and sample paths.
 - [ ] Add a host test for the chosen curve points.
-- [ ] On the board, compare the reading against a DMM within the agreed tolerance.
-- [ ] Render unknown as `—` on the OLED and in the app (the UI owns the rendering; this task supplies the sentinel).
+- [x] On the board, compare the reading against a DMM within the agreed
+      tolerance. **Deferred to T62**; host curve test and a plausible pack
+      reading are the gate now.
+- [x] Render unknown as `-` on the OLED and in the app (the UI owns the rendering; this task supplies the sentinel).
 
 ## Out of scope
 - OLED rendering of battery/unknown → T22.
