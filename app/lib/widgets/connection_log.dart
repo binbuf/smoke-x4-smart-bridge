@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../prototype/formatters.dart';
-import '../app/bridge_controller.dart';
+import '../app/formatters.dart';
+import '../domain/models.dart';
 import '../theme/app_theme.dart';
 
 /// A single timeline for Bridge pairing, phone connections and Billows. Billows
@@ -10,21 +10,18 @@ import '../theme/app_theme.dart';
 class ConnectionLogList extends StatelessWidget {
   const ConnectionLogList({
     super.key,
-    required this.controller,
+    required this.events,
     this.billowsOnly = false,
     this.limit,
   });
 
-  final BridgeController controller;
+  final List<ConnectionEvent> events;
   final bool billowsOnly;
   final int? limit;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final events = billowsOnly
-        ? controller.billowsLog
-        : controller.connectionLog;
     final visible = limit == null ? events : events.take(limit!).toList();
     if (visible.isEmpty) {
       return Padding(

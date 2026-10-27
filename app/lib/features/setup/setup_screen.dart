@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../prototype/formatters.dart';
 import '../../app/bridge_controller.dart';
+import '../../app/view_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -80,6 +80,7 @@ class _SetupScreenState extends State<SetupScreen> {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.setupView;
         return Scaffold(
           appBar: prototypeAppBar(context, controller, 'Set up'),
           body: SafeArea(
@@ -87,7 +88,10 @@ class _SetupScreenState extends State<SetupScreen> {
               duration: const Duration(milliseconds: 220),
               switchInCurve: Curves.easeOut,
               switchOutCurve: Curves.easeIn,
-              child: KeyedSubtree(key: ValueKey(_step), child: _bodyFor(_step)),
+              child: KeyedSubtree(
+                key: ValueKey(_step),
+                child: _bodyFor(_step, view),
+              ),
             ),
           ),
         );
@@ -95,7 +99,7 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
-  Widget _bodyFor(SetupStep step) {
+  Widget _bodyFor(SetupStep step, SetupViewState view) {
     switch (step) {
       case SetupStep.noBridge:
         return _SetupPage(
@@ -104,18 +108,18 @@ class _SetupScreenState extends State<SetupScreen> {
           message: 'Power it on. Press PRG to wake the screen. If the Bridge is off, hold PRG for 1.5 seconds to turn it on.',
           primaryLabel: 'Find bridge',
           onPrimary: () => _go(SetupStep.scanning),
-          secondaryLabel: controller.hasSavedData
+          secondaryLabel: view.hasSavedData
               ? 'View history on this phone'
               : null,
-          onSecondary: controller.hasSavedData
+          onSecondary: view.hasSavedData
               ? () => _go(SetupStep.savedData)
               : null,
-          child: controller.hasSavedData
+          child: view.hasSavedData
               ? InlineNotice(
                   icon: Icons.folder_open_outlined,
                   title: 'History on this phone',
                   message:
-                      '${commaInt(controller.phoneRecords)} readings · ${controller.savedDataRange}',
+                      '${view.phoneRecordsLabel} readings · ${view.savedDataRange}',
                 )
               : null,
         );
@@ -181,10 +185,10 @@ class _SetupScreenState extends State<SetupScreen> {
           message: 'Try a different Android phone. The Bridge itself is unchanged and keeps recording.',
           primaryLabel: 'Close',
           onPrimary: () => Navigator.of(context).pop(),
-          secondaryLabel: controller.hasSavedData
+          secondaryLabel: view.hasSavedData
               ? 'View history on this phone'
               : null,
-          onSecondary: controller.hasSavedData
+          onSecondary: view.hasSavedData
               ? () => _go(SetupStep.savedData)
               : null,
         );
@@ -211,7 +215,7 @@ class _SetupScreenState extends State<SetupScreen> {
           secondaryLabel: 'Open Bluetooth settings',
           onSecondary: () =>
               _simulateSettings(context, 'Opening Bluetooth settings.'),
-          footer: controller.hasSavedData
+          footer: view.hasSavedData
               ? TextButton(
                   onPressed: () => _go(SetupStep.savedData),
                   child: const Text('View history on this phone'),
@@ -219,8 +223,7 @@ class _SetupScreenState extends State<SetupScreen> {
               : null,
         );
       case SetupStep.results:
-        return _ScanResults(
-          controller: controller,
+        return _ScanResults(view: view,
           onSelect: () => _go(SetupStep.passkey),
           onProtocolMismatch: () => _go(SetupStep.protocolMismatch),
           onRescan: () => _go(SetupStep.scanning),
@@ -291,10 +294,9 @@ class _SetupScreenState extends State<SetupScreen> {
           onSecondary: () => _go(SetupStep.results),
         );
       case SetupStep.firstSync:
-        return _FirstSyncPage(controller: controller, onContinue: _finish);
+        return _FirstSyncPage(view: view, onContinue: _finish);
       case SetupStep.savedData:
-        return _SavedDataStep(
-          controller: controller,
+        return _SavedDataStep(view: view, controller: controller,
           onBack: () => _go(SetupStep.noBridge),
         );
     }
@@ -442,14 +444,14 @@ class _BulletList extends StatelessWidget {
 
 class _ScanResults extends StatelessWidget {
   const _ScanResults({
-    required this.controller,
+    required this.view,
     required this.onSelect,
     required this.onProtocolMismatch,
     required this.onRescan,
     required this.onSavedData,
   });
 
-  final BridgeController controller;
+  final SetupViewState view;
   final VoidCallback onSelect;
   final VoidCallback onProtocolMismatch;
   final VoidCallback onRescan;
@@ -511,13 +513,13 @@ class _ScanResults extends StatelessWidget {
                 onTap: onProtocolMismatch,
               ),
               const SizedBox(height: 22),
-              if (controller.hasSavedData)
+              if (view.hasSavedData)
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.folder_open_outlined),
                     title: const Text('History on this phone'),
                     subtitle: Text(
-                      '${commaInt(controller.phoneRecords)} readings · ${controller.savedDataRange}',
+                      '${view.phoneRecordsLabel} readings · ${view.savedDataRange}',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: onSavedData,
@@ -811,9 +813,9 @@ class _BondStep extends StatelessWidget {
 }
 
 class _FirstSyncPage extends StatelessWidget {
-  const _FirstSyncPage({required this.controller, required this.onContinue});
+  const _FirstSyncPage({required this.view, required this.onContinue});
 
-  final BridgeController controller;
+  final SetupViewState view;
   final VoidCallback onContinue;
 
   @override
@@ -859,13 +861,13 @@ class _FirstSyncPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       LinearProgressIndicator(
-                        value: controller.syncProgressPercent / 100,
+                        value: view.syncProgressPercent / 100,
                         minHeight: 8,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '${controller.syncProgressPercent}% · last 24 hours',
+                        '${view.syncProgressLabel} · last 24 hours',
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                       const SizedBox(height: 14),
@@ -944,15 +946,20 @@ class _SyncStep extends StatelessWidget {
 }
 
 class _SavedDataStep extends StatelessWidget {
-  const _SavedDataStep({required this.controller, required this.onBack});
+  const _SavedDataStep({
+    required this.view,
+    required this.controller,
+    required this.onBack,
+  });
 
+  final SetupViewState view;
   final BridgeController controller;
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final empty = controller.savedDataEmpty || controller.phoneRecords == 0;
+    final empty = view.savedDataEmpty || view.phoneRecords == 0;
     return ListView(
       children: [
         ContentWidth(
@@ -985,15 +992,15 @@ class _SavedDataStep extends StatelessWidget {
                     children: [
                       KeyValueRow(
                         label: 'Readings',
-                        value: commaInt(controller.phoneRecords),
+                        value: view.phoneRecordsLabel,
                       ),
                       KeyValueRow(
                         label: 'Date range',
-                        value: controller.savedDataRange,
+                        value: view.savedDataRange,
                       ),
                       KeyValueRow(
                         label: 'Storage used',
-                        value: controller.savedDataSize,
+                        value: view.savedDataSize,
                       ),
                       const SizedBox(height: 14),
                       SizedBox(
@@ -1032,12 +1039,12 @@ class _SavedDataStep extends StatelessWidget {
       title: 'Delete all history from this phone?',
       intro: 'This deletes every reading stored on this phone. It can’t be undone.',
       bullets: [
-        '${commaInt(controller.phoneRecords)} readings',
-        controller.savedDataRange,
+        '${view.phoneRecordsLabel} readings',
+        view.savedDataRange,
         'The Bridge isn’t changed and keeps recording.',
       ],
       keepNote: 'This is the only copy of the history on this phone.',
-      confirmLabel: 'Delete ${commaInt(controller.phoneRecords)} readings',
+      confirmLabel: 'Delete ${view.phoneRecordsLabel} readings',
     );
     if (confirmed == true && context.mounted) {
       controller.deleteLocalData('all');

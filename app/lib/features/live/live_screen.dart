@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/fixtures.dart';
 import '../../app/bridge_controller.dart';
+import '../../app/view_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_widgets.dart';
 import '../settings/bridge_details.dart';
@@ -17,9 +17,10 @@ class LiveScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.liveView;
         return RefreshIndicator(
           onRefresh: () async {
-            if (controller.isOffline) {
+            if (view.isOffline) {
               controller.retryConnection();
             } else {
               controller.simulateSync();
@@ -34,7 +35,7 @@ class LiveScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _ConnectionCard(
-                      controller: controller,
+                      view: view,
                       onOpenBridge: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) =>
@@ -42,8 +43,7 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (controller.isConnected &&
-                        !controller.smokeXReceiving) ...[
+                    if (view.isConnected && !view.smokeXReceiving) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         icon: Icons.sensors_off_outlined,
@@ -56,12 +56,12 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (controller.syncState == SyncState.recent ||
-                        controller.syncState == SyncState.backfill) ...[
+                    if (view.syncState == SyncState.recent ||
+                        view.syncState == SyncState.backfill) ...[
                       const SizedBox(height: 10),
-                      _SyncCard(controller: controller),
+                      _SyncCard(view: view),
                     ],
-                    if (controller.syncState == SyncState.error) ...[
+                    if (view.syncState == SyncState.error) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         icon: Icons.error_outline,
@@ -74,7 +74,7 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (!controller.storageOk) ...[
+                    if (!view.storageOk) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         icon: Icons.sd_card_alert_outlined,
@@ -92,7 +92,7 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (controller.probePresence == ProbePresence.none) ...[
+                    if (view.probePresence == ProbePresence.none) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         icon: Icons.graphic_eq,
@@ -110,7 +110,7 @@ class LiveScreen extends StatelessWidget {
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: 4,
+                      itemCount: view.probes.length,
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
@@ -119,24 +119,20 @@ class LiveScreen extends StatelessWidget {
                             childAspectRatio: 0.86,
                           ),
                       itemBuilder: (context, index) {
-                        final probe = controller.probes[index];
                         return ProbeCard(
-                          probe: probe,
-                          controller: controller,
+                          probe: view.probes[index],
+                          units: view.units,
+                          isOffline: view.isOffline,
                           accent: ProbeColors.forIndex(context, index),
-                          history: buildSparklinePoints(
-                            index,
-                            hasData: controller.probeHasHistory(index),
-                          ),
                           onTap: () => controller.openProbeHistory(index),
                         );
                       },
                     ),
-                    if (controller.billowsDetected) ...[
+                    if (view.billows!.detected) ...[
                       const SizedBox(height: 14),
-                      _BillowsCard(controller: controller),
+                      _BillowsCard(view: view.billows!),
                     ],
-                    if (controller.billowsLostThisSession) ...[
+                    if (view.billowsLostThisSession) ...[
                       const SizedBox(height: 14),
                       InlineNotice(
                         icon: Icons.air,
@@ -200,9 +196,9 @@ class LiveScreen extends StatelessWidget {
 }
 
 class _ConnectionCard extends StatelessWidget {
-  const _ConnectionCard({required this.controller, required this.onOpenBridge});
+  const _ConnectionCard({required this.view, required this.onOpenBridge});
 
-  final BridgeController controller;
+  final LiveViewState view;
   final VoidCallback onOpenBridge;
 
   @override
@@ -210,7 +206,7 @@ class _ConnectionCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final bridgeColor = _bridgeColor(context);
     final smokeColor = _smokeColor(context);
-    final appColor = controller.isConnected
+    final appColor = view.isConnected
         ? StatusColors.live(context)
         : StatusColors.stale(context);
 
@@ -242,7 +238,7 @@ class _ConnectionCard extends StatelessWidget {
                       child: _ChainNode(
                         icon: Icons.bluetooth_rounded,
                         label: 'Bridge',
-                        status: controller.bridgeLinkStatusLabel,
+                        status: view.bridgeLinkStatusLabel,
                         color: bridgeColor,
                       ),
                     ),
@@ -251,7 +247,7 @@ class _ConnectionCard extends StatelessWidget {
                       child: _ChainNode(
                         icon: Icons.sensors_rounded,
                         label: 'Smoke X4',
-                        status: controller.smokeXLinkStatusLabel,
+                        status: view.smokeXLinkStatusLabel,
                         color: smokeColor,
                       ),
                     ),
@@ -278,27 +274,27 @@ class _ConnectionCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              controller.bridgeConnectedLabel,
+                              view.bridgeConnectedLabel,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: scheme.onSurfaceVariant),
                             ),
                           ),
-                          if (controller.isConnected) ...[
+                          if (view.isConnected) ...[
                             const SizedBox(width: 6),
                             SignalBars(
-                              level: controller.signalBars,
+                              level: view.signalBars,
                               color: StatusColors.signal(
                                 context,
-                                controller.signalBars,
+                                view.signalBars,
                               ),
                               semanticLabel:
-                                  '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
+                                  '${view.signalQualityLabel} signal, ${view.rssi} dBm',
                             ),
                             const SizedBox(width: 7),
                             Text(
-                              controller.signalQualityLabel,
+                              view.signalQualityLabel,
                               style: Theme.of(context).textTheme.labelSmall
                                   ?.copyWith(
                                     color: scheme.onSurfaceVariant,
@@ -318,29 +314,27 @@ class _ConnectionCard extends StatelessWidget {
                       Row(
                         children: [
                           Icon(
-                            controller.isConnected
-                                ? Icons.sensors
-                                : Icons.history,
+                            view.isConnected ? Icons.sensors : Icons.history,
                             size: 15,
                             color: scheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              controller.telemetryStatusLabel,
+                              view.telemetryStatusLabel,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color:
-                                        controller.isConnected &&
-                                            !controller.smokeXReceiving
+                                        view.isConnected &&
+                                            !view.smokeXReceiving
                                         ? StatusColors.aging(context)
                                         : scheme.onSurfaceVariant,
                                   ),
                             ),
                           ),
-                          if (!controller.isConnected)
+                          if (!view.isConnected)
                             Icon(
                               Icons.chevron_right,
                               size: 18,
@@ -360,7 +354,7 @@ class _ConnectionCard extends StatelessWidget {
   }
 
   Color _bridgeColor(BuildContext context) {
-    switch (controller.phase) {
+    switch (view.phase) {
       case ConnectionPhase.live:
       case ConnectionPhase.stale:
       case ConnectionPhase.syncing:
@@ -378,9 +372,9 @@ class _ConnectionCard extends StatelessWidget {
   }
 
   Color _smokeColor(BuildContext context) {
-    if (!controller.isConnected) return StatusColors.stale(context);
-    if (controller.smokeXReceiving) return StatusColors.live(context);
-    switch (controller.smokeXStatus) {
+    if (!view.isConnected) return StatusColors.stale(context);
+    if (view.smokeXReceiving) return StatusColors.live(context);
+    switch (view.smokeXStatus) {
       case SmokeXStatus.pairedLive:
       case SmokeXStatus.pairedLost:
         return StatusColors.aging(context);
@@ -451,14 +445,14 @@ class _ChainArrow extends StatelessWidget {
 }
 
 class _SyncCard extends StatelessWidget {
-  const _SyncCard({required this.controller});
+  const _SyncCard({required this.view});
 
-  final BridgeController controller;
+  final LiveViewState view;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final backfill = controller.syncState == SyncState.backfill;
+    final backfill = view.syncState == SyncState.backfill;
     return SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,7 +469,7 @@ class _SyncCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              if (controller.slowLink)
+              if (view.slowLink)
                 Text(
                   'Slow connection',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -487,7 +481,7 @@ class _SyncCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           LinearProgressIndicator(
-            value: controller.syncProgressPercent / 100,
+            value: view.syncProgressPercent / 100,
             borderRadius: BorderRadius.circular(8),
             minHeight: 7,
           ),
@@ -506,17 +500,13 @@ class _SyncCard extends StatelessWidget {
 }
 
 class _BillowsCard extends StatelessWidget {
-  const _BillowsCard({required this.controller});
+  const _BillowsCard({required this.view});
 
-  final BridgeController controller;
+  final BillowsView view;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final setTempKnown = controller.smokeXChannel4SetKnown;
-    final setTempLabel = controller.isConnected
-        ? 'Set temp'
-        : 'Set temp (last known)';
     return SectionCard(
       key: const Key('live.billows'),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -548,18 +538,14 @@ class _BillowsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _Metric(
-                  label: setTempLabel,
-                  value: setTempKnown
-                      ? controller.tempFor(
-                          controller.smokeXChannel4SetF.toDouble(),
-                        )
-                      : '—',
+                  label: view.setTempLabel,
+                  value: view.setTempKnown ? view.setTempText : '—',
                 ),
               ),
               Expanded(
                 child: _Metric(
                   label: 'Last detected',
-                  value: controller.billowsLastDetectedLabel,
+                  value: view.lastDetectedLabel,
                 ),
               ),
             ],

@@ -66,7 +66,7 @@ class PrototypeThemeToggle extends StatelessWidget {
           label: Text('Dark'),
         ),
       ],
-      selected: {controller.themeMode},
+      selected: {controller.themeMode}, // lab-only control; not product chrome
       onSelectionChanged: (selection) =>
           controller.setThemeMode(selection.first),
     );

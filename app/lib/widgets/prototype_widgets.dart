@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../prototype/fixtures.dart';
-import '../app/bridge_controller.dart';
+import '../app/view_state.dart';
+import '../domain/models.dart';
 import '../theme/app_theme.dart';
 import 'probe_sparkline.dart';
 
@@ -30,19 +30,24 @@ class ContentWidth extends StatelessWidget {
 }
 
 class ConnectionBanner extends StatelessWidget {
-  const ConnectionBanner({super.key, required this.controller});
+  const ConnectionBanner({
+    super.key,
+    required this.view,
+    required this.onRetry,
+  });
 
-  final BridgeController controller;
+  final LiveViewState view;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    if (controller.phase == ConnectionPhase.live ||
-        controller.phase == ConnectionPhase.syncing) {
+    if (view.phase == ConnectionPhase.live ||
+        view.phase == ConnectionPhase.syncing) {
       return const SizedBox.shrink();
     }
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final (Color color, IconData icon) = switch (controller.phase) {
+    final (Color color, IconData icon) = switch (view.phase) {
       ConnectionPhase.live => (
         StatusColors.live(context),
         Icons.bluetooth_connected,
@@ -65,7 +70,7 @@ class ConnectionBanner extends StatelessWidget {
       ),
     };
 
-    final action = switch (controller.phase) {
+    final action = switch (view.phase) {
       ConnectionPhase.failed => 'Retry',
       ConnectionPhase.offline => 'Retry',
       ConnectionPhase.reconnecting => 'Retry now',
@@ -91,13 +96,13 @@ class ConnectionBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  controller.connectionTitle,
+                  view.connectionTitle,
                   style: Theme.of(context).textTheme.labelLarge
                       ?.copyWith(color: scheme.onSurface),
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  controller.connectionSubtitle,
+                  view.connectionSubtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall
@@ -109,10 +114,10 @@ class ConnectionBanner extends StatelessWidget {
           if (action != null)
             TextButton(
               onPressed: () {
-                if (controller.phase == ConnectionPhase.blocked) {
+                if (view.phase == ConnectionPhase.blocked) {
                   _showBlockedHelp(context);
                 } else {
-                  controller.retryConnection();
+                  onRetry();
                 }
               },
               child: Text(action),
@@ -221,16 +226,16 @@ class ProbeCard extends StatelessWidget {
   const ProbeCard({
     super.key,
     required this.probe,
-    required this.controller,
+    required this.units,
+    required this.isOffline,
     required this.accent,
-    required this.history,
     required this.onTap,
   });
 
-  final Probe probe;
-  final BridgeController controller;
+  final ProbeView probe;
+  final Units units;
+  final bool isOffline;
   final Color accent;
-  final List<ChartPoint> history;
   final VoidCallback onTap;
 
   @override
@@ -238,13 +243,10 @@ class ProbeCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final connected = probe.connected;
-    final muted =
-        !connected ||
-        probe.health == ProbeHealth.stale ||
-        probe.health == ProbeHealth.frozen;
+    final muted = probe.muted;
 
-    final status = _statusText();
-    final statusColor = controller.isOffline
+    final status = probe.statusText;
+    final statusColor = isOffline
         ? StatusColors.stale(context)
         : switch (probe.health) {
             ProbeHealth.live => StatusColors.live(context),
@@ -253,16 +255,10 @@ class ProbeCard extends StatelessWidget {
             ProbeHealth.frozen => scheme.error,
           };
 
-    final values = history
-        .where((point) => point.valueF != null)
-        .map((point) => point.valueF!)
-        .toList();
-    final delta = values.length >= 2 ? values.last - values.first : null;
-
     return Semantics(
       container: true,
       button: true,
-      label: _semanticsLabel(status, delta),
+      label: probe.semanticsLabel,
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -315,7 +311,7 @@ class ProbeCard extends StatelessWidget {
                       TextSpan(
                         children: [
                           TextSpan(
-                            text: controller.valueFor(probe.tempF),
+                            text: probe.valueText,
                             style: theme.textTheme.displaySmall?.copyWith(
                               color: muted
                                   ? scheme.onSurface.withValues(alpha: 0.55)
@@ -324,7 +320,7 @@ class ProbeCard extends StatelessWidget {
                             ),
                           ),
                           TextSpan(
-                            text: controller.unitSuffix,
+                            text: probe.unitSuffix,
                             style: theme.textTheme.titleSmall?.copyWith(
                               color: scheme.onSurfaceVariant,
                               fontWeight: FontWeight.w600,
@@ -350,9 +346,9 @@ class ProbeCard extends StatelessWidget {
                     alignment: Alignment.bottomCenter,
                     child: ExcludeSemantics(
                       child: ProbeSparkline(
-                        points: history,
+                        points: probe.lastHour,
                         color: accent,
-                        units: controller.units,
+                        units: units,
                         muted: muted,
                         height: 46,
                       ),
@@ -378,11 +374,7 @@ class ProbeCard extends StatelessWidget {
                       )
                     else
                       Text(
-                        history.any((point) => point.valueF != null)
-                            ? (delta == null
-                                  ? '1h'
-                                  : '1h · ${_deltaLabel(delta)}')
-                            : '',
+                        probe.trendText,
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: muted
                               ? scheme.onSurfaceVariant.withValues(alpha: 0.6)
@@ -397,56 +389,6 @@ class ProbeCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _semanticsLabel(String? status, double? delta) {
-    if (!probe.connected) {
-      return 'Probe ${probe.number}, not connected.';
-    }
-    final temp = controller.tempFor(probe.tempF);
-    final trend = delta == null
-        ? ''
-        : delta.abs() < 0.05
-        ? ', flat in the last hour'
-        : ', ${delta > 0 ? 'up' : 'down'} ${_deltaValue(delta.abs()).toStringAsFixed(1)} degrees in the last hour';
-    final state = status ?? 'updated live';
-    return 'Probe ${probe.number}, $temp, $state$trend. Tap for History.';
-  }
-
-  String? _statusText() {
-    if (!probe.connected) {
-      if (controller.probePresence == ProbePresence.none) return null;
-      return 'Not connected';
-    }
-    // The Live connection card already names the global offline/saved state;
-    // do not repeat it on all four tiles.
-    if (!controller.isConnected) return null;
-    switch (probe.health) {
-      case ProbeHealth.live:
-        return null;
-      case ProbeHealth.aging:
-        return 'Updated 62s ago';
-      case ProbeHealth.stale:
-        return 'No readings for 4 min';
-      case ProbeHealth.frozen:
-        return 'No readings for 12 min';
-    }
-  }
-
-  double _deltaValue(double fahrenheitDelta) {
-    return controller.units == Units.fahrenheit
-        ? fahrenheitDelta
-        : fahrenheitDelta * 5 / 9;
-  }
-
-  String _deltaLabel(double fahrenheitDelta) {
-    final value = _deltaValue(fahrenheitDelta);
-    final sign = value > 0
-        ? '+'
-        : value < 0
-        ? '-'
-        : '±';
-    return '$sign${value.abs().toStringAsFixed(1)}${controller.unitSuffix}';
   }
 }
 

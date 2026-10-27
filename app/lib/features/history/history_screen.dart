@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/fixtures.dart';
-import '../../prototype/formatters.dart';
 import '../../app/bridge_controller.dart';
+import '../../app/formatters.dart';
+import '../../app/view_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -38,11 +38,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   BridgeController get controller => widget.controller;
 
-  bool get _hasActiveFilters =>
-      controller.historyProbe != null ||
-      controller.historyRange != HistoryRange.twentyFourHours ||
-      controller.historyCustomRange != null;
-
   @override
   void dispose() {
     _scrollController.dispose();
@@ -58,25 +53,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _resetViewport();
   }
 
-  HistoryFixture _fixture() {
-    return buildHistoryFixture(
-      controller.historyRange,
-      empty: !controller.historyHasData,
-      oneProbe: controller.historyOneProbe,
-      estimated: controller.historyEstimated,
-      missingFromBridge: controller.historyMissingFromBridge,
-      hasGap: widget.gapOverride ?? true,
-      customStart: controller.historyCustomRange?.start,
-      customEnd: controller.historyCustomRange?.end,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final fixture = _fixture();
+        final view = controller.historyViewFor(
+          hasGap: widget.gapOverride ?? true,
+        );
         return ListView(
           controller: _scrollController,
           children: [
@@ -84,16 +68,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _filters(context, fixture),
+                  _filters(context, view),
                   const SizedBox(height: 10),
-                  _chartCard(context, fixture),
+                  _chartCard(context, view),
                   const SizedBox(height: 14),
-                  _summaryCard(context, fixture),
-                  if (controller.historyHasData && widget.showPastCooks) ...[
+                  _summaryCard(context, view),
+                  if (view.hasAnyHistory && widget.showPastCooks) ...[
                     const SizedBox(height: 14),
-                    _pastCooksCard(context),
+                    _pastCooksCard(context, view),
                   ],
-                  if (controller.historyMissingFromBridge) ...[
+                  if (view.missingFromBridge) ...[
                     const SizedBox(height: 12),
                     InlineNotice(
                       icon: Icons.link_off,
@@ -111,13 +95,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _filters(BuildContext context, HistoryFixture fixture) {
-    final rangeLabel = controller.historyRange == HistoryRange.custom
-        ? 'Custom'
-        : historyChipLabel(controller.historyRange);
-    final probeLabel = controller.historyProbe == null
-        ? 'All probes'
-        : 'P${controller.historyProbe}';
+  Widget _filters(BuildContext context, HistoryViewState view) {
+    final rangeLabel = view.rangeChipLabel;
+    final probeLabel = view.probeLabel;
 
     return SectionCard(
       key: const Key('history.filters'),
@@ -131,8 +111,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 icon: Icons.schedule_outlined,
                 label: rangeLabel,
                 tooltip: 'History range',
-                items: _rangeMenuItems(context),
-                onSelected: _selectRange,
+                items: _rangeMenuItems(context, view),
+                onSelected: (range) => _selectRange(range, view),
               ),
             ),
             const SizedBox(width: 8),
@@ -143,14 +123,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
               icon: Icons.linear_scale,
               label: probeLabel,
               tooltip: 'Filter by probe',
-              items: _probeMenuItems(context, fixture),
+              items: _probeMenuItems(context, view),
               onSelected: (value) {
                 controller.setHistoryProbe(value == 0 ? null : value);
                 _resetViewport();
               },
             ),
           ),
-          if (_hasActiveFilters && !widget.historical)
+          if (view.hasActiveFilters && !widget.historical)
             Padding(
               padding: const EdgeInsets.only(left: 4),
               child: IconButton(
@@ -165,7 +145,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  List<PopupMenuEntry<HistoryRange>> _rangeMenuItems(BuildContext context) {
+  List<PopupMenuEntry<HistoryRange>> _rangeMenuItems(
+    BuildContext context,
+    HistoryViewState view,
+  ) {
     final scheme = Theme.of(context).colorScheme;
     return [
       for (final range in const [
@@ -199,7 +182,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                 ),
               ),
-              if (controller.historyRange == range)
+              if (view.range == range)
                 Icon(Icons.check, size: 18, color: scheme.primary),
             ],
           ),
@@ -209,11 +192,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   List<PopupMenuEntry<int>> _probeMenuItems(
     BuildContext context,
-    HistoryFixture fixture,
+    HistoryViewState view,
   ) {
     final scheme = Theme.of(context).colorScheme;
     PopupMenuItem<int> item(int value, String label, Color? color) {
-      final hasData = value == 0 || fixture.seriesHasValues(value - 1);
+      final hasData = value == 0 || view.seriesHasValues(value - 1);
       return PopupMenuItem<int>(
         key: Key('history.filter.${value == 0 ? 'all' : 'p$value'}'),
         value: value,
@@ -248,7 +231,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 style: Theme.of(context).textTheme.labelSmall
                     ?.copyWith(color: scheme.outline),
               ),
-            if (controller.historyProbe == (value == 0 ? null : value)) ...[
+            if (view.probe == (value == 0 ? null : value)) ...[
               const SizedBox(width: 8),
               Icon(Icons.check, size: 18, color: scheme.primary),
             ],
@@ -264,50 +247,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
     ];
   }
 
-  Future<void> _selectRange(HistoryRange range) async {
+  Future<void> _selectRange(
+    HistoryRange range,
+    HistoryViewState view,
+  ) async {
     if (range == HistoryRange.custom) {
-      final initial =
-          controller.historyCustomRange ?? controller.entireHistoryRange;
-      if (controller.historyCustomRange == null) {
+      final initial = view.customRange ?? view.entireHistoryRange;
+      if (view.customRange == null) {
         controller.setHistoryCustomRange(initial);
       }
       _resetViewport();
-      await _pickCustomRange(initial);
+      await _pickCustomRange(initial, view);
       return;
     }
     controller.setHistoryRange(range);
     _resetViewport();
   }
 
-  Widget _chartCard(BuildContext context, HistoryFixture fixture) {
+  Widget _chartCard(BuildContext context, HistoryViewState view) {
     final scheme = Theme.of(context).colorScheme;
     final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
-    final window = historyWindowLabel(
-      controller.historyRange,
-      fixture.start,
-      fixture.end,
-      use24Hour: use24Hour,
-    );
-    final noData = !fixture.hasValues;
-    final noProbeData =
-        controller.historyProbe != null &&
-        !fixture.seriesHasValues(controller.historyProbe! - 1);
-    final probeCount = controller.historyProbe == null ? 4 : 1;
-    final dataProbeCount = controller.historyProbe == null
-        ? fixture.series
-              .where(
-                (series) => series.points.any((point) => point.valueF != null),
-              )
-              .length
-        : (fixture.seriesHasValues(controller.historyProbe! - 1) ? 1 : 0);
-    final probeMeta = dataProbeCount == probeCount
-        ? '$probeCount ${probeCount == 1 ? 'probe' : 'probes'}'
-        : '$dataProbeCount of $probeCount ${probeCount == 1 ? 'probe' : 'probes'}';
+    final fixture = view.fixture;
+    final window = view.windowLabel(use24Hour: use24Hour);
+    final noData = view.noData;
+    final noProbeData = view.noProbeData;
+    final probeMeta = view.probeMeta;
     final metaLead = noData
         ? 'No readings'
         : widget.historical
         ? 'Recorded history'
-        : controller.lastSyncedLabel;
+        : view.lastSyncedLabel;
 
     final chart = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,7 +361,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               title: noData ? 'No readings yet' : 'No readings in this range',
               message: noData
                   ? 'The Bridge records whenever it’s on and paired with the Smoke X4.'
-                  : 'Probe ${controller.historyProbe} has no readings in this range. Try another range or show all probes.',
+                  : 'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
               action: () {
                 if (noData) {
                   controller.setTab(AppTab.live);
@@ -407,8 +376,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         else
           HistoryChartPanel(
             key: _chartKey,
-            controller: controller,
-            fixture: fixture,
+            view: view,
             historical: widget.historical,
           ),
       ],
@@ -421,62 +389,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _summaryCard(BuildContext context, HistoryFixture fixture) {
-    final probes = controller.historyProbe == null
-        ? [1, 2, 3, 4]
-        : [controller.historyProbe!];
-    final stats = probes
-        .map((probe) => ProbeRangeStats.fromSeries(fixture.series[probe - 1]))
-        .toList();
-    final activeCook = currentCookSession();
-    final cookReference = activeCook ?? latestCookSession();
-    switch (controller.historySort) {
-      case HistorySort.probe:
-        stats.sort((a, b) => a.probe.compareTo(b.probe));
-        break;
-      case HistorySort.hottest:
-        stats.sort((a, b) {
-          if (a.last == null && b.last == null) return 0;
-          if (a.last == null) return 1;
-          if (b.last == null) return -1;
-          return b.last!.compareTo(a.last!);
-        });
-        break;
-      case HistorySort.highestMax:
-        stats.sort((a, b) {
-          if (a.max == null && b.max == null) return 0;
-          if (a.max == null) return 1;
-          if (b.max == null) return -1;
-          return b.max!.compareTo(a.max!);
-        });
-        break;
-      case HistorySort.recent:
-        stats.sort((a, b) {
-          if (a.lastSampleAt == null && b.lastSampleAt == null) return 0;
-          if (a.lastSampleAt == null) return 1;
-          if (b.lastSampleAt == null) return -1;
-          return b.lastSampleAt!.compareTo(a.lastSampleAt!);
-        });
-        break;
-      case HistorySort.sinceCookStart:
-        bool readingInCook(ProbeRangeStats stat) =>
-            stat.lastSampleAt != null &&
-            (cookReference == null ||
-                !stat.lastSampleAt!.isBefore(cookReference.start));
-        stats.sort((a, b) {
-          final aInCook = readingInCook(a);
-          final bInCook = readingInCook(b);
-          if (aInCook != bInCook) return aInCook ? -1 : 1;
-          if (a.lastSampleAt == null && b.lastSampleAt == null) {
-            return a.probe.compareTo(b.probe);
-          }
-          if (a.lastSampleAt == null) return 1;
-          if (b.lastSampleAt == null) return -1;
-          return b.lastSampleAt!.compareTo(a.lastSampleAt!);
-        });
-        break;
-    }
-
+  Widget _summaryCard(BuildContext context, HistoryViewState view) {
     return SectionCard(
       key: const Key('history.summary'),
       child: Column(
@@ -491,7 +404,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               Text(
-                controller.unitsLabel,
+                view.unitsLabel,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
@@ -500,7 +413,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(width: 6),
               PopupMenuButton<HistorySort>(
                 tooltip: 'Sort summary',
-                initialValue: controller.historySort,
+                initialValue: view.sort,
                 onSelected: controller.setHistorySort,
                 itemBuilder: (context) => [
                   const PopupMenuItem(
@@ -521,9 +434,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   PopupMenuItem(
                     value: HistorySort.sinceCookStart,
-                    enabled: cookReference != null,
+                    enabled: view.cookReference != null,
                     child: Text(
-                      cookReference == null
+                      view.cookReference == null
                           ? 'Since cook start (no cook detected)'
                           : 'Since cook start',
                     ),
@@ -533,7 +446,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _sortLabel(controller.historySort),
+                      view.sortLabel,
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: Theme.of(context).colorScheme.primary,
                       ),
@@ -544,10 +457,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
           ),
-          if (controller.historySort == HistorySort.sinceCookStart) ...[
+          if (view.sort == HistorySort.sinceCookStart) ...[
             const SizedBox(height: 6),
             Text(
-              _cookSortDetail(activeCook, cookReference),
+              view.cookSortDetail,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -556,14 +469,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(height: 8),
           const _SummaryHeader(),
           const SizedBox(height: 2),
-          for (final stat in stats)
+          for (final stat in view.stats)
             _SummaryRow(
               stat: stat,
-              controller: controller,
-              selected: controller.historyProbe == stat.probe,
+              view: view,
+              selected: view.probe == stat.probe,
               onTap: () {
                 controller.setHistoryProbe(
-                  controller.historyProbe == stat.probe ? null : stat.probe,
+                  view.probe == stat.probe ? null : stat.probe,
                 );
                 _resetViewport();
               },
@@ -573,36 +486,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  String _sortLabel(HistorySort sort) {
-    switch (sort) {
-      case HistorySort.probe:
-        return 'Probe order';
-      case HistorySort.hottest:
-        return 'Hottest';
-      case HistorySort.highestMax:
-        return 'Highest';
-      case HistorySort.recent:
-        return 'Latest reading';
-      case HistorySort.sinceCookStart:
-        return 'Since cook start';
-    }
-  }
-
-  String _cookSortDetail(CookSession? activeCook, CookSession? cookReference) {
-    if (cookReference == null) {
-      return 'No cook detected in this history.';
-    }
-    final elapsed = durationShort(fixtureNow.difference(cookReference.start));
-    if (activeCook != null) {
-      return 'Cook started $elapsed ago · in progress';
-    }
-    return 'Last cook started $elapsed ago';
-  }
-
-  Widget _pastCooksCard(BuildContext context) {
-    final cooks = buildCookSessions();
+  Widget _pastCooksCard(BuildContext context, HistoryViewState view) {
     final scheme = Theme.of(context).colorScheme;
-    final visible = cooks.take(3).toList();
+    final visible = view.visibleCooks;
     return SectionCard(
       key: const Key('history.cooks'),
       child: Column(
@@ -629,7 +515,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
               TextButton(
                 key: const Key('history.cooks.open'),
-                onPressed: () => _showCookSheet(context),
+                onPressed: () => _showCookSheet(context, view),
                 child: const Text('View all'),
               ),
             ],
@@ -638,20 +524,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
           for (final cook in visible)
             _CookTile(
               cook: cook,
-              selected: _isCookSelected(cook),
-              current: isCookInProgress(cook),
+              relativeTo: view.now,
+              selected: view.isCookSelected(cook),
+              current: view.isCookInProgress(cook),
               onTap: () => _openPastCook(context, cook),
             ),
         ],
       ),
     );
-  }
-
-  bool _isCookSelected(CookSession cook) {
-    final range = controller.historyCustomRange;
-    if (range == null) return false;
-    return range.start.difference(cook.start).inMinutes.abs() < 1 &&
-        range.end.difference(cook.end).inMinutes.abs() < 1;
   }
 
   void _openPastCook(BuildContext context, CookSession cook) {
@@ -662,8 +542,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  void _showCookSheet(BuildContext context) {
-    final cooks = buildCookSessions();
+  void _showCookSheet(BuildContext context, HistoryViewState view) {
+    final cooks = view.cooks;
     final hostContext = context;
     showModalBottomSheet<void>(
       context: context,
@@ -707,8 +587,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       for (final cook in cooks)
                         _CookTile(
                           cook: cook,
-                          selected: _isCookSelected(cook),
-                          current: isCookInProgress(cook),
+                          relativeTo: view.now,
+                          selected: view.isCookSelected(cook),
+                          current: view.isCookInProgress(cook),
                           onTap: () {
                             Navigator.of(sheetContext).pop();
                             _openPastCook(hostContext, cook);
@@ -725,7 +606,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Future<void> _pickCustomRange(DateTimeRange initial) async {
+  Future<void> _pickCustomRange(
+    DateTimeRange initial,
+    HistoryViewState view,
+  ) async {
     final picked = await showModalBottomSheet<DateTimeRange>(
       context: context,
       isScrollControlled: true,
@@ -733,7 +617,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       showDragHandle: true,
       builder: (_) => _CustomRangeSheet(
         initialRange: initial,
-        memoryRange: controller.entireHistoryRange,
+        memoryRange: view.entireHistoryRange,
         use24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
       ),
     );
@@ -809,7 +693,7 @@ class _PastCookScreenState extends State<PastCookScreen> {
   void initState() {
     super.initState();
     final source = widget.controller;
-    _history = BridgeController()
+    _history = BridgeController(content: source.content)
       ..units = source.units
       ..historyRange = HistoryRange.custom
       ..historyCustomRange = DateTimeRange(
@@ -1261,13 +1145,13 @@ class _SummaryHeader extends StatelessWidget {
 class _SummaryRow extends StatelessWidget {
   const _SummaryRow({
     required this.stat,
-    required this.controller,
+    required this.view,
     required this.selected,
     required this.onTap,
   });
 
   final ProbeRangeStats stat;
-  final BridgeController controller;
+  final HistoryViewState view;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1280,7 +1164,7 @@ class _SummaryRow extends StatelessWidget {
       button: true,
       selected: selected,
       label: hasData
-          ? 'Probe ${stat.probe}, latest ${controller.tempFor(stat.last)}, lowest ${controller.tempFor(stat.min)}, highest ${controller.tempFor(stat.max)}'
+          ? 'Probe ${stat.probe}, latest ${view.tempFor(stat.last)}, lowest ${view.tempFor(stat.min)}, highest ${view.tempFor(stat.max)}'
           : 'Probe ${stat.probe}, no data in this range',
       child: InkWell(
         onTap: onTap,
@@ -1319,7 +1203,7 @@ class _SummaryRow extends StatelessWidget {
               Expanded(
                 child: hasData
                     ? Text(
-                        '${controller.valueFor(stat.last)}°',
+                        '${view.valueFor(stat.last)}°',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -1338,7 +1222,7 @@ class _SummaryRow extends StatelessWidget {
               SizedBox(
                 width: 54,
                 child: Text(
-                  hasData ? '${controller.valueFor(stat.min)}°' : '—',
+                  hasData ? '${view.valueFor(stat.min)}°' : '—',
                   textAlign: TextAlign.right,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: scheme.onSurfaceVariant,
@@ -1349,7 +1233,7 @@ class _SummaryRow extends StatelessWidget {
               SizedBox(
                 width: 54,
                 child: Text(
-                  hasData ? '${controller.valueFor(stat.max)}°' : '—',
+                  hasData ? '${view.valueFor(stat.max)}°' : '—',
                   textAlign: TextAlign.right,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: scheme.onSurfaceVariant,
@@ -1376,12 +1260,14 @@ class _SummaryRow extends StatelessWidget {
 class _CookTile extends StatelessWidget {
   const _CookTile({
     required this.cook,
+    required this.relativeTo,
     required this.selected,
     required this.current,
     required this.onTap,
   });
 
   final CookSession cook;
+  final DateTime relativeTo;
   final bool selected;
   final bool current;
   final VoidCallback onTap;
@@ -1427,7 +1313,7 @@ class _CookTile extends StatelessWidget {
         children: [
           Flexible(
             child: Text(
-              dayLabel(cook.start),
+              dayLabel(cook.start, relativeTo: relativeTo),
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleSmall,
             ),

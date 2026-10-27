@@ -3,9 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../prototype/fixtures.dart';
-import '../prototype/formatters.dart';
-import '../app/bridge_controller.dart';
+import '../app/formatters.dart';
+import '../domain/models.dart';
 
 Rect historyChartPlotRect(Size size) {
   return Rect.fromLTRB(

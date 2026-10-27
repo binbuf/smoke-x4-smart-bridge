@@ -12,9 +12,10 @@ import 'package:smoke_bridge/features/settings/settings_details.dart';
 import 'package:smoke_bridge/features/settings/settings_views.dart';
 import 'package:smoke_bridge/features/setup/setup_screen.dart';
 import 'package:smoke_bridge/features/shell/app_shell.dart';
-import 'package:smoke_bridge/prototype/fixtures.dart';
+import 'package:smoke_bridge/debug/fixtures.dart';
 import 'package:smoke_bridge/app/bridge_controller.dart';
-import 'package:smoke_bridge/prototype/scenario_lab.dart';
+import 'package:smoke_bridge/debug/demo_content.dart';
+import 'package:smoke_bridge/debug/scenario_lab.dart';
 import 'package:smoke_bridge/theme/app_theme.dart';
 
 Future<void> _loadFont(String family, String path) async {
@@ -78,13 +79,13 @@ void main() {
   }
 
   testWidgets('live dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(tester, 'live_dark', AppShell(controller: controller));
     controller.dispose();
   });
 
   testWidgets('live light', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'live_light',
@@ -95,7 +96,7 @@ void main() {
   });
 
   testWidgets('live billows detected', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'live_billows_detected',
@@ -108,7 +109,7 @@ void main() {
   });
 
   testWidgets('live billows lost', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..billowsAttachment = BillowsAttachment.detached
       ..billowsSeenThisSession = true
       ..smokeXChannel4SetKnown = false;
@@ -124,7 +125,7 @@ void main() {
   });
 
   testWidgets('live offline cache', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..phase = ConnectionPhase.offline
       ..offlineCache = true;
     await shot(tester, 'live_offline_cache', AppShell(controller: controller));
@@ -132,7 +133,7 @@ void main() {
   });
 
   testWidgets('history dark', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..tab = AppTab.history
       ..historyRange = HistoryRange.twentyFourHours
       ..historyMissingFromBridge = true;
@@ -141,7 +142,7 @@ void main() {
   });
 
   testWidgets('history light', (tester) async {
-    final controller = BridgeController()..tab = AppTab.history;
+    final controller = demoBridgeController()..tab = AppTab.history;
     await shot(
       tester,
       'history_light',
@@ -152,7 +153,7 @@ void main() {
   });
 
   testWidgets('history custom range dark', (tester) async {
-    final controller = BridgeController()..tab = AppTab.history;
+    final controller = demoBridgeController()..tab = AppTab.history;
     await shot(
       tester,
       'history_custom_range_dark',
@@ -168,7 +169,7 @@ void main() {
   });
 
   testWidgets('history all dark', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..tab = AppTab.history
       ..historyRange = HistoryRange.custom
       ..historyEstimated = true;
@@ -178,7 +179,7 @@ void main() {
   });
 
   testWidgets('history cooks dark', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..tab = AppTab.history
       ..historyRange = HistoryRange.twoDays;
     await shot(
@@ -193,7 +194,7 @@ void main() {
   });
 
   testWidgets('cook dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'past_cook_dark',
@@ -203,7 +204,7 @@ void main() {
   });
 
   testWidgets('history probe filter dark', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..tab = AppTab.history
       ..historyRange = HistoryRange.oneHour
       ..historyProbe = 1;
@@ -212,7 +213,7 @@ void main() {
   });
 
   testWidgets('history no data dark', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..tab = AppTab.history
       ..historyHasData = false
       ..phoneRecords = 0;
@@ -221,7 +222,7 @@ void main() {
   });
 
   testWidgets('history probe no data dark', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..tab = AppTab.history
       ..historyOneProbe = true
       ..historyProbe = 1
@@ -235,13 +236,13 @@ void main() {
   });
 
   testWidgets('settings dark', (tester) async {
-    final controller = BridgeController()..tab = AppTab.settings;
+    final controller = demoBridgeController()..tab = AppTab.settings;
     await shot(tester, 'settings_dark', AppShell(controller: controller));
     controller.dispose();
   });
 
   testWidgets('settings light', (tester) async {
-    final controller = BridgeController()..tab = AppTab.settings;
+    final controller = demoBridgeController()..tab = AppTab.settings;
     await shot(
       tester,
       'settings_light',
@@ -252,7 +253,7 @@ void main() {
   });
 
   testWidgets('bridge details dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'bridge_details_dark',
@@ -262,7 +263,7 @@ void main() {
   });
 
   testWidgets('history storage dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'history_storage_dark',
@@ -272,7 +273,7 @@ void main() {
   });
 
   testWidgets('appearance dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'appearance_dark',
@@ -282,7 +283,7 @@ void main() {
   });
 
   testWidgets('setup dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'setup_dark',
@@ -292,7 +293,7 @@ void main() {
   });
 
   testWidgets('passkey dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'passkey_dark',
@@ -306,7 +307,7 @@ void main() {
   });
 
   testWidgets('experimental lab dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'scenario_lab_dark',
@@ -316,7 +317,7 @@ void main() {
   });
 
   testWidgets('oled page dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'oled_page_dark',
@@ -326,7 +327,7 @@ void main() {
   });
 
   testWidgets('oled passkey dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'oled_passkey_dark',
@@ -339,13 +340,13 @@ void main() {
   });
 
   testWidgets('re-pair dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(tester, 're_pair_dark', RePairScreen(controller: controller));
     controller.dispose();
   });
 
   testWidgets('history on phone dark', (tester) async {
-    final controller = BridgeController()..hasSavedData = true;
+    final controller = demoBridgeController()..hasSavedData = true;
     await shot(
       tester,
       'device_log_dark',
@@ -355,7 +356,7 @@ void main() {
   });
 
   testWidgets('billows settings dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'billows_settings_dark',
@@ -365,7 +366,7 @@ void main() {
   });
 
   testWidgets('factory reset confirmation dark', (tester) async {
-    final controller = BridgeController();
+    final controller = demoBridgeController();
     await shot(
       tester,
       'confirm_factory_reset_dark',
@@ -378,7 +379,7 @@ void main() {
   });
 
   testWidgets('history standalone full screen dark', (tester) async {
-    final controller = BridgeController()
+    final controller = demoBridgeController()
       ..tab = AppTab.history
       ..historyRange = HistoryRange.custom
       ..historyEstimated = true;

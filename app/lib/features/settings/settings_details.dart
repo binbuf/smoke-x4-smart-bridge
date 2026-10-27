@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/formatters.dart';
 import '../../app/bridge_controller.dart';
+import '../../app/formatters.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/connection_log.dart';
 import '../../widgets/prototype_app_bar.dart';
@@ -28,6 +28,7 @@ class BillowsSettingsScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.bridgeDetailsView;
         final scheme = Theme.of(context).colorScheme;
         return Scaffold(
           appBar: prototypeAppBar(context, controller, 'Billows'),
@@ -39,10 +40,10 @@ class BillowsSettingsScreen extends StatelessWidget {
                   children: [
                     InlineNotice(
                       icon: Icons.lock_outline,
-                      title: controller.isConnected
+                      title: view.connected
                           ? 'Billows status'
                           : 'Last observed state',
-                      message: controller.isConnected
+                      message: view.connected
                           ? 'Billows reports through the Smoke X4. Its set temperature comes from the Smoke X4; this app shows it for reference.'
                           : 'Reconnect to refresh the Billows status and set temperature.',
                     ),
@@ -55,7 +56,7 @@ class BillowsSettingsScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  controller.isConnected
+                                  view.connected
                                       ? 'Status'
                                       : 'Last observed status',
                                   style: Theme.of(context)
@@ -64,10 +65,8 @@ class BillowsSettingsScreen extends StatelessWidget {
                                 ),
                               ),
                               Pill(
-                                label: controller.billowsAttachmentLabel,
-                                color:
-                                    controller.billowsAttachment ==
-                                        BillowsAttachment.attached
+                                label: view.billows.attachmentLabel,
+                                color: view.billows.detected
                                     ? StatusColors.live(context)
                                     : StatusColors.stale(context),
                               ),
@@ -76,19 +75,17 @@ class BillowsSettingsScreen extends StatelessWidget {
                           const SizedBox(height: 10),
                           KeyValueRow(
                             label: 'Last detected',
-                            value: controller.billowsLastDetectedLabel,
+                            value: view.billows.lastDetectedLabel,
                           ),
                           KeyValueRow(
                             label: 'Set temp',
-                            value: controller.smokeXChannel4SetKnown
-                                ? controller.tempFor(
-                                    controller.smokeXChannel4SetF.toDouble(),
-                                  )
+                            value: view.billows.setTempKnown
+                                ? view.billows.setTempText
                                 : '—',
                           ),
                           KeyValueRow(
                             label: 'Set on',
-                            value: controller.billowsSourceLabel,
+                            value: view.billows.sourceLabel,
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -131,7 +128,7 @@ class BillowsSettingsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           ConnectionLogList(
-                            controller: controller,
+                            events: view.billowsLog,
                             billowsOnly: true,
                           ),
                         ],
@@ -156,6 +153,7 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final view = controller.bridgeDetailsView;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: prototypeAppBar(context, controller, 'About'),
@@ -212,19 +210,16 @@ class AboutScreen extends StatelessWidget {
                         const SizedBox(height: 16),
                         KeyValueRow(
                           label: 'Firmware',
-                          value: controller.firmware,
+                          value: view.firmware,
                         ),
                         KeyValueRow(
                           label: 'Bridge protocol',
-                          value: controller.protocol,
+                          value: view.protocol,
                         ),
-                        KeyValueRow(
-                          label: 'Bridge ID',
-                          value: controller.deviceId,
-                        ),
+                        KeyValueRow(label: 'Bridge ID', value: view.deviceId),
                         KeyValueRow(
                           label: 'Bluetooth name',
-                          value: 'SmokeX4-${controller.deviceId}',
+                          value: 'SmokeX4-${view.deviceId}',
                         ),
                         const KeyValueRow(
                           label: 'Hardware',
@@ -405,8 +400,9 @@ class SavedDataScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.settingsView;
         final scheme = Theme.of(context).colorScheme;
-        final empty = controller.savedDataEmpty || controller.phoneRecords == 0;
+        final empty = view.localHistoryEmpty;
         return Scaffold(
           appBar: prototypeAppBar(context, controller, 'History on this phone'),
           body: ListView(
@@ -434,15 +430,15 @@ class SavedDataScreen extends StatelessWidget {
                                 const SizedBox(height: 12),
                                 KeyValueRow(
                                   label: 'Readings',
-                                  value: commaInt(controller.phoneRecords),
+                                  value: view.phoneRecordsLabel,
                                 ),
                                 KeyValueRow(
                                   label: 'Date range',
-                                  value: controller.savedDataRange,
+                                  value: view.savedDataRange,
                                 ),
                                 KeyValueRow(
                                   label: 'Storage used',
-                                  value: controller.savedDataSize,
+                                  value: view.savedDataSize,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
@@ -484,17 +480,18 @@ class SavedDataScreen extends StatelessWidget {
   }
 
   Future<void> deleteSavedData(BuildContext context) async {
+    final view = controller.settingsView;
     final confirmed = await showLossSheet(
       context,
       title: 'Delete all history from this phone?',
       intro: 'This deletes every reading stored on this phone. It can’t be undone.',
       bullets: [
-        '${commaInt(controller.phoneRecords)} readings',
-        controller.savedDataRange,
+        '${view.phoneRecordsLabel} readings',
+        view.savedDataRange,
         'The Bridge isn’t changed and keeps recording.',
       ],
       keepNote: 'This is the only copy of this history.',
-      confirmLabel: 'Delete ${commaInt(controller.phoneRecords)} readings',
+      confirmLabel: 'Delete ${view.phoneRecordsLabel} readings',
     );
     if (confirmed == true && context.mounted) {
       controller.deleteLocalData('all');
@@ -652,6 +649,7 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
   }
 
   Future<void> _show() async {
+    final view = widget.controller.settingsView;
     switch (widget.kind) {
       case DestructiveKind.forgetPhone:
         final confirmed = await showLossSheet(
@@ -678,7 +676,7 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
           title: 'Clear history on the Bridge?',
           intro: 'The Bridge erases its saved readings. This can’t be undone.',
           bullets: [
-            '${commaInt(widget.controller.bridgeRecords)} readings in history on the Bridge',
+            '${view.bridgeRecordsLabel} readings in history on the Bridge',
             'The Bridge keeps its pairings and settings',
             'History on this phone is kept',
           ],
@@ -703,12 +701,12 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
         final count = switch (scope) {
           '30' => 12430,
           '90' => 128430,
-          _ => widget.controller.phoneRecords,
+          _ => view.phoneRecords,
         };
         final range = switch (scope) {
           '30' => 'Sep 25 – Oct 24, 2026',
           '90' => 'Jul 27 – Oct 24, 2026',
-          _ => widget.controller.savedDataRange,
+          _ => view.savedDataRange,
         };
         final confirmed = await showLossSheet(
           context,
@@ -824,12 +822,13 @@ Future<void> clearBridgeHistory(
   BuildContext context,
   BridgeController controller,
 ) async {
+  final view = controller.settingsView;
   final confirmed = await showLossSheet(
     context,
     title: 'Clear history on the Bridge?',
     intro: 'The Bridge erases its saved readings. This can’t be undone.',
     bullets: [
-      '${commaInt(controller.bridgeRecords)} readings in history on the Bridge',
+      '${view.bridgeRecordsLabel} readings in history on the Bridge',
       'The Bridge keeps its pairings and settings',
       'History on this phone is kept',
     ],
@@ -849,15 +848,16 @@ Future<void> deleteLocalData(
   BridgeController controller,
   String scope,
 ) async {
+  final view = controller.settingsView;
   final count = switch (scope) {
     '30' => 12430,
     '90' => 128430,
-    _ => controller.phoneRecords,
+    _ => view.phoneRecords,
   };
   final range = switch (scope) {
     '30' => 'Sep 25 – Oct 24, 2026',
     '90' => 'Jul 27 – Oct 24, 2026',
-    _ => controller.savedDataRange,
+    _ => view.savedDataRange,
   };
   final confirmed = await showLossSheet(
     context,

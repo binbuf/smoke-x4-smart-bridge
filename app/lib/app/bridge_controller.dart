@@ -3,116 +3,31 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../data/repository.dart';
+import '../domain/content.dart';
+import '../domain/models.dart';
+import 'formatters.dart';
+import 'view_state.dart';
 
-enum AppTab { live, history, settings }
-
-enum ConnectionPhase {
-  live,
-  stale,
-  syncing,
-  reconnecting,
-  failed,
-  offline,
-  blocked,
-  setup,
-}
-
-enum BlockReason {
-  none,
-  bluetoothOff,
-  permissionDenied,
-  permissionBlocked,
-  unsupportedPhone,
-}
-
-enum ProbeHealth { live, aging, stale, frozen }
-
-enum ProbePresence { all, detachedP3, none }
-
-enum BillowsAttachment { unknown, attached, detached }
-
-enum Units { fahrenheit, celsius }
-
-enum HistoryRange { oneHour, sixHours, twentyFourHours, twoDays, custom }
-
-enum ConnectionEventKind {
-  bridgeConnected,
-  bridgeLost,
-  smokeXPaired,
-  smokeXLost,
-  billowsConnected,
-  billowsLost,
-  repair,
-  sync,
-}
-
-class ConnectionEvent {
-  const ConnectionEvent({
-    required this.title,
-    required this.detail,
-    required this.time,
-    required this.kind,
-  });
-
-  final String title;
-  final String detail;
-  final DateTime time;
-  final ConnectionEventKind kind;
-}
-
-enum HistorySort { probe, hottest, highestMax, recent, sinceCookStart }
-
-enum SyncState { idle, recent, backfill, complete, error }
-
-enum SmokeXStatus { pairedLive, pairedLost, unpaired }
-
-enum SettingsSaveState { idle, saving, saved, error }
-
-enum SetupStep {
-  noBridge,
-  permissionPrimer,
-  bluetoothOff,
-  permissionDenied,
-  permissionBlocked,
-  unsupportedPhone,
-  scanning,
-  noResults,
-  results,
-  protocolMismatch,
-  passkey,
-  bonding,
-  bondWrongCode,
-  bondTimeout,
-  bondStale,
-  bondStoreFull,
-  firstSync,
-  savedData,
-}
-
-class Probe {
-  const Probe({
-    required this.number,
-    required this.tempF,
-    required this.health,
-  });
-
-  final int number;
-  final double? tempF;
-  final ProbeHealth health;
-
-  bool get connected => tempF != null;
-}
+export '../domain/models.dart';
 
 /// The app's control seam.
 ///
 /// Owns navigation, theme and the state the approved shell renders. Data access
-/// goes through [BridgeRepository]; widgets never open SQLite themselves. T06
-/// moves the screen-facing fields behind immutable view states, and T07 adds the
-/// BLE seam.
+/// goes through [BridgeRepository] and [BridgeContent]; widgets render immutable
+/// view state from [liveView], [historyView], [setupView], [settingsView] and
+/// [bridgeDetailsView], never these mutable fields.
 class BridgeController extends ChangeNotifier {
-  BridgeController({this.repository = const EmptyBridgeRepository()});
+  BridgeController({
+    this.repository = const EmptyBridgeRepository(),
+    this.content = const EmptyBridgeContent(),
+  }) : bridgeRecords = content.bridgeRecords,
+       bridgeCapacity = content.bridgeCapacity,
+       phoneRecords = content.phoneRecords,
+       savedDataRange = content.savedDataRange,
+       savedDataSize = content.savedDataSize;
 
   final BridgeRepository repository;
+  final BridgeContent content;
   bool _initialized = false;
 
   /// Reads the cached summary once. Call from bootstrap after opening the DB.
@@ -179,11 +94,11 @@ class BridgeController extends ChangeNotifier {
 
   SettingsSaveState saveState = SettingsSaveState.idle;
 
-  int bridgeRecords = 24810;
-  int bridgeCapacity = 338400;
-  int phoneRecords = 128430;
-  String savedDataRange = 'Sep 1 – Oct 24, 2026';
-  String savedDataSize = '9.2 MB';
+  int bridgeRecords;
+  int bridgeCapacity;
+  int phoneRecords;
+  String savedDataRange;
+  String savedDataSize;
 
   String deviceId = 'A4F2';
   String firmware = '0.1.0';
@@ -436,7 +351,7 @@ class BridgeController extends ChangeNotifier {
   }
 
   List<Probe> get probes {
-    const base = <double?>[165.2, 164.0, 151.4, 225.0];
+    final base = content.probeTemps;
     final health = effectiveHealth;
     return List<Probe>.generate(4, (index) {
       final presence = probePresence;
@@ -459,16 +374,16 @@ class BridgeController extends ChangeNotifier {
 
   /// Everything the phone has recorded. Custom ranges start here and can then
   /// be narrowed to any minute.
-  DateTimeRange get entireHistoryRange => DateTimeRange(
-    start: DateTime(2026, 9, 1),
-    end: DateTime(2026, 10, 25, 18, 30),
-  );
+  DateTimeRange get entireHistoryRange {
+    final window = content.historyWindow;
+    return DateTimeRange(start: window.start, end: window.end);
+  }
 
   /// One shared timeline for pairing, Bridge link and Billows events. Billows
   /// joins automatically, so a dropped fan appears beside the regular
   /// connection history instead of in a separate feature.
   List<ConnectionEvent> get connectionLog {
-    final now = DateTime(2026, 10, 25, 18, 30);
+    final now = content.now;
     final events = <ConnectionEvent>[
       ConnectionEvent(
         title: 'Bridge connected',
@@ -705,6 +620,331 @@ class BridgeController extends ChangeNotifier {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Immutable view state consumed by the widget layer.
+  // ---------------------------------------------------------------------------
+
+  BillowsView get _billowsView => BillowsView(
+    detected: billowsDetected,
+    lostThisSession: billowsLostThisSession,
+    seenThisSession: billowsSeenThisSession,
+    setTempKnown: smokeXChannel4SetKnown,
+    setTempLabel: isConnected ? 'Set temp' : 'Set temp (last known)',
+    setTempText: smokeXChannel4SetKnown
+        ? tempFor(smokeXChannel4SetF.toDouble())
+        : '—',
+    lastDetectedLabel: billowsLastDetectedLabel,
+    attachmentLabel: billowsAttachmentLabel,
+    settingsSubtitle: billowsSettingsSubtitle,
+    sourceLabel: billowsSourceLabel,
+  );
+
+  LiveViewState get liveView {
+    final temps = content.probeTemps;
+    final health = effectiveHealth;
+    final probeViews = <ProbeView>[];
+    for (var index = 0; index < 4; index++) {
+      probeViews.add(_probeView(index, temps[index], health));
+    }
+    return LiveViewState(
+      phase: phase,
+      isConnected: isConnected,
+      isOffline: isOffline,
+      bridgeConnectedLabel: bridgeConnectedLabel,
+      telemetryStatusLabel: telemetryStatusLabel,
+      bridgeLinkStatusLabel: bridgeLinkStatusLabel,
+      smokeXLinkStatusLabel: smokeXLinkStatusLabel,
+      connectionTitle: connectionTitle,
+      connectionSubtitle: connectionSubtitle,
+      signalBars: signalBars,
+      signalQualityLabel: signalQualityLabel,
+      rssi: rssi,
+      batteryPercent: batteryPercent,
+      smokeXReceiving: smokeXReceiving,
+      smokeXStatus: smokeXStatus,
+      storageOk: storageOk,
+      slowLink: slowLink,
+      syncState: syncState,
+      syncProgressPercent: syncProgressPercent,
+      probes: List<ProbeView>.unmodifiable(probeViews),
+      probePresence: probePresence,
+      units: units,
+      billows: _billowsView,
+      billowsLostThisSession: billowsLostThisSession,
+      lastSyncedLabel: lastSyncedLabel,
+    );
+  }
+
+  ProbeView _probeView(int index, double? sourceTemp, ProbeHealth health) {
+    final double? temp;
+    if (probePresence == ProbePresence.none) {
+      temp = null;
+    } else if (probePresence == ProbePresence.detachedP3 && index == 2) {
+      temp = null;
+    } else {
+      temp = sourceTemp;
+    }
+    final connected = temp != null;
+    final muted =
+        !connected || health == ProbeHealth.stale || health == ProbeHealth.frozen;
+    final history = content.sparkline(
+      index,
+      hasData: probeHasHistory(index),
+    );
+    final values = history
+        .where((point) => point.valueF != null)
+        .map((point) => point.valueF!)
+        .toList();
+    final delta = values.length >= 2 ? values.last - values.first : null;
+    final status = _probeStatusText(connected, health);
+    final trend = values.isEmpty
+        ? ''
+        : delta == null
+        ? '1h'
+        : '1h · ${_probeDeltaLabel(delta)}';
+    final deltaText = delta == null ? null : _probeDeltaLabel(delta);
+    return ProbeView(
+      number: index + 1,
+      tempF: temp,
+      connected: connected,
+      health: health,
+      muted: muted,
+      lastHour: history,
+      valueText: valueFor(temp),
+      unitSuffix: unitSuffix,
+      statusText: status,
+      trendText: trend,
+      deltaText: deltaText,
+      semanticsLabel: _probeSemantics(index, temp, status, delta),
+    );
+  }
+
+  String? _probeStatusText(bool connected, ProbeHealth health) {
+    if (!connected) {
+      if (probePresence == ProbePresence.none) return null;
+      return 'Not connected';
+    }
+    if (!isConnected) return null;
+    switch (health) {
+      case ProbeHealth.live:
+        return null;
+      case ProbeHealth.aging:
+        return 'Updated 62s ago';
+      case ProbeHealth.stale:
+        return 'No readings for 4 min';
+      case ProbeHealth.frozen:
+        return 'No readings for 12 min';
+    }
+  }
+
+  String _probeSemantics(
+    int index,
+    double? temp,
+    String? status,
+    double? delta,
+  ) {
+    final probe = index + 1;
+    if (temp == null) return 'Probe $probe, not connected.';
+    final trend = delta == null
+        ? ''
+        : delta.abs() < 0.05
+        ? ', flat in the last hour'
+        : ', ${delta > 0 ? 'up' : 'down'} ${_displayDelta(delta.abs()).toStringAsFixed(1)} degrees in the last hour';
+    final state = status ?? 'updated live';
+    return 'Probe $probe, ${tempFor(temp)}, $state$trend. Tap for History.';
+  }
+
+  double _displayDelta(double fahrenheitDelta) =>
+      units == Units.fahrenheit ? fahrenheitDelta : fahrenheitDelta * 5 / 9;
+
+  String _probeDeltaLabel(double fahrenheitDelta) {
+    final value = _displayDelta(fahrenheitDelta);
+    final sign = value > 0
+        ? '+'
+        : value < 0
+        ? '-'
+        : '±';
+    return '$sign${value.abs().toStringAsFixed(1)}$unitSuffix';
+  }
+
+  HistoryViewState historyViewFor({bool hasGap = true}) {
+    final fixture = content.history(
+      historyRange,
+      empty: !historyHasData,
+      oneProbe: historyOneProbe,
+      estimated: historyEstimated,
+      missingFromBridge: historyMissingFromBridge,
+      hasGap: hasGap,
+      customStart: historyCustomRange?.start,
+      customEnd: historyCustomRange?.end,
+    );
+    final probes = historyProbe == null
+        ? [1, 2, 3, 4]
+        : [historyProbe!];
+    final stats = probes
+        .map((probe) => ProbeRangeStats.fromSeries(fixture.series[probe - 1]))
+        .toList();
+    final cooks = content.cooks();
+    final activeCook = _currentCook(cooks);
+    final cookReference = activeCook ?? (cooks.isEmpty ? null : cooks.first);
+    _sortStats(stats, activeCook, cookReference);
+    return HistoryViewState(
+      range: historyRange,
+      customRange: historyCustomRange,
+      probe: historyProbe,
+      sort: historySort,
+      fixture: fixture,
+      stats: List<ProbeRangeStats>.unmodifiable(stats),
+      cooks: List<CookSession>.unmodifiable(cooks),
+      activeCook: activeCook,
+      cookReference: cookReference,
+      now: content.now,
+      estimated: historyEstimated,
+      missingFromBridge: historyMissingFromBridge,
+      offline: isOffline,
+      hasAnyHistory: historyHasData,
+      oneProbe: historyOneProbe,
+      units: units,
+      lastSyncedLabel: lastSyncedLabel,
+      entireHistoryRange: entireHistoryRange,
+    );
+  }
+
+  HistoryViewState get historyView => historyViewFor();
+
+  CookSession? _currentCook(List<CookSession> cooks) {
+    if (cooks.isEmpty) return null;
+    final latest = cooks.first;
+    final sinceEnd = content.now.difference(latest.end);
+    if (sinceEnd.isNegative && sinceEnd.inMinutes.abs() > 5) return null;
+    if (sinceEnd.inMinutes > 15) return null;
+    return latest;
+  }
+
+  void _sortStats(
+    List<ProbeRangeStats> stats,
+    CookSession? activeCook,
+    CookSession? cookReference,
+  ) {
+    switch (historySort) {
+      case HistorySort.probe:
+        stats.sort((a, b) => a.probe.compareTo(b.probe));
+        break;
+      case HistorySort.hottest:
+        stats.sort((a, b) {
+          if (a.last == null && b.last == null) return 0;
+          if (a.last == null) return 1;
+          if (b.last == null) return -1;
+          return b.last!.compareTo(a.last!);
+        });
+        break;
+      case HistorySort.highestMax:
+        stats.sort((a, b) {
+          if (a.max == null && b.max == null) return 0;
+          if (a.max == null) return 1;
+          if (b.max == null) return -1;
+          return b.max!.compareTo(a.max!);
+        });
+        break;
+      case HistorySort.recent:
+        stats.sort((a, b) {
+          if (a.lastSampleAt == null && b.lastSampleAt == null) return 0;
+          if (a.lastSampleAt == null) return 1;
+          if (b.lastSampleAt == null) return -1;
+          return b.lastSampleAt!.compareTo(a.lastSampleAt!);
+        });
+        break;
+      case HistorySort.sinceCookStart:
+        bool readingInCook(ProbeRangeStats stat) =>
+            stat.lastSampleAt != null &&
+            (cookReference == null ||
+                !stat.lastSampleAt!.isBefore(cookReference.start));
+        stats.sort((a, b) {
+          final aInCook = readingInCook(a);
+          final bInCook = readingInCook(b);
+          if (aInCook != bInCook) return aInCook ? -1 : 1;
+          if (a.lastSampleAt == null && b.lastSampleAt == null) {
+            return a.probe.compareTo(b.probe);
+          }
+          if (a.lastSampleAt == null) return 1;
+          if (b.lastSampleAt == null) return -1;
+          return b.lastSampleAt!.compareTo(a.lastSampleAt!);
+        });
+        break;
+    }
+  }
+
+  SetupViewState get setupView => SetupViewState(
+    hasSavedData: hasSavedData,
+    savedDataEmpty: savedDataEmpty,
+    phoneRecords: phoneRecords,
+    phoneRecordsLabel: commaInt(phoneRecords),
+    savedDataRange: savedDataRange,
+    savedDataSize: savedDataSize,
+    syncProgressPercent: syncProgressPercent,
+  );
+
+  SettingsViewState get settingsView => SettingsViewState(
+    connected: isConnected,
+    offline: isOffline,
+    phase: phase,
+    deviceName: deviceName,
+    deviceId: deviceId,
+    batteryPercent: batteryPercent,
+    signalBars: signalBars,
+    signalQualityLabel: signalQualityLabel,
+    rssi: rssi,
+    bridgeLinkStatusLabel: bridgeLinkStatusLabel,
+    bridgeLastContactDetail: bridgeLastContactDetail,
+    themeModeLabel: themeModeLabel,
+    units: units,
+    phoneRecords: phoneRecords,
+    bridgeRecords: bridgeRecords,
+    bridgeCapacity: bridgeCapacity,
+    phoneRecordsLabel: commaInt(phoneRecords),
+    bridgeRecordsLabel: commaInt(bridgeRecords),
+    savedDataRange: savedDataRange,
+    savedDataSize: savedDataSize,
+    savedDataEmpty: savedDataEmpty,
+    firmware: firmware,
+    hasSavedData: hasSavedData,
+  );
+
+  BridgeDetailsViewState get bridgeDetailsView => BridgeDetailsViewState(
+    connected: isConnected,
+    offline: isOffline,
+    phase: phase,
+    deviceName: deviceName,
+    deviceId: deviceId,
+    batteryPercent: batteryPercent,
+    signalBars: signalBars,
+    signalQualityLabel: signalQualityLabel,
+    rssi: rssi,
+    bridgeLinkStatusLabel: bridgeLinkStatusLabel,
+    bridgeLastContactDetail: bridgeLastContactDetail,
+    bridgeConnectedForLabel: bridgeConnectedForLabel,
+    lastSyncedLabel: lastSyncedLabel,
+    firmware: firmware,
+    protocol: protocol,
+    slowLink: slowLink,
+    canEdit: canEdit,
+    smokeXLabel: smokeXLabel,
+    smokeXSubtitle: smokeXSubtitle,
+    smokeXReceiving: smokeXReceiving,
+    smokeXStatus: smokeXStatus,
+    billows: _billowsView,
+    displayTimeoutSeconds: displayTimeoutSeconds,
+    displayTimeoutLabel: displayTimeoutLabel,
+    bridgeRecords: bridgeRecords,
+    bridgeCapacity: bridgeCapacity,
+    phoneRecords: phoneRecords,
+    savedDataRange: savedDataRange,
+    savedDataSize: savedDataSize,
+    savedDataEmpty: savedDataEmpty,
+    connectionLog: List<ConnectionEvent>.unmodifiable(connectionLog),
+    billowsLog: List<ConnectionEvent>.unmodifiable(billowsLog),
+  );
+
   void setUnits(Units value) {
     units = value;
     notifyListeners();
@@ -918,8 +1158,11 @@ class BridgeController extends ChangeNotifier {
     displayTimeoutSeconds = 60;
     deviceName = 'Backyard Bridge';
     saveState = SettingsSaveState.idle;
-    bridgeRecords = 24810;
-    phoneRecords = 128430;
+    bridgeRecords = content.bridgeRecords;
+    bridgeCapacity = content.bridgeCapacity;
+    phoneRecords = content.phoneRecords;
+    savedDataRange = content.savedDataRange;
+    savedDataSize = content.savedDataSize;
     if (keepTheme) _themeMode = theme;
     notifyListeners();
   }

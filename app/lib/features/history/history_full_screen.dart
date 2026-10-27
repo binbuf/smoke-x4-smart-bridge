@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/fixtures.dart';
-import '../../prototype/formatters.dart';
 import '../../app/bridge_controller.dart';
 import 'history_chart_panel.dart';
 
@@ -19,19 +17,6 @@ class HistoryFullScreenScreen extends StatelessWidget {
   final bool historical;
   final bool? gapOverride;
 
-  HistoryFixture _fixture() {
-    return buildHistoryFixture(
-      controller.historyRange,
-      empty: !controller.historyHasData,
-      oneProbe: controller.historyOneProbe,
-      estimated: controller.historyEstimated,
-      missingFromBridge: controller.historyMissingFromBridge,
-      hasGap: gapOverride ?? true,
-      customStart: controller.historyCustomRange?.start,
-      customEnd: controller.historyCustomRange?.end,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -39,31 +24,15 @@ class HistoryFullScreenScreen extends StatelessWidget {
       builder: (context, _) {
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
-        final fixture = _fixture();
+        final view = controller.historyViewFor(hasGap: gapOverride ?? true);
         final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
-        final window = historyWindowLabel(
-          controller.historyRange,
-          fixture.start,
-          fixture.end,
-          use24Hour: use24Hour,
-        );
-        final probeCount = controller.historyProbe == null ? 4 : 1;
-        final dataProbeCount = controller.historyProbe == null
-            ? fixture.series
-                  .where(
-                    (series) =>
-                        series.points.any((point) => point.valueF != null),
-                  )
-                  .length
-            : (fixture.seriesHasValues(controller.historyProbe! - 1) ? 1 : 0);
-        final probeMeta = dataProbeCount == probeCount
-            ? '$probeCount ${probeCount == 1 ? 'probe' : 'probes'}'
-            : '$dataProbeCount of $probeCount ${probeCount == 1 ? 'probe' : 'probes'}';
-        final metaLead = !fixture.hasValues
+        final window = view.windowLabel(use24Hour: use24Hour);
+        final probeMeta = view.probeMeta;
+        final metaLead = view.noData
             ? 'No readings'
             : historical
             ? 'Recorded history'
-            : controller.lastSyncedLabel;
+            : view.lastSyncedLabel;
 
         return Scaffold(
           backgroundColor: scheme.surface,
@@ -74,8 +43,7 @@ class HistoryFullScreenScreen extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(10, 54, 10, 8),
                     child: HistoryChartPanel(
-                      controller: controller,
-                      fixture: fixture,
+                      view: view,
                       expanded: true,
                       historical: historical,
                     ),

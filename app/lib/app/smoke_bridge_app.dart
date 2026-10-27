@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'lab_gate.dart';
 import '../features/shell/app_shell.dart';
 import '../theme/app_theme.dart';
 import 'bridge_controller.dart';
@@ -7,9 +8,14 @@ import 'bridge_controller.dart';
 /// The production app widget: the approved Material 3 shell, driven by
 /// [BridgeController].
 class SmokeBridgeApp extends StatelessWidget {
-  const SmokeBridgeApp({super.key, required this.controller});
+  const SmokeBridgeApp({
+    super.key,
+    required this.controller,
+    this.enableExperimentalLab = experimentalLabEnabled,
+  });
 
   final BridgeController controller;
+  final bool enableExperimentalLab;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +28,10 @@ class SmokeBridgeApp extends StatelessWidget {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: controller.themeMode,
-          home: AppShell(controller: controller),
+          home: AppShell(
+            controller: controller,
+            enableExperimentalLab: enableExperimentalLab,
+          ),
         );
       },
     );

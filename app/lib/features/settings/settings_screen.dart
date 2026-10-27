@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/formatters.dart';
-import '../../prototype/lab_gate.dart';
 import '../../app/bridge_controller.dart';
-import '../../prototype/scenario_lab.dart';
+import '../../app/view_state.dart';
+import '../../app/lab_gate.dart';
+import '../../debug/scenario_lab.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_widgets.dart';
 import 'bridge_details.dart';
@@ -11,15 +11,21 @@ import 'settings_details.dart';
 import 'settings_views.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.controller});
+  const SettingsScreen({
+    super.key,
+    required this.controller,
+    this.enableExperimentalLab = experimentalLabEnabled,
+  });
 
   final BridgeController controller;
+  final bool enableExperimentalLab;
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final view = controller.settingsView;
         final scheme = Theme.of(context).colorScheme;
         return ListView(
           children: [
@@ -30,7 +36,7 @@ class SettingsScreen extends StatelessWidget {
                   SettingsGroup(
                     title: 'Bridge',
                     header: _BridgeStatusHeader(
-                      controller: controller,
+                      view: view,
                       onOpen: () => _push(
                         context,
                         BridgeDetailsScreen(controller: controller),
@@ -46,7 +52,7 @@ class SettingsScreen extends StatelessWidget {
                         icon: Icons.sd_storage_outlined,
                         title: 'Storage',
                         subtitle:
-                            '${commaInt(controller.phoneRecords)} readings on this phone · ${commaInt(controller.bridgeRecords)} on the Bridge',
+                            '${view.phoneRecordsLabel} readings on this phone · ${view.bridgeRecordsLabel} on the Bridge',
                         onTap: () => _push(
                           context,
                           HistoryStorageScreen(controller: controller),
@@ -57,12 +63,12 @@ class SettingsScreen extends StatelessWidget {
                   SettingsGroup(
                     title: 'Preferences',
                     children: [
-                      _UnitsTile(controller: controller),
+                      _UnitsTile(view: view, controller: controller),
                       SettingsTile(
                         key: const Key('settings.appearance'),
                         icon: Icons.palette_outlined,
                         title: 'Appearance',
-                        subtitle: controller.themeModeLabel,
+                        subtitle: view.themeModeLabel,
                         onTap: () => _push(
                           context,
                           AppearanceScreen(controller: controller),
@@ -76,12 +82,12 @@ class SettingsScreen extends StatelessWidget {
                       SettingsTile(
                         icon: Icons.info_outline,
                         title: 'About this app',
-                        subtitle: 'App 0.1.0 · Firmware ${controller.firmware}',
+                        subtitle: 'App 0.1.0 · Firmware ${view.firmware}',
                         onTap: () => _push(
                           context,
                           AboutScreen(
                             controller: controller,
-                            onOpenLab: experimentalLabEnabled
+                            onOpenLab: enableExperimentalLab
                                 ? () => _push(
                                     context,
                                     ScenarioLabScreen(controller: controller),
@@ -115,20 +121,20 @@ class SettingsScreen extends StatelessWidget {
 }
 
 class _BridgeStatusHeader extends StatelessWidget {
-  const _BridgeStatusHeader({required this.controller, required this.onOpen});
+  const _BridgeStatusHeader({required this.view, required this.onOpen});
 
-  final BridgeController controller;
+  final SettingsViewState view;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final connected = controller.isConnected;
+    final connected = view.connected;
     final color = connected
         ? StatusColors.live(context)
-        : controller.phase == ConnectionPhase.reconnecting
+        : view.phase == ConnectionPhase.reconnecting
         ? StatusColors.aging(context)
-        : controller.phase == ConnectionPhase.blocked
+        : view.phase == ConnectionPhase.blocked
         ? scheme.error
         : StatusColors.stale(context);
 
@@ -157,13 +163,13 @@ class _BridgeStatusHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        controller.deviceName,
+                        view.deviceName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text(
-                        'Bridge ${controller.deviceId}',
+                        'Bridge ${view.deviceId}',
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
@@ -183,14 +189,14 @@ class _BridgeStatusHeader extends StatelessWidget {
                 StatusLed(color: color, active: connected),
                 const SizedBox(width: 2),
                 Text(
-                  controller.bridgeLinkStatusLabel,
+                  view.bridgeLinkStatusLabel,
                   style: Theme.of(context).textTheme.labelSmall
                       ?.copyWith(color: color, fontWeight: FontWeight.w800),
                 ),
                 const Spacer(),
                 if (connected)
                   Text(
-                    'Battery ${controller.batteryPercent}%',
+                    'Battery ${view.batteryPercent}%',
                     style: Theme.of(context).textTheme.labelSmall
                         ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
@@ -209,14 +215,14 @@ class _BridgeStatusHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 9),
                   SignalBars(
-                    level: controller.signalBars,
-                    color: StatusColors.signal(context, controller.signalBars),
+                    level: view.signalBars,
+                    color: StatusColors.signal(context, view.signalBars),
                     semanticLabel:
-                        '${controller.signalQualityLabel} signal, ${controller.rssi} dBm',
+                        '${view.signalQualityLabel} signal, ${view.rssi} dBm',
                   ),
                   const SizedBox(width: 7),
                   Text(
-                    controller.signalQualityLabel,
+                    view.signalQualityLabel,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
@@ -227,7 +233,7 @@ class _BridgeStatusHeader extends StatelessWidget {
             ],
             const SizedBox(height: 3),
             Text(
-              controller.bridgeLastContactDetail,
+              view.bridgeLastContactDetail,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),
@@ -239,8 +245,9 @@ class _BridgeStatusHeader extends StatelessWidget {
 }
 
 class _UnitsTile extends StatelessWidget {
-  const _UnitsTile({required this.controller});
+  const _UnitsTile({required this.view, required this.controller});
 
+  final SettingsViewState view;
   final BridgeController controller;
 
   @override
@@ -264,7 +271,7 @@ class _UnitsTile extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     Text(
-                      controller.isConnected
+                      view.connected
                           ? 'All temperatures, including the Bridge screen.'
                           : 'The Bridge screen will update when you reconnect.',
                       style: Theme.of(context).textTheme.bodySmall
@@ -285,7 +292,7 @@ class _UnitsTile extends StatelessWidget {
                 ButtonSegment(value: Units.fahrenheit, label: Text('°F')),
                 ButtonSegment(value: Units.celsius, label: Text('°C')),
               ],
-              selected: {controller.units},
+              selected: {view.units},
               onSelectionChanged: (selection) =>
                   controller.setUnits(selection.first),
             ),
