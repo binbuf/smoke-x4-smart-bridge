@@ -21,7 +21,9 @@ ctest --test-dir firmware/test/build --output-on-failure
 | `test_log_io_ram.c` | exercises the RAM `log_io` fake (bounds, erase, counters, torn operations) |
 | `test_tasks.c` | checks the `firmware/main/tasks.h` table, stack total and 24 KiB budget |
 | `test_sx_radio_rx.c` | injects real/edge-case frames into the radio-to-parser seam and checks the LoRa parameter block |
+| `test_sx_radio_pair.c` | drives the pairing FSM through scan/pair/LOST, the 902–928 MHz gate, persistence and the single-TX call-site guard |
 | `test_sx_protocol.c` | replays every `parser-vectors.tsv` row and real capture through the product parser (`sx_protocol_parse_state`/`_sync`) |
+| `test_bridge_config.c` | runs the typed NVS store against a RAM key/value fake (validation, migration, reset table) |
 | `support/lora_corpus.*` | `.loralog` and vector-file readers for tests |
 | `support/ram_log_io.*` | RAM-backed `log_io` implementation |
 | `support/test_util.*` | small `CHECK` macros and summary |

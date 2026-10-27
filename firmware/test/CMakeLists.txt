@@ -87,6 +87,25 @@ target_compile_definitions(test_sx_protocol PRIVATE
 )
 add_test(NAME sx-protocol COMMAND test_sx_protocol)
 
+# The pairing FSM is pure C over radio/NVS/time callback seams (T16). The host
+# test uses RAM/radio fakes; no ESP-IDF and no board.
+add_library(sx4_radio_pair STATIC
+    "${REPO_ROOT}/firmware/components/sx_radio/sx_radio_pair.c"
+)
+target_include_directories(sx4_radio_pair
+    PUBLIC "${REPO_ROOT}/firmware/components/sx_radio/include"
+)
+target_link_libraries(sx4_radio_pair PUBLIC sx4_sx_protocol sx4_radio_core)
+
+add_executable(test_sx_radio_pair test_sx_radio_pair.c)
+target_link_libraries(test_sx_radio_pair
+    PRIVATE sx4_radio_pair sx4_test_support
+)
+target_compile_definitions(test_sx_radio_pair PRIVATE
+    SX4_RADIO_SRC_DIR="${REPO_ROOT}/firmware/components/sx_radio"
+)
+add_test(NAME sx-radio-pair COMMAND test_sx_radio_pair)
+
 # bridge_config's core is plain C11 over a byte-oriented KV seam; the host
 # test supplies a RAM backend, the firmware links the NVS adapter.
 add_library(sx4_bridge_config STATIC

@@ -7,8 +7,9 @@
  * the RX path performs no heap allocation.
  *
  * The task polls with vTaskDelay(1); DIO1 is not used (post-MVP optimization).
- * Incoming payloads are untrusted bytes: this layer publishes length, bytes,
- * RSSI and SNR and does not parse the CSV.
+ * Incoming payloads are untrusted bytes. Every frame is offered to the pairing
+ * FSM (T16) and then published with length, bytes, RSSI and SNR through the
+ * raw seam; the sample/parser task owns record building.
  */
 #include "sx_radio.h"
 
@@ -16,12 +17,20 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "bridge_config.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ra01s.h"
+#include "sx_protocol.h"
+#include "sx_radio_pair.h"
 
 static const char *TAG = "sx4.radio";
+
+static uint64_t pair_now_ms(void) {
+    return (uint64_t)(esp_timer_get_time() / 1000);
+}
 
 /* LoRaReceive()/ReadBuffer() in ra01s mallocs; these primitives do not. */
 #define SX4_RX_SCRATCH_BYTES (SX4_RADIO_MAX_PAYLOAD + 3u)
@@ -30,6 +39,78 @@ static uint8_t s_scratch[SX4_RX_SCRATCH_BYTES];
 static uint32_t s_frequency_hz = SX4_RADIO_DEFAULT_FREQUENCY_HZ;
 static bool s_configured;
 static bool s_started;
+
+/*
+ * Pairing persistence adapter. bridge_config is the only NVS owner; paired_at
+ * is left unknown (0) because this task has no wall clock (T20 owns UTC).
+ */
+static bool pair_load(void *ctx, sx4_pair_record_t *out) {
+    (void)ctx;
+    bridge_config_pairing_t stored;
+    if (bridge_config_get_pairing(&stored) != BRIDGE_CONFIG_OK ||
+        !stored.paired) {
+        return false;
+    }
+    memset(out, 0, sizeof *out);
+    memcpy(out->device_id, stored.device_id, sizeof out->device_id - 1u);
+    out->frequency_hz = stored.frequency_hz;
+    out->num_probes = stored.num_probes;
+    return true;
+}
+
+static bool pair_save(void *ctx, const sx4_pair_record_t *record) {
+    (void)ctx;
+    bridge_config_pairing_t stored;
+    memset(&stored, 0, sizeof stored);
+    memcpy(stored.device_id, record->device_id,
+           strnlen(record->device_id, BRIDGE_CONFIG_DEVICE_ID_MAX));
+    stored.frequency_hz = record->frequency_hz;
+    stored.num_probes = record->num_probes;
+    stored.paired_at = 0;
+    return bridge_config_set_pairing(&stored) == BRIDGE_CONFIG_OK;
+}
+
+static bool pair_clear(void *ctx) {
+    (void)ctx;
+    return bridge_config_clear_pairing() == BRIDGE_CONFIG_OK;
+}
+
+static bool pair_tune(void *ctx, uint32_t frequency_hz) {
+    (void)ctx;
+    return sx_radio_set_frequency(frequency_hz) == ESP_OK;
+}
+
+/*
+ * The product's only LoRa transmission. It is reachable only through the
+ * pairing FSM's send_ack callback, and the FSM calls that callback only from
+ * the sync-beacon branch.
+ */
+static bool pair_send_ack(void *ctx, const char *ack, size_t length) {
+    (void)ctx;
+    if (!s_configured || ack == NULL || length == 0 ||
+        length > (size_t)INT16_MAX) {
+        return false;
+    }
+    bool sent = LoRaSend((uint8_t *)ack, (int16_t)length,
+                         SX126x_TXMODE_SYNC);
+    if (sent) {
+        ESP_LOGI(TAG, "pair ACK sent on %lu Hz",
+                 (unsigned long)s_frequency_hz);
+    } else {
+        ESP_LOGW(TAG, "pair ACK failed on %lu Hz",
+                 (unsigned long)s_frequency_hz);
+    }
+    return sent;
+}
+
+static const sx4_radio_pair_io_t s_pair_io = {
+    .ctx = NULL,
+    .load = pair_load,
+    .save = pair_save,
+    .clear = pair_clear,
+    .tune = pair_tune,
+    .send_ack = pair_send_ack,
+};
 
 static void log_payload(const uint8_t *payload, uint8_t length) {
     char text[SX4_RADIO_MAX_PAYLOAD + 1];
@@ -80,6 +161,10 @@ static void radio_task(void *argument) {
                     int8_t rssi = 0;
                     int8_t snr = 0;
                     GetPacketStatus(&rssi, &snr);
+                    /* Pairing consumes sync/state frames; the seam below still
+                     * carries the raw bytes to the sample pipeline (T21). */
+                    (void)sx4_radio_pair_on_packet(payload, length,
+                                                   pair_now_ms());
                     if (sx4_radio_rx_publish(payload, length, rssi, snr)) {
                         ESP_LOGI(TAG, "rx len=%u rssi=%d snr=%d", length,
                                  rssi, snr);
@@ -97,12 +182,20 @@ static void radio_task(void *argument) {
             }
             rearm_receive();
         }
+        sx4_radio_pair_tick(pair_now_ms());
         vTaskDelay(SX4_RADIO_POLL_DELAY_TICKS);
     }
 }
 
 esp_err_t sx_radio_init(void) {
     sx4_radio_rx_reset();
+
+    /* Load pairing before the SX1262 is configured: the FSM's tune callback
+     * sets s_frequency_hz (and is a no-op on the hardware until configured). */
+    if (!sx4_radio_pair_init(&s_pair_io, pair_now_ms())) {
+        ESP_LOGE(TAG, "pairing state init failed");
+        return ESP_FAIL;
+    }
 
     LoRaInit();
     int16_t status = LoRaBegin(s_frequency_hz, 22, sx4_radio_params.tcxo_voltage,

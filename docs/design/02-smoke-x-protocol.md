@@ -282,6 +282,20 @@ Rules:
    different unit is worse than a visible "Smoke X4 lost" state. The Re-pair
    action is the recovery path.
 
+Implementation (T16, ADR 0024):
+`firmware/components/sx_radio/sx_radio_pair.c` is the pure-C FSM. It consumes
+one received payload through `sx4_radio_pair_on_packet()` and classifies it by
+comma count. While `UNPAIRED`, `sx4_radio_pair_tick()` alternates 915/920 MHz
+every 3.3 s. A 6-comma beacon is parsed, range-checked (902–928 MHz), ACKed
+once on the operating channel and moves the FSM to `SYNC_RECEIVED`. The first
+matching 26-comma (X4) state packet supplies `num_probes` (4; the defensive 16
+comma X2 shape gives 2), is persisted through `bridge_config`, and moves the
+FSM to `PAIRED`. Ten minutes without a valid state packet enters `LOST` without
+retuning or clearing the record; the next valid packet returns to `PAIRED`.
+The sync handler is the only call to the transmit callback, and `sx_radio.c`
+keeps the only `LoRaSend()` call behind it; the `sx-radio-pair` host test
+guards both.
+
 ## 2.8 Timing, gaps, and packet accounting
 
 - Nominal cadence: 30 s.
