@@ -221,7 +221,7 @@ int sx4_vectors_read(const char *path, sx4_parser_vector_t *out, size_t max,
     int rc = 0;
     while (fgets(line, sizeof line, f) != NULL) {
         line_no++;
-        if (strchr(line, '\n') == NULL && !feof(f)) {
+        if (strchr(line, '\n') == NULL && strlen(line) == sizeof line - 1) {
             rc = -1;
             break;
         }

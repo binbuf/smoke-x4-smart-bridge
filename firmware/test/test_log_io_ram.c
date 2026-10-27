@@ -83,11 +83,12 @@ static void test_erase(void) {
     CHECK_EQ_UINT(ram.erase_calls, 1);
     CHECK_EQ_UINT(ram.bytes_erased, SECTOR_SIZE);
 
-    /* Unaligned and zero-length erases are refused before touching storage. */
+    /* Unaligned erases are refused before touching storage; a zero-length
+     * aligned erase is a no-op, matching read/write. */
     memset(g_storage + 3u * SECTOR_SIZE, 0x00, SECTOR_SIZE);
     CHECK_EQ_INT(log_io_erase(&io, 3u * SECTOR_SIZE + 1u, SECTOR_SIZE),
                  LOG_IO_ERR_RANGE);
-    CHECK_EQ_INT(log_io_erase(&io, 3u * SECTOR_SIZE, 0), LOG_IO_ERR_RANGE);
+    CHECK_EQ_INT(log_io_erase(&io, 3u * SECTOR_SIZE, 0), LOG_IO_OK);
     CHECK_EQ_INT(log_io_erase(&io, CAPACITY, SECTOR_SIZE), LOG_IO_ERR_RANGE);
     CHECK(all_bytes(g_storage + 3u * SECTOR_SIZE, SECTOR_SIZE, 0x00));
 }

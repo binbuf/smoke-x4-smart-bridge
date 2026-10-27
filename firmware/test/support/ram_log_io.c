@@ -71,7 +71,7 @@ static int ram_erase(void *ctx, uint32_t offset, size_t len) {
     ram_log_io_t *ram = ctx;
     ram->erase_calls++;
     if (ram->sector_size == 0 || offset % ram->sector_size != 0 ||
-        len == 0 || len % ram->sector_size != 0) {
+        len % ram->sector_size != 0) {
         return LOG_IO_ERR_RANGE;
     }
     if (!range_ok(ram, offset, len)) {
