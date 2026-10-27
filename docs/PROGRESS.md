@@ -8,6 +8,7 @@
 - **T03 — Host test harness and fixtures**: `firmware/test` plain CMake/C11 project; `ctest` is the entry point.; `records` compiles `protocol/test/test_records.c` directly against
 - **T04 — Firmware skeleton and partition table**: ESP-IDF 6.0.2 project root `firmware/CMakeLists.txt` targeting `esp32s3`.; `firmware/main/`:
 - **T05 — App skeleton**: Production entrypoint: `app/lib/main.dart` → `app/lib/app/bootstrap.dart`.; `app/lib/app/bridge_controller.dart` is now the single
+- **T06 — UI baseline and view-model seam**: Production view state in `app/lib/app/view_state.dart`: immutable; Screens and shared widgets now render view state: Live, History, full-screen
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -16,6 +17,7 @@
 - [T03](progress/T03.md) — `firmware/test` plain CMake/C11 project; `ctest` is the entry point.
 - [T04](progress/T04.md) — ESP-IDF 6.0.2 project root `firmware/CMakeLists.txt` targeting `esp32s3`.
 - [T05](progress/T05.md) — Production entrypoint: `app/lib/main.dart` → `app/lib/app/bootstrap.dart`.
+- [T06](progress/T06.md) — Production view state in `app/lib/app/view_state.dart`: immutable
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

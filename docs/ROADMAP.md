@@ -22,7 +22,7 @@ feature lands here, but every later task has a place to land.
 - [x] T03 — Host test harness and fixtures → [tasks/03-host-test-harness.md](tasks/03-host-test-harness.md)
 - [x] T04 — Firmware skeleton and partition table → [tasks/04-firmware-skeleton.md](tasks/04-firmware-skeleton.md)
 - [x] T05 — App skeleton → [tasks/05-app-skeleton.md](tasks/05-app-skeleton.md)
-- [ ] T06 — UI baseline and view-model seam → [tasks/06-ui-baseline-view-model-seam.md](tasks/06-ui-baseline-view-model-seam.md)
+- [x] T06 — UI baseline and view-model seam → [tasks/06-ui-baseline-view-model-seam.md](tasks/06-ui-baseline-view-model-seam.md)
 - [ ] T07 — BLE fake and app test seam → [tasks/07-ble-fake-app-test-seam.md](tasks/07-ble-fake-app-test-seam.md)
 - [ ] T08 — CI → [tasks/08-ci.md](tasks/08-ci.md)
 - [ ] T09 — Board identity, bench rig, and deep-sleep gate → [tasks/09-board-identity-bench-rig.md](tasks/09-board-identity-bench-rig.md)
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T01:15:08Z · 5/67 done
+**Pipeline status** — updated 2026-10-27T01:38:38Z · 6/67 done
 
-- Completed: T01, T02, T03, T04, T05
+- Completed: T01, T02, T03, T04, T05, T06
 - Blocked: none
 - Failed: none
-- Remaining: T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T05 — done · Production Android app skeleton with BridgeController, repository/DB seams, approved shell, Docker-free analyze/test workflow, and 31 passing tests; fixture cleanup delegated to T06.
+- Remaining: T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T06 — done · T06 committed (d8968b2): screens render immutable view models, fixtures/lab are debug-gated, formatters promoted, analyze/test/screenshots pass.
 <!-- /symphony:status -->
