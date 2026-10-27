@@ -39,6 +39,7 @@
 - **T37 — Bench: V0 residual physical gate**: **Date:** 2026-10-27 · **Verification:** real Pixel 11 Pro Fold + Heltec V3 +; Phone: Pixel 11 Pro Fold, Android 17 / API 37, wireless ADB
 - **T39 — ble_service: full sync cursor, gap, and generation**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/ble_sync.c`:
 - **T40 — app local database and DAO**: `app/lib/data/db/app_database.dart`; schema version bumped `1` → `2`; version 1 was the empty T05 open path.
+- **T41 — app repository and two-phase sync**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done; `app/lib/data/sync/archive_sync.dart`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -78,6 +79,7 @@
 - [T37](progress/T37.md) — **Date:** 2026-10-27 · **Verification:** real Pixel 11 Pro Fold + Heltec V3 +
 - [T39](progress/T39.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T40](progress/T40.md) — `app/lib/data/db/app_database.dart`
+- [T41](progress/T41.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/
