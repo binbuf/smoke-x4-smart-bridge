@@ -189,7 +189,9 @@ class HistoryViewState {
 
   bool get hasValues => fixture.hasValues;
 
-  bool get noData => !fixture.hasValues;
+  bool get noData => !hasAnyHistory;
+
+  bool get noDataInRange => hasAnyHistory && !fixture.hasValues;
 
   bool get noProbeData =>
       probe != null && !fixture.seriesHasValues(probe! - 1);
