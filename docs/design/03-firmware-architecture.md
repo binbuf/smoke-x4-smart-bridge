@@ -154,6 +154,14 @@ without a valid state packet. The radio stays tuned; a returning packet moves
 back to `PAIRED`. `PAIRED` or `LOST` → `UNPAIRED` happens only through the
 app's `unpair_smoke_x` op; a reboot does not clear pairing.
 
+Implementation (T16, ADR 0024): the FSM is `sx_radio_pair.c`, pure C11 with
+callback seams for tune, NVS load/save/clear and ACK transmit. `sx_radio.c`
+installs the `bridge_config` and SX1262 adapters and feeds every received frame
+to `sx4_radio_pair_on_packet()` before publishing it to the sample seam;
+`sx4_radio_pair_tick()` drives the 3.3 s scan and the 10-minute timeout. The
+pairing ACK is the only LoRa transmission and the sync handler is its only call
+path.
+
 ### 3.5.4 Storage state
 
 `OK → NEAR_FULL → READ_ONLY` (unrecoverable flash error) or `OK → ROTATING`.
@@ -188,6 +196,10 @@ Rules:
 - The parser rejects malformed input; counters increment; no partial record is
   written.
 - Device ID mismatch is dropped and counted.
+- Pairing owns sync/state acceptance: the radio task passes each frame to the
+  pairing FSM first (T16), which may retune and ACK a sync beacon, learn the
+  probe count and persist the pairing. The same raw frame still goes through
+  the seam to `sample_pipe`; there is no second TX path.
 - Detached probes become `TEMP_DETACHED` before the record is built.
 - Celsius packets are converted to canonical °F tenths before the record is
   built; `source_celsius` is provenance only. Billows `max` remains a

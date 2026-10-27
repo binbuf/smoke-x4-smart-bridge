@@ -14,16 +14,16 @@ The bridge pairs with one real Smoke X4 through the sync-beacon handshake, persi
 - Depends on T13 and T15.
 
 ## Scope
-- [ ] Implement `UNPAIRED → SYNC_RECEIVED → CONFIRMED/PAIRED` and the `LOST` state.
-- [ ] While unpaired, alternate the sync scan between **915 MHz** and **920 MHz** every **3.3 s**.
-- [ ] On a sync beacon, parse the device ID and the four little-endian frequency bytes; decode the operating frequency (for example `160,50,191,54` → `918,500,000 Hz`).
-- [ ] Validate the decoded frequency against **902–928 MHz** before any retune or transmit.
-- [ ] Retune to the operating frequency and send exactly one ACK of the form `<device_id>,SUCCESS,` with a trailing comma.
-- [ ] Learn `num_probes` from the comma count of the first state message, not from the sync beacon.
-- [ ] Persist `{device_id, frequency_hz, num_probes}` only after `CONFIRMED`.
-- [ ] Enter `LOST` after **10 minutes** without a valid state packet; keep the radio tuned and return to `PAIRED` when packets resume.
-- [ ] Make the sync handler the only call path to the radio TX function.
-- [ ] Add a host test asserting no other path can reach TX and that an out-of-band frequency never retunes or transmits.
+- [x] Implement `UNPAIRED → SYNC_RECEIVED → CONFIRMED/PAIRED` and the `LOST` state.
+- [x] While unpaired, alternate the sync scan between **915 MHz** and **920 MHz** every **3.3 s**.
+- [x] On a sync beacon, parse the device ID and the four little-endian frequency bytes; decode the operating frequency (for example `160,50,191,54` → `918,500,000 Hz`).
+- [x] Validate the decoded frequency against **902–928 MHz** before any retune or transmit.
+- [x] Retune to the operating frequency and send exactly one ACK of the form `<device_id>,SUCCESS,` with a trailing comma.
+- [x] Learn `num_probes` from the comma count of the first state message, not from the sync beacon.
+- [x] Persist `{device_id, frequency_hz, num_probes}` only after `CONFIRMED`.
+- [x] Enter `LOST` after **10 minutes** without a valid state packet; keep the radio tuned and return to `PAIRED` when packets resume.
+- [x] Make the sync handler the only call path to the radio TX function.
+- [x] Add a host test asserting no other path can reach TX and that an out-of-band frequency never retunes or transmits.
 - [x] On the board, pair a real X4 and confirm the stock receiver keeps
       updating. **Deferred to T37**; the host FSM/TX-guard tests are the gate.
 
@@ -51,22 +51,59 @@ The bridge pairs with one real Smoke X4 through the sync-beacon handshake, persi
 - Pairing data is independent of log data: clearing the log or forgetting phones does not unpair the X4.
 
 ## Done when
-- [ ] The host test asserts that no path other than the sync handler reaches TX.
-- [ ] An out-of-band frequency never retunes and never transmits.
+- [x] The host test asserts that no path other than the sync handler reaches TX.
+- [x] An out-of-band frequency never retunes and never transmits.
 - [x] A real X4 pairs on the board and the stock receiver keeps updating.
       **Deferred to T37** (the first human bench gate). T16 is accepted on the
       host FSM/TX-guard evidence; the X4 is left on but is not put into SYNC
       during the unattended run.
 - [x] A silent paired X4 enters `LOST` after 10 minutes and returns to `PAIRED`
       on the next valid packet. Host-test only; the real 10-minute wait is T37.
-- [ ] `{device_id, frequency_hz, num_probes}` survives a reboot.
-- [ ] Host tests pass:
+- [x] `{device_id, frequency_hz, num_probes}` survives a reboot.
+      Host-test evidence: the fake store reloads the saved record into a fresh
+      FSM, which tunes the stored frequency and stays `PAIRED`.
+- [x] Host tests pass:
   ```bash
   cmake -S firmware/test -B firmware/test/build -G Ninja
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+Landed:
+- `firmware/components/sx_radio/include/sx_radio_pair.h` and
+  `sx_radio_pair.c`: pure-C FSM (`UNPAIRED → SYNC_RECEIVED → PAIRED`, `LOST`),
+  3.3 s 915/920 scan, 902–928 MHz validation, one-shot `<id>,SUCCESS,` ACK,
+  probe learning from the first state message, persistence only on confirm,
+  10-minute LOST timeout with the radio kept tuned, and unpair/scan restart.
+  The transmit callback has exactly one call site, in the sync handler.
+- `firmware/components/sx_radio/sx_radio.c`: `bridge_config` adapters, the only
+  `LoRaSend()` call (private ACK adapter), boot-time pairing load/tune, and RX
+  task wiring (`on_packet` + `tick`). The raw frame still reaches the seam.
+- `firmware/test/test_sx_radio_pair.c` (`sx-radio-pair` CTest): 11 scenarios,
+  including out-of-band no-tune/no-TX, reboot persistence, LOST/recovery and a
+  source-level single-TX-call-site guard.
+- Docs: design 02 §2.7, design 03 §3.5.3/§3.6, ADR 0024, progress T16.
+
+Deviations:
+- The real-X4 pairing and the real 10-minute wait stay deferred to T37 per the
+  task file; host FSM evidence is the gate here.
+- `paired_at` persists as 0 (unknown) because the radio task has no wall clock;
+  no acceptance item needs it.
+
+Checks:
+- Host: `cmake -S firmware/test -B firmware/test/build -G Ninja`,
+  `cmake --build firmware/test/build`, `ctest --test-dir firmware/test/build
+  --output-on-failure` → 8/8 passed.
+- Firmware: `idf.py -B build
+  "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build`
+  → complete; image guard ok; `sx4_bridge.bin` 0x3aa70 bytes.
+
+Remaining work:
+- T37 bench: real X4 pair + stock-receiver continuity; real silence → LOST →
+  packet → PAIRED.
+- T21 must consume the raw seam and skip sync/ACK frames; it must not call the
+  pairing FSM again.
+- M4 (T47–T55) must serialize `unpair_smoke_x` with the radio task.
+
