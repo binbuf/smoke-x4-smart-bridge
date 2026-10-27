@@ -20,12 +20,7 @@ class LiveScreen extends StatelessWidget {
         final view = controller.liveView;
         return RefreshIndicator(
           onRefresh: () async {
-            if (view.isOffline) {
-              controller.retryConnection();
-            } else {
-              controller.simulateSync();
-            }
-            await Future<void>.delayed(const Duration(milliseconds: 900));
+            await controller.refreshLink();
           },
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -43,14 +38,40 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (view.isOffline && !view.showSavedReadings) ...[
+                    if (view.phase == ConnectionPhase.failed) ...[
+                      const SizedBox(height: 10),
+                      InlineNotice(
+                        key: const Key('live.unreachable'),
+                        icon: Icons.link_off,
+                        color: Theme.of(context).colorScheme.error,
+                        title: 'Can’t reach the Bridge',
+                        message: 'The app tried six times. Recording continues on the Bridge. Move closer and try again, or forget this phone and set it up again.',
+                        action: Wrap(
+                          spacing: 4,
+                          children: [
+                            TextButton(
+                              key: const Key('live.unreachable.retry'),
+                              onPressed: controller.refreshLink,
+                              child: const Text('Retry'),
+                            ),
+                            TextButton(
+                              key: const Key('live.unreachable.forget'),
+                              onPressed: controller.forgetPhone,
+                              child: const Text('Forget this phone'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (view.isOffline &&
+                        !view.showSavedReadings &&
+                        view.phase != ConnectionPhase.failed) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         key: const Key('live.noCache'),
                         icon: Icons.cloud_off_outlined,
                         title: 'Nothing saved yet',
-                        message:
-                            'This phone has no saved readings. Connect to your Bridge to see live values.',
+                        message: 'This phone has no saved readings. Connect to your Bridge to see live values.',
                         action: TextButton(
                           onPressed: controller.retryConnection,
                           child: const Text('Retry'),
@@ -83,7 +104,7 @@ class LiveScreen extends StatelessWidget {
                         title: 'History sync failed',
                         message: 'Live readings are still updating. Retry when the Bluetooth connection is stable.',
                         action: TextButton(
-                          onPressed: controller.retryConnection,
+                          onPressed: controller.refreshLink,
                           child: const Text('Retry sync'),
                         ),
                       ),
@@ -326,38 +347,38 @@ class _ConnectionCard extends StatelessWidget {
                         ],
                       ),
                       if (view.isConnected || view.showSavedReadings) ...[
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Icon(
-                            view.isConnected ? Icons.sensors : Icons.history,
-                            size: 15,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              view.telemetryStatusLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color:
-                                        view.isConnected &&
-                                            !view.smokeXReceiving
-                                        ? StatusColors.aging(context)
-                                        : scheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                          if (!view.isConnected)
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
                             Icon(
-                              Icons.chevron_right,
-                              size: 18,
+                              view.isConnected ? Icons.sensors : Icons.history,
+                              size: 15,
                               color: scheme.onSurfaceVariant,
                             ),
-                        ],
-                      ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                view.telemetryStatusLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color:
+                                          view.isConnected &&
+                                              !view.smokeXReceiving
+                                          ? StatusColors.aging(context)
+                                          : scheme.onSurfaceVariant,
+                                    ),
+                              ),
+                            ),
+                            if (!view.isConnected)
+                              Icon(
+                                Icons.chevron_right,
+                                size: 18,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                          ],
+                        ),
                       ],
                     ],
                   ),

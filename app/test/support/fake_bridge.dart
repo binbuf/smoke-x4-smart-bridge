@@ -31,6 +31,10 @@ class FakeBridge implements FakeGattServer {
     this.uptimeS = 4021,
     this.packetsOk = 420,
     this.packetsBad = 3,
+    this.clockValid = true,
+    this.billowsAttached = true,
+    this.dropControlResults = false,
+    this.forcedControlStatus,
     int mtu = bleMtuDefault,
   }) : _tempsF10 = List<int>.from(
          tempsF10 ?? const <int>[2250, 1652, tempDetached, 800],
@@ -59,6 +63,21 @@ class FakeBridge implements FakeGattServer {
   int ageS;
   int seq;
 
+  /// `live.clock_valid`. A bridge that lost power reports false, which forces
+  /// `set_time` on the next connect.
+  bool clockValid;
+  bool billowsAttached;
+
+  /// Scripts a `result` that never arrives, to prove the 3 s control timeout.
+  bool dropControlResults;
+
+  /// Overrides the status of every control result when set.
+  ResultStatus? forcedControlStatus;
+
+  final List<Control> controlWrites = <Control>[];
+  final List<Uint8List> controlBodies = <Uint8List>[];
+  final List<SyncCtrl> syncRequests = <SyncCtrl>[];
+
   final List<int> _tempsF10;
   int _billowsTargetF10;
   Config _config;
@@ -77,8 +96,8 @@ class FakeBridge implements FakeGattServer {
     flags:
         liveFlagSmokePaired |
         liveFlagSmokeLive |
-        liveFlagBillowsAttached |
-        liveFlagClockValid |
+        (billowsAttached ? liveFlagBillowsAttached : 0) |
+        (clockValid ? liveFlagClockValid : 0) |
         liveFlagStorageOk |
         liveFlagDisplayOn,
     temp: _tempsF10,
@@ -92,6 +111,28 @@ class FakeBridge implements FakeGattServer {
   Config get config => _config;
 
   List<SampleRec> get records => List<SampleRec>.unmodifiable(_records);
+
+  /// Appends one bridge-side record for reconnect/forward-sync tests.
+  void addRecord({
+    required int seq,
+    required int unixS,
+    List<int>? tempsF10,
+    int flags =
+        recordFlagProbe1Attached |
+        recordFlagProbe2Attached |
+        recordFlagProbe4Attached |
+        recordFlagClockValid,
+  }) {
+    _records.add(
+      SampleRec(
+        seq: seq,
+        unixS: unixS,
+        temp: tempsF10 ?? const <int>[2250, 1652, tempDetached, 800],
+        flags: flags,
+      ),
+    );
+    _records.sort((a, b) => a.seq.compareTo(b.seq));
+  }
 
   Info get info => Info(
     protoMajor: protoMajor,
@@ -284,7 +325,9 @@ class FakeBridge implements FakeGattServer {
   Future<void> _writeControl(Uint8List value) async {
     final control = Control.decode(value);
     final body = Uint8List.sublistView(value, Control.size);
-    var status = ResultStatus.ok;
+    controlWrites.add(control);
+    controlBodies.add(body);
+    var status = forcedControlStatus ?? ResultStatus.ok;
     final op = ControlOp.fromWire(control.op);
     if (op == ControlOp.setTime && body.length < ControlSetTimeBody.size) {
       status = ResultStatus.invalid;
@@ -293,6 +336,7 @@ class FakeBridge implements FakeGattServer {
     } else if (op == ControlOp.setTime) {
       ControlSetTimeBody.decode(body);
     }
+    if (dropControlResults) return;
     final result = Result(
       op: control.op,
       opId: control.opId,
@@ -304,6 +348,7 @@ class FakeBridge implements FakeGattServer {
 
   Future<void> _writeSyncCtrl(Uint8List value) async {
     final ctrl = SyncCtrl.decode(value);
+    syncRequests.add(ctrl);
     final cmd = SyncCmd.fromWire(ctrl.cmd);
     if (cmd == null) {
       throw const BleException(BleFailure.invalidValue, 'bad sync command');

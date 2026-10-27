@@ -18,6 +18,7 @@ class BridgeInfo {
   const BridgeInfo({
     required this.protoMajor,
     required this.protoMinor,
+    required this.caps,
     required this.deviceId,
     required this.firmware,
     required this.model,
@@ -26,12 +27,16 @@ class BridgeInfo {
 
   final int protoMajor;
   final int protoMinor;
+  final int caps;
   final String deviceId;
   final String firmware;
   final String model;
   final int bondsFree;
 
   bool get isCompatible => protoMajor == bridgeProtocolMajor;
+
+  /// `caps.billows_observe` (`1 << 0`).
+  bool get billowsObserve => (caps & 0x01) != 0;
 
   static BridgeInfo decode(Uint8List bytes) {
     if (bytes.length < 32) {
@@ -40,6 +45,7 @@ class BridgeInfo {
     return BridgeInfo(
       protoMajor: bytes[1],
       protoMinor: bytes[2],
+      caps: bytes[3],
       deviceId: _readString(bytes, 6, 4),
       firmware: _readString(bytes, 10, 12),
       model: _readString(bytes, 22, 8),

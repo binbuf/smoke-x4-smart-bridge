@@ -34,6 +34,7 @@
 - **T32 - app: BLE client and scan**: **Date:** 2026-10-27 · **Verification:** host/CI + Android debug build · **Result:** done; `app/lib/data/ble/ble_client.dart`
 - **T33 — app: setup and passkey flow**: **Date:** 2026-10-27 · **Verification:** host/CI · **Result:** done; `app/lib/features/setup/setup_flow.dart`
 - **T34 — app: Live screen**: **Date:** 2026-10-27 · **Verification:** host/CI widget tests · **Result:** done; `app/lib/app/view_state.dart`: `LiveViewState` gained
+- **T35 — app: link procedures and time sync**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter test`, `flutter analyze`) · **Result:** done; `app/lib/data/ble/bridge_protocol.dart`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -68,6 +69,7 @@
 - [T32](progress/T32.md) — **Date:** 2026-10-27 · **Verification:** host/CI + Android debug build · **Result:** done
 - [T33](progress/T33.md) — **Date:** 2026-10-27 · **Verification:** host/CI · **Result:** done
 - [T34](progress/T34.md) — **Date:** 2026-10-27 · **Verification:** host/CI widget tests · **Result:** done
+- [T35](progress/T35.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter test`, `flutter analyze`) · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

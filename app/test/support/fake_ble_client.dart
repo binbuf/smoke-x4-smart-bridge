@@ -26,6 +26,7 @@ class FakeBleClient implements BleClient {
     this.bondDelay = const Duration(milliseconds: 5),
     this.maxMtu = bleMtuRequest,
     this.failConnect = false,
+    this.connectFailuresRemaining = 0,
     this.permission = BlePermissionState.granted,
     this.permissionOnRequest,
     this.bluetoothOn = true,
@@ -73,6 +74,12 @@ class FakeBleClient implements BleClient {
   /// When true, [connect] reports [BleFailure.failed] without connecting.
   final bool failConnect;
 
+  /// Number of scripted connection failures before [connect] succeeds.
+  int connectFailuresRemaining;
+
+  /// Every client call in order, for procedure-order assertions in tests.
+  final List<String> operations = <String>[];
+
   final bool bluetoothOn;
   final bool supported;
   final int androidSdk;
@@ -84,7 +91,7 @@ class FakeBleClient implements BleClient {
   final BleException? scanError;
   final BleException? connectError;
   final BleException? bondError;
-  final BleException? readError;
+  BleException? readError;
   final BleException? writeError;
   final BleException? notifyError;
   final BleException? mtuError;
@@ -182,6 +189,12 @@ class FakeBleClient implements BleClient {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     _checkNotDisposed();
+    operations.add('connect:${device.id}');
+    if (connectFailuresRemaining > 0) {
+      connectFailuresRemaining--;
+      _setConnection(BleConnectionState.disconnected);
+      throw const BleException(BleFailure.connectionFailed, 'connect failed');
+    }
     final failure = connectError;
     if (failure != null) {
       diagnostics.record(
@@ -225,6 +238,7 @@ class FakeBleClient implements BleClient {
   @override
   Future<void> disconnect() async {
     _checkNotDisposed();
+    operations.add('disconnect');
     if (_connectionState == BleConnectionState.disconnected) return;
     _setConnection(BleConnectionState.disconnecting);
     for (final subscription in _serverSubscriptions.values) {
@@ -246,6 +260,7 @@ class FakeBleClient implements BleClient {
   @override
   Future<BleBondState> bond({String? passkey}) async {
     _checkConnected();
+    operations.add('bond');
     if (_bondState == BleBondState.bonded) return _bondState;
     final failure = bondError;
     if (failure != null) {
@@ -310,6 +325,7 @@ class FakeBleClient implements BleClient {
   @override
   Future<int> requestMtu(int mtu) async {
     _checkConnected();
+    operations.add('mtu:$mtu');
     final failure = mtuError;
     if (failure != null) {
       diagnostics.record(
@@ -331,6 +347,7 @@ class FakeBleClient implements BleClient {
   @override
   Future<Uint8List> read(String characteristicUuid) async {
     _checkConnected();
+    operations.add('read:$characteristicUuid');
     final failure = readError;
     if (failure != null) {
       diagnostics.record(
@@ -354,6 +371,7 @@ class FakeBleClient implements BleClient {
   @override
   Future<void> write(String characteristicUuid, Uint8List value) async {
     _checkConnected();
+    operations.add('write:$characteristicUuid');
     final failure = writeError;
     if (failure != null) {
       diagnostics.record(
@@ -385,6 +403,7 @@ class FakeBleClient implements BleClient {
     required bool enabled,
   }) async {
     _checkConnected();
+    operations.add('notify:$characteristicUuid:$enabled');
     final failure = notifyError;
     if (failure != null) {
       diagnostics.record(

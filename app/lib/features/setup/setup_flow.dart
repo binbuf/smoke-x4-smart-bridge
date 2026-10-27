@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../app/bridge_controller.dart';
 import '../../data/ble/ble_client.dart';
 import '../../data/ble/bridge_codecs.dart';
+import '../../data/ble/bridge_link.dart';
 
 /// The production setup state machine.
 ///
@@ -342,24 +343,48 @@ class SetupFlow extends ChangeNotifier {
   }
 
   Future<void> _afterBond() async {
-    final client = this.client;
-    if (client == null) return;
+    final device = selected?.device;
+    if (client == null || device == null) return;
     bondProgress = 1;
     notifyListeners();
-    // T35 owns the full procedure (time, sync, subscriptions). T33 only proves
-    // the bond succeeded and moves through the approved progress steps.
+    // T35: MTU → subscribe → read live → set_time → recent sync. The bond and
+    // the passkey instruction already happened on the approved setup screens.
     try {
-      final mtu = await client.requestMtu(bleRequestedMtu);
+      final link = controller.ensureLink();
+      await link.completeFirstConnect(device, info: bridgeInfo);
       controller.rememberBridge(
         deviceId: selected?.id,
         deviceName: selected?.name,
-        mtu: mtu,
+        mtu: link.negotiatedMtu,
       );
+    } on BridgeLinkException catch (error) {
+      if (_disposed) return;
+      switch (error.failure) {
+        case BridgeLinkFailure.protocolMismatch:
+          _setStep(SetupStep.protocolMismatch);
+          break;
+        case BridgeLinkFailure.bondFailed:
+        case BridgeLinkFailure.bondRequired:
+        case BridgeLinkFailure.bondCancelled:
+          _recordWrongCode();
+          break;
+        case BridgeLinkFailure.notConnected:
+        case BridgeLinkFailure.notSecured:
+        case BridgeLinkFailure.controlTimeout:
+        case BridgeLinkFailure.syncTimeout:
+        case BridgeLinkFailure.syncFailed:
+        case BridgeLinkFailure.syncGap:
+        case BridgeLinkFailure.operationFailed:
+          _setStep(SetupStep.noResults);
+          break;
+      }
+      return;
+    } on FormatException {
+      _setStep(SetupStep.protocolMismatch);
+      return;
     } catch (_) {
-      controller.rememberBridge(
-        deviceId: selected?.id,
-        deviceName: selected?.name,
-      );
+      _setStep(SetupStep.noResults);
+      return;
     }
     if (_disposed) return;
     bondProgress = 2;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -449,6 +451,10 @@ void main() {
       harness.bridge.advertisement().id,
     );
     expect(harness.controller.rememberedBridgeName, 'SmokeX4-A4F2');
+
+    // The 110 s health watchdog is a real timer; end it inside the test body so
+    // the widget-test invariant does not see it pending.
+    unawaited(harness.controller.link?.dispose() ?? Future<void>.value());
   });
 
   testWidgets('a wrong code retries, then explains how to remove the pairing', (
