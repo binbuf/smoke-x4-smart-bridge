@@ -222,3 +222,21 @@ add_executable(test_tasks
 target_include_directories(test_tasks PRIVATE "${REPO_ROOT}/firmware/main")
 target_link_libraries(test_tasks PRIVATE sx4_test_support)
 add_test(NAME task-budget COMMAND test_tasks)
+
+# The OLED renderer, display-sleep state and SSD1306 transfer core are pure C11
+# (T22). The host test compares the 1 KB page-ordered framebuffer against
+# committed .fb goldens; the PNG tool is for human review only.
+add_library(sx4_ui STATIC
+    "${REPO_ROOT}/firmware/components/ui/ui_render.c"
+    "${REPO_ROOT}/firmware/components/ui/ui_sleep.c"
+    "${REPO_ROOT}/firmware/components/ui/ssd1306_core.c"
+)
+target_include_directories(sx4_ui
+    PUBLIC "${REPO_ROOT}/firmware/components/ui/include"
+)
+add_executable(test_ui_render test_ui_render.c)
+target_link_libraries(test_ui_render PRIVATE sx4_ui sx4_test_support)
+target_compile_definitions(test_ui_render PRIVATE
+    SX4_UI_GOLDEN_DIR="${REPO_ROOT}/firmware/test/goldens/ui"
+)
+add_test(NAME ui-render COMMAND test_ui_render)

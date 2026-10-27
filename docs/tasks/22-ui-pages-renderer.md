@@ -13,14 +13,14 @@ The bridge drives the SSD1306 through Vext/I²C, renders four status pages plus 
 - Depends on T09 and T21.
 
 ## Scope
-- [ ] Bring up Vext, I²C, and the SSD1306: Vext (GPIO36) LOW before the I²C bus is created; 128×64 at address `0x3C`, 400 kHz.
-- [ ] Implement the 1 KB page-ordered framebuffer and dirty-driven flush.
-- [ ] Implement the four pages:
+- [x] Bring up Vext, I²C, and the SSD1306: Vext (GPIO36) LOW before the I²C bus is created; 128×64 at address `0x3C`, 400 kHz.
+- [x] Implement the 1 KB page-ordered framebuffer and dirty-driven flush.
+- [x] Implement the four pages:
   - `Probes` (default),
   - `Connection`,
   - `Billows`,
   - `Bridge`.
-- [ ] Implement the overlays:
+- [x] Implement the overlays:
   - pairing code (passkey),
   - power-off countdown,
   - storage failure,
@@ -28,8 +28,8 @@ The bridge drives the SSD1306 through Vext/I²C, renders four status pages plus 
   - clearing log,
   - off,
   - boot.
-- [ ] Add display timeout (default 60 s; configurable 30/60/120/never from the app) with panel `0xAE` and the render task idle while asleep.
-- [ ] Use the final labels exactly:
+- [x] Add display timeout (default 60 s; configurable 30/60/120/never from the app) with panel `0xAE` and the render task idle while asleep.
+- [x] Use the final labels exactly:
   - `P1 165.2°F`,
   - `App` / `X4`,
   - `Phones paired`,
@@ -43,11 +43,11 @@ The bridge drives the SSD1306 through Vext/I²C, renders four status pages plus 
   - `Readings`,
   - `Memory`,
   - `Attach antenna before power`.
-- [ ] Render detached as `---`, never `0.0`; invalid-but-present as `ERR`.
-- [ ] Render unknown battery as `—`, never 0%.
-- [ ] Add framebuffer goldens for every page and overlay, including four probes, detached probe, unpaired link, paired link, passkey, power-off countdown, storage failure, and Billows detected/not detected.
-- [ ] Add a small host tool that converts a framebuffer to PNG for human review; the `.fb` bytes remain the gate.
-- [ ] Confirm the app's Bridge screen preview and the firmware labels agree.
+- [x] Render detached as `---`, never `0.0`; invalid-but-present as `ERR`.
+- [x] Render unknown battery as `—`, never 0%.
+- [x] Add framebuffer goldens for every page and overlay, including four probes, detached probe, unpaired link, paired link, passkey, power-off countdown, storage failure, and Billows detected/not detected.
+- [x] Add a small host tool that converts a framebuffer to PNG for human review; the `.fb` bytes remain the gate.
+- [x] Confirm the app's Bridge screen preview and the firmware labels agree.
 
 ## Out of scope
 - PRG tap/hold gestures, power-off commit, deep sleep, and boot hold confirmation → T23.
@@ -84,14 +84,87 @@ The bridge drives the SSD1306 through Vext/I²C, renders four status pages plus 
 - [x] The panel sleeps after the configured timeout and wakes without changing
       the page. Host-tested; the real panel timing is T37.
 - [x] The app's Bridge screen preview and the firmware labels agree.
-- [ ] Detached renders as `---`, invalid as `ERR`, and unknown battery as `—`.
-- [ ] Host tests pass:
+- [x] Detached renders as `---`, invalid as `ERR`, and unknown battery as `—`.
+- [x] Host tests pass:
   ```bash
   cmake -S firmware/test -B firmware/test/build -G Ninja
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** The SSD1306 path and the host-testable renderer are in place.
+
+- `firmware/components/board/` now owns Vext (GPIO36, active LOW) and the OLED
+  reset (GPIO21); `board_power_init()` powers the rail and settles 100 ms before
+  `ui_init()` creates the 400 kHz I2C bus (SDA17/SCL18) and the 0x3C device.
+- `ui_render.c` renders the four pages (`Probes`, `Connection`, `Billows`,
+  `Bridge`) and seven overlays (passkey, power-off countdown, storage failure,
+  resetting, clearing log, off, boot) from one `ui_snapshot_t` into the 1 KB
+  page-ordered framebuffer. `ui_effective_overlay()` enforces off > resetting >
+  clearing > passkey > power-off > storage > boot. The 5x7 body face is in a
+  6x8 cell; the passkey uses the 12x24 seven-segment face as `418 302`.
+- Labels match the app Bridge-screen preview and the design list: `P1 165.2°F`,
+  `App`/`X4`, `Phones paired`, `Radio`, `Signal`, `BILLOWS DETECTED` /
+  `BILLOWS NOT DETECTED`, `SET`, `P4`, `BRIDGE`, `Log`, `Readings`, `Memory`,
+  `Attach antenna before power` (wrapped after "before"). Detached is `---`,
+  invalid is `ERR`, unknown battery is `—`; no path emits a fake 0.0/0%.
+- `ui_sleep.c` is the pure timeout/page state: default 60 s, 30/60/120/never,
+  sleep at `>=` timeout, wake keeps the page, and `ui_view_next_page()` skips
+  Billows until detected. `ui.c` sends `0xAE` on sleep and blocks the render
+  task until a wake notification; `0xAF` on wake. Samples only mark dirty and
+  do not wake the panel.
+- `ssd1306_core.c` has the init sequence, `0xAE`/`0xAF` and eight
+  command+128-byte page writes behind a write callback. The I2C adapter is the
+  only hardware code.
+- 17 framebuffer goldens + `tools/ui_fb_to_png.py` + `ui-render` CTest. The
+  `.fb` bytes gate; the PNG is for review. The test also extracts text rows
+  from the framebuffer and asserts the labels/sentinels, driver transfer order,
+  overlay priority and sleep boundaries.
+
+**Deviations / limits.** The app Preview still supplies its own prototype link
+state, paired-phone count and BLE name; firmware temporarily renders
+`app_connected = false`, `0/4` and the configured device name until T27/T30.
+The app preview formats unknown battery as `-`, but T22 owns only the OLED; the
+OLED uses `—` as required and T34/T54 should align the app copy. The boot splash
+and storage overlay were rendered and host-reviewed; the real-panel legibility
+(daylight/night through the case window) is deferred to T37 as the task file
+says. No board flash/build was needed for the host gate; the firmware image does
+build. Display timeout is read at boot and exposed through
+`ui_set_display_timeout()`; T47 must call it when the app changes the setting.
+
+**Checks run.**
+
+```powershell
+$env:PATH='C:\msys64\ucrt64\bin;'+$env:PATH
+cmake -S firmware/test -B firmware/test/build -G Ninja
+cmake --build firmware/test/build
+ctest --test-dir firmware/test/build --output-on-failure
+# 100% tests passed, 14/14; ui-render 0.01 s
+# (goldens generated once with SX4_UPDATE_UI_GOLDENS=1, then compared normally)
+
+$env:IDF_PYTHON_ENV_PATH='C:\Users\dan\.espressif\python_env\idf6.0_py3.13_env'
+& D:\esp\esp-idf\export.ps1
+cd firmware
+idf.py -B build "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
+# Project build complete; image guard ok (71 components, no Wi-Fi/HTTP/OTA);
+# sx4_bridge.bin 0x43910, 87% free
+
+python tools/ci/check_forbidden_deps.py   # ok
+python tools/ui_fb_to_png.py firmware/test/goldens/ui --out <temp> # 17 PNGs
+```
+
+**Docs.** `docs/design/07-display-and-controls.md` (T22 implementation note),
+`docs/design/adr/0030-ui-renderer-framebuffer-sleep.md` (new),
+`firmware/test/goldens/ui/README.md` (golden index + regenerate steps). Reusable
+notes are in `docs/progress/T22.md`.
+
+**Next task must know.** Use `ui_wake()` for a consumed waking press (it does not
+change the page and only requests a panel wake when the view was actually
+asleep), `ui_page_next()` for a tap, `ui_set_power_off()` for the hold
+countdown, and `ui_dismiss_storage_failure()` for the per-boot tap dismissal
+(status strip keeps `!`). `board_power_init()` now owns Vext/RST; T24 should add
+the divider/ADC there, not in the UI. All renderer changes require an intentional
+golden regeneration.

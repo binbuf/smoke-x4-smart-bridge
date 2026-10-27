@@ -298,6 +298,15 @@ notified of alarms; the Smoke X4's own alarm remains the alarm.
 - The panel sleeps after the configured timeout; a BLE connect or a button wakes
   it. A waking tap is consumed.
 
+**Implementation (T22).** `firmware/components/ui/ui_render.c` is the pure
+renderer; `ui_snapshot_t` carries unknown sentinels (`SX4_TEMP_DETACHED`,
+`SX4_TEMP_INVALID`, `UI_BATTERY_UNKNOWN`) and the renderer prints `---`, `ERR`
+and `—` respectively. `ui_sleep.c` owns timeout/page state, `ssd1306_core.c`
+owns the init/`0xAE`/`0xAF`/page-flush transfers, and `ui.c` builds the snapshot
+and flushes only when the framebuffer changes. Goldens live in
+`firmware/test/goldens/ui/*.fb` and the review tool is
+`tools/ui_fb_to_png.py`. The 12x24 face is used only for the passkey.
+
 ## 7.7 Bench verification
 
 - [ ] Tap cycles all visible pages (Billows only after detection), with no perceptible lag.
