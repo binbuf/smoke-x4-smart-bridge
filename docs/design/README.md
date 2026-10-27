@@ -20,6 +20,20 @@ The product is deliberately small:
 There is **no Wi-Fi, HTTP, WebSocket, MQTT, cloud, OTA, alarm engine, cook
 session model, or notification stack** in this MVP.
 
+## Repository tree
+
+The production tree sits beside the read-only `legacy/` reference (see
+[ADR 0012](adr/0012-workspace-tree-layout.md)):
+
+```
+firmware/    ESP-IDF project and plain-CMake host tests
+app/         Flutter Android project (approved prototype is the UI baseline)
+protocol/    records.yaml, ble.yaml, fixtures/, gen/ (generated code is committed)
+tools/       codegen, BLE fake host, bench scripts
+docs/        design + tasks + progress + hardware-verified.md
+legacy/      read-only reference; never a build dependency or runtime input
+```
+
 ## Document map
 
 | Doc | Covers |

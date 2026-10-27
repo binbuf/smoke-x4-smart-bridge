@@ -1,6 +1,46 @@
 # Local reference tree - not part of the new build
 legacy/
 
+# Build outputs (all trees)
+build/
+.gradle/
+.cache/
+compile_commands.json
+
+# ESP-IDF local state and generated components
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+sdkconfig
+sdkconfig.old
+managed_components/
+
+# Flutter / Dart
+.dart_tool/
+.pub-cache/
+.pub/
+.flutter-plugins
+.flutter-plugins-dependencies
+coverage/
+app.*.symbols
+app.*.map.json
+local.properties
+key.properties
+*.jks
+*.keystore
+
+# Python and editor scratch
+__pycache__/
+*.pyc
+*.class
+*.swp
+.idea/
+*.iml
+
+# Protocol output is committed on purpose (T02 `--check` guards drift);
+# do not add protocol/gen/ here. Add only untracked build output above this line.
+
 # Docs: keep the design/task set, ignore scratch files
 docs/*
 !docs/Start.md

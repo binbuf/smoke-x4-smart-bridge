@@ -54,4 +54,50 @@ clean clone sees the tree and produces no untracked build output.
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed**
+
+- Created `firmware/`, `protocol/` (with `fixtures/`, `fixtures/lora/`, `gen/`)
+  and `tools/`, each with a tracked `.gitkeep` so the empty scaffold appears in
+  a clean clone. `app/` and `docs/` already existed (approved Flutter prototype
+  and design set) and were kept as-is.
+- Expanded the root `.gitignore` for build output (`build/`, `.dart_tool/`,
+  `.gradle/`, coverage, plugin files), ESP-IDF local state (`firmware/sdkconfig`,
+  `sdkconfig.old`, `managed_components/`, `dependencies.lock`), Android
+  `local.properties`/signing files, and Python/editor scratch. `legacy/` remains
+  ignored. `protocol/gen/` is deliberately **not** ignored because generated
+  codecs are committed and drift-checked by T02.
+- Added `docs/design/adr/0012-workspace-tree-layout.md` and a "Repository tree"
+  section in `docs/design/README.md`. Wrote reusable facts to
+  `docs/progress/T01.md`.
+
+**Deviations**
+
+- None affecting scope. `app/` was not re-scaffolded because the approved
+  prototype already occupies that path; T05 owns turning it into the production
+  app. `docs/` already existed and matches the required tree.
+- No new protocol/YAML, firmware or app content was created (owned by T02–T05).
+
+**Check results**
+
+- Simulated clean clone (temporary `GIT_INDEX_FILE`, `git read-tree HEAD`,
+  `git add` scaffold, `git write-tree`): top-level entries are `.gitignore`,
+  `README.md`, `app`, `docs`, `enclosure`, `firmware`, `protocol`, `tools`; all
+  scaffold `.gitkeep` files are present; zero `build/`, `.dart_tool/` or
+  `sdkconfig` paths in the tree.
+- `git check-ignore` confirmed all 11 representative build/local paths are
+  ignored and that `sdkconfig.defaults*`, `protocol/gen/*` and
+  `protocol/fixtures/lora/*` remain trackable.
+- `git status --porcelain -uall` shows no untracked build output.
+- `git status --porcelain legacy` is empty; `legacy/` still has 5866 local files
+  and 0 tracked files (ignored reference, untouched).
+
+**Remaining work / next task must know**
+
+- T02 can write `protocol/records.yaml`, `protocol/ble.yaml` and committed
+  `protocol/gen/` outputs directly. T03 can populate
+  `protocol/fixtures/lora/`. T04 can create the ESP-IDF project in `firmware/`.
+- `legacy/` is local-only (not in a clean clone); copy fixture content during
+  authoring rather than depending on it in CI or at runtime.
+- No blockers. Follow-ups: root README says "Android or iOS" (should be
+  Android-only, T66); T05 decides prototype-only file disposition.
