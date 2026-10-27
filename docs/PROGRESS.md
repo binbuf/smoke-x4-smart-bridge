@@ -28,6 +28,7 @@
 - **T26 — Bench prep: cadence and display**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `tools/bench/cadence_report.py` — parses a product serial capture
 - **T27 — ble_service: GATT server and `info`**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_info.h`, `ble_info.c` — pure C11
 - **T28 — ble_service: live notify**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_live.h`, `ble_live.c` — pure C11
+- **T29 — ble_service: control, result, and the clock**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_control.h`, `ble_control.c` —
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -56,6 +57,7 @@
 - [T26](progress/T26.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 - [T27](progress/T27.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T28](progress/T28.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
+- [T29](progress/T29.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

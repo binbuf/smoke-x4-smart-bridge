@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "ble_control.h"
 #include "ble_gatt_spec.h"
 #include "ble_info.h"
 #include "ble_live.h"
@@ -24,6 +25,7 @@
 #include "bridge_config.h"
 #include "bridge_state.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "host/ble_att.h"
 #include "host/ble_gap.h"
 #include "host/ble_gatt.h"
@@ -37,6 +39,14 @@
 #include "services/gatt/ble_svc_gatt.h"
 
 static const char *TAG = "sx4.ble";
+
+/* The control contract's ATT values are the NimBLE ones (design 05 5.5). */
+_Static_assert(BLE_CONTROL_ATT_OK == 0, "ATT success must be zero");
+_Static_assert(BLE_CONTROL_ATT_INSUFFICIENT_ENC == BLE_ATT_ERR_INSUFFICIENT_ENC,
+               "control: insufficient encryption code drifted");
+_Static_assert(
+    BLE_CONTROL_ATT_INSUFFICIENT_AUTHEN == BLE_ATT_ERR_INSUFFICIENT_AUTHEN,
+    "control: insufficient authentication code drifted");
 
 /*
  * 128-bit UUIDs, least-significant byte first (NimBLE's BLE_UUID128_INIT order).
@@ -86,7 +96,10 @@ static uint16_t s_stats_handle;
 static bool s_started;
 static bool s_synced;
 static bool s_connected;
+static bool s_result_subscribed;
 static struct ble_gap_event_listener s_gap_listener;
+static esp_timer_handle_t s_action_timer;
+static ble_control_action_t s_pending_action;
 
 static int ble_service_access(uint16_t conn_handle, uint16_t attr_handle,
                               struct ble_gatt_access_ctxt *ctxt, void *arg);
@@ -225,15 +238,17 @@ static int check_access_security(uint16_t conn_handle,
         conn_handle == BLE_HS_CONN_HANDLE_NONE) {
         return 0;
     }
-    if (ble_gap_conn_find(conn_handle, &desc) != 0 ||
-        !desc.sec_state.encrypted) {
-        return BLE_ATT_ERR_INSUFFICIENT_ENC;
+    if (ble_gap_conn_find(conn_handle, &desc) != 0) {
+        return BLE_CONTROL_ATT_INSUFFICIENT_ENC;
     }
-    if (spec->security == SX4_BLE_SEC_AUTHENTICATED &&
-        !desc.sec_state.authenticated) {
-        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+    if (spec->security == SX4_BLE_SEC_AUTHENTICATED) {
+        return ble_control_write_security(desc.sec_state.encrypted,
+                                          desc.sec_state.authenticated);
     }
-    return 0;
+    if (!desc.sec_state.encrypted) {
+        return BLE_CONTROL_ATT_INSUFFICIENT_ENC;
+    }
+    return BLE_CONTROL_ATT_OK;
 }
 
 static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
@@ -300,16 +315,116 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
     return 0;
 }
 
-static int write_value(struct ble_gatt_access_ctxt *ctxt,
+static void action_timer_cb(void *arg) {
+    (void)arg;
+    ble_control_action_t action = s_pending_action;
+    s_pending_action = BLE_CONTROL_ACTION_NONE;
+    ble_control_run_action(action);
+}
+
+/*
+ * Destructive ops answer first: the write callback sends the result and only
+ * then arms this one-shot timer. T48 registers the action handler.
+ */
+static void schedule_control_action(const ble_control_result_t *result) {
+    if (result->action == BLE_CONTROL_ACTION_NONE) {
+        return;
+    }
+    if (s_action_timer == NULL) {
+        const esp_timer_create_args_t args = {
+            .callback = action_timer_cb,
+            .name = "ble_action",
+        };
+        if (esp_timer_create(&args, &s_action_timer) != ESP_OK) {
+            s_action_timer = NULL;
+            ESP_LOGW(TAG, "no timer for deferred control action");
+            return;
+        }
+    }
+    uint32_t delay_ms = result->action_delay_ms != 0u
+                            ? result->action_delay_ms
+                            : BLE_CONTROL_ACTION_DELAY_MS;
+    s_pending_action = (ble_control_action_t)result->action;
+    (void)esp_timer_stop(s_action_timer);
+    (void)esp_timer_start_once(s_action_timer, (uint64_t)delay_ms * 1000u);
+}
+
+/* `result` is a logical byte stream; notifications split at MTU-3. */
+static void notify_result(uint16_t conn_handle, const uint8_t *data,
+                          size_t len) {
+    if (!s_result_subscribed || s_result_handle == 0u ||
+        conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+        ESP_LOGD(TAG, "result dropped: no subscriber");
+        return;
+    }
+    uint16_t mtu = ble_att_mtu(conn_handle);
+    size_t max_payload =
+        mtu > 3u ? (size_t)mtu - 3u : (size_t)BLE_ATT_MTU_DFLT - 3u;
+
+    size_t offset = 0;
+    while (offset < len) {
+        size_t chunk = len - offset;
+        if (chunk > max_payload) {
+            chunk = max_payload;
+        }
+        struct os_mbuf *om = ble_hs_mbuf_from_flat(data + offset, chunk);
+        if (om == NULL) {
+            ESP_LOGW(TAG, "no mbuf for result notification");
+            return;
+        }
+        int rc = ble_gatts_notify_custom(conn_handle, s_result_handle, om);
+        if (rc != 0) {
+            ESP_LOGD(TAG, "result notify failed (%d)", rc);
+            return;
+        }
+        offset += chunk;
+    }
+}
+
+static int write_control(uint16_t conn_handle,
+                         struct ble_gatt_access_ctxt *ctxt) {
+    uint8_t scratch[SX4_RESULT_SIZE];
+    uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
+    uint16_t written = 0;
+
+    if (len > sizeof(scratch)) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (ble_hs_mbuf_to_flat(ctxt->om, scratch, sizeof(scratch), &written) !=
+        0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    ble_control_result_t result;
+    (void)ble_control_handle(scratch, len, &result);
+
+    uint8_t encoded[SX4_RESULT_SIZE];
+    size_t encoded_len =
+        ble_control_encode_result(&result, encoded, sizeof(encoded));
+    if (encoded_len > 0u) {
+        ESP_LOGI(TAG, "control op %u id %u -> status %u (%u B)",
+                 (unsigned)result.op, (unsigned)result.op_id,
+                 (unsigned)result.status, (unsigned)encoded_len);
+        notify_result(conn_handle, encoded, encoded_len);
+    }
+    schedule_control_action(&result);
+    return 0;
+}
+
+static int write_value(uint16_t conn_handle,
+                       struct ble_gatt_access_ctxt *ctxt,
                        const ble_gatt_spec_t *spec) {
     uint8_t scratch[SX4_CONFIG_SIZE];
     uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
     uint16_t written = 0;
 
+    if (spec->slot == SX4_BLE_CHAR_CONTROL_SLOT) {
+        return write_control(conn_handle, ctxt);
+    }
+
     /*
-     * T29 (control), T31 (sync_ctrl) and T47 (config) replace these no-op
-     * handlers. Draining the mbuf here keeps the GATT attribute write legal
-     * and lets discovery/subscription work now.
+     * T31 (sync_ctrl) and T47 (config) replace these no-op handlers. Draining
+     * the mbuf here keeps the GATT attribute write legal.
      */
     if (len > sizeof(scratch)) {
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
@@ -342,7 +457,7 @@ static int ble_service_access(uint16_t conn_handle, uint16_t attr_handle,
     case BLE_GATT_ACCESS_OP_READ_CHR:
         return read_value(conn_handle, ctxt, spec);
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
-        return write_value(ctxt, spec);
+        return write_value(conn_handle, ctxt, spec);
     default:
         /* Notify-only characteristics and the auto CCCD are handled by
          * NimBLE; no application descriptor exists yet. */
@@ -356,6 +471,7 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
     case BLE_GAP_EVENT_CONNECT:
         if (event->connect.status == 0) {
             s_connected = true;
+            s_result_subscribed = false;
             ble_tx_on_connect(event->connect.conn_handle);
             ESP_LOGI(TAG, "central connected (handle %u)",
                      event->connect.conn_handle);
@@ -366,6 +482,7 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
         break;
     case BLE_GAP_EVENT_DISCONNECT:
         s_connected = false;
+        s_result_subscribed = false;
         ble_tx_on_disconnect();
         ESP_LOGI(TAG, "central disconnected (reason 0x%02x)",
                  event->disconnect.reason);
@@ -377,6 +494,8 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
          * snapshot so the app has the same value as a read would give. */
         if (event->subscribe.attr_handle == s_live_handle) {
             ble_tx_on_live_subscribe(event->subscribe.cur_notify != 0);
+        } else if (event->subscribe.attr_handle == s_result_handle) {
+            s_result_subscribed = event->subscribe.cur_notify != 0;
         }
         break;
     default:
@@ -391,6 +510,7 @@ static void on_reset(int reason) {
     ESP_LOGW(TAG, "host reset (%d)", reason);
     s_synced = false;
     s_connected = false;
+    s_result_subscribed = false;
 }
 
 static void on_sync(void) {
@@ -458,6 +578,13 @@ esp_err_t ble_service_stop(void) {
         return ESP_OK;
     }
     ble_tx_on_disconnect();
+    s_result_subscribed = false;
+    s_pending_action = BLE_CONTROL_ACTION_NONE;
+    if (s_action_timer != NULL) {
+        (void)esp_timer_stop(s_action_timer);
+        (void)esp_timer_delete(s_action_timer);
+        s_action_timer = NULL;
+    }
     if (s_synced) {
         (void)ble_gap_event_listener_unregister(&s_gap_listener);
     }

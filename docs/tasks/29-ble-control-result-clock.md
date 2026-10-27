@@ -55,4 +55,44 @@ The bridge accepts authenticated control writes, executes `set_time`, and answer
 - [ ] Hand-off below filled in
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+Implemented in this session (T29 done).
+
+**Changes**
+- `firmware/components/ble_service/include/ble_control.h` + `ble_control.c`:
+  pure-C `control` dispatcher (envelope parse, exact body validation, `set_time`
+  through `bridge_state_set_time()`, op_id echo, status/detail mapping) and the
+  `result` encoder (5..64 B, 59 B UTF-8-safe detail cap), plus the named ATT
+  security helper and the reply-first action seam.
+- `firmware/components/ble_service/ble_service.c`: wired the `control` write
+  path to the dispatcher, sends `result` split at `MTU−3`, tracks the result
+  CCCD subscription, uses `ble_control_write_security()` for authenticated
+  slots, and arms a 250 ms one-shot timer only after the reply (unused until
+  T48).
+- `firmware/components/ble_service/CMakeLists.txt` adds `ble_control.c`.
+- `firmware/test/test_ble_control.c` + `firmware/test/CMakeLists.txt` add the
+  `ble-control` host suite.
+- Docs: `docs/design/05-ble-contract.md` §5.6 implementation rules,
+  `docs/design/adr/0036-control-dispatch-pure-core-reply-first.md`,
+  `docs/progress/T29.md`.
+
+**Deviations**
+- Ops 2/3/4/5/7 validate their empty-body shape but return `unsupported` until
+  T48 installs the handlers; returning `ok` with no effect would be wrong.
+- V0 `set_time` requires the exact 13-byte frame (trailing bytes invalid),
+  stricter than the forward-compatible trailing-byte rule in §5.13.
+- Backward `set_time` is `invalid` ("clock out of range"), per the T20 note.
+
+**Check results**
+- Host: `ctest --test-dir firmware/test/build --output-on-failure` →
+  100% passed, 19/19; new `ble-control` suite covers set_time, wrong length,
+  malformed body, every status 0–7, truncation, unknown op and ATT errors.
+- Firmware: ESP-IDF 6.0.2 Heltec build complete; image guard ok; `sx4_bridge.bin`
+  0x8edb0 bytes, 0x171250 (72%) free.
+- No board/phone run in this session (T29 verify tier H/B, board: no).
+
+**Remaining work / blockers**
+- None for T29. T48 must register `ble_control_set_action_handler()` and set
+  `result.action`; T30 keeps `WRITE_AUTHEN` and the encrypted result CCCD; T37
+  repeats the phone round trip and the 0x0F/0x05 rejection.
+
