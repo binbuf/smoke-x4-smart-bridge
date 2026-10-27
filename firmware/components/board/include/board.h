@@ -11,6 +11,7 @@
 
 #include <stdbool.h>
 
+#include "board_battery.h"
 #include "esp_err.h"
 
 #ifdef __cplusplus
@@ -27,9 +28,14 @@ extern "C" {
  * It is also the GPIO0 ROM strap, so it is only read after boot. */
 #define BOARD_PIN_PRG 0
 
+/* Battery divider: GPIO37 HIGH enables it on this board revision; GPIO1 is
+ * ADC1_CH0 at the divider output. board_battery_* owns the sampling cycle. */
+#define BOARD_PIN_BATTERY_EN 37
+#define BOARD_PIN_BATTERY_ADC 1
+
 /* Configure Vext and the OLED reset line. Call before the I2C bus is created
- * (ui_init). Vext is driven LOW (on) and settles. T24 extends this with the
- * battery divider/ADC. */
+ * (ui_init). Vext is driven LOW (on) and settles. Also initialises the battery
+ * divider/ADC; a battery init failure is logged and does not fail Vext. */
 esp_err_t board_power_init(void);
 
 /* Configure PRG as a pulled-up input. Safe to call repeatedly; the boot-hold

@@ -81,6 +81,11 @@ revisiting the budget fails the firmware build and the host `task-budget` test.
 Total application stacks: ~22.5 KB. With no Wi-Fi and no HTTP server, the
 firmware should keep ≥ 120 KB free heap after BLE is up; measure it in V0.
 
+T24 gives `housekeeping` its first jobs: battery sampling every 10 s
+(`HOUSEKEEPING_BATTERY_PERIOD_MS`) and the production `bridge_state_tick()`
+cadence. `radio_rx`, `sample_pipe` and `log_writer` never read the ADC; removing
+the tick from the log writer keeps the seqlock single-writer rule (ADR 0028).
+
 The radio task is pinned to core 1, away from the BLE host on core 0. The
 SX1262 driver polls with `vTaskDelay(1)`; at one packet per 30 s this is a
 correctness-first choice, not a throughput design. A DIO1 interrupt path is a
@@ -104,6 +109,11 @@ app_main
  10  housekeeping_start()
  11  ui_start()                                first page
 ```
+
+`housekeeping_start()` creates the lowest-priority core-0 task and samples the
+battery immediately, so the first UI page can already show a real pack value.
+A battery init/sample failure leaves the snapshot at `SOC_UNKNOWN` and does not
+block any later boot step.
 
 Ordering rationale: samples can be captured before BLE is ready. If BLE init
 fails, the bridge still records and displays. If the log mount fails, the bridge
@@ -181,6 +191,17 @@ read/write/erase failed. `READ_ONLY` is persistent until reboot, rejects further
 appends, and maps to `stats.flags.storage_ok = 0` / `live.flags.storage_ok = 0`.
 A bad record (`SAMPLE_LOG_ERR_LAYOUT`/`ARGUMENT`) is not a storage failure and
 does not change the state.
+
+### 3.5.5 Battery and power stats
+
+`bridge_state.live` carries `battery_mv` and `battery_pct`; `255` is unknown
+from boot until the first valid sample and again after any failed sample. The
+housekeeping task publishes those through `bridge_state_set_battery()`.
+`board_battery_stats_get()` adds the last divider millivolts and since-boot
+success/failure counts for the later BLE `stats` payload.
+
+There is no charging or USB state. `battery_pct = 0` means an empty pack on the
+curve; `255` means "no reading" and must render as `—`.
 
 ## 3.6 Sample pipeline
 
@@ -452,6 +473,9 @@ declared against a 24 KiB budget) and re-checked by the host `task-budget` test.
   `firmware/components/sample_log/include/log_io.h`, and the fake plus failure
   injection are in `firmware/test/support/ram_log_io.*`.
 - `bridge_state` takes a clock function.
+- `board_battery.c` is pure C: divider scaling, curve and stats are host-tested
+  (`board-battery`) with exact curve points. `board_battery_esp.c` is the only
+  GPIO37/ADC/calibration code and is not linked by the host tests.
 - `ble_service` payload encoders are pure functions; the NimBLE callbacks are
   thin.
 - `sx_radio` publishes raw RX frames through the pure-C seam

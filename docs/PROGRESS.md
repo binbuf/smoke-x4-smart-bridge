@@ -23,6 +23,7 @@
 - **T21 — sample_pipe: parser → log → UI**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/sample_pipe/include/sample_pipe.h` — pure-C pipeline
 - **T22 - ui: pages, renderer, and display sleep**: **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done; `firmware/components/board/include/board.h` + `board.c`
 - **T23 - ui: PRG gestures and deep sleep**: **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done; `firmware/components/ui/include/ui_button.h` + `ui_button.c`
+- **T24 - board: battery ADC and power stats**: **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done; `firmware/components/board/include/board_battery.h`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -46,6 +47,7 @@
 - [T21](progress/T21.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 - [T22](progress/T22.md) — **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done
 - [T23](progress/T23.md) — **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done
+- [T24](progress/T24.md) — **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

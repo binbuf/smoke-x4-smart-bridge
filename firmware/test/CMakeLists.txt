@@ -177,6 +177,22 @@ target_link_libraries(test_bridge_state
 )
 add_test(NAME bridge-state COMMAND test_bridge_state)
 
+# The battery divider curve and power-stats accumulator are pure C11 (T24).
+# The GPIO37/ADC/calibration half stays in board_battery_esp.c and is not linked
+# here; the board reading is checked against a DMM in T62.
+add_library(sx4_board_battery STATIC
+    "${REPO_ROOT}/firmware/components/board/board_battery.c"
+)
+target_include_directories(sx4_board_battery
+    PUBLIC "${REPO_ROOT}/firmware/components/board/include"
+)
+
+add_executable(test_board_battery test_board_battery.c)
+target_link_libraries(test_board_battery
+    PRIVATE sx4_board_battery sx4_test_support
+)
+add_test(NAME board-battery COMMAND test_board_battery)
+
 # sample_pipe's core is plain C11. It links the real parser and record codec;
 # the test fixture supplies the ring, pairing store and UI-dirty callbacks.
 add_library(sx4_sample_pipe STATIC

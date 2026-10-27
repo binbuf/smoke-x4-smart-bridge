@@ -18,6 +18,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "housekeeping.h"
 #include "nvs_flash.h"
 #include "sample_log.h"
 #include "sample_pipe.h"
@@ -111,9 +112,9 @@ void sx4_boot_run(void) {
     run_step("sx_radio_start", sx_radio_start);
     run_step("ble_service_start", ble_service_start);
 
-    /* TODO(T20/T24): insert housekeeping_start() before the UI's first page,
-     * per design 03 section 3.4 step 10. The task row already exists in
-     * tasks.h so its stack is inside the asserted budget. */
+    /* Housekeeping owns battery sampling and the clock-persistence cadence;
+     * it starts before the UI so the first page has a real battery value. */
+    run_step("housekeeping_start", housekeeping_start);
     run_step("ui_start", ui_start);
 
     ESP_LOGI(TAG, "boot: sequence complete");
