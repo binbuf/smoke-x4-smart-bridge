@@ -38,3 +38,7 @@ python tools/ui_fb_to_png.py firmware/test/goldens/ui
 
 The labels mirror `app/lib/features/device/device_preview_screen.dart`. The app
 preview remains the visual reference; T37 owns the real-panel legibility check.
+
+`ui-render` also asserts coverage: there must be a case for every `UI_PAGE_*`
+value and one for every `UI_OVERLAY_MASK_*` bit. A new page or overlay without
+a golden fails the test, even if all existing bytes still match.

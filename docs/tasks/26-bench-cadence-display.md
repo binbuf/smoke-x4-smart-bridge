@@ -16,16 +16,16 @@ USB-detached wake/current at **T62**).
 - Depends on T22, T23, and T24.
 
 ## Scope
-- [ ] Write a cadence-report template that records wall time, packet count,
+- [x] Write a cadence-report template that records wall time, packet count,
       expected count, min/mean/max interval, gaps >90 s, RSSI range, and a cause
       for every gap.
-- [ ] Add or reuse a host-side parser that extracts those numbers from the
+- [x] Add or reuse a host-side parser that extracts those numbers from the
       product serial log (the T10 probe's `to_loralog.py` is the starting point).
-- [ ] Confirm the host framebuffer goldens cover every page and overlay; the
+- [x] Confirm the host framebuffer goldens cover every page and overlay; the
       page-walk itself is visual and belongs to T37.
-- [ ] Record the T37/T62 evidence rows as ⏳ with the correct owner; do not
+- [x] Record the T37/T62 evidence rows as ⏳ with the correct owner; do not
       claim a real run.
-- [ ] Commit the template and tooling.
+- [x] Commit the template and tooling.
 
 ## Out of scope
 - The 30-minute real run, page walk, display sleep/wake, PRG power off/on, and
@@ -47,11 +47,41 @@ USB-detached wake/current at **T62**).
 - Do not record a physical result you did not observe.
 
 ## Done when
-- [ ] The cadence-report template is committed.
-- [ ] The serial-to-report extractor is committed and tested on the T10 capture.
-- [ ] Host page goldens cover every page/overlay and pass.
-- [ ] `docs/hardware-verified.md` has ⏳ rows owned by T37/T62 and no false PASS.
-- [ ] Hand-off below filled in.
+- [x] The cadence-report template is committed.
+- [x] The serial-to-report extractor is committed and tested on the T10 capture.
+- [x] Host page goldens cover every page/overlay and pass.
+- [x] `docs/hardware-verified.md` has ⏳ rows owned by T37/T62 and no false PASS.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** The T37 cadence report contract
+(`artifacts/bench/T37/CADENCE-REPORT-TEMPLATE.md`), the
+`tools/bench/cadence_report.py` extractor with 11 host tests (real T10 capture +
+product-format fixture), a golden-coverage assertion for every `UI_PAGE_*` and
+`UI_OVERLAY_MASK_*`, checklist steps 6–7 (30-minute cadence and display/PRG),
+T37 manifest rows, ⏳ hardware rows in `docs/hardware-verified.md` owned by
+T37/T62, design 10 §10.3 B0/B1, and ADR 0033. `make bench-test` and the CI
+host-test job run the Python tests.
+
+**Not run (T37/T62).** No 30-minute run, page walk, display sleep/wake, battery
+comparison, PRG press, or USB-detached wake was performed. Every physical row is
+⏳ and no PASS was claimed. The board was not flashed.
+
+**Checks.** `python -m unittest discover -s tools/bench -p "test_*.py" -v` →
+11/11 OK. `cmake`/`ninja`/`ctest` → 16/16 pass, including the new golden
+coverage assertion. The extractor on the T10 capture reports 41 state frames,
+expected 45, intervals 30.2/33.6/166.3 s, one >90 s gap, RSSI −52…−28 dBm.
+
+**Deviations.** The report adds a manual display/control table beside the
+measured cadence fields; this is where T37 records the page walk, sleep/wake,
+battery and PRG observations. Expected count is the rounded capture wall
+duration / 30 s; if `# closed` is absent the tool uses the first-to-last sample
+span and warns. Restart downtime is unknowable from the log, so a restart is a
+separate gap row with an unknown duration rather than a fabricated interval.
+
+**Next task must know.** T37: capture `06-cadence.log` for at least 30 minutes,
+run the extractor, fill only run conditions/gap causes/manual rows, then fill
+the manifest and hardware rows. T62 still owns DMM ±2 %, divider current,
+USB-detached 20/20 wake and runtime. Do not mark a T37 row PASS from the host
+tests.

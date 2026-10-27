@@ -76,6 +76,10 @@ jobs:
       - name: Run ctest
         run: ctest --test-dir firmware/test/build --output-on-failure
 
+      # The T37 cadence extractor has no third-party dependencies.
+      - name: Bench tooling tests
+        run: python -m unittest discover -s tools/bench -p "test_*.py" -v
+
   firmware-build:
     name: "3 · firmware build"
     runs-on: ubuntu-latest

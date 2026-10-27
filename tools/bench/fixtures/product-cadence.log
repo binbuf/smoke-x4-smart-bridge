@@ -1,0 +1,21 @@
+# opened 2026-10-26T22:00:00 port=COM5 baud=115200
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)
+I (300) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (1000) sx4.radio: rx len=77 rssi=-40 snr=9
+I (1000) sx4.radio: payload="LMXC[\,30,1,1,0,800,0,99,47,0,802,0,160,32,0,804,0,160,32,0,806,1,160,32,0,0,"
+I (1001) sx4.sample: stored seq=0 t=800,802,804,806 flags=0x0f
+I (31000) sx4.radio: rx len=77 rssi=-42 snr=9
+I (31000) sx4.radio: payload="LMXC[\,30,1,1,0,801,0,99,47,0,803,0,160,32,0,805,0,160,32,0,807,1,160,32,0,0,"
+I (31001) sx4.sample: stored seq=1 t=801,803,805,807 flags=0x0f
+I (122000) sx4.radio: rx len=77 rssi=-50 snr=8
+I (122000) sx4.radio: payload="LMXC[\,30,1,1,0,802,0,99,47,0,804,0,160,32,0,806,0,160,32,0,808,1,160,32,0,0,"
+I (122001) sx4.sample: stored seq=2 t=802,804,806,808 flags=0x0f
+I (152000) sx4.radio: rx len=77 rssi=-46 snr=9
+I (152000) sx4.radio: payload="LMXC[\,30,1,1,0,803,0,99,47,0,805,0,160,32,0,807,0,160,32,0,809,1,160,32,0,0,"
+I (152001) sx4.sample: stored seq=4 t=803,805,807,809 flags=0x0f
+I (182000) sx4.radio: rx len=77 rssi=-44 snr=10
+I (182000) sx4.radio: payload="LMXC[\,30,1,1,0,804,0,99,47,0,806,0,160,32,0,808,0,160,32,0,810,1,160,32,0,0,"
+I (182001) sx4.sample: stored seq=5 t=804,806,808,810 flags=0x0f
+# closed 2026-10-26T22:03:10 port=COM5

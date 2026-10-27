@@ -541,6 +541,32 @@ static void golden_check(const golden_case_t *cases, size_t count) {
     }
 }
 
+/* The golden list is also the coverage gate: every page and every overlay must
+ * have at least one committed framebuffer. Adding a page/overlay without a
+ * golden fails here even if every existing byte still matches. */
+static void check_golden_coverage(const golden_case_t *cases, size_t count) {
+    bool page_seen[UI_PAGE_COUNT] = {false};
+    uint8_t overlay_seen = 0;
+    const uint8_t all_overlays = UI_OVERLAY_MASK_BOOT |
+                                 UI_OVERLAY_MASK_STORAGE_FAILURE |
+                                 UI_OVERLAY_MASK_POWER_OFF |
+                                 UI_OVERLAY_MASK_PASSKEY |
+                                 UI_OVERLAY_MASK_CLEARING_LOG |
+                                 UI_OVERLAY_MASK_RESETTING |
+                                 UI_OVERLAY_MASK_OFF;
+
+    for (size_t i = 0; i < count; i++) {
+        CHECK(cases[i].page < UI_PAGE_COUNT);
+        page_seen[cases[i].page] = true;
+        overlay_seen |= cases[i].snapshot.overlay_mask;
+    }
+    for (unsigned page = 0; page < UI_PAGE_COUNT; page++) {
+        CHECK(page_seen[page]);
+    }
+    CHECK_EQ_INT(overlay_seen & all_overlays, all_overlays);
+    CHECK_EQ_INT(overlay_seen, all_overlays);
+}
+
 static void test_goldens(void) {
     golden_case_t cases[17];
     size_t n = 0;
@@ -624,6 +650,7 @@ static void test_goldens(void) {
     ADD_CASE("17-power-off-confirm", UI_PAGE_PROBES, s);
 #undef ADD_CASE
 
+    check_golden_coverage(cases, n);
     golden_check(cases, n);
 }
 

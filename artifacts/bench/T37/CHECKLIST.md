@@ -1,12 +1,14 @@
-# T37 bench checklist — pair, stock receiver, power cut, detach, units
+# T37 bench checklist — pair, stock receiver, power cut, detach, units, cadence, display
 
-**Status:** prepared by T25 on 2026-10-26. **Not executed.** The physical run is
-T37; this file claims no hardware result.
+**Status:** prepared by T25 (steps 0–5) and T26 (steps 6–7) on 2026-10-26.
+**Not executed.** The physical run is T37; this file claims no hardware result.
 
 **Owner:** T37 (V0 end-to-end bench). **Companion files:**
-[`docs/hardware-verified.md`](../../docs/hardware-verified.md) (the result rows)
-and [`README.md`](README.md) (the evidence manifest). Design matrix:
-[10 §10.3 B1](../../docs/design/10-test-and-release.md).
+[`docs/hardware-verified.md`](../../docs/hardware-verified.md) (the result rows),
+[`README.md`](README.md) (the evidence manifest) and
+[`CADENCE-REPORT-TEMPLATE.md`](CADENCE-REPORT-TEMPLATE.md) (filled by
+`tools/bench/cadence_report.py`). Design matrix:
+[10 §10.3 B0/B1](../../docs/design/10-test-and-release.md).
 
 ## Rules for the sitting
 
@@ -143,12 +145,78 @@ and [`README.md`](README.md) (the evidence manifest). Design matrix:
   `sample-pipe` (Celsius capture → 824/820/824/820 °F tenths),
   `sample-log-rec` (Celsius provenance flag).
 
-## Step 6 — Close out
+## Step 6 — 30-minute cadence run (four probes, OLED awake then asleep)
+
+- **Setup:** four probes connected to the X4, X4 paired (step 1), phone/app
+  optional. Record the X4 frequency, probe count and the wall-clock start.
+  Keep the OLED awake for the first part (tap before the display timeout) and
+  leave it alone for the second part so it sleeps; record both switch times.
+- **Capture:** `artifacts/bench/T37/06-cadence.log` (run for at least 30
+  minutes, do not stop early):
+  ```powershell
+  python firmware/bench/t10_probe/tools/capture.py --port COM5 --reset `
+    --out artifacts/bench/T37/06-cadence.log
+  ```
+- **Action:** let the bridge record the whole time. Menu activity is allowed
+  (normal wobble is 29–76 s), but note when it happened so every >90 s gap can
+  be explained. Do not reboot the bridge during the run unless a restart is
+  itself the observed event; a restart is reported separately and needs a
+  cause.
+- **Generate the report** from the repository root after stopping the capture:
+  ```powershell
+  python tools/bench/cadence_report.py artifacts/bench/T37/06-cadence.log `
+    --out artifacts/bench/T37/CADENCE-REPORT.md
+  ```
+- **Pass rule:**
+  - capture wall duration is at least 30 minutes and four probes were present;
+  - `CADENCE-REPORT.md` has packet count, expected count, min/mean/max interval,
+    RSSI min/mean/max and missed samples;
+  - every gap > 90 s (and every restart) has a real cause in the report —
+    radio dropout, menu activity, bridge restart, power cut, or a named action;
+  - no unexplained gap. If one cannot be explained, record that and open a
+    follow-up; do not invent a cause.
+- **Artifacts:** `06-cadence.log`, `CADENCE-REPORT.md`, and at least one
+  `06-run-*.jpg` showing the four probes on the OLED while the capture runs.
+- **Host proof (already green):** `python -m unittest discover -s tools/bench -p
+  "test_*.py"` parses the real T10 capture and the product-format fixture.
+
+## Step 7 — Display walk, sleep/wake, battery, PRG
+
+- **Capture:** `artifacts/bench/T37/07-display.log` (optional; keep it running
+  while walking the pages so tap timing and any reboot are visible).
+- **Action and pass rule:**
+  1. Walk every visible page: Probes, Connection, Billows (only when detected),
+     Bridge. All rows legible at arm's length through the case window, no
+     clipped text; the page changes on a tap with no perceptible lag.
+  2. Let the display time out. Confirm the panel is off and the bridge still
+     records. Wake with a PRG tap: the panel returns to the same page and the
+     waking press does not also advance it. Repeat with BLE connected.
+  3. Compare the Bridge/Probes battery reading with a DMM or a known pack
+     state. The reading must be plausible; unknown must render `—`, never
+     `0%`. The ±2 % DMM tolerance and calibrated ratio are T62.
+  4. Hold PRG: `POWER OFF` + countdown 2 → 1 → `release to confirm`. Release
+     early (before 1.5 s): cancels and the bridge keeps recording. Hold to
+     commit: `OFF` frame, then deep sleep. Hold to wake: boots to page 1; an
+     early release returns to sleep. A waking press is consumed.
+- **Artifacts:** `07-display.log`, `07-pages-*.jpg`, `07-sleep.jpg`,
+  `07-wake.jpg`, `07-battery.jpg`, `07-hold.jpg`, `07-cancel.jpg`,
+  `07-off.jpg`, `07-wake-hold.jpg`.
+- **Host proof (already green):** `ui-render` goldens cover every page and
+  overlay (including a coverage assertion) and the sleep/wake path keeps the
+  page; `ui-button` covers the 399/400 ms and 1499/1500 ms boundaries and
+  waking-press consumption. These do not prove the real panel or button.
+- **Do not** copy a host PASS into the OLED/button rows; the physical evidence
+  is the photos and the capture.
+
+## Step 8 — Close out
 
 - Fill every row in `artifacts/bench/T37/README.md` (settings, time, change,
-  artifact, result).
-- Update the radio/storage rows in `docs/hardware-verified.md` with the dated
-  result and links. Leave anything not run as `⏳`.
+  artifact, result), including steps 6 and 7.
+- Fill the run conditions, gap causes and display rows in
+  `CADENCE-REPORT.md`, then commit it beside `06-cadence.log`.
+- Update the radio/storage and display/control rows in
+  `docs/hardware-verified.md` with the dated result and links. Leave anything
+  not run as `⏳`.
 - Commit the checklist, manifest, logs, screenshots and photos. Keep the
   capture files as-is (the `# opened`/`# closed`/`# serial error` markers are
   part of the evidence).
