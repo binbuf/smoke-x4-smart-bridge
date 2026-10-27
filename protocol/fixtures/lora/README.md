@@ -11,7 +11,7 @@ firmware at runtime; production code only ever sees air payloads.
 | `x4-passive-session.loralog` | real X4 capture | Copied unchanged from `legacy/protocol/fixtures/lora/`; passive overnight session at the normal ~30 s cadence | `x4-passive-session.report.md` |
 | `first-x4-contact.loralog` | real X4 capture | Copied unchanged from `legacy/protocol/fixtures/lora/`; first verified X4 state packet | `first-x4-contact.report.md` |
 | `malformed.loralog` | adversarial corpus | Copied unchanged from `legacy/protocol/fixtures/lora/`; hand-written "must reject" payloads | header comment |
-| `parser-vectors.tsv` | synthetic/transcribed vectors | X4 rows transcribed from the captures above; X2 rows from the legacy reference test corpus; malformed/out-of-range rows synthetic | per-row `provenance` column |
+| `parser-vectors.tsv` | synthetic/transcribed vectors | X4 rows transcribed from the captures above; X2 rows from the legacy reference test corpus; foreign-ID, malformed, oversized, out-of-band and Billows-shape rows synthetic | per-row `provenance` column |
 
 The three `.report.md` files are copied verbatim from the legacy tree. Their
 headers contain the original Windows scratch paths; that is intentional
