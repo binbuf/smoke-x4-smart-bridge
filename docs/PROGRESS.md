@@ -16,6 +16,7 @@
 - **T14 - sx_protocol: parser port and canonical conversion**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/sx_protocol/include/sx_protocol_types.h` - the
 - **T15 — bridge_config: typed NVS store**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/bridge_config/include/bridge_config.h` — the typed API:
 - **T16 — sx_radio: pairing state machine and TX guard**: **Date:** 2026-10-26 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/sx_radio/include/sx_radio_pair.h` — pure-C pairing API:
+- **T17 - sample_log: record codec**: `firmware/components/sample_log/include/log_core.h` / `log_core.c`:; `SAMPLE_LOG_RECORD_SIZE` (18) and `sample_log_record_size()`;
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -32,6 +33,7 @@
 - [T14](progress/T14.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 - [T15](progress/T15.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 - [T16](progress/T16.md) — **Date:** 2026-10-26 · **Verification:** host/CI + firmware compile · **Result:** done
+- [T17](progress/T17.md) — `firmware/components/sample_log/include/log_core.h` / `log_core.c`:
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

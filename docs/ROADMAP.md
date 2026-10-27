@@ -44,7 +44,7 @@ OLED/PRG/power path works. BLE may still be a skeleton.
 - [x] T14 — sx_protocol: port and extend the parser → [tasks/14-sx-protocol-parser.md](tasks/14-sx-protocol-parser.md)
 - [x] T15 — bridge_config: typed NVS store → [tasks/15-bridge-config-nvs.md](tasks/15-bridge-config-nvs.md)
 - [x] T16 — sx_radio: pairing state machine and TX guard → [tasks/16-sx-radio-pairing-fsm.md](tasks/16-sx-radio-pairing-fsm.md)
-- [ ] T17 — sample_log: record codec → [tasks/17-sample-log-record-codec.md](tasks/17-sample-log-record-codec.md)
+- [x] T17 — sample_log: record codec → [tasks/17-sample-log-record-codec.md](tasks/17-sample-log-record-codec.md)
 - [ ] T18 — sample_log: ring geometry → [tasks/18-sample-log-ring-geometry.md](tasks/18-sample-log-ring-geometry.md)
 - [ ] T19 — sample_log: flash adapter and boot recovery → [tasks/19-sample-log-flash-adapter.md](tasks/19-sample-log-flash-adapter.md)
 - [ ] T20 — bridge_state: clock and live snapshot → [tasks/20-bridge-state-clock-snapshot.md](tasks/20-bridge-state-clock-snapshot.md)
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T05:51:35Z · 16/67 done
+**Pipeline status** — updated 2026-10-27T05:54:03Z · 17/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17
 - Blocked: none
 - Failed: none
-- Remaining: T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T16 — done · Pairing FSM, 902–928 MHz gate, one-shot ACK, probe learning, persistence, LOST recovery, and single-TX guard landed; host 8/8 and firmware build pass; real-X4 bench checks remain deferred to T37.
+- Remaining: T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T17 — done · Sample-record codec semantic layer (validation, explicit record_size, all-or-nothing decode) landed with tests; host 9/9 and firmware build pass.
 <!-- /symphony:status -->

@@ -26,6 +26,20 @@ target_include_directories(sx4_protocol_gen
     PUBLIC "${REPO_ROOT}/protocol/gen"
 )
 
+# sample_log's record codec (T17) is plain C11 over the generated record bytes:
+# it adds explicit record_size and the sentinel/attach-bit consistency rules.
+add_library(sx4_sample_log_core STATIC
+    "${REPO_ROOT}/firmware/components/sample_log/log_core.c"
+)
+target_include_directories(sx4_sample_log_core
+    PUBLIC "${REPO_ROOT}/firmware/components/sample_log/include"
+)
+target_link_libraries(sx4_sample_log_core PUBLIC sx4_protocol_gen)
+
+add_executable(test_sample_log_rec test_sample_log_rec.c)
+target_link_libraries(test_sample_log_rec PRIVATE sx4_sample_log_core)
+add_test(NAME sample-log-rec COMMAND test_sample_log_rec)
+
 # Shared test-only support: assertions, corpus readers, RAM log_io fake.
 add_library(sx4_test_support STATIC
     support/test_util.c

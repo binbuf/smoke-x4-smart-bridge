@@ -12,7 +12,7 @@ A pure-C codec encodes and decodes the fixed 18-byte sample record with sequence
 - Depends on T02.
 
 ## Scope
-- [ ] Define the packed 18-byte record once, matching [04 §4.2](../design/04-data-and-storage.md):
+- [x] Define the packed 18-byte record once, matching [04 §4.2](../design/04-data-and-storage.md):
 
   ```c
   typedef struct __attribute__((packed)) {
@@ -24,11 +24,11 @@ A pure-C codec encodes and decodes the fixed 18-byte sample record with sequence
   } sample_rec_t;           /* == 18 bytes                                      */
   ```
 
-- [ ] Implement encode: 24-bit little-endian `seq`, little-endian `unix_s`, four `i16` temperatures, flags, and CRC16/CCITT-FALSE over bytes 0..15.
-- [ ] Implement decode with CRC verification and bounds checking.
-- [ ] Validate sentinel/attachment consistency on read and write: an `attached` flag of 0 must agree with `TEMP_DETACHED`; a mismatch is corrupt and rejected.
-- [ ] Keep sentinels exact: `INT16_MIN` (−32768) = detached; `INT16_MIN + 1` (−32767) = present but invalid/unmapped.
-- [ ] Implement flags:
+- [x] Implement encode: 24-bit little-endian `seq`, little-endian `unix_s`, four `i16` temperatures, flags, and CRC16/CCITT-FALSE over bytes 0..15.
+- [x] Implement decode with CRC verification and bounds checking.
+- [x] Validate sentinel/attachment consistency on read and write: an `attached` flag of 0 must agree with `TEMP_DETACHED`; a mismatch is corrupt and rejected.
+- [x] Keep sentinels exact: `INT16_MIN` (−32768) = detached; `INT16_MIN + 1` (−32767) = present but invalid/unmapped.
+- [x] Implement flags:
 
   | Bit | Meaning |
   |---|---|
@@ -38,8 +38,8 @@ A pure-C codec encodes and decodes the fixed 18-byte sample record with sequence
   | 6 | Source packet was Celsius (provenance only; stored value is °F) |
   | 7 | `new_alarm` was set in this packet (preserved; no alarm feature) |
 
-- [ ] Expose `record_size` (18) to readers; do not let callers use `sizeof(sample_rec_t)` as the wire size.
-- [ ] Add tests for round-trip, CRC failure, detached, Celsius-source, and attach-bit/flag mismatch.
+- [x] Expose `record_size` (18) to readers; do not let callers use `sizeof(sample_rec_t)` as the wire size.
+- [x] Add tests for round-trip, CRC failure, detached, Celsius-source, and attach-bit/flag mismatch.
 
 ## Out of scope
 - Ring geometry, headers, append/wrap, and recovery → T18.
@@ -61,18 +61,68 @@ A pure-C codec encodes and decodes the fixed 18-byte sample record with sequence
 - A failed decode returns an error and does not expose a partially filled record.
 
 ## Done when
-- [ ] Encode/decode round-trip passes for attached, detached, invalid, Celsius-source, and alarm-edge records.
-- [ ] A bad CRC is rejected.
-- [ ] A detached probe decodes to `TEMP_DETACHED`, never a numeric temperature.
-- [ ] An attach-bit/flag mismatch is rejected.
-- [ ] `record_size` is 18 and is what readers use.
-- [ ] Host tests pass:
+- [x] Encode/decode round-trip passes for attached, detached, invalid, Celsius-source, and alarm-edge records.
+- [x] A bad CRC is rejected.
+- [x] A detached probe decodes to `TEMP_DETACHED`, never a numeric temperature.
+- [x] An attach-bit/flag mismatch is rejected.
+- [x] `record_size` is 18 and is what readers use.
+- [x] Host tests pass:
   ```bash
   cmake -S firmware/test -B firmware/test/build -G Ninja
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+Landed:
+- `firmware/components/sample_log/include/log_core.h` and `log_core.c`: the
+  firmware-facing 18-byte record codec. It wraps the generated
+  `sx4_sample_rec_encode`/`_decode` (single byte definition from
+  `protocol/records.yaml`) and adds:
+  - `SAMPLE_LOG_RECORD_SIZE` / `sample_log_record_size()` = 18, with
+    compile-time asserts tying it to `SX4_RECORD_SIZE` and the packed struct;
+  - symmetric sentinel/attach-bit validation on encode and decode
+    (`attached=0` requires `TEMP_DETACHED`; `attached=1` requires a non-detached
+    value, with `TEMP_INVALID` allowed);
+  - decode that checks length and CRC into a local and copies out only on
+    success, so a bad record is never partially exposed;
+  - status codes distinguishing argument, short buffer, bad CRC and layout
+    corruption.
+- `firmware/components/protocol_gen/CMakeLists.txt`: thin ESP-IDF component
+  that compiles the committed `protocol/gen/records.c` once; `sample_log` now
+  requires it. No generation at build time, no copied wire constants.
+- `firmware/test/test_sample_log_rec.c` + `sample-log-rec` CTest: wire layout
+  byte-by-byte, CRC-16/CCITT-FALSE, u24 LE edges (0, `0xFFFFFF`), round-trips
+  for attached/detached/invalid/Celsius-source/alarm-edge records, bad CRC
+  rejection, detached sentinel never numeric, per-probe attach-bit mismatch in
+  both directions, short buffers/null arguments, trailing bytes and no partial
+  output on failure.
+- ADR `docs/design/adr/0025-log-core-record-semantics.md`; design 04 §4.2
+  now names `log_core` as the firmware boundary.
+
+Deviations:
+- The task says `log_core.c` owns the codec, but design 04 §4.2 and ADR 0013
+  make the generated codec the sole byte/CRC owner. `log_core` therefore owns
+  the record *semantics* and delegates bytes to `sx4_sample_rec_*`; this avoids
+  a second layout definition. See ADR 0025.
+- Added the `protocol_gen` IDF wrapper (small, outside the stated scope) because
+  the firmware previously had no way to link the committed generated codec.
+
+Checks:
+- Host: `cmake -S firmware/test -B firmware/test/build -G Ninja`,
+  `cmake --build firmware/test/build`,
+  `ctest --test-dir firmware/test/build --output-on-failure` -> 9/9 passed
+  (`sample-log-rec`, `records`, and the seven existing suites).
+- Firmware: `idf.py -B build
+  "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build`
+  -> complete; image guard ok (69 components, no Wi-Fi/HTTP/OTA);
+  `sx4_bridge.bin` 0x3aa70 bytes.
+- `record_size`: asserted 18 at compile time and in the test.
+
+Remaining work:
+- T18 must call `sample_log_record_encode`/`_decode` and advance by
+  `sample_log_record_size()`; sector headers may use the generated
+  `sx4_sector_header_*` codec directly.
+- T19/T21 must not call `sizeof(sx4_sample_rec_t)` as a wire size.
+- No blockers.
