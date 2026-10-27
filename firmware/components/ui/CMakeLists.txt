@@ -1,8 +1,16 @@
-# ui - SSD1306 driver, pages, button and display power (T22/T23).
-# Stub only in T04.
+# ui - SSD1306 driver, pure page renderer and display power (T22/T23).
 idf_component_register(
-    SRCS "ui.c"
+    SRCS "ui.c" "ui_render.c" "ui_sleep.c" "ssd1306_core.c"
     INCLUDE_DIRS "include"
     REQUIRES esp_common
-    PRIV_REQUIRES log
+    PRIV_REQUIRES
+        board
+        bridge_config
+        bridge_state
+        sample_log
+        esp_driver_gpio
+        esp_driver_i2c
+        esp_timer
+        freertos
+        log
 )
