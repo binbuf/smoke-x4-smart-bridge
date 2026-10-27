@@ -23,28 +23,33 @@ unblocks all firmware power work and the real-capture tasks.
 ## Scope
 One bench sitting:
 
-- [ ] Before flashing anything new, read the current state of the board as
+- [x] Before flashing anything new, read the current state of the board as
       found: `idf.py -p <COM> version` (or the running build's banner on the
       serial console) and `idf.py -p <COM> partition-table`. Record the image
       name/version, git commit and partition layout.
-- [ ] Before wiping, archive the stale pairing/config state if it is still
+- [x] Before wiping, archive the stale pairing/config state if it is still
       readable: dump the `nvs` partition and keep the blob (and any offset dump
       of the smoke-X4 pairing entry) as an artifact, so the old
       `{device_id, frequency_hz, num_probes}` can be inspected later.
-- [ ] Wipe the board: `idf.py -p <COM> erase-flash`. The legacy pairing entry is
+- [x] Wipe the board: `idf.py -p <COM> erase-flash`. The legacy pairing entry is
       not read by the new `bridge_config`; this is a deliberate clean slate, not
       a compatibility step.
-- [ ] Confirm the wipe: a second `partition-table` read shows no leftover app or
+- [x] Confirm the wipe: a second `partition-table` read shows no leftover app or
       legacy data, and the board boots only after the bench image is flashed.
-- [ ] Confirm the board is the Heltec WiFi LoRa 32 V3, 8 MB flash, SX1262,
+- [x] Confirm the board is the Heltec WiFi LoRa 32 V3, 8 MB flash, SX1262,
       SSD1306.
 - [ ] Fit the antenna; verify Vext/OLED, PRG, battery divider.
-- [ ] Flash a **bare BLE advertising + deep-sleep test image** (an IDF example,
+      **Vext/OLED, PRG and the divider passed 2026-10-26; the antenna was
+      already fitted per the legacy record and was not re-fitted/visually
+      checked in this session.**
+- [x] Flash a **bare BLE advertising + deep-sleep test image** (an IDF example,
       not the product service) and confirm advertising, then sleep.
 - [ ] Test hold-PRG wake 20 times with USB attached and detached.
+      **USB attached 20/20 application boots, 0 ROM-download entries; USB
+      detached not run (needs a physical press on battery).**
 - [ ] Measure on/advertising/sleep current; run the pack for 24 h if time
-      allows.
-- [ ] Record every result in `docs/hardware-verified.md`.
+      allows. **Not measured/run: no current meter and no 24 h window.**
+- [x] Record every result in `docs/hardware-verified.md`.
 
 ## Out of scope
 - Building the product BLE service or firmware features — M1/M2.
@@ -92,15 +97,54 @@ One bench sitting:
   alternative board or wake mechanism.
 
 ## Done when
-- [ ] The as-found image, version and partition layout are recorded.
-- [ ] Any readable legacy pairing/NVS state is archived as an artifact.
-- [ ] `erase-flash` completes and a follow-up partition-table read shows a clean
+- [x] The as-found image, version and partition layout are recorded.
+- [x] Any readable legacy pairing/NVS state is archived as an artifact.
+- [x] `erase-flash` completes and a follow-up partition-table read shows a clean
       board.
-- [ ] The board identity is written down in `docs/hardware-verified.md`.
-- [ ] The GPIO0 wake answer is written down in `docs/hardware-verified.md`.
-- [ ] If wake enters ROM download, the fallback decision is recorded before any
-      power-feature work.
-- [ ] Hand-off below filled in.
+- [x] The board identity is written down in `docs/hardware-verified.md`.
+- [x] The GPIO0 wake answer is written down in `docs/hardware-verified.md`.
+- [x] If wake enters ROM download, the fallback decision is recorded before any
+      power-feature work. **It did not: 0/20 ROM-download entries. ADR 0020
+      records that the RST fallback is not selected.**
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** The board is confirmed as the Heltec WiFi LoRa 32 V3 (ESP32-S3 rev
+v0.2, 8 MB GD flash, MAC `ac:a7:04:38:82:74`); the SSD1306 ACKs at 0x3C and
+accepts init + a 1 KiB write; the SX126x answers SPI status/version; the battery
+divider and PRG debounce work. The as-found legacy image, 7-row OTA table, NVS
+(NVS `sx_pair/config` = `{918500000, 4c4d58435b5c0000, 4}`, one BLE bond, Wi-Fi
+AP state), app slot and cooks partition are archived under
+`artifacts/bench/T09/as-found/`. `erase-flash` completed; `0x0..0x2ffff` reads
+100% `0xFF` and the board printed `invalid header: 0xffffffff` until the probe
+was flashed. The throwaway probe at `firmware/bench/t09_probe/` advertises
+`SX4-T09-PROBE` for 10 s and deep-sleeps with EXT1 GPIO0-low wake.
+**Hold-PRG wake: 20/20 application boots, 0/20 ROM-download entries**; every
+wake was `rst:0x5 (DSLEEP)`, `boot:0x8 (SPI_FAST_FLASH_BOOT)`,
+`causes=0x8`, `EXT1 mask=0x1`, `gpio0=0` at `app_main`. ADR 0020 records EXT1 as
+the wake decision; the RST-button fallback is not selected.
+
+**Deviations / limits.** The 20 presses were driven by the CP2102 DTR
+transistor, which is the same GPIO0/PRG net (proven by the 30 ms-debounced PRG
+check), not by a finger. The image is a custom throwaway IDF probe
+(`firmware/bench/t09_probe/`), not a stock IDF example, because it had to run
+the OLED/ADC/PRG checks and count wake cycles; it is still bare NimBLE
+advertising + deep sleep and is not product code. The USB-detached 20x repeat
+was not run: it needs a human at the bench and removes the serial observation
+channel. Currents were not measured (no meter), the 24 h pack run was not
+attempted (no window), and the antenna/pack-polarity checks are inherited from
+the legacy record rather than re-done. These are recorded as ⏳/⚠ in
+`docs/hardware-verified.md`; do not read them as passes.
+
+**Checks run.** `esptool flash-id`; as-found `read-flash` + `esptool
+image-info` + `nvs_tool.py`; `erase-flash`; post-erase `read-flash` all-`0xFF`;
+`idf.py -B build build` and `idf.py -p COM5 -B build flash` for the probe;
+`cold_boot.py` (OLED OK, BLE active, PRG pulse); `wake_cycles.py` (20/20 APP).
+All artifacts and logs are in `artifacts/bench/T09/` with SHA-256 sums.
+
+**Board state / next task.** The board currently runs the T09 probe (3-row
+`nvs`/`phy_init`/`factory` table) and is in deep sleep on COM5 with the pack
+connected at ≈4.03 V. The legacy image, NVS and cooks are gone by design. T10
+must flash its own capture image; T11/T23 must use ADR 0020 and repeat the
+USB-detached physical press when a human is at the bench.

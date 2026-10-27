@@ -1,0 +1,39 @@
+As-found legacy pairing entry (before erase-flash)
+==================================================
+
+Board MAC (station):      ac:a7:04:38:82:74
+Flash partition:          nvs @ 0x9000, 24 KiB
+Source blob:              nvs-0x9000.bin (SHA-256 in SHA256SUMS.txt)
+
+NVS namespace:            sx_pair
+NVS key:                  config
+Value type/size:          blob, 16 bytes
+NVS partition offset:     0x3080  (flash offset 0x9000 + 0x3080 = 0xC080)
+Offset dump:              pairing-entry-0x3080.bin
+Value (hex):
+  a0 32 bf 36 4c 4d 58 43 5b 5c 00 00 04 00 00 00
+
+Decoded with the reference layout (frequency u32 LE @0, device_id char[8] @4,
+num_probes u32 LE @12):
+
+  frequency_hz  = 918500000        (0x36bf32a0; the Smoke X4 918.5 MHz channel)
+  device_id     = hex 4c4d58435b5c0000
+                  printable "LMXC[\" followed by two NUL bytes
+                  (stored as a raw 8-byte field, NUL-terminated)
+  num_probes    = 4
+
+Other NVS namespaces present as-found (informational):
+  meta              version (legacy config-store version 1)
+  net, nvs.net80211 legacy Wi-Fi AP credentials/state
+  nimble_bond       one BLE bond (our_sec_1 / peer_sec_1 / cccd_* records)
+  phy               RF calibration
+  time              last_epoch_ms, source, tz_offset_min
+  session           active_id = 0, next_id
+  sx_pair           config (the pairing entry above)
+
+There is no reference "smoke_x" namespace on this board; the legacy slim build
+had already migrated that entry into its own "sx_pair" namespace.
+
+This entry is intentionally not preserved for the new firmware. It is archived
+only as evidence of the pre-wipe state. bridge_config uses its own namespaces
+and config_version, and never reads sx_pair.

@@ -1,0 +1,56 @@
+Page no. 0, Status: Full
+ meta:version[0] = 
+ net:ap_psk[0] = 
+ nvs.net80211:opmode = 3
+ phy:cal_mac[0] = 
+ phy:cal_version = 712
+ nvs.net80211:ap.authmode = 3
+ nvs.net80211:ap.sae_h2e = 4
+ nvs.net80211:ap.chanisset = 1
+ nvs.net80211:ap.ssid[0] = 
+ nvs.net80211:ap.passwd[0] = 
+ nvs.net80211:ap.hidden = 0
+ nvs.net80211:ap.max.conn = 4
+ nvs.net80211:bcn.interval = 100
+ nvs.net80211:ap.sae_ext = 0
+ nvs.net80211:ap.gtk_rekey = 0
+ nvs.net80211:ap.p_cipher = 4
+ nvs.net80211:ap.trans_d = 0
+ nvs.net80211:ap.wpa3_com = 0
+ nvs.net80211:ap.ftm_r = 0
+ nvs.net80211:ap.pmf_e = 1
+ nvs.net80211:ap.pmf_r = 0
+ nvs.net80211:ap.pmk_info[0] = 
+ nvs.net80211:ap.csa_count = 3
+ nvs.net80211:ap.dtim_period = 1
+ nvs.net80211:ap.bssmaxidle = 0
+ nvs.net80211:ap.pro_keep_a = 0
+ nimble_bond:local_irk_1[0] = 
+
+Page no. 20, Status: Active
+ session:next_id[0] = 
+ time:last_epoch_ms[0] = 
+ time:source[0] = 
+ phy:cal_data[0] = 
+
+Page no. 15, Status: Full
+ nvs.net80211:ap.chan = 6
+ nimble_bond:our_sec_1[0] = 
+ nimble_bond:peer_sec_1[0] = 
+ nimble_bond:rpa_rec_1[0] = 
+ nimble_bond:cccd_sec_1[0] = 
+ nimble_bond:csfc_sec_1[0] = 
+ nimble_bond:cccd_sec_2[0] = 
+ nimble_bond:cccd_sec_3[0] = 
+ nimble_bond:cccd_sec_4[0] = 
+ time:tz_offset_min[0] = 
+
+Page no. 19, Status: Full
+ sx_pair:config[0] = 
+ nvs.net80211:ap.sndchan = 2
+
+Page Empty
+
+Page no. 17, Status: Full
+ session:active_id[0] = 
+

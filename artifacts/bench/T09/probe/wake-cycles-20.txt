@@ -1,0 +1,1340 @@
+
+===== cycle 1: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=2 wake_count=1 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 1 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=2 wake=1)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 2: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=3 wake_count=2 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 2 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=3 wake=2)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 3: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=4 wake_count=3 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 3 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=4 wake=3)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 4: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=5 wake_count=4 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 4 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=5 wake=4)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 5: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=6 wake_count=5 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 5 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=6 wake=5)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 6: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=7 wake_count=6 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 6 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=7 wake=6)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 7: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=8 wake_count=7 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 7 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=8 wake=7)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 8: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=9 wake_count=8 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 8 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=9 wake=8)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 9: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=10 wake_count=9 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 9 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=10 wake=9)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 10: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=11 wake_count=10 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 10 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=11 wake=10)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 11: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=12 wake_count=11 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 11 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=12 wake=11)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 12: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=13 wake_count=12 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 12 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=13 wake=12)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 13: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=14 wake_count=13 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 13 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=14 wake=13)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 14: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=15 wake_count=14 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 14 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=15 wake=14)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 15: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=16 wake_count=15 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 15 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=16 wake=15)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 16: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=17 wake_count=16 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 16 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=17 wake=16)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 17: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=18 wake_count=17 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 17 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=18 wake=17)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 18: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=19 wake_count=18 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 18 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=19 wake=18)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 19: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=20 wake_count=19 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 19 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=20 wake=19)
+I (2008) t09probe: SLEEP entering deep sleep now
+
+===== cycle 20: APP =====
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 26 2026 19:30:02
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 factory          factory app      00 00 00020000 00400000
+I (78) boot: End of partition table
+I (81) esp_image: segment 0: paddr=00020020 vaddr=3c050020 size=15230h ( 86576) map
+I (104) esp_image: segment 1: paddr=00035258 vaddr=3fc98e00 size=0428ch ( 17036) load
+I (108) esp_image: segment 2: paddr=000394ec vaddr=40374000 size=06b2ch ( 27436) load
+I (115) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=448d0h (280784) map
+I (167) esp_image: segment 4: paddr=000848f8 vaddr=4037ab2c size=0e23ch ( 57916) load
+I (180) esp_image: segment 5: paddr=00092b3c vaddr=50000000 size=00030h (    48) 
+I (181) esp_image: segment 6: paddr=00092b74 vaddr=600fe000 size=00060h (    96) 
+I (192) boot: Loaded app from partition at offset 0x20000
+I (192) boot: Disabling RNG early entropy source...
+I (205) cpu_start: Multicore app
+I (213) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (214) cpu_start: Pro cpu start user code
+I (214) cpu_start: cpu freq: 160000000 Hz
+I (215) app_init: Application information:
+I (219) app_init: Project name:     t09_probe
+I (223) app_init: App version:      6d2b491-dirty
+I (228) app_init: Compile time:     Oct 26 2026 19:28:56
+I (233) app_init: ELF file SHA256:  a40d6b584...
+I (237) app_init: ESP-IDF:          v6.0.2
+I (241) efuse_init: Min chip rev:     v0.0
+I (245) efuse_init: Max chip rev:     v0.99 
+I (249) efuse_init: Chip rev:         v0.2
+I (253) heap_init: Initializing. RAM available for dynamic allocation:
+I (259) heap_init: At 3FC9DF90 len 0004B780 (301 KiB): RAM
+I (264) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (269) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (274) heap_init: At 600FE060 len 00001F88 (7 KiB): RTCRAM
+I (280) spi_flash: detected chip: gd
+I (283) spi_flash: flash io: dio
+I (287) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (292) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (299) coexist: coex firmware version: 6f3d08c
+I (303) coexist: coexist rom version e7ae62f
+I (308) main_task: Started on CPU0
+I (328) main_task: Calling app_main()
+I (328) t09probe: BOOT count=21 wake_count=20 causes=0x00000008 gpio0=0
+I (328) t09probe: WAKE 20 via PRG/GPIO0 EXT1 mask=0x1
+I (2008) t09probe: WAKE release after ~1670ms (gpio0=1)
+I (2008) t09probe: SLEEP gpio0-low wake enable: ESP_OK (boot=21 wake=20)
+I (2008) t09probe: SLEEP entering deep sleep now
