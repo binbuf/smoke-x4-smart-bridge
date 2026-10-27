@@ -55,6 +55,22 @@ add_executable(test_log_io_ram test_log_io_ram.c)
 target_link_libraries(test_log_io_ram PRIVATE sx4_test_support)
 add_test(NAME log-io-ram COMMAND test_log_io_ram)
 
+# sx_radio's seam and parameter block are pure C (T13). No ESP-IDF or radio is
+# linked: the test injects a payload and takes it back from the parser seam.
+add_library(sx4_radio_core STATIC
+    "${REPO_ROOT}/firmware/components/sx_radio/sx_radio_rx.c"
+)
+target_include_directories(sx4_radio_core
+    PUBLIC "${REPO_ROOT}/firmware/components/sx_radio/include"
+)
+
+add_executable(test_sx_radio_rx test_sx_radio_rx.c)
+target_link_libraries(test_sx_radio_rx PRIVATE sx4_radio_core sx4_test_support)
+target_compile_definitions(test_sx_radio_rx PRIVATE
+    SX4_FIXTURE_DIR="${SX4_LORA_FIXTURES}"
+)
+add_test(NAME sx-radio-rx COMMAND test_sx_radio_rx)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks

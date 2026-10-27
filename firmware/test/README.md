@@ -20,6 +20,7 @@ ctest --test-dir firmware/test/build --output-on-failure
 | `test_lora_corpus.c` | loads real captures and `parser-vectors.tsv`, checks shape, metadata and required coverage |
 | `test_log_io_ram.c` | exercises the RAM `log_io` fake (bounds, erase, counters, torn operations) |
 | `test_tasks.c` | checks the `firmware/main/tasks.h` table, stack total and 24 KiB budget |
+| `test_sx_radio_rx.c` | injects real/edge-case frames into the radio-to-parser seam and checks the LoRa parameter block |
 | `support/lora_corpus.*` | `.loralog` and vector-file readers for tests |
 | `support/ram_log_io.*` | RAM-backed `log_io` implementation |
 | `support/test_util.*` | small `CHECK` macros and summary |

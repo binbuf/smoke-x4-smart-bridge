@@ -12,6 +12,7 @@
 - **T07 — BLE fake and app test seam**: Production BLE seam: `app/lib/data/ble/ble_client.dart` with `BleClient`,; `BridgeController` and `createBridgeController` accept an optional `BleClient`.
 - **T08 — CI**: `.github/workflows/ci.yml` — six separately named jobs, all on every pull; `tools/ci/check_forbidden_deps.py`: rejects forbidden app packages in
 - **T09 — Board identity, bench rig, deep-sleep gate**: **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3, ESP32-S3FN8, 8 MB,; Board identity confirmed without a human: ESP32-S3 rev v0.2, 8 MB GD flash,
+- **T13 — sx_radio: RX loop and parameters**: **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3 · COM5 · IDF 6.0.2; `firmware/components/sx_radio/sx_radio.c` — real SX1262 bring-up and the
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -24,6 +25,7 @@
 - [T07](progress/T07.md) — Production BLE seam: `app/lib/data/ble/ble_client.dart` with `BleClient`,
 - [T08](progress/T08.md) — `.github/workflows/ci.yml` — six separately named jobs, all on every pull
 - [T09](progress/T09.md) — **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3, ESP32-S3FN8, 8 MB,
+- [T13](progress/T13.md) — **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3 · COM5 · IDF 6.0.2
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

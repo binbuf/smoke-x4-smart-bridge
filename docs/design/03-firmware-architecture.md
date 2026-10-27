@@ -332,5 +332,12 @@ declared against a 24 KiB budget) and re-checked by the host `task-budget` test.
 - `bridge_state` takes a clock function.
 - `ble_service` payload encoders are pure functions; the NimBLE callbacks are
   thin.
+- `sx_radio` publishes raw RX frames through the pure-C seam
+  `firmware/components/sx_radio/include/sx_radio_rx.h`: a fixed 128-byte
+  payload plus RSSI/SNR in a bounded SPSC queue. Publish never blocks and never
+  allocates; a full queue drops the newest frame and increments a counter. The
+  host test `test_sx_radio_rx` injects a real X4 fixture packet without a radio.
+  The radio task reads the SX1262 FIFO with a fixed scratch buffer rather than
+  the allocating `ra01s` `LoRaReceive()` helper (ADR 0021).
 - `ui` renderers take a snapshot struct and write a 1 KB framebuffer; host tests
   compare framebuffer goldens.

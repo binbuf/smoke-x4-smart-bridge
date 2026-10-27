@@ -40,7 +40,7 @@ lands in the ring log, earlier records survive a power cut, and the
 OLED/PRG/power path works. BLE may still be a skeleton.
 
 - [x] T12 — sx_radio: vendor the SX1262 driver → [tasks/12-sx-radio-vendor-driver.md](tasks/12-sx-radio-vendor-driver.md)
-- [ ] T13 — sx_radio: RX loop and parameters → [tasks/13-sx-radio-rx-loop.md](tasks/13-sx-radio-rx-loop.md)
+- [~] T13 — sx_radio: RX loop and parameters → [tasks/13-sx-radio-rx-loop.md](tasks/13-sx-radio-rx-loop.md) ⟵ failed
 - [ ] T14 — sx_protocol: port and extend the parser → [tasks/14-sx-protocol-parser.md](tasks/14-sx-protocol-parser.md)
 - [ ] T15 — bridge_config: typed NVS store → [tasks/15-bridge-config-nvs.md](tasks/15-bridge-config-nvs.md)
 - [ ] T16 — sx_radio: pairing state machine and TX guard → [tasks/16-sx-radio-pairing-fsm.md](tasks/16-sx-radio-pairing-fsm.md)
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T02:42:45Z · 8/67 done
+**Pipeline status** — updated 2026-10-27T05:26:47Z · 12/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08
-- Blocked: T09
-- Failed: none
-- Remaining: T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T09 — blocked · Q1 board identity and Q3 GPIO0/EXT1 wake are answered (20/20 USB-attached, 0 ROM-download), legacy NVS was archived and the flash wiped clean; the USB-detached physical press, current measurements and 24 h run remain and need a human plus a current meter.
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12
+- Blocked: none
+- Failed: T13
+- Remaining: T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T13 — failed · interrupted by the run view
 <!-- /symphony:status -->
