@@ -35,6 +35,14 @@ dependencies:
   sqflite: ^2.4.2
   path: ^1.9.1
 
+  # T32 BLE transport. Pinned to the last BSD-3 release: 2.x adds a commercial
+  # licence gate that the MVP cannot accept. The seam in data/ble keeps the
+  # plugin out of every screen and controller.
+  flutter_blue_plus: 1.35.12
+
+  # Android 12+ Nearby devices / Android 11- location runtime permissions.
+  permission_handler: ^11.4.0
+
   # The following adds the Cupertino Icons font to your application.
 
 dev_dependencies:

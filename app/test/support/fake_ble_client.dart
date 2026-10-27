@@ -26,7 +26,28 @@ class FakeBleClient implements BleClient {
     this.bondDelay = const Duration(milliseconds: 5),
     this.maxMtu = bleMtuRequest,
     this.failConnect = false,
-  }) : _advertisements = List<BleDevice>.unmodifiable(advertisements) {
+    this.permission = BlePermissionState.granted,
+    this.permissionOnRequest,
+    this.bluetoothOn = true,
+    this.supported = true,
+    this.androidSdk = 34,
+    this.scanError,
+    this.connectError,
+    this.bondError,
+    this.readError,
+    this.writeError,
+    this.notifyError,
+    this.mtuError,
+    this.removeBondError,
+    BleDiagnostics? diagnostics,
+  }) : _advertisements = List<BleDevice>.unmodifiable(advertisements),
+       diagnostics =
+           diagnostics ??
+           BleDiagnostics(
+             phoneModel: 'test-phone',
+             androidVersion: 'Android 14 (SDK 34)',
+             negotiatedMtu: bleMtuDefault,
+           ) {
     server.setMtu(bleMtuDefault);
   }
 
@@ -52,6 +73,26 @@ class FakeBleClient implements BleClient {
   /// When true, [connect] reports [BleFailure.failed] without connecting.
   final bool failConnect;
 
+  final bool bluetoothOn;
+  final bool supported;
+  final int androidSdk;
+  BlePermissionState permission;
+  final BlePermissionState? permissionOnRequest;
+
+  /// Scripted platform faults. A non-null value is thrown by the matching
+  /// operation, which lets tests prove the named-state mapping.
+  final BleException? scanError;
+  final BleException? connectError;
+  final BleException? bondError;
+  final BleException? readError;
+  final BleException? writeError;
+  final BleException? notifyError;
+  final BleException? mtuError;
+  final BleException? removeBondError;
+
+  @override
+  final BleDiagnostics diagnostics;
+
   final StreamController<BleConnectionState> _connectionController =
       StreamController<BleConnectionState>.broadcast();
   final StreamController<BleBondState> _bondController =
@@ -69,9 +110,42 @@ class FakeBleClient implements BleClient {
   bool _disposed = false;
 
   @override
+  Future<BlePlatformStatus> platformStatus() async {
+    return BlePlatformStatus(
+      supported: supported,
+      bluetoothOn: bluetoothOn,
+      permission: permission,
+      permissionKind: androidSdk >= 31
+          ? BlePermissionKind.nearbyDevices
+          : BlePermissionKind.location,
+      androidSdk: androidSdk,
+    );
+  }
+
+  @override
+  Future<BlePermissionState> requestPermissions() async {
+    final requested = permissionOnRequest;
+    if (requested != null) permission = requested;
+    return permission;
+  }
+
+  @override
   Stream<BleDevice> scan({
     Duration timeout = const Duration(seconds: 10),
   }) async* {
+    final failure = scanError;
+    if (failure != null) {
+      diagnostics.record(
+        'scan failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      throw failure;
+    }
+    final status = await platformStatus();
+    if (!status.canScan) {
+      throw exceptionForBleAppState(status.state);
+    }
     await stopScan();
     _scanning = true;
     final deadline = DateTime.now().add(timeout);
@@ -108,9 +182,22 @@ class FakeBleClient implements BleClient {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     _checkNotDisposed();
+    final failure = connectError;
+    if (failure != null) {
+      diagnostics.record(
+        'connect failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      throw failure;
+    }
     if (_connectionState == BleConnectionState.connected &&
         _connectedDevice?.id == device.id) {
       return;
+    }
+    final status = await platformStatus();
+    if (!status.canScan) {
+      throw exceptionForBleAppState(status.state);
     }
     if (!_advertisements.any((item) => item.id == device.id)) {
       throw BleException(
@@ -128,6 +215,9 @@ class FakeBleClient implements BleClient {
     }
     _connectedDevice = device;
     _negotiatedMtu = bleMtuDefault;
+    diagnostics
+      ..negotiatedMtu = _negotiatedMtu
+      ..record('connected to ${device.id}');
     server.setMtu(bleMtuDefault);
     _setConnection(BleConnectionState.connected);
   }
@@ -157,20 +247,61 @@ class FakeBleClient implements BleClient {
   Future<BleBondState> bond({String? passkey}) async {
     _checkConnected();
     if (_bondState == BleBondState.bonded) return _bondState;
+    final failure = bondError;
+    if (failure != null) {
+      final state = switch (failure.failure) {
+        BleFailure.promptTimeout => BleBondState.timeout,
+        BleFailure.bondStoreFull => BleBondState.bondStoreFull,
+        _ => BleBondState.failed,
+      };
+      _setBond(state);
+      diagnostics.record(
+        'bond failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      return state;
+    }
     _setBond(BleBondState.bonding);
     await Future<void>.delayed(bondDelay);
     final forced = forcedBondFailure;
     if (forced != null && forced != BleBondState.bonded) {
       _setBond(forced);
+      diagnostics.record(
+        'bond failed (forced ${forced.name})',
+        level: BleLogLevel.error,
+      );
       return _bondState;
     }
     if (expectedPasskey != null &&
         _normalizePasskey(passkey) != _normalizePasskey(expectedPasskey)) {
       _setBond(BleBondState.wrongPasskey);
+      diagnostics.record(
+        'bond failed (wrong passkey)',
+        level: BleLogLevel.error,
+        failure: BleFailure.wrongPasskey,
+      );
       return _bondState;
     }
     _setBond(BleBondState.bonded);
+    diagnostics.record('bonded');
     return _bondState;
+  }
+
+  @override
+  Future<void> removeBond() async {
+    _checkConnected();
+    final failure = removeBondError;
+    if (failure != null) {
+      diagnostics.record(
+        'remove bond failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      throw failure;
+    }
+    _setBond(BleBondState.none);
+    diagnostics.record('bond removed');
   }
 
   @override
@@ -179,8 +310,20 @@ class FakeBleClient implements BleClient {
   @override
   Future<int> requestMtu(int mtu) async {
     _checkConnected();
+    final failure = mtuError;
+    if (failure != null) {
+      diagnostics.record(
+        'MTU request failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      throw failure;
+    }
     final requested = mtu < bleMtuDefault ? bleMtuDefault : mtu;
     _negotiatedMtu = requested > maxMtu ? maxMtu : requested;
+    diagnostics
+      ..negotiatedMtu = _negotiatedMtu
+      ..record('MTU $_negotiatedMtu (requested $mtu)');
     server.setMtu(_negotiatedMtu!);
     return _negotiatedMtu!;
   }
@@ -188,6 +331,15 @@ class FakeBleClient implements BleClient {
   @override
   Future<Uint8List> read(String characteristicUuid) async {
     _checkConnected();
+    final failure = readError;
+    if (failure != null) {
+      diagnostics.record(
+        'read $characteristicUuid failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      throw failure;
+    }
     final characteristic = _characteristic(characteristicUuid);
     if (!characteristic.properties.contains('read')) {
       throw BleException(
@@ -202,6 +354,15 @@ class FakeBleClient implements BleClient {
   @override
   Future<void> write(String characteristicUuid, Uint8List value) async {
     _checkConnected();
+    final failure = writeError;
+    if (failure != null) {
+      diagnostics.record(
+        'write $characteristicUuid failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      throw failure;
+    }
     final characteristic = _characteristic(characteristicUuid);
     if (!characteristic.properties.contains('write')) {
       throw BleException(
@@ -224,6 +385,15 @@ class FakeBleClient implements BleClient {
     required bool enabled,
   }) async {
     _checkConnected();
+    final failure = notifyError;
+    if (failure != null) {
+      diagnostics.record(
+        'subscribe $characteristicUuid failed (${failure.failure.name})',
+        level: BleLogLevel.error,
+        failure: failure.failure,
+      );
+      throw failure;
+    }
     final characteristic = _characteristic(characteristicUuid);
     if (!characteristic.properties.contains('notify')) {
       throw BleException(
