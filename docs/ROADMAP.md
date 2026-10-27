@@ -75,8 +75,7 @@ end-to-end build.
 - [x] T34 — app: Live screen → [tasks/34-app-live-screen.md](tasks/34-app-live-screen.md)
 - [x] T35 — app: link procedures and time sync → [tasks/35-app-link-procedures-time-sync.md](tasks/35-app-link-procedures-time-sync.md) ⟵ accepted
 - [x] T36 — app: recent History (V0) → [tasks/36-app-recent-history-v0.md](tasks/36-app-recent-history-v0.md)
-- [~] T37 — Bench: V0 end-to-end → [tasks/37-bench-v0-end-to-end.md](tasks/37-bench-v0-end-to-end.md) ⟵ first real-hardware evidence captured ⟵ failed
-- [ ] T38 — Field observation: first normal cook on V0 → [tasks/38-field-observation-first-cook.md](tasks/38-field-observation-first-cook.md)
+- [x] T37 — Bench: V0 residual physical gate → [tasks/37-bench-v0-end-to-end.md](tasks/37-bench-v0-end-to-end.md) ⟵ closed with late-bench deferrals
 
 **Exit gate (V0):** a fresh phone scans, pairs with the OLED code, sees four live
 temperatures, and shows the last 15 minutes in the full History shell; reconnect
@@ -182,11 +181,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T18:09:21Z · 36/67 done
+**Pipeline status** — updated 2026-10-27T18:34:27Z · 37/66 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37
 - Blocked: none
-- Failed: T37
-- Remaining: T38, T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T37 — failed · interrupted by the run view
+- Failed: none
+- Remaining: T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T37 — complete for V0 · automatable residual run passed; physical-only cadence/power-cut/probe/OLED/stock-receiver checks deferred to T61/T62/T55/T67; T38 folded into T63
 <!-- /symphony:status -->

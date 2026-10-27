@@ -16,6 +16,9 @@ A committed current and runtime table, plus 20/20 hold-PRG wake evidence, lets t
 - [ ] Run 24 h on the 3000 mAh pack (advertising, OLED asleep).
 - [ ] Confirm hold-PRG wake 20/20 with USB attached.
 - [ ] Confirm the full 20/20 hold-PRG wake with **USB detached** on the pack.
+- [ ] Confirm the battery percentage is plausible against a known pack state and
+      that an unknown reading renders `—`, never `0%`. This absorbs the T37
+      battery residual.
       T09 proved 20/20 with USB attached (DTR-driven) and the owner observed at
       least one real finger-press wake on battery; the counted repeat was not
       run. This task owns the complete count.

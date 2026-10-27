@@ -56,7 +56,7 @@ With a real Smoke X4, on the bench (not during a live cook):
 ## Out of scope
 - Replaying the captures in a host test — the parser/harness side lands in
   T03/M1; this task supplies the fixtures.
-- A staged cook or field cook — M6 / T38 field evidence.
+- A staged cook or field cook — M6 / T63 field evidence.
 - Billows target-relation evidence (the 225/250/275 °F sweep) — T56. This task
   may capture only the attached/not-attached flag.
 - Parser feature work beyond what the captures verify — M1.
@@ -81,7 +81,7 @@ With a real Smoke X4, on the bench (not during a live cook):
   `protocol/fixtures/lora/`, with provenance and a row in that directory's
   `README.md` table.
 - Fixtures from T03 are the starting set; this task adds real, longer captures.
-- Ongoing field evidence is gathered by T38; Billows-specific evidence is
+- Ongoing field evidence is gathered by T63; Billows-specific evidence is
   gathered in M5. This task neither replaces nor duplicates those.
 
 ## Done when

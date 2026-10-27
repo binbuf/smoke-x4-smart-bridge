@@ -41,7 +41,7 @@
 - Pairing FSM, sync-beacon handling, frequency validation, retuning, and the ACK TX path → T16.
 - Record encoding and ring writes → T17/T18/T19.
 - Parser → log → UI pipeline wiring → T21.
-- BLE advertising, notifications, and sync → Phase 3 BLE tasks (T27–T38).
+- BLE advertising, notifications, and sync → Phase 3 BLE tasks (T27–T37).
 - Wi-Fi/HTTP/OTA and any other RF transmit path: outside MVP; no task owns it.
 - Billows TX/control: outside MVP; M5 (T56–T60) is observation only.
 

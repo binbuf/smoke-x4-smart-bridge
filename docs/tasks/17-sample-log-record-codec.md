@@ -45,8 +45,8 @@ A pure-C codec encodes and decodes the fixed 18-byte sample record with sequence
 - Ring geometry, headers, append/wrap, and recovery → T18.
 - Raw partition read/write/erase and boot recovery → T19.
 - Sample-pipeline wiring and counters → T21.
-- BLE sync framing and `record_size` in the sync header → Phase 3 BLE tasks (T27–T38).
-- App-side record codec and SQLite import → M2/M3 app tasks (T27–T38, T39–T46).
+- BLE sync framing and `record_size` in the sync header → Phase 3 BLE tasks (T27–T37).
+- App-side record codec and SQLite import → M2/M3 app tasks (T27–T37, T39–T46).
 - Alarms/notifications: outside MVP; no task owns them.
 - A Billows control path: outside MVP; M5 (T56–T60) is observation only.
 

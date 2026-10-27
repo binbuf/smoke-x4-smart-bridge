@@ -43,7 +43,7 @@ A pure ring core over a `log_io` seam implements sector headers, append, wrap, o
 - Binding the core to the `samples` partition and mapping `esp_partition` errors → T19.
 - Record byte layout/CRC definition → T17 (this task consumes it).
 - App `clear_history` / factory-reset command path and UI → M4 settings (T47–T55); the boot-side pending-clear behavior is T19.
-- BLE sync reads (`sync_ctrl` / `sync_data`) → Phase 3 BLE tasks (T27–T38).
+- BLE sync reads (`sync_ctrl` / `sync_data`) → Phase 3 BLE tasks (T27–T37).
 - LittleFS or any filesystem: outside MVP; the partition is raw.
 - OTA slots or a second application partition: outside MVP; no task owns it.
 - Wear-levelling beyond the natural sector rotation: not needed; see [04 §4.3](../design/04-data-and-storage.md).

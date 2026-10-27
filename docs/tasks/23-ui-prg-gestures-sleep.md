@@ -31,7 +31,7 @@ One GPIO0 button provides the complete MVP control surface: tap to advance pages
 ## Out of scope
 - Page rendering, overlays, and display timeout → T22.
 - Battery measurement → T24.
-- BLE-initiated `power_off` and connection teardown → Phase 3 BLE tasks (T27–T38); this task owns the local button path.
+- BLE-initiated `power_off` and connection teardown → Phase 3 BLE tasks (T27–T37); this task owns the local button path.
 - App-driven factory reset, clear history, or any on-device reset gesture → M4 settings (T47–T55).
 - A boot-time menu, button sequence, double-tap, or long-press ladder: outside MVP; no task owns it. The hold-to-wake confirmation is the only boot-time hold.
 - Fallback hardware for the GPIO0 strap risk (RST wake or external latch) only if the 20/20 gate fails; that decision is a hardware escalation, not silent scope.

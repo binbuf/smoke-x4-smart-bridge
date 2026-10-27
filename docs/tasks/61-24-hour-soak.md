@@ -15,7 +15,12 @@ A 24-hour run on the release image produces a committed stats trace and report a
 - [ ] Keep a phone connected for at least 4 h of the run.
 - [ ] Capture `heap_free`, `heap_min`, stack margins, packet counters, storage, and reconnect counts.
 - [ ] Apply the fixed criteria in [10 §10.4](../design/10-test-and-release.md).
-- [ ] Commit the raw stats trace and a short report.
+- [ ] Absorb the T37 physical residuals that need a long run: a 30-minute
+      cadence/RSSI/gap segment with the OLED awake then asleep, the stock
+      receiver kept alongside, a probe detach/reattach, an X4 °F/°C flip, and
+      a deliberate USB power cut with log recovery. Record each with a capture
+      and a dated result.
+- [ ] Commit the raw stats trace, the cadence segment and a short report.
 - [ ] Turn each failure into a named follow-up task.
 
 ## Out of scope
@@ -43,6 +48,18 @@ A 24-hour run on the release image produces a committed stats trace and report a
 
 - If a criterion fails, that is a finding, not a reason to lower the bar after the fact.
 - Capture raw counters rather than a hand-written summary so the trace can be re-checked.
+- The T37 cadence residual is a **30-minute segment at the start of the run**,
+  with the OLED awake for the first part and asleep for the rest. Generate
+  `CADENCE-REPORT.md` with `tools/bench/cadence_report.py`; every >90 s gap needs
+  a real cause. The full 24 h trace supplies the longer stability evidence.
+- The T37 power-cut residual is a deliberate USB removal **after** the cadence
+  segment, before the 24 h clock starts. It proves earlier records survive; the
+  soak itself then starts from a clean boot.
+- The probe detach/reattach and X4 °F/°C flip can be done during the cadence
+  segment. Record the exact times and confirm the stored values stay canonical
+  Fahrenheit with the detached sentinel, never zero.
+- The stock receiver must stay powered and updating for the whole run; a freeze
+  is a failure even if the bridge keeps recording.
 
 ## Done when
 - [ ] The trace and report are committed.

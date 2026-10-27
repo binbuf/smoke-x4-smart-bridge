@@ -19,7 +19,10 @@ Make every History and data failure honest and actionable: no readings, no readi
 - [ ] Implement and test the no-history-in-selected-range state.
 - [ ] Implement and test the no-probe-data state, including a filtered probe with no readings.
 - [ ] Implement and test the no-probes state.
-- [ ] Implement and test Bridge offline with cache.
+- [ ] Implement and test Bridge offline with cache. The banner must say
+      `Showing saved readings · last reading …` even after the reconnect budget
+      is exhausted; T37 found the failed state still says `Can’t reach the
+      Bridge` while showing the cached chart.
 - [ ] Implement and test Bridge offline without cache.
 - [ ] Implement and test no X4 data.
 - [ ] Implement and test sync failure.

@@ -8,7 +8,7 @@ Make the app's connection state honest and continuous: separate the BLE link fro
 - Verification: **H/P** (host/CI plus phone) · Board required: **no / phone**
 - Depends on T35, T40, and T41. T40 adds the `bridge` row and its saved-identity queries; T41 supplies the archive for last-known values and the durable cursor.
 - The state inventory is [13 §13.4 — Live](../design/13-ui-implementation-contract.md#live); copy is [12 §12.2 — Live](../design/12-copy-and-label-review.md#live).
-- **Post-T36 status:** the watchdog, stale/offline split, bounded backoff, Retry/Forget, resume and pull-to-refresh already landed in T35/T36 and are covered by `bridge_link_test.dart`. This task now owns the launch/relaunch path that is still missing; T37/T38 run before the archive exists and therefore still start in Setup.
+- **Post-T36 status:** the watchdog, stale/offline split, bounded backoff, Retry/Forget, resume and pull-to-refresh already landed in T35/T36 and are covered by `bridge_link_test.dart`. This task now owns the launch/relaunch path that is still missing; T37 ran before the archive exists and therefore still starts in Setup.
 
 ## Scope
 Already landed (keep and regression-test; do not reimplement):
@@ -40,6 +40,12 @@ Remaining for this task:
       `Connect` action. Do not dump the user back into the full setup flow.
 - [ ] If Bluetooth is off or permission is blocked on launch, show the named
       `BLOCKED` state and its system action, not Setup.
+- [ ] Observe adapter state changes **at runtime**. With the app on Live, turn
+      phone Bluetooth off: the link must leave `Connected`, show the named
+      blocked/offline state, and must not keep stale probe values or a
+      `Bridge Connected` label. Turn Bluetooth on: resume or offer Retry.
+      T37 found that an off/on cycle could leave the UI showing a stale
+      `Bridge Connected` while the bridge had no central link.
 - [ ] Clear the saved identity only on user-confirmed forget or factory reset;
       keep `sample`/`gap` rows as orphaned `History on this phone`.
 - [ ] Replace the in-memory recent cache used by the offline state with the T41

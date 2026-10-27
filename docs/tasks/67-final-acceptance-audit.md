@@ -12,6 +12,11 @@ Every row of the acceptance matrix and the UI/UX definition of done is marked pa
 ## Scope
 - [ ] Walk the acceptance matrix row by row.
 - [ ] Walk the UI/UX definition of done row by row.
+- [ ] Walk every OLED page and overlay through the case window: Probes,
+      Connection, Billows (when detected), Bridge, pairing code, power-off,
+      clearing/resetting, sleep/wake, and the blinking `BT` discovery
+      indicator. Record legibility and link photos. This absorbs the T37 OLED
+      page-walk residual.
 - [ ] Mark pass/fail by observation for each row.
 - [ ] Link the evidence for each row.
 - [ ] If a row fails, create a named follow-up or explicitly descope it with the owner.
