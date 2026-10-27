@@ -26,7 +26,11 @@ not a request for the app to delete anything.
 ## 4.2 Record format
 
 Packed, little-endian, no padding. Defined once in `protocol/records.yaml` and
-generated into C and Dart.
+generated into C and Dart (`protocol/gen/records.h`, `records.c`, `records.dart`).
+The YAML is the source of truth; the generated files are committed. Run
+`make protocol` after a contract change and `make protocol-check` to prove the
+committed output matches. The generator also owns CRC-16/CCITT-FALSE and the
+24-bit sequence codec, so no consumer hand-writes either.
 
 ```c
 typedef struct __attribute__((packed)) {

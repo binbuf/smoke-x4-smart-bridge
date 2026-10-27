@@ -1,0 +1,1120 @@
+#!/usr/bin/env python3
+"""Generate the C and Dart protocol codecs from protocol/*.yaml.
+
+    python tools/protogen/protogen.py            # regenerate in place
+    python tools/protogen/protogen.py --check    # exit 1 if committed output drifts
+
+The generator is deliberately boring: YAML order is the emission order, there
+are no timestamps or environment-dependent branches, and output is LF-only.
+That makes `--check` a real drift test.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+RECORDS_YAML = ROOT / "protocol" / "records.yaml"
+BLE_YAML = ROOT / "protocol" / "ble.yaml"
+GEN_DIR = ROOT / "protocol" / "gen"
+
+OUTPUTS = {
+    GEN_DIR / "records.h": None,
+    GEN_DIR / "records.c": None,
+    GEN_DIR / "records.dart": None,
+}
+
+C_TYPES = {
+    "u8": "uint8_t",
+    "u16": "uint16_t",
+    "u24": "uint32_t",
+    "u32": "uint32_t",
+    "u64": "uint64_t",
+    "i8": "int8_t",
+    "i16": "int16_t",
+    "i32": "int32_t",
+    "char": "char",
+}
+
+TYPE_SIZE = {
+    "u8": 1,
+    "u16": 2,
+    "u24": 3,
+    "u32": 4,
+    "u64": 8,
+    "i8": 1,
+    "i16": 2,
+    "i32": 4,
+    "char": 1,
+}
+
+PROP_MASKS = {"read": "0x01u", "write": "0x02u", "notify": "0x04u"}
+SEC_MASKS = {"open": "0u", "encrypted": "1u", "authenticated": "2u"}
+
+
+def die(msg: str) -> None:
+    raise SystemExit(f"protogen: {msg}")
+
+
+def snake_parts(name: str) -> list[str]:
+    return [p for p in name.split("_") if p]
+
+
+def pascal(name: str) -> str:
+    return "".join(p.lower()[:1].upper() + p.lower()[1:] for p in snake_parts(name))
+
+
+def camel(name: str) -> str:
+    parts = snake_parts(name)
+    tail = "".join(p.lower()[:1].upper() + p.lower()[1:] for p in parts[1:])
+    return parts[0].lower() + tail
+
+
+def upper(name: str) -> str:
+    return "_".join(p.upper() for p in snake_parts(name))
+
+
+def cstr(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def load_yaml(path: Path) -> dict:
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        die(f"{path} did not contain a mapping")
+    return data
+
+
+def field_size(field: dict) -> int:
+    kind = field["type"]
+    if kind not in TYPE_SIZE:
+        die(f"unknown field type {kind!r}")
+    count = int(field.get("count", 1))
+    return TYPE_SIZE[kind] * count
+
+
+def layout_size(layout: dict) -> int:
+    return sum(field_size(f) for f in layout["fields"])
+
+
+def is_variable(layout: dict) -> bool:
+    return bool(layout.get("variable"))
+
+
+def layout_max_size(layout: dict) -> int:
+    return int(layout.get("max_size", layout.get("size", 0)))
+
+
+def validate_layouts(layouts: dict) -> None:
+    for name, layout in layouts.items():
+        declared = layout_max_size(layout)
+        actual = layout_size(layout)
+        if declared != actual:
+            die(f"layout {name}: declared size {declared} != field sum {actual}")
+        seen = set()
+        for field in layout["fields"]:
+            if field["name"] in seen:
+                die(f"layout {name}: duplicate field {field['name']}")
+            seen.add(field["name"])
+        if is_variable(layout):
+            length_name = layout.get("length_field")
+            if not length_name:
+                die(f"layout {name}: variable layout needs length_field")
+            if length_name not in seen:
+                die(f"layout {name}: unknown length_field {length_name}")
+        for field in layout["fields"]:
+            crc = field.get("crc")
+            if crc:
+                start, end = crc["over"]
+                if not (0 <= start < end <= declared):
+                    die(f"layout {name}.{field['name']}: crc range out of bounds")
+
+
+def collect_enums(records: dict, ble: dict) -> dict[str, dict[str, int]]:
+    enums: dict[str, dict[str, int]] = {}
+    for group in records.get("enums", {}), ble.get("enums", {}):
+        for name, values in group.items():
+            enums[name] = {k: int(v) for k, v in values.items()}
+    enums["control_op"] = {
+        name: int(spec["op"]) for name, spec in ble["control_ops"].items()
+    }
+    enums["result_status"] = {
+        name: int(value) for name, value in ble["result_statuses"].items()
+    }
+    return enums
+
+
+def collect_flags(records: dict, ble: dict) -> dict[str, dict[str, int]]:
+    flags: dict[str, dict[str, int]] = {}
+    for group in records.get("flags", {}), ble.get("flags", {}):
+        for name, values in group.items():
+            flags[name] = {k: int(v) for k, v in values.items()}
+    return flags
+
+
+# ---------------------------------------------------------------------------
+# C emission
+
+
+def emit_c_header(records: dict, ble: dict, enums: dict, flags: dict, layouts: dict) -> str:
+    meta = records["meta"]
+    bmeta = ble["meta"]
+    out: list[str] = []
+    w = out.append
+
+    w("/* GENERATED by tools/protogen/protogen.py from protocol/records.yaml")
+    w(" * and protocol/ble.yaml. DO NOT EDIT.")
+    w(" * Regenerate with: make protocol    Check with: make protocol-check")
+    w(" *")
+    w(" * Little-endian wire format throughout. See the YAML sources and")
+    w(" * docs/design/04-data-and-storage.md / 05-ble-contract.md for rationale.")
+    w(" */")
+    w("#ifndef SX4_PROTOCOL_RECORDS_H")
+    w("#define SX4_PROTOCOL_RECORDS_H")
+    w("")
+    w("#include <stdbool.h>")
+    w("#include <stddef.h>")
+    w("#include <stdint.h>")
+    w("#include <string.h>")
+    w("")
+    w("#ifdef __cplusplus")
+    w('extern "C" {')
+    w("#endif")
+    w("")
+    w("/* ── Contract version and fixed sizes ─────────────────────────────── */")
+    w("")
+    w(f"#define SX4_PROTOCOL_MAJOR {int(meta['protocol_major'])}u")
+    w(f"#define SX4_PROTOCOL_MINOR {int(meta['protocol_minor'])}u")
+    w(f"#define SX4_RECORD_VERSION {int(meta['record_version'])}u")
+    w(f"#define SX4_RECORD_SIZE {int(meta['record_size'])}u")
+    w("")
+    for name, spec in records.get("constants", {}).items():
+        suffix = "u" if not str(spec["value"]).startswith("-") else ""
+        if spec["type"] == "char":
+            w(f"#define SX4_{upper(name)} {cstr(str(spec['value']))}")
+        else:
+            w(f"#define SX4_{upper(name)} ({spec['value']}{suffix})")
+    w("")
+    w("/* ── BLE service and characteristic slots ─────────────────────────── */")
+    w("")
+    for key in (
+        "base_uuid",
+        "service_uuid",
+        "local_name_prefix",
+    ):
+        value = bmeta[key]
+        if key.endswith("_uuid"):
+            w(f"#define SX4_BLE_{upper(key)} {cstr(value)}")
+        else:
+            w(f"#define SX4_BLE_{upper(key)} {cstr(value)}")
+    for key in (
+        "mtu_default",
+        "mtu_request",
+        "company_id",
+        "control_max_size",
+        "result_max_size",
+        "sync_frame_max_payload",
+        "sync_max_records",
+        "sync_default_records",
+    ):
+        w(f"#define SX4_BLE_{upper(key)} ({int(bmeta[key])}u)")
+    w("")
+    w("#define SX4_BLE_PROP_READ 0x01u")
+    w("#define SX4_BLE_PROP_WRITE 0x02u")
+    w("#define SX4_BLE_PROP_NOTIFY 0x04u")
+    w("#define SX4_BLE_SEC_OPEN 0u")
+    w("#define SX4_BLE_SEC_ENCRYPTED 1u")
+    w("#define SX4_BLE_SEC_AUTHENTICATED 2u")
+    w("")
+    for char in ble["characteristics"]:
+        name = upper(char["name"])
+        slot = str(char["slot"])
+        uuid = bmeta["base_uuid"].replace("XXXX", slot)
+        props = " | ".join(f"SX4_BLE_PROP_{p.upper()}" for p in char["properties"])
+        w(f"#define SX4_BLE_CHAR_{name}_SLOT 0x{slot}u")
+        w(f"#define SX4_BLE_CHAR_{name}_UUID {cstr(uuid)}")
+        w(f"#define SX4_BLE_CHAR_{name}_PROPS ({props})")
+        w(f"#define SX4_BLE_CHAR_{name}_SECURITY SX4_BLE_SEC_{char['security'].upper()}")
+    w("")
+    w("/* ── Enums (wire values) ──────────────────────────────────────────── */")
+    w("")
+    for enum_name, values in enums.items():
+        w(f"typedef enum {{")
+        for value_name, value in values.items():
+            w(f"    SX4_{upper(enum_name)}_{upper(value_name)} = {value},")
+        w(f"}} sx4_{enum_name}_t;")
+        w("")
+        w(f"static inline const char *sx4_{enum_name}_str(int v) {{")
+        w("    switch (v) {")
+        for value_name, value in values.items():
+            w(f"    case {value}:")
+            w(f"        return {cstr(value_name)};")
+        w("    default:")
+        w('        return "";')
+        w("    }")
+        w("}")
+        w("")
+    w("/* ── Flag masks ───────────────────────────────────────────────────── */")
+    w("")
+    for group_name, values in flags.items():
+        for flag_name, bit in values.items():
+            w(f"#define SX4_{upper(group_name)}_FLAG_{upper(flag_name)} (1u << {bit})")
+        w("")
+    w("/* ── Byte helpers and shared codecs ───────────────────────────────── */")
+    w("")
+    w("static inline uint8_t sx4_get_u8(const uint8_t *p) { return p[0]; }")
+    w("static inline uint16_t sx4_get_u16(const uint8_t *p) {")
+    w("    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));")
+    w("}")
+    w("static inline uint32_t sx4_get_u24(const uint8_t *p) {")
+    w("    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);")
+    w("}")
+    w("static inline uint32_t sx4_get_u32(const uint8_t *p) {")
+    w("    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |")
+    w("           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);")
+    w("}")
+    w("static inline uint64_t sx4_get_u64(const uint8_t *p) {")
+    w("    return (uint64_t)sx4_get_u32(p) | ((uint64_t)sx4_get_u32(p + 4) << 32);")
+    w("}")
+    w("static inline void sx4_put_u8(uint8_t *p, uint8_t v) { p[0] = v; }")
+    w("static inline void sx4_put_u16(uint8_t *p, uint16_t v) {")
+    w("    p[0] = (uint8_t)(v & 0xFFu);")
+    w("    p[1] = (uint8_t)(v >> 8);")
+    w("}")
+    w("static inline void sx4_put_u24(uint8_t *p, uint32_t v) {")
+    w("    p[0] = (uint8_t)(v & 0xFFu);")
+    w("    p[1] = (uint8_t)((v >> 8) & 0xFFu);")
+    w("    p[2] = (uint8_t)((v >> 16) & 0xFFu);")
+    w("}")
+    w("static inline void sx4_put_u32(uint8_t *p, uint32_t v) {")
+    w("    p[0] = (uint8_t)(v & 0xFFu);")
+    w("    p[1] = (uint8_t)((v >> 8) & 0xFFu);")
+    w("    p[2] = (uint8_t)((v >> 16) & 0xFFu);")
+    w("    p[3] = (uint8_t)((v >> 24) & 0xFFu);")
+    w("}")
+    w("static inline void sx4_put_u64(uint8_t *p, uint64_t v) {")
+    w("    sx4_put_u32(p, (uint32_t)v);")
+    w("    sx4_put_u32(p + 4, (uint32_t)(v >> 32));")
+    w("}")
+    w("")
+    w("/* CRC-16/CCITT-FALSE; check(\"123456789\") == 0x29B1. */")
+    w("uint16_t sx4_crc16_ccitt_false(const uint8_t *data, size_t len);")
+    w("")
+    w("/* 24-bit sequence codec: values are 0..16,777,215. */")
+    w("uint32_t sx4_seq24_read(const uint8_t p[3]);")
+    w("void sx4_seq24_write(uint8_t p[3], uint32_t value);")
+    w("")
+    w("static inline bool sx4_temp_is_detached(int16_t v) {")
+    w("    return v == (int16_t)SX4_TEMP_DETACHED;")
+    w("}")
+    w("static inline bool sx4_temp_is_invalid(int16_t v) {")
+    w("    return v == (int16_t)SX4_TEMP_INVALID;")
+    w("}")
+    w("")
+    for name, layout in layouts.items():
+        emit_c_layout_decl(out, name, layout)
+    w("#ifdef __cplusplus")
+    w("}")
+    w("#endif")
+    w("")
+    w("#endif /* SX4_PROTOCOL_RECORDS_H */")
+    w("")
+    return "\n".join(out)
+
+
+def c_field_decl(field: dict) -> str:
+    name = field["name"]
+    kind = field["type"]
+    count = int(field.get("count", 1))
+    if kind == "u24":
+        return f"    uint8_t {name}[3];"
+    ctype = C_TYPES[kind]
+    if count > 1:
+        return f"    {ctype} {name}[{count}];"
+    return f"    {ctype} {name};"
+
+
+def emit_c_layout_decl(out: list[str], name: str, layout: dict) -> None:
+    size = layout_max_size(layout)
+    var = is_variable(layout)
+    upper_name = upper(name)
+    out.append(f"/* ── {name} ({size} B{', variable' if var else ''}) ── */")
+    out.append("")
+    out.append(f"#define SX4_{upper_name}_SIZE {size}u")
+    out.append("")
+    out.append("typedef struct __attribute__((packed)) {")
+    for field in layout["fields"]:
+        out.append(c_field_decl(field))
+    out.append(f"}} sx4_{name}_t;")
+    out.append("")
+    if not var:
+        out.append(
+            f'_Static_assert(sizeof(sx4_{name}_t) == SX4_{upper_name}_SIZE, '
+            f'"{name} must pack to {size} bytes");'
+        )
+    else:
+        out.append(
+            f'_Static_assert(sizeof(sx4_{name}_t) == SX4_{upper_name}_SIZE, '
+            f'"{name} maximum layout must be {size} bytes");'
+        )
+    out.append("")
+    out.append(
+        f"size_t sx4_{name}_encode(const sx4_{name}_t *v, uint8_t *out, size_t cap);"
+    )
+    out.append(
+        f"bool sx4_{name}_decode(const uint8_t *in, size_t len, sx4_{name}_t *v);"
+    )
+    out.append("")
+    # Convenience accessors for u24 fields.
+    for field in layout["fields"]:
+        if field["type"] == "u24":
+            fname = field["name"]
+            out.append(
+                f"static inline uint32_t sx4_{name}_{fname}_get(const sx4_{name}_t *v) "
+                f"{{ return sx4_seq24_read(v->{fname}); }}"
+            )
+            out.append(
+                f"static inline void sx4_{name}_{fname}_set(sx4_{name}_t *v, uint32_t value) "
+                f"{{ sx4_seq24_write(v->{fname}, value); }}"
+            )
+            out.append("")
+    # Flag helpers.
+    for field in layout["fields"]:
+        bits = field.get("bits")
+        if not bits:
+            continue
+        for flag_name in sorted(FLAG_GROUPS[bits], key=lambda k: FLAG_GROUPS[bits][k]):
+            out.append(f"static inline bool sx4_{name}_{field['name']}_{flag_name}(uint8_t value) {{")
+            out.append(
+                f"    return (value & SX4_{upper(bits)}_FLAG_{upper(flag_name)}) != 0;"
+            )
+            out.append("}")
+        out.append("")
+
+
+def c_offset(layout: dict, index: int) -> int:
+    return sum(field_size(f) for f in layout["fields"][:index])
+
+
+def c_field_value_expr(field: dict, var_name: str) -> str:
+    kind = field["type"]
+    name = field["name"]
+    if kind == "char":
+        return f"v->{name}"
+    if field.get("count", 1) > 1:
+        return f"v->{name}[i]"
+    return f"v->{name}"
+
+
+def emit_c_encoder(out: list[str], layout_name: str, layout: dict) -> None:
+    size = layout_max_size(layout)
+    upper_name = upper(layout_name)
+    var = is_variable(layout)
+    out.append(f"size_t sx4_{layout_name}_encode(const sx4_{layout_name}_t *v, uint8_t *out, size_t cap) {{")
+    if var:
+        length_field = layout["length_field"]
+        length_index = next(i for i, f in enumerate(layout["fields"]) if f["name"] == length_field)
+        var_field_index = length_index + 1
+        var_field = layout["fields"][var_field_index]
+        max_detail = int(var_field.get("count", 1))
+        fixed = c_offset(layout, var_field_index)
+        out.append(f"    size_t n = 0;")
+        out.append(f"    if (!v || !out) return 0;")
+        out.append(f"    while (n < {max_detail} && v->{var_field['name']}[n]) n++;")
+        out.append(f"    if (cap < {fixed} + n) return 0;")
+        out.append(f"    memset(out, 0, {fixed} + n);")
+    else:
+        out.append("    if (!v || !out || cap < SX4_%s_SIZE) return 0;" % upper_name)
+        out.append(f"    memset(out, 0, SX4_{upper_name}_SIZE);")
+    for index, field in enumerate(layout["fields"]):
+        off = c_offset(layout, index)
+        name = field["name"]
+        kind = field["type"]
+        count = int(field.get("count", 1))
+        crc = field.get("crc")
+        const = field.get("const")
+        if crc:
+            start, end = crc["over"]
+            if crc["kind"] != "crc16":
+                die(f"layout {layout_name}.{name}: unsupported crc kind")
+            out.append(
+                f"    sx4_put_u16(out + {off}, sx4_crc16_ccitt_false(out + {start}, {end - start}));"
+            )
+            continue
+        if var and name == layout["length_field"]:
+            out.append(f"    sx4_put_u8(out + {off}, (uint8_t)n);")
+            continue
+        if var and index == next(i for i, f in enumerate(layout["fields"]) if f["name"] == layout.get("length_field")) + 1:
+            out.append(f"    memcpy(out + {off}, v->{name}, n);")
+            continue
+        if const is not None:
+            if kind == "char":
+                raw = str(const).encode("utf-8")
+                out.append(f"    memcpy(out + {off}, {cstr(str(const))}, {min(len(raw), count)});")
+            elif count > 1:
+                out.append(f"    for (size_t i = 0; i < {count}; i++) out[{off} + i] = 0;")
+            else:
+                out.append(f"    sx4_put_u8(out + {off}, {int(const)}u);")
+            continue
+        if kind == "char":
+            out.append(f"    {{")
+            out.append(f"        size_t n = 0;")
+            out.append(f"        while (n < {count} && v->{name}[n]) n++;")
+            out.append(f"        memcpy(out + {off}, v->{name}, n);")
+            out.append(f"    }}")
+            continue
+        if kind == "u24":
+            out.append(f"    memcpy(out + {off}, v->{name}, 3);")
+            continue
+        if count > 1:
+            step = TYPE_SIZE[kind]
+            put = "sx4_put_u8" if kind == "u8" else (
+                "sx4_put_u16" if step == 2 else
+                "sx4_put_u32" if step == 4 and kind in ("u32", "i32") else
+                "sx4_put_u64" if step == 8 else "sx4_put_u16"
+            )
+            out.append(f"    for (size_t i = 0; i < {count}; i++) {{")
+            out.append(f"        {put}(out + {off} + i * {step}, (uint{step * 8}_t)v->{name}[i]);")
+            out.append(f"    }}")
+            continue
+        step = TYPE_SIZE[kind]
+        put = {
+            1: "sx4_put_u8",
+            2: "sx4_put_u16",
+            4: "sx4_put_u32",
+            8: "sx4_put_u64",
+        }[step]
+        cast = "uint8_t" if step == 1 else f"uint{step * 8}_t"
+        out.append(f"    {put}(out + {off}, ({cast})v->{name});")
+    if var:
+        var_field_index = next(
+            i for i, f in enumerate(layout["fields"]) if f["name"] == layout["length_field"]
+        ) + 1
+        fixed = c_offset(layout, var_field_index)
+        out.append(f"    return {fixed} + n;")
+    else:
+        out.append(f"    return SX4_{upper_name}_SIZE;")
+    out.append("}")
+    out.append("")
+
+
+def emit_c_decoder(out: list[str], layout_name: str, layout: dict) -> None:
+    size = layout_max_size(layout)
+    upper_name = upper(layout_name)
+    var = is_variable(layout)
+    out.append(f"bool sx4_{layout_name}_decode(const uint8_t *in, size_t len, sx4_{layout_name}_t *v) {{")
+    if var:
+        length_field = layout["length_field"]
+        length_index = next(i for i, f in enumerate(layout["fields"]) if f["name"] == length_field)
+        var_field_index = length_index + 1
+        var_field = layout["fields"][var_field_index]
+        max_detail = int(var_field.get("count", 1))
+        fixed = c_offset(layout, var_field_index)
+        out.append(f"    if (!in || !v || len < {fixed}) return false;")
+        out.append(f"    size_t n = in[{c_offset(layout, length_index)}];")
+        out.append(f"    if (n > {max_detail} || len < {fixed} + n) return false;")
+        out.append("    memset(v, 0, sizeof(*v));")
+    else:
+        out.append(f"    if (!in || !v || len < SX4_{upper_name}_SIZE) return false;")
+        out.append("    memset(v, 0, sizeof(*v));")
+    for index, field in enumerate(layout["fields"]):
+        off = c_offset(layout, index)
+        name = field["name"]
+        kind = field["type"]
+        count = int(field.get("count", 1))
+        crc = field.get("crc")
+        if crc:
+            out.append(f"    v->{name} = sx4_get_u16(in + {off});")
+            continue
+        if var and name == layout["length_field"]:
+            out.append(f"    v->{name} = (uint8_t)n;")
+            continue
+        if var and index == next(i for i, f in enumerate(layout["fields"]) if f["name"] == layout["length_field"]) + 1:
+            out.append(f"    memcpy(v->{name}, in + {off}, n);")
+            continue
+        if kind == "char":
+            out.append(f"    memcpy(v->{name}, in + {off}, {count});")
+            continue
+        if kind == "u24":
+            out.append(f"    memcpy(v->{name}, in + {off}, 3);")
+            continue
+        if count > 1:
+            step = TYPE_SIZE[kind]
+            get = {
+                1: "sx4_get_u8",
+                2: "sx4_get_u16",
+                4: "sx4_get_u32",
+                8: "sx4_get_u64",
+            }[step]
+            out.append(f"    for (size_t i = 0; i < {count}; i++) {{")
+            if kind.startswith("i") and step == 1:
+                out.append(f"        v->{name}[i] = (int8_t){get}(in + {off} + i * {step});")
+            elif kind.startswith("i") and step == 2:
+                out.append(f"        v->{name}[i] = (int16_t){get}(in + {off} + i * {step});")
+            else:
+                out.append(f"        v->{name}[i] = {get}(in + {off} + i * {step});")
+            out.append(f"    }}")
+            continue
+        step = TYPE_SIZE[kind]
+        get = {
+            1: "sx4_get_u8",
+            2: "sx4_get_u16",
+            4: "sx4_get_u32",
+            8: "sx4_get_u64",
+        }[step]
+        if kind.startswith("i") and step == 1:
+            out.append(f"    v->{name} = (int8_t){get}(in + {off});")
+        elif kind.startswith("i") and step == 2:
+            out.append(f"    v->{name} = (int16_t){get}(in + {off});")
+        else:
+            out.append(f"    v->{name} = {get}(in + {off});")
+    crc_fields = [f for f in layout["fields"] if f.get("crc")]
+    if crc_fields:
+        checks = " && ".join(
+            f"v->{f['name']} == sx4_crc16_ccitt_false(in + {f['crc']['over'][0]}, {f['crc']['over'][1] - f['crc']['over'][0]})"
+            for f in crc_fields
+        )
+        out.append(f"    return {checks};")
+    else:
+        out.append("    return true;")
+    out.append("}")
+    out.append("")
+
+
+def emit_c_source(records: dict, layouts: dict) -> str:
+    out: list[str] = []
+    w = out.append
+    w("/* GENERATED by tools/protogen/protogen.py from protocol/records.yaml")
+    w(" * and protocol/ble.yaml. DO NOT EDIT. */")
+    w("")
+    w('#include "records.h"')
+    w("")
+    w("uint16_t sx4_crc16_ccitt_false(const uint8_t *data, size_t len) {")
+    w("    uint16_t crc = 0xFFFFu;")
+    w("    for (size_t i = 0; i < len; i++) {")
+    w("        crc ^= (uint16_t)((uint16_t)data[i] << 8);")
+    w("        for (int bit = 0; bit < 8; bit++) {")
+    w("            crc = (crc & 0x8000u) != 0")
+    w("                      ? (uint16_t)((crc << 1) ^ 0x1021u)")
+    w("                      : (uint16_t)(crc << 1);")
+    w("        }")
+    w("    }")
+    w("    return crc;")
+    w("}")
+    w("")
+    w("uint32_t sx4_seq24_read(const uint8_t p[3]) {")
+    w("    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);")
+    w("}")
+    w("")
+    w("void sx4_seq24_write(uint8_t p[3], uint32_t value) {")
+    w("    p[0] = (uint8_t)(value & 0xFFu);")
+    w("    p[1] = (uint8_t)((value >> 8) & 0xFFu);")
+    w("    p[2] = (uint8_t)((value >> 16) & 0xFFu);")
+    w("}")
+    w("")
+    for name, layout in layouts.items():
+        emit_c_encoder(out, name, layout)
+        emit_c_decoder(out, name, layout)
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Dart emission
+
+
+def dart_field_decl(field: dict) -> str:
+    kind = field["type"]
+    count = int(field.get("count", 1))
+    name = camel(field["name"])
+    if kind == "char":
+        return f"  final String {name};"
+    if count > 1:
+        return f"  final List<int> {name};"
+    return f"  final int {name};"
+
+
+def dart_default(field: dict) -> str:
+    kind = field["type"]
+    count = int(field.get("count", 1))
+    name = camel(field["name"])
+    if kind == "char":
+        return f"    this.{name} = '',"
+    if count > 1:
+        return f"    List<int>? {name},"
+    return f"    this.{name} = 0,"
+
+
+def dart_init(field: dict) -> str:
+    kind = field["type"]
+    count = int(field.get("count", 1))
+    name = camel(field["name"])
+    if kind != "char" and count > 1:
+        return f"    {name} = {name} ?? List<int>.filled({count}, 0),"
+    return ""
+
+
+def dart_offset(layout: dict, index: int) -> int:
+    return sum(field_size(f) for f in layout["fields"][:index])
+
+
+def emit_dart_layout(out: list[str], name: str, layout: dict) -> None:
+    class_name = pascal(name)
+    size = layout_max_size(layout)
+    var = is_variable(layout)
+    out.append(f"/// {name} — {size} bytes{', variable length' if var else ', fixed'}.")
+    out.append(f"class {class_name} {{")
+    out.append(f"  {class_name}({{")
+    for field in layout["fields"]:
+        out.append(dart_default(field))
+    init_lines = [dart_init(f) for f in layout["fields"] if dart_init(f)]
+    if init_lines:
+        initializers = ",\n        ".join(line.strip().rstrip(",") for line in init_lines)
+        out.append("  }) : " + initializers + ";")
+    else:
+        out.append("  });")
+    out.append("")
+    out.append(f"  static const int size = {size};")
+    out.append(f"  static const int maxSize = {size};")
+    out.append("")
+    for field in layout["fields"]:
+        out.append(dart_field_decl(field))
+        if field.get("doc"):
+            out.append(f"  /// {field['doc']}")
+    out.append("")
+    # Flag getters.
+    for field in layout["fields"]:
+        bits = field.get("bits")
+        if not bits:
+            continue
+        field_name = camel(field["name"])
+        for flag_name, bit in FLAG_GROUPS[bits].items():
+            out.append(
+                f"  bool get {camel(flag_name)} => "
+                f"({field_name} & (1 << {bit})) != 0;"
+            )
+    # Sentinel helpers for temperature arrays.
+    for field in layout["fields"]:
+        if field.get("sentinel") and int(field.get("count", 1)) > 1:
+            fname = camel(field["name"])
+            out.append("")
+            out.append(f"  bool {fname}IsDetached(int i) => {fname}[i] == tempDetached;")
+            out.append(f"  bool {fname}IsInvalid(int i) => {fname}[i] == tempInvalid;")
+            out.append(f"  int? {fname}OrNull(int i) =>")
+            out.append(f"      {fname}IsDetached(i) || {fname}IsInvalid(i) ? null : {fname}[i];")
+    out.append("")
+    # Decode.
+    if var:
+        length_field = layout["length_field"]
+        length_index = next(i for i, f in enumerate(layout["fields"]) if f["name"] == length_field)
+        var_field_index = length_index + 1
+        var_field = layout["fields"][var_field_index]
+        fixed = dart_offset(layout, var_field_index)
+        max_detail = int(var_field.get("count", 1))
+        out.append(f"  factory {class_name}.decode(Uint8List bytes, [int offset = 0]) {{")
+        out.append(f"    if (bytes.length - offset < {fixed}) {{")
+        out.append("      throw RangeError('truncated " + name + " header');")
+        out.append("    }")
+        out.append(f"    final n = bytes[offset + {dart_offset(layout, length_index)}];")
+        out.append(f"    if (n > {max_detail} || bytes.length - offset < {fixed} + n) {{")
+        out.append("      throw RangeError('bad " + length_field + " in " + name + "');")
+        out.append("    }")
+        out.append(f"    final available = bytes.length - offset;")
+        out.append(f"    final limit = available < {fixed} + n ? available : {fixed} + n;")
+        out.append(f"    final bd = ByteData.sublistView(bytes, offset, offset + limit);")
+    else:
+        out.append(f"  factory {class_name}.decode(Uint8List bytes, [int offset = 0]) {{")
+        out.append(f"    if (bytes.length - offset < size) {{")
+        out.append("      throw RangeError('truncated " + name + "');")
+        out.append("    }")
+        out.append(f"    final bd = ByteData.sublistView(bytes, offset, offset + size);")
+    args = []
+    for index, field in enumerate(layout["fields"]):
+        off = dart_offset(layout, index)
+        fname = camel(field["name"])
+        kind = field["type"]
+        count = int(field.get("count", 1))
+        crc = field.get("crc")
+        if crc:
+            args.append(f"        {fname}: bd.getUint16({off}, Endian.little),")
+            continue
+        if var and field["name"] == layout["length_field"]:
+            args.append(f"        {fname}: n,")
+            continue
+        if var and field.get("name") == layout["fields"][next(i for i, f in enumerate(layout["fields"]) if f["name"] == layout["length_field"]) + 1]["name"]:
+            args.append(f"        {fname}: _readString(bytes, offset + {off}, n),")
+            continue
+        if kind == "char":
+            args.append(f"        {fname}: _readString(bytes, offset + {off}, {count}),")
+            continue
+        if kind == "u24":
+            args.append(f"        {fname}: seq24Read(bytes, offset + {off}),")
+            continue
+        if count > 1:
+            reader = _dart_reader(kind, off, array=True)
+            args.append(
+                f"        {fname}: [for (var i = 0; i < {count}; i++) {reader}],"
+            )
+            continue
+        reader = _dart_reader(kind, off)
+        args.append(f"        {fname}: {reader},")
+    out.append(f"    return {class_name}(")
+    for arg in args:
+        out.append(arg)
+    out.append("    );")
+    out.append("  }")
+    out.append("")
+    # Encode.
+    if var:
+        length_field = layout["length_field"]
+        length_index = next(i for i, f in enumerate(layout["fields"]) if f["name"] == length_field)
+        var_field_index = length_index + 1
+        var_field = layout["fields"][var_field_index]
+        fixed = dart_offset(layout, var_field_index)
+        max_detail = int(var_field.get("count", 1))
+        out.append("  Uint8List encode() {")
+        out.append(
+            f"    final detailBytes = _encodeString({camel(var_field['name'])}, {max_detail});"
+        )
+        out.append(f"    final out = Uint8List({fixed} + detailBytes.length);")
+        out.append("    final bd = ByteData.sublistView(out);")
+    else:
+        out.append("  Uint8List encode() {")
+        out.append("    final out = Uint8List(size);")
+        out.append("    final bd = ByteData.sublistView(out);")
+    for index, field in enumerate(layout["fields"]):
+        off = dart_offset(layout, index)
+        fname = camel(field["name"])
+        kind = field["type"]
+        count = int(field.get("count", 1))
+        crc = field.get("crc")
+        const = field.get("const")
+        if crc:
+            start, end = crc["over"]
+            out.append(
+                f"    bd.setUint16({off}, crc16CcittFalse(out, {start}, {end}), Endian.little);"
+            )
+            continue
+        if var and field["name"] == layout["length_field"]:
+            out.append(f"    bd.setUint8({off}, detailBytes.length);")
+            continue
+        if var and index == next(i for i, f in enumerate(layout["fields"]) if f["name"] == layout["length_field"]) + 1:
+            out.append(f"    out.setRange({off}, {off} + detailBytes.length, detailBytes);")
+            continue
+        if const is not None:
+            if kind == "char":
+                out.append(f"    _writeString(out, {off}, {count}, {dart_str(str(const))});")
+            else:
+                out.append(f"    bd.setUint8({off}, {int(const)});")
+            continue
+        if kind == "char":
+            out.append(f"    _writeString(out, {off}, {count}, {fname});")
+            continue
+        if kind == "u24":
+            out.append(f"    seq24Write(out, {off}, {fname});")
+            continue
+        if count > 1:
+            out.append(f"    for (var i = 0; i < {count}; i++) {{")
+            out.append(
+                f"      {_dart_setter_call(kind, f'{off} + i * {TYPE_SIZE[kind]}', f'{fname}[i]')};"
+            )
+            out.append("    }")
+            continue
+        out.append(f"    {_dart_setter_call(kind, str(off), fname)};")
+    out.append("    return out;")
+    out.append("  }")
+    if any(f.get("crc") for f in layout["fields"]):
+        first = next(f for f in layout["fields"] if f.get("crc"))
+        out.append("")
+        out.append("  /// Whether the stored CRC matches the field bytes.")
+        out.append(
+            f"  bool get crcOk => {camel(first['name'])} =="
+            f" crc16CcittFalse(encode(), {first['crc']['over'][0]}, {first['crc']['over'][1]});"
+        )
+    out.append("}")
+    out.append("")
+
+
+def _dart_reader(kind: str, off: int, array: bool = False) -> str:
+    method = {
+        "u8": "getUint8",
+        "u16": "getUint16",
+        "u32": "getUint32",
+        "u64": "getUint64",
+        "i8": "getInt8",
+        "i16": "getInt16",
+        "i32": "getInt32",
+    }[kind]
+    pos = f"{off} + i * {TYPE_SIZE[kind]}" if array else str(off)
+    if kind == "u8" or kind == "i8":
+        return f"bd.{method}({pos})"
+    return f"bd.{method}({pos}, Endian.little)"
+
+
+def _dart_setter(kind: str) -> str:
+    return {
+        "u8": "bd.setUint8",
+        "u16": "bd.setUint16",
+        "u32": "bd.setUint32",
+        "u64": "bd.setUint64",
+        "i8": "bd.setInt8",
+        "i16": "bd.setInt16",
+        "i32": "bd.setInt32",
+    }[kind]
+
+
+def _dart_setter_call(kind: str, position: str, value: str) -> str:
+    setter = _dart_setter(kind)
+    if kind in ("u8", "i8"):
+        return f"{setter}({position}, {value})"
+    return f"{setter}({position}, {value}, Endian.little)"
+
+
+def dart_str(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def emit_dart(records: dict, ble: dict, enums: dict, flags: dict, layouts: dict) -> str:
+    meta = records["meta"]
+    bmeta = ble["meta"]
+    out: list[str] = []
+    w = out.append
+    w("// GENERATED by tools/protogen/protogen.py from protocol/records.yaml")
+    w("// and protocol/ble.yaml. DO NOT EDIT.")
+    w("// Regenerate with: make protocol    Check with: make protocol-check")
+    w("//")
+    w("// Little-endian wire format throughout. See the YAML sources and")
+    w("// docs/design/04-data-and-storage.md / 05-ble-contract.md for rationale.")
+    w("// ignore_for_file: unnecessary_library_name")
+    w("library records_g;")
+    w("")
+    w("import 'dart:convert';")
+    w("import 'dart:typed_data';")
+    w("")
+    w("// ── Contract version and constants ─────────────────────────────────")
+    w("")
+    w(f"const int protocolMajor = {int(meta['protocol_major'])};")
+    w(f"const int protocolMinor = {int(meta['protocol_minor'])};")
+    w(f"const int recordVersion = {int(meta['record_version'])};")
+    w(f"const int recordSize = {int(meta['record_size'])};")
+    for name, spec in records.get("constants", {}).items():
+        value = spec["value"]
+        if spec["type"] == "char":
+            w(f"const String {camel(name)} = {dart_str(str(value))};")
+        else:
+            w(f"const int {camel(name)} = {value};")
+    w("")
+    w("// ── BLE service and characteristic slots ────────────────────────────")
+    w("")
+    w(f"const String bleBaseUuid = {dart_str(bmeta['base_uuid'])};")
+    w(f"const String bleServiceUuid = {dart_str(bmeta['service_uuid'])};")
+    w(f"const String bleLocalNamePrefix = {dart_str(bmeta['local_name_prefix'])};")
+    w(f"const int bleMtuDefault = {int(bmeta['mtu_default'])};")
+    w(f"const int bleMtuRequest = {int(bmeta['mtu_request'])};")
+    w(f"const int bleCompanyId = {int(bmeta['company_id'])};")
+    w(f"const int bleControlMaxSize = {int(bmeta['control_max_size'])};")
+    w(f"const int bleResultMaxSize = {int(bmeta['result_max_size'])};")
+    w(f"const int bleSyncFrameMaxPayload = {int(bmeta['sync_frame_max_payload'])};")
+    w(f"const int bleSyncMaxRecords = {int(bmeta['sync_max_records'])};")
+    w(f"const int bleSyncDefaultRecords = {int(bmeta['sync_default_records'])};")
+    w("")
+    w("class BleCharacteristic {")
+    w("  const BleCharacteristic({")
+    w("    required this.slot,")
+    w("    required this.uuid,")
+    w("    required this.name,")
+    w("    required this.properties,")
+    w("    required this.security,")
+    w("    required this.payload,")
+    w("    required this.doc,")
+    w("  });")
+    w("")
+    w("  final String slot;")
+    w("  final String uuid;")
+    w("  final String name;")
+    w("  final List<String> properties;")
+    w("  final String security;")
+    w("  final String payload;")
+    w("  final String doc;")
+    w("}")
+    w("")
+    w("const List<BleCharacteristic> bleCharacteristics = <BleCharacteristic>[")
+    for char in ble["characteristics"]:
+        slot = str(char["slot"])
+        uuid = bmeta["base_uuid"].replace("XXXX", slot)
+        props = ", ".join(dart_str(p) for p in char["properties"])
+        w("  BleCharacteristic(")
+        w(f"    slot: {dart_str(slot)},")
+        w(f"    uuid: {dart_str(uuid)},")
+        w(f"    name: {dart_str(char['name'])},")
+        w(f"    properties: <String>[{props}],")
+        w(f"    security: {dart_str(char['security'])},")
+        w(f"    payload: {dart_str(char['payload'])},")
+        w(f"    doc: {dart_str(char.get('doc', ''))},")
+        w("  ),")
+    w("];")
+    w("")
+    w("// ── Shared codecs ───────────────────────────────────────────────────")
+    w("")
+    w("/// CRC-16/CCITT-FALSE over data[start:end] (end exclusive).")
+    w("/// check(\"123456789\") == 0x29B1.")
+    w("int crc16CcittFalse(Uint8List data, [int start = 0, int? end]) {")
+    w("  final stop = end ?? data.length;")
+    w("  var crc = 0xFFFF;")
+    w("  for (var i = start; i < stop; i++) {")
+    w("    crc ^= (data[i] & 0xFF) << 8;")
+    w("    for (var bit = 0; bit < 8; bit++) {")
+    w("      crc = (crc & 0x8000) != 0")
+    w("          ? ((crc << 1) ^ 0x1021) & 0xFFFF")
+    w("          : (crc << 1) & 0xFFFF;")
+    w("    }")
+    w("  }")
+    w("  return crc;")
+    w("}")
+    w("")
+    w("/// Reads a 24-bit little-endian integer.")
+    w("int seq24Read(Uint8List bytes, [int offset = 0]) =>")
+    w("    (bytes[offset] & 0xFF) |")
+    w("    ((bytes[offset + 1] & 0xFF) << 8) |")
+    w("    ((bytes[offset + 2] & 0xFF) << 16);")
+    w("")
+    w("/// Writes a 24-bit little-endian integer; throws outside 0..0xFFFFFF.")
+    w("void seq24Write(Uint8List bytes, int offset, int value) {")
+    w("  RangeError.checkValueInInterval(value, 0, 0xFFFFFF, 'seq24');")
+    w("  bytes[offset] = value & 0xFF;")
+    w("  bytes[offset + 1] = (value >> 8) & 0xFF;")
+    w("  bytes[offset + 2] = (value >> 16) & 0xFF;")
+    w("}")
+    w("")
+    w("/// Decodes a NUL-padded UTF-8 field.")
+    w("String _readString(Uint8List bytes, int offset, int length) {")
+    w("  var end = offset;")
+    w("  final limit = offset + length;")
+    w("  while (end < limit && bytes[end] != 0) {")
+    w("    end++;")
+    w("  }")
+    w("  try {")
+    w("    return utf8.decode(bytes.sublist(offset, end));")
+    w("  } on FormatException {")
+    w("    return '';")
+    w("  }")
+    w("}")
+    w("")
+    w("void _writeString(Uint8List bytes, int offset, int length, String value) {")
+    w("  final encoded = utf8.encode(value);")
+    w("  if (encoded.length > length) {")
+    w("    throw ArgumentError.value(value, 'value', 'does not fit in $length bytes');")
+    w("  }")
+    w("  bytes.setRange(offset, offset + encoded.length, encoded);")
+    w("}")
+    w("")
+    w("Uint8List _encodeString(String value, int maxLength) {")
+    w("  final encoded = utf8.encode(value);")
+    w("  if (encoded.length > maxLength) {")
+    w("    throw ArgumentError.value(value, 'value', 'does not fit in $maxLength bytes');")
+    w("  }")
+    w("  return Uint8List.fromList(encoded);")
+    w("}")
+    w("")
+    w("// ── Enums (wire values) ─────────────────────────────────────────────")
+    w("")
+    for enum_name, values in enums.items():
+        w(f"enum {pascal(enum_name)} {{")
+        items = list(values.items())
+        for index, (value_name, value) in enumerate(items):
+            comma = "," if index + 1 < len(items) else ";"
+            w(f"  {camel(value_name)}({value}){comma}")
+        w("")
+        w(f"  const {pascal(enum_name)}(this.wire);")
+        w("  final int wire;")
+        w("")
+        w(f"  static {pascal(enum_name)}? fromWire(int v) {{")
+        w("    for (final e in values) {")
+        w("      if (e.wire == v) return e;")
+        w("    }")
+        w("    return null;")
+        w("  }")
+        w("}")
+        w("")
+    w("// ── Flag masks ──────────────────────────────────────────────────────")
+    w("")
+    for group_name, values in flags.items():
+        for flag_name, bit in values.items():
+            w(f"const int {camel(group_name)}Flag{camel(flag_name)[0].upper() + camel(flag_name)[1:]} = 1 << {bit};")
+        w("")
+    w("// ── Layouts ─────────────────────────────────────────────────────────")
+    w("")
+    for name, layout in layouts.items():
+        emit_dart_layout(out, name, layout)
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Main
+
+
+def generate() -> dict[Path, str]:
+    records = load_yaml(RECORDS_YAML)
+    ble = load_yaml(BLE_YAML)
+
+    layouts: dict[str, dict] = {}
+    layouts.update(records.get("records", {}))
+    layouts.update(ble.get("payloads", {}))
+    validate_layouts(layouts)
+
+    global FLAG_GROUPS
+    FLAG_GROUPS = collect_flags(records, ble)
+
+    enums = collect_enums(records, ble)
+
+    # Validate control op payload references.
+    for op_name, spec in ble["control_ops"].items():
+        body = spec.get("body")
+        if body and body not in layouts:
+            die(f"control op {op_name} references unknown body {body}")
+
+    return {
+        GEN_DIR / "records.h": emit_c_header(records, ble, enums, FLAG_GROUPS, layouts),
+        GEN_DIR / "records.c": emit_c_source(records, layouts),
+        GEN_DIR / "records.dart": emit_dart(records, ble, enums, FLAG_GROUPS, layouts),
+    }
+
+
+FLAG_GROUPS: dict[str, dict[str, int]] = {}
+
+
+def normalize(text: str) -> str:
+    return text.replace("\r\n", "\n")
+
+
+def main(argv: list[str]) -> int:
+    check = "--check" in argv
+    outputs = generate()
+    stale: list[Path] = []
+    for path, content in outputs.items():
+        if not content.endswith("\n"):
+            content += "\n"
+        if check:
+            current = normalize(path.read_text(encoding="utf-8")) if path.exists() else None
+            if current != content:
+                stale.append(path)
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("w", encoding="utf-8", newline="\n") as f:
+                f.write(content)
+            print(f"wrote {path.relative_to(ROOT)}")
+    if check:
+        if stale:
+            for path in stale:
+                print(f"stale: {path.relative_to(ROOT)}", file=sys.stderr)
+            print("protocol/gen is stale — run: make protocol", file=sys.stderr)
+            return 1
+        print("protocol/gen is current")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

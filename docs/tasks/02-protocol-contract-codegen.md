@@ -52,4 +52,61 @@ design. The generated output is checked in and its freshness is verifiable.
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed**
+
+- `protocol/records.yaml` — sample_rec, sector_header, temperature sentinels,
+  record flags, ring/log constants, CRC-16/CCITT-FALSE parameters.
+- `protocol/ble.yaml` — service UUID, all eight characteristic slots with
+  properties/security/payload, payload layouts, seven control ops, eight result
+  statuses, flags and enums.
+- `tools/protogen/protogen.py` — deterministic YAML-to-C/Dart generator with
+  layout/CRC validation and a `--check` drift mode.
+- `protocol/gen/records.h`, `records.c`, `records.dart` — committed output with
+  payload structs, constants, flag masks, enums, encode/decode helpers,
+  CRC-16/CCITT-FALSE, and the u24 sequence codec.
+- `Makefile` — `make protocol`, `make protocol-check`, `make protocol-test`.
+- `protocol/test/test_records.c` and `protocol/test/records_test.dart` — C and
+  Dart tests that decode and re-encode the design 05 §5.4 `live` vector, plus
+  record CRC rejection, u24, CRC check vector, result and sync payloads.
+- `docs/design/adr/0013-generated-protocol-codecs.md`; codegen notes in design
+  04 §4.2 and 05 §5.1; reusable notes in `docs/progress/T02.md`.
+
+**Deviations**
+
+- The task named `records.h/.c/.dart` only, so BLE payloads and constants are
+  emitted into those same files rather than extra `ble.*` files. The YAML
+  sources remain split as required.
+- The task 05 §5.4 vector is used as the normative `live` test. Additional
+  vectors cover the record codec and framing but are not an exhaustive 05 §5.14
+  suite; T03 extends the fixture-driven coverage.
+- The generator is Python rather than reusing the legacy Dart protogen; the
+  legacy YAML is a shape reference only, as the task required.
+
+**Check results**
+
+```text
+make protocol                 # wrote protocol/gen/records.{h,c,dart}
+make protocol-check           # protocol/gen is current
+make protocol-test CC=gcc DART=<dart>   # C asserts pass; Dart tests pass
+dart analyze protocol/gen/records.dart protocol/test/records_test.dart
+                              # No issues found
+# drift probe: appended a comment to records.h
+make protocol-check           # stale: protocol/gen/records.h (non-zero)
+make protocol && make protocol-check     # current again
+```
+
+On this bench the working compiler is `C:\msys64\ucrt64\bin\gcc.exe` (add it to
+PATH for `make`), and `make`'s shell needs
+`DART=D:/flutter/bin/cache/dart-sdk/bin/dart.exe`.
+
+**Remaining work / next task must know**
+
+- No blockers. `protocol/gen/` is committed; do not ignore or hand-edit it.
+- T03 should compile `protocol/gen/records.c` into the CMake host suite and fold
+  `protocol/test/test_records.c` into `ctest`; T08 should wire
+  `protocol-check`/`protocol-test` into CI.
+- Firmware/app tasks must consume the generated symbols (`sx4_*` in C,
+  `SampleRec`/`Live`/`SyncCtrl`/`Result` in Dart) instead of restating offsets,
+  UUIDs, flags, or CRC parameters. `docs/progress/T02.md` lists the naming
+  and u24/result gotchas.
