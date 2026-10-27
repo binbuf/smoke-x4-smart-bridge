@@ -342,11 +342,12 @@ class BridgeController extends ChangeNotifier {
     if (stored == null) {
       await dao.saveBridge(savedBridge!);
     } else {
+      // Identity only: never regress the archive generation/cursors written by
+      // the connectSync that preceded this touch.
       await dao.touchBridge(
         id: id,
         name: name,
         lastSeenMs: content.now.millisecondsSinceEpoch,
-        generation: existing?.generation,
       );
     }
     final refreshed = await dao.bridgeById(id);
