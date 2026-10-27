@@ -229,6 +229,7 @@ add_test(NAME task-budget COMMAND test_tasks)
 add_library(sx4_ui STATIC
     "${REPO_ROOT}/firmware/components/ui/ui_render.c"
     "${REPO_ROOT}/firmware/components/ui/ui_sleep.c"
+    "${REPO_ROOT}/firmware/components/ui/ui_button.c"
     "${REPO_ROOT}/firmware/components/ui/ssd1306_core.c"
 )
 target_include_directories(sx4_ui
@@ -240,3 +241,9 @@ target_compile_definitions(test_ui_render PRIVATE
     SX4_UI_GOLDEN_DIR="${REPO_ROOT}/firmware/test/goldens/ui"
 )
 add_test(NAME ui-render COMMAND test_ui_render)
+
+# PRG gestures (tap/hold/cancel/wake-consumed) and the hold-to-wake boot
+# confirmation are pure C with an injected clock (T23).
+add_executable(test_ui_button test_ui_button.c)
+target_link_libraries(test_ui_button PRIVATE sx4_ui sx4_test_support)
+add_test(NAME ui-button COMMAND test_ui_button)

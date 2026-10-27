@@ -22,6 +22,7 @@
 - **T20 — bridge_state: clock and live snapshot**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/bridge_state/include/bridge_state.h` — public API:
 - **T21 — sample_pipe: parser → log → UI**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/sample_pipe/include/sample_pipe.h` — pure-C pipeline
 - **T22 - ui: pages, renderer, and display sleep**: **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done; `firmware/components/board/include/board.h` + `board.c`
+- **T23 - ui: PRG gestures and deep sleep**: **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done; `firmware/components/ui/include/ui_button.h` + `ui_button.c`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -44,6 +45,7 @@
 - [T20](progress/T20.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 - [T21](progress/T21.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 - [T22](progress/T22.md) — **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done
+- [T23](progress/T23.md) — **Date:** 2026-10-26 - **Verification:** host + firmware build - **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

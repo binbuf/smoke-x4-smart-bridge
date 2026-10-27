@@ -50,7 +50,7 @@ OLED/PRG/power path works. BLE may still be a skeleton.
 - [x] T20 — bridge_state: clock and live snapshot → [tasks/20-bridge-state-clock-snapshot.md](tasks/20-bridge-state-clock-snapshot.md)
 - [x] T21 — sample_pipe: parser → log → UI → [tasks/21-sample-pipe-parser-log-ui.md](tasks/21-sample-pipe-parser-log-ui.md)
 - [x] T22 — ui: pages, renderer, and display sleep → [tasks/22-ui-pages-renderer.md](tasks/22-ui-pages-renderer.md)
-- [ ] T23 — ui: PRG gestures and deep sleep → [tasks/23-ui-prg-gestures-sleep.md](tasks/23-ui-prg-gestures-sleep.md)
+- [x] T23 — ui: PRG gestures and deep sleep → [tasks/23-ui-prg-gestures-sleep.md](tasks/23-ui-prg-gestures-sleep.md)
 - [ ] T24 — board: battery ADC and power stats → [tasks/24-board-battery-adc.md](tasks/24-board-battery-adc.md)
 - [ ] T25 — Bench prep: pair, stock receiver, power cut → [tasks/25-bench-pair-power-cut.md](tasks/25-bench-pair-power-cut.md)
 - [ ] T26 — Bench prep: cadence and display → [tasks/26-bench-cadence-display.md](tasks/26-bench-cadence-display.md)
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T06:33:30Z · 22/67 done
+**Pipeline status** — updated 2026-10-27T06:41:25Z · 23/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23
 - Blocked: none
 - Failed: none
-- Remaining: T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T22 — done · T22 landed with the SSD1306/Vext bring-up, pure page/overlay renderer, sentinel-correct labels, display sleep/wake, 17 goldens, PNG review tool, passing host tests (14/14), clean firmware build, and full hand-off/docs.
+- Remaining: T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T23 — done · PRG tap/hold/cancel FSM, consumed wake press, boot hold confirmation, and the full deep-sleep power path landed with 15/15 host tests and a clean firmware build; physical timing/current and real BLE teardown remain with T37/T62/T27-T30.
 <!-- /symphony:status -->

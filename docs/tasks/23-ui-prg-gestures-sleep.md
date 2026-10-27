@@ -13,17 +13,17 @@ One GPIO0 button provides the complete MVP control surface: tap to advance pages
 - Depends on T22 and T10.
 
 ## Scope
-- [ ] Implement button sampling at **20 ms** with a **30 ms** debounce.
-- [ ] Implement the tap/hold state machine:
+- [x] Implement button sampling at **20 ms** with a **30 ms** debounce.
+- [x] Implement the tap/hold state machine:
   - press < 400 ms → tap → next page,
   - hold ≥ 1.5 s → power off,
   - countdown from ~400 ms; commit on **release**.
-- [ ] A waking press is consumed: it wakes the display but does not also change the page.
-- [ ] A tap during the power-off countdown does nothing; only releasing cancels.
-- [ ] Releasing before the threshold cancels; releasing at/after 1.5 s commits.
-- [ ] On commit: show `OFF` for ~300 ms, turn Vext off, sleep the SX1262, bring BLE down, enter deep sleep with GPIO0 as the wake source.
-- [ ] Implement hold-to-wake: after reset, confirm the button is still held for ~1.5 s; an early release returns to sleep without starting BLE or the UI.
-- [ ] Add unit tests for tap/hold/cancel and the boot confirmation.
+- [x] A waking press is consumed: it wakes the display but does not also change the page.
+- [x] A tap during the power-off countdown does nothing; only releasing cancels.
+- [x] Releasing before the threshold cancels; releasing at/after 1.5 s commits.
+- [x] On commit: show `OFF` for ~300 ms, turn Vext off, sleep the SX1262, bring BLE down, enter deep sleep with GPIO0 as the wake source.
+- [x] Implement hold-to-wake: after reset, confirm the button is still held for ~1.5 s; an early release returns to sleep without starting BLE or the UI.
+- [x] Add unit tests for tap/hold/cancel and the boot confirmation.
 - [x] On the board, run 20/20 wake cycles with USB attached and detached.
       **Deferred:** T09 proved 20/20 with USB attached; the USB-detached
       physical count is T62.
@@ -66,7 +66,64 @@ One GPIO0 button provides the complete MVP control surface: tap to advance pages
   ctest --test-dir firmware/test/build
   ```
 - [x] The 20/20 result and deep-sleep current are recorded in `docs/hardware-verified.md`. **Current is deferred to T62.**
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed (2026-10-26).** PRG gestures and the local power-off/wake path are
+implemented behind a pure-C seam.
+
+- `ui_button.h/.c` (new): 20 ms sampling, 30 ms debounce, tap < 400 ms,
+  countdown from 400 ms, commit on raw release at/after 1.5 s, cancel between
+  400 ms and 1.5 s. `UI_BUTTON_EVENT_*` is `PRESS`, `TAP`, `HOLD_START`,
+  `HOLD_TICK`, `HOLD_CANCEL`, `HOLD_COMMIT`. A press whose edge is seen while
+  the panel is asleep is consumed for its whole duration (no tap, no countdown).
+  `ui_boot_hold_*` implements the post-wake 1.5 s confirmation.
+- `ui.c`: the ui task now samples PRG every 20 ms in every display state and
+  maps events to `ui_wake()`/`ui_page_next()`/`ui_set_power_off()`; a tap
+  dismisses the storage notice and does nothing on other overlays. Commit draws
+  `OFF`, holds it ~300 ms, then Vext off → `sx_radio_sleep()` →
+  `ble_service_stop()` → `board_enter_deep_sleep()`. Failed wake arming clears
+  `OFF` and stays awake. The panel's `0xAF` is applied only after a real
+  `ui_wake()`, so sample dirty marks still cannot wake it.
+- `boot.c`: on an EXT1 deep-sleep wake (and only then), confirm the PRG hold for
+  1.5 s before NVS/BLE/UI; an early release re-enters deep sleep. Cold boots
+  skip confirmation. `ui_init()` consumes the hold tail after confirmation.
+- `board.c/.h`: `BOARD_PIN_PRG=0`, `board_prg_init/pressed`, `board_power_off_vext`,
+  `board_enter_deep_sleep` (Vext off + GPIO0 `EXT1 ANY_LOW`).
+- `sx_radio_sleep()`: parks the RX task, puts the SX1262 into cold sleep.
+- `ble_service_stop()`: public seam; still the stub until T27/T30.
+- Tests: `firmware/test/test_ui_button.c` (registered as `ui-button`).
+- Docs: ADR 0031, 07 §7.4 notes, `hardware-verified.md` rows.
+
+**Deviations.** (1) The 20/20 board count remains the T09 USB-attached result
+plus the deferred USB-detached count in T62, as the task file already records;
+no board run was possible this session. (2) Deep-sleep current is still T62.
+(3) `ble_service_stop()` is a stub because the BLE service is still a skeleton;
+the power-off path calls the seam in the required order. (4) A waking press is
+consumed entirely, not just for page changes. This is stricter than the scope
+wording and is recorded in ADR 0031.
+
+**Checks run.**
+
+```powershell
+$env:PATH='C:\msys64\ucrt64\bin;'+$env:PATH
+cmake -S firmware/test -B firmware/test/build -G Ninja
+cmake --build firmware/test/build
+ctest --test-dir firmware/test/build --output-on-failure
+# 100% tests passed, 15/15 (ui-button added)
+
+$env:IDF_PYTHON_ENV_PATH='C:\Users\dan\.espressif\python_env\idf6.0_py3.13_env'
+& D:\esp\esp-idf\export.ps1
+cd firmware
+idf.py -B build "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
+# Project build complete; image guard ok; sx4_bridge.bin 0x46830 (86% free);
+# no compiler warnings/errors
+```
+
+**Remaining / next task must know.** T27/T30 must replace `ble_service_stop()`
+with real advertising stop + disconnect + NimBLE deinit. T37 must check the
+physical tap/hold/wake timing, the 300 ms `OFF` frame, and the power-off path;
+T62 must record the USB-detached 20/20 wake count and deep-sleep current. Do not
+change the 20 ms/30 ms/400 ms/1500 ms constants without updating the ADR and the
+host tests.

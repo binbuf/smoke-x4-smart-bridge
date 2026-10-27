@@ -6,6 +6,7 @@ idf_component_register(
         ble_service
         bridge_config
         bridge_state
+        esp_timer
         espcoredump
         nvs_flash
         sample_log
