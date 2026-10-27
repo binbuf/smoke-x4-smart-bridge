@@ -36,6 +36,28 @@ product firmware; the legacy image, NVS and cooks were wiped by design.
 | Current: deep sleep | ⏳ 2026-10-26 — **NOT MEASURED.** No meter. The probe did enter deep sleep successfully. Deferred to T62. | — |
 | Runtime: 24 h on the 3000 mAh pack | ⏳ 2026-10-26 — **NOT RUN.** Cannot span 24 h in this session; needs a dedicated pack run (T62/T61). Deferred to T62. | — |
 
+### Power decision (T11)
+
+**Hold-PRG wake works reliably enough to build on.** T09 recorded 20/20
+application boots with the GPIO0 net held low for 2 s and released; every wake
+was `rst:0x5 (DSLEEP)` / `boot:0x8 (SPI_FAST_FLASH_BOOT)`, `causes=0x8` (EXT1),
+`EXT1 mask=0x1`, with no ROM-download banner. The owner also woke the board by
+hand with the pack connected and USB removed, and the OLED came up.
+
+**Fallback: none selected.** RST wake, an external latch, and dropping the
+hold-to-on behaviour are all rejected. The strap did not fire on a DSLEEP wake,
+so there is no evidence that any of them is needed. If the physical 20/20
+repeat ever contradicts this, supersede [ADR 0020](design/adr/0020-gpio0-ext1-deep-sleep-wake.md)
+instead of silently changing the mechanism.
+
+**Implementation contract.** Use `esp_sleep_enable_ext1_wakeup_io(BIT(0),
+ESP_EXT1_WAKEUP_ANY_LOW)`; the wake is a reset, so distinguish wake from cold
+boot with RTC-retained state. The post-boot hold/release behaviour in 07 §7.7
+still needs its own debounce.
+
+**Not measured here.** Deep-sleep current and pack runtime are still open;
+**T62 owns those measurements**. This record does not claim a runtime number.
+
 ### T09 probe conditions
 
 The 20 wake cycles used the throwaway image at

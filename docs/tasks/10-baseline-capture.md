@@ -33,7 +33,9 @@ With a real Smoke X4, on the bench (not during a live cook):
       3. the `x4-events-10min`-style post-processed log from the previous build,
          used **only** as a cross-check, never as the new baseline.
       Whatever is chosen must run on the current board: the legacy firmware is
-      no longer on it. The probe must be receive-only; it transmits nothing.
+      no longer on it. The capture build may transmit **only** the pairing ACK
+      (`<device_id>,SUCCESS,`) so the X4 leaves SYNC and returns to normal state
+      traffic; it has no other TX path.
 - [ ] Establish the pairing prerequisite. The X4 has to be put into SYNC mode
       and its SYNC control held until it acknowledges, because the bridge needs
       the **operating channel** from the sync beacon before it can hear state
@@ -59,8 +61,9 @@ With a real Smoke X4, on the bench (not during a live cook):
   may capture only the attached/not-attached flag.
 - Parser feature work beyond what the captures verify — M1.
 - Changing the protocol contract — owned by T02.
-- Any LoRa transmission from the capture build — no task; the bridge transmits
-  only the pairing ACK, and this task does not re-pair a product build.
+- Any LoRa transmission from the capture build other than the single pairing
+  ACK — no task; the bridge has no other TX path, and this task does not re-pair
+  a product build.
 
 ## Design notes
 - Bench-only: do not capture during a live cook.
