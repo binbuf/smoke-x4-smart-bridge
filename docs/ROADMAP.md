@@ -66,7 +66,7 @@ offline-cache and power-cycle states work. This is the first deployable
 end-to-end build.
 
 - [x] T27 — ble_service: GATT server and info → [tasks/27-ble-gatt-info.md](tasks/27-ble-gatt-info.md)
-- [ ] T28 — ble_service: live notify → [tasks/28-ble-live-notify.md](tasks/28-ble-live-notify.md)
+- [x] T28 — ble_service: live notify → [tasks/28-ble-live-notify.md](tasks/28-ble-live-notify.md)
 - [ ] T29 — ble_service: control, result, and the clock → [tasks/29-ble-control-result-clock.md](tasks/29-ble-control-result-clock.md)
 - [ ] T30 — ble_service: security, passkey, and advertising → [tasks/30-ble-security-passkey.md](tasks/30-ble-security-passkey.md)
 - [ ] T31 — ble_service: sync status and recent records → [tasks/31-ble-sync-recent-records.md](tasks/31-ble-sync-recent-records.md)
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T07:11:20Z · 27/67 done
+**Pipeline status** — updated 2026-10-27T07:18:56Z · 28/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28
 - Blocked: none
 - Failed: none
-- Remaining: T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T27 — done · T27 landed: eight-slot NimBLE GATT service, open Read-Blob info with pure byte-vector tests, CCCDs and security levels, NimBLE lifecycle/disconnect seam, and a BLE-only build boundary; real phone scan/read remains deferred to T37.
+- Remaining: T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T28 — done · 20-byte live encoder, ble_tx bounded notification ring, read fallback, flag/sample notifications and host vectors landed; missed-notification sync recovery remains for the T31/T37 bench pass.
 <!-- /symphony:status -->
