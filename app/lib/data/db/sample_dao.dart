@@ -249,6 +249,71 @@ class SampleExtent {
   final int maxRecordedMs;
 }
 
+/// One SQL time bucket for a long history range.
+///
+/// `recordedMs` is the last real reading in the bucket; `tempsF` are the bucket
+/// averages in °F (null when that probe had no valid value). The chart uses
+/// these as honest downsampled points, never as new readings.
+class HistoryBucketRow {
+  const HistoryBucketRow({
+    required this.startMs,
+    required this.recordedMs,
+    required this.tempsF,
+    required this.estimated,
+  });
+
+  /// First real reading in the bucket.
+  final int startMs;
+
+  /// Last real reading in the bucket; the chart's x position.
+  final int recordedMs;
+  final List<double?> tempsF;
+  final bool estimated;
+
+  static HistoryBucketRow fromRow(Map<String, Object?> row) {
+    double? temp(String column) {
+      final value = row[column] as num?;
+      return value == null ? null : value.toDouble() / 10.0;
+    }
+
+    return HistoryBucketRow(
+      startMs: row['start_ms']! as int,
+      recordedMs: row['end_ms']! as int,
+      tempsF: <double?>[
+        temp('p1'),
+        temp('p2'),
+        temp('p3'),
+        temp('p4'),
+      ],
+      estimated: ((row['estimated'] as int?) ?? 0) != 0,
+    );
+  }
+}
+
+/// Exact per-probe summary for one range, computed by SQLite over raw rows.
+///
+/// The chart may be decimated, but Summary must report the true latest, lowest
+/// and highest valid reading.
+class HistoryProbeStatsRow {
+  const HistoryProbeStatsRow({
+    required this.probe,
+    required this.readingCount,
+    required this.latestF,
+    required this.latestMs,
+    required this.minF,
+    required this.maxF,
+  });
+
+  final int probe;
+  final int readingCount;
+  final double? latestF;
+  final int? latestMs;
+  final double? minF;
+  final double? maxF;
+
+  bool get hasData => readingCount > 0 && latestF != null;
+}
+
 /// What a date-range deletion removed.
 class HistoryDeletion {
   const HistoryDeletion({
@@ -328,6 +393,35 @@ abstract interface class SampleDao {
     int? generation,
     int? limit,
     bool ascending = true,
+  });
+
+  /// SQL time buckets for a long range, one row per bucket.
+  ///
+  /// Each probe value is the average of the valid readings in the bucket and
+  /// stays null when the probe had none. This keeps a 30-day chart to a few
+  /// thousand points without ever inventing a zero.
+  Future<List<HistoryBucketRow>> bucketedSamplesInRange({
+    required int fromMs,
+    required int toMs,
+    required int bucketMs,
+    String? bridgeId,
+    int? generation,
+  });
+
+  /// Exact latest/min/max/count for P1–P4 over `[fromMs, toMs)`.
+  Future<List<HistoryProbeStatsRow>> probeStatsInRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
+  });
+
+  /// Gap rows detected in the range, ordered by detection time.
+  Future<List<StoredGap>> gapsInRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
   });
 
   /// Newest readings first, used for last-known values.
@@ -620,6 +714,121 @@ class SqfliteSampleDao implements SampleDao {
       limit: limit,
     );
     return rows.map(StoredSample.fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<List<HistoryBucketRow>> bucketedSamplesInRange({
+    required int fromMs,
+    required int toMs,
+    required int bucketMs,
+    String? bridgeId,
+    int? generation,
+  }) async {
+    final where = <String>['recorded_ms >= ?', 'recorded_ms < ?'];
+    final args = <Object?>[fromMs, toMs];
+    if (bridgeId != null) {
+      where.add('bridge_id = ?');
+      args.add(bridgeId);
+    }
+    if (generation != null) {
+      where.add('generation = ?');
+      args.add(generation);
+    }
+    final bucket = bucketMs <= 0 ? 1 : bucketMs;
+    args.add(bucket);
+    final rows = await _db.rawQuery('''
+      SELECT MIN(recorded_ms) AS start_ms,
+             MAX(recorded_ms) AS end_ms,
+             AVG(p1) AS p1,
+             AVG(p2) AS p2,
+             AVG(p3) AS p3,
+             AVG(p4) AS p4,
+             MAX(time_estimated) AS estimated
+      FROM sample
+      WHERE ${where.join(' AND ')}
+      GROUP BY CAST(recorded_ms / ? AS INTEGER)
+      ORDER BY start_ms ASC
+      ''', args);
+    return rows.map(HistoryBucketRow.fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<List<HistoryProbeStatsRow>> probeStatsInRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
+  }) async {
+    final where = <String>['recorded_ms >= ?', 'recorded_ms < ?'];
+    final baseArgs = <Object?>[fromMs, toMs];
+    if (bridgeId != null) {
+      where.add('bridge_id = ?');
+      baseArgs.add(bridgeId);
+    }
+    if (generation != null) {
+      where.add('generation = ?');
+      baseArgs.add(generation);
+    }
+    final clause = where.join(' AND ');
+    final stats = <HistoryProbeStatsRow>[];
+    for (var probe = 1; probe <= 4; probe++) {
+      final column = 'p$probe';
+      final aggregate = await _db.rawQuery('''
+        SELECT MIN($column) AS min_value,
+               MAX($column) AS max_value,
+               COUNT($column) AS count
+        FROM sample
+        WHERE $clause
+        ''', baseArgs);
+      final aggregateRow = aggregate.first;
+      final latest = await _db.rawQuery('''
+        SELECT $column AS value, recorded_ms
+        FROM sample
+        WHERE $clause AND $column IS NOT NULL
+        ORDER BY recorded_ms DESC, seq DESC
+        LIMIT 1
+        ''', baseArgs);
+      final latestRow = latest.isEmpty ? null : latest.first;
+      double? fahrenheit(Object? tenths) =>
+          tenths == null ? null : (tenths as num).toDouble() / 10.0;
+      stats.add(
+        HistoryProbeStatsRow(
+          probe: probe,
+          readingCount: (aggregateRow['count'] as int?) ?? 0,
+          latestF: fahrenheit(latestRow?['value']),
+          latestMs: latestRow?['recorded_ms'] as int?,
+          minF: fahrenheit(aggregateRow['min_value']),
+          maxF: fahrenheit(aggregateRow['max_value']),
+        ),
+      );
+    }
+    return stats;
+  }
+
+  @override
+  Future<List<StoredGap>> gapsInRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
+  }) async {
+    final where = <String>['detected_ms >= ?', 'detected_ms < ?'];
+    final args = <Object?>[fromMs, toMs];
+    if (bridgeId != null) {
+      where.add('bridge_id = ?');
+      args.add(bridgeId);
+    }
+    if (generation != null) {
+      where.add('generation = ?');
+      args.add(generation);
+    }
+    final rows = await _db.query(
+      'gap',
+      where: where.join(' AND '),
+      whereArgs: args,
+      orderBy: 'generation ASC, from_seq ASC',
+    );
+    return rows.map(StoredGap.fromRow).toList(growable: false);
   }
 
   @override

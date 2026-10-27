@@ -8,6 +8,7 @@ import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 import 'history_chart_panel.dart';
 import 'history_full_screen.dart';
+import 'history_view_loader.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({
@@ -55,43 +56,40 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final view = controller.historyViewFor(
-          hasGap: widget.gapOverride ?? true,
-        );
-        return ListView(
-          controller: _scrollController,
-          children: [
-            ContentWidth(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _filters(context, view),
-                  const SizedBox(height: 10),
-                  _chartCard(context, view),
+    return HistoryViewLoader(
+      controller: controller,
+      hasGap: widget.gapOverride ?? true,
+      builder: (context, view) => ListView(
+        controller: _scrollController,
+        children: [
+          ContentWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _filters(context, view),
+                const SizedBox(height: 10),
+                _chartCard(context, view),
+                const SizedBox(height: 14),
+                _summaryCard(context, view),
+                if (view.hasAnyHistory && widget.showPastCooks) ...[
                   const SizedBox(height: 14),
-                  _summaryCard(context, view),
-                  if (view.hasAnyHistory && widget.showPastCooks) ...[
-                    const SizedBox(height: 14),
-                    _pastCooksCard(context, view),
-                  ],
-                  if (view.missingFromBridge) ...[
-                    const SizedBox(height: 12),
-                    InlineNotice(
-                      icon: Icons.link_off,
-                      title: 'Some readings were lost before they reached your phone',
-                      message: 'The Bridge overwrote this part of its history before it reached your phone. The readings can’t be recovered, so the chart leaves this period blank.',
-                    ),
-                  ],
-                  const SizedBox(height: 8),
+                  _pastCooksCard(context, view),
                 ],
-              ),
+                if (view.missingFromBridge) ...[
+                  const SizedBox(height: 12),
+                  InlineNotice(
+                    icon: Icons.link_off,
+                    title: 'Some readings were lost before they reached your phone',
+                    message:
+                        'The Bridge overwrote this part of its history before it reached your phone. The readings can’t be recovered, so the chart leaves this period blank.',
+                  ),
+                ],
+                const SizedBox(height: 8),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 
@@ -253,10 +251,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   ) async {
     if (range == HistoryRange.custom) {
       final initial = view.customRange ?? view.entireHistoryRange;
-      if (view.customRange == null) {
-        controller.setHistoryCustomRange(initial);
-      }
-      _resetViewport();
+      // Only Apply changes History. Opening or cancelling the sheet leaves the
+      // previous range and chart viewport exactly as they were.
       await _pickCustomRange(initial, view);
       return;
     }
@@ -365,15 +361,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
               message: noData
                   ? 'The Bridge records whenever it’s on and paired with the Smoke X4.'
                   : noDataInRange
-                  ? 'This range has no saved readings yet. The latest 15 minutes sync automatically; older readings belong to a later update.'
+                  ? 'This range has no saved readings. Show all saved history to find the readings you expect.'
                   : 'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
               action: () {
                 if (noData) {
                   controller.setTab(AppTab.live);
                 } else if (noDataInRange) {
-                  controller
-                    ..setHistoryProbe(null)
-                    ..setHistoryRange(HistoryRange.oneHour);
+                  final entire = view.entireHistoryRange;
+                  if (entire.end.isAfter(entire.start)) {
+                    controller.setHistoryCustomRange(entire);
+                  } else {
+                    controller.setHistoryRange(HistoryRange.oneHour);
+                  }
                   _resetViewport();
                 } else {
                   controller.setHistoryProbe(null);
@@ -383,7 +382,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               actionLabel: noData
                   ? 'View Live'
                   : noDataInRange
-                  ? 'Show recent readings'
+                  ? 'Show all saved history'
                   : 'Show all probes',
             ),
           )
@@ -447,12 +446,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: Text('Latest reading'),
                   ),
                   PopupMenuItem(
+                    key: const Key('history.sort.sinceCook'),
                     value: HistorySort.sinceCookStart,
                     enabled: view.cookReference != null,
-                    child: Text(
-                      view.cookReference == null
-                          ? 'Since cook start (no cook detected)'
-                          : 'Since cook start',
+                    child: Row(
+                      children: [
+                        const Expanded(child: Text('Since cook start')),
+                        if (view.cookReference == null)
+                          Text(
+                            'No cook detected yet',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -707,7 +717,10 @@ class _PastCookScreenState extends State<PastCookScreen> {
   void initState() {
     super.initState();
     final source = widget.controller;
-    _history = BridgeController(content: source.content)
+    _history = BridgeController(
+      content: source.content,
+      sampleDao: source.sampleDao,
+    )
       ..units = source.units
       ..historyRange = HistoryRange.custom
       ..historyCustomRange = DateTimeRange(
@@ -923,16 +936,31 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
     final memory = widget.memoryRange;
     final today = DateTime(memory.end.year, memory.end.month, memory.end.day);
     final yesterdayStart = today.subtract(const Duration(days: 1));
-    final yesterdayEnd = today.subtract(const Duration(minutes: 1));
+    DateTimeRange clampRange(DateTime start, DateTime end) {
+      var clampedStart = start.isBefore(memory.start) ? memory.start : start;
+      var clampedEnd = end.isAfter(memory.end) ? memory.end : end;
+      if (!clampedEnd.isAfter(clampedStart)) {
+        clampedStart = memory.start;
+        clampedEnd = memory.end;
+      }
+      if (!clampedEnd.isAfter(clampedStart)) {
+        clampedEnd = clampedStart.add(const Duration(minutes: 1));
+      }
+      return DateTimeRange(start: clampedStart, end: clampedEnd);
+    }
+
     final presets = <(String, DateTimeRange)>[
       ('All saved history', memory),
-      ('Today', DateTimeRange(start: today, end: memory.end)),
-      ('Yesterday', DateTimeRange(start: yesterdayStart, end: yesterdayEnd)),
+      ('Today', clampRange(today, memory.end)),
+      (
+        'Yesterday',
+        clampRange(yesterdayStart, today.subtract(const Duration(minutes: 1))),
+      ),
       (
         'Last 6 hours',
-        DateTimeRange(
-          start: memory.end.subtract(const Duration(hours: 6)),
-          end: memory.end,
+        clampRange(
+          memory.end.subtract(const Duration(hours: 6)),
+          memory.end,
         ),
       ),
     ];

@@ -8,6 +8,7 @@ import '../data/ble/bridge_codecs.dart';
 import '../data/ble/bridge_link.dart';
 import '../data/ble/bridge_protocol.dart';
 import '../data/db/sample_dao.dart';
+import '../data/history/history_archive.dart';
 import '../data/recent_history_store.dart';
 import '../data/repository.dart';
 import '../data/sync/archive_sync.dart';
@@ -43,6 +44,11 @@ class BridgeController extends ChangeNotifier {
   /// database; then the link keeps the V0 in-memory path.
   final SampleDao? sampleDao;
   ArchiveSyncCoordinator? _archive;
+  HistoryArchive? _historyArchive;
+
+  /// Incremented whenever committed archive rows change, so the History screen
+  /// reloads its SQL window after a sync batch instead of caching stale data.
+  int historyRevision = 0;
 
   /// V0 History's data: the batches the current link session syncs. The
   /// durable archive replaces this store in T39–T41.
@@ -454,6 +460,14 @@ class BridgeController extends ChangeNotifier {
     );
   }
 
+  /// The durable History reader, or null for review builds and tests that do
+  /// not own a database.
+  HistoryArchive? get historyArchive {
+    final dao = sampleDao;
+    if (dao == null) return null;
+    return _historyArchive ??= HistoryArchive(dao: dao, now: () => content.now);
+  }
+
   /// Exposes the durable sync state for tests and later History tasks.
   ArchiveSyncCoordinator? get archiveSync => _archive;
 
@@ -473,6 +487,7 @@ class BridgeController extends ChangeNotifier {
       case SyncStatus.complete:
         syncState = SyncState.complete;
         lastSyncedAt = content.now;
+        historyRevision++;
         final hasArchive =
             snapshot.cursorAfter != null || phoneRecords > 0;
         hasSavedData = hasArchive;
@@ -489,6 +504,7 @@ class BridgeController extends ChangeNotifier {
 
   void _onArchiveBatch(StoredSyncBatch batch) {
     if (batch.records.isEmpty) return;
+    historyRevision++;
     // Keep the approved History shell fed from the same accepted batch; the
     // durable rows are already committed by the coordinator.
     unawaited(
@@ -1637,6 +1653,71 @@ class BridgeController extends ChangeNotifier {
   }
 
   HistoryViewState get historyView => historyViewFor();
+
+  /// Loads the durable History window from the archive.
+  ///
+  /// Screens call this when a database exists; [historyViewFor] stays as the
+  /// synchronous demo/fixture path. The returned object is the same immutable
+  /// [HistoryViewState] either way, so the approved UI has one contract.
+  Future<HistoryViewState> loadHistoryView({bool hasGap = true}) async {
+    final archive = historyArchive;
+    if (archive == null) return historyViewFor(hasGap: hasGap);
+
+    final noCache = isOffline && !offlineCache;
+    final data = await archive.load(
+      range: historyRange,
+      customStart: historyCustomRange?.start,
+      customEnd: historyCustomRange?.end,
+      empty: noCache,
+    );
+    var fixture = data.fixture;
+    if (!hasGap && fixture.bands.isNotEmpty) {
+      fixture = HistoryFixture(
+        start: fixture.start,
+        end: fixture.end,
+        series: fixture.series,
+        gapStart: fixture.start,
+        gapEnd: fixture.start,
+        gapReason: HistoryGapReason.noSignal,
+        estimated: fixture.estimated,
+        missingFromBridge: false,
+        decimated: fixture.decimated,
+      );
+    }
+
+    final probes = historyProbe == null ? [1, 2, 3, 4] : [historyProbe!];
+    final stats = <ProbeRangeStats>[
+      for (final probe in probes) data.stats[probe - 1],
+    ];
+    final cooks = data.hasAnyHistory ? data.cooks : const <CookSession>[];
+    final activeCook = _currentCook(cooks);
+    final cookReference = activeCook ?? (cooks.isEmpty ? null : cooks.first);
+    _sortStats(stats, activeCook, cookReference);
+
+    return HistoryViewState(
+      range: historyRange,
+      customRange: historyCustomRange,
+      probe: historyProbe,
+      sort: historySort,
+      fixture: fixture,
+      stats: List<ProbeRangeStats>.unmodifiable(stats),
+      cooks: List<CookSession>.unmodifiable(cooks),
+      activeCook: activeCook,
+      cookReference: cookReference,
+      now: content.now,
+      estimated: fixture.estimated,
+      missingFromBridge: fixture.missingFromBridge,
+      offline: isOffline,
+      hasAnyHistory: data.hasAnyHistory,
+      oneProbe: historyOneProbe,
+      units: units,
+      lastSyncedLabel: lastSyncedLabel,
+      entireHistoryRange: DateTimeRange(
+        start: data.entireHistory.start,
+        end: data.entireHistory.end,
+      ),
+    );
+  }
 
   CookSession? _currentCook(List<CookSession> cooks) {
     if (cooks.isEmpty) return null;

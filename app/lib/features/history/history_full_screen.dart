@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
 import 'history_chart_panel.dart';
+import 'history_view_loader.dart';
 
 /// Dedicated full-screen chart. It never forces an orientation: portrait and
 /// landscape are both allowed, and the chart fills whichever one is active.
@@ -19,12 +20,12 @@ class HistoryFullScreenScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
+    return HistoryViewLoader(
+      controller: controller,
+      hasGap: gapOverride ?? true,
+      builder: (context, view) {
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
-        final view = controller.historyViewFor(hasGap: gapOverride ?? true);
         final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
         final window = view.windowLabel(use24Hour: use24Hour);
         final probeMeta = view.probeMeta;
@@ -68,7 +69,8 @@ class HistoryFullScreenScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '$metaLead · $probeMeta',
+                              '$metaLead · $probeMeta'
+                              '${view.estimated ? ' · times estimated' : ''}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(

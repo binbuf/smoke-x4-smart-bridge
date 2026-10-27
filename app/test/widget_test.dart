@@ -504,9 +504,66 @@ void main() {
     await tester.tap(find.byKey(const Key('history.range.custom')));
     await tester.pumpAndSettle();
     expect(find.text('Custom range'), findsOneWidget);
+    // Opening the sheet does not change History; only Apply does.
+    expect(controller.historyRange, HistoryRange.twentyFourHours);
+    expect(controller.historyCustomRange, isNull);
+    expect(find.text('All saved history'), findsOneWidget);
+  });
+
+  testWidgets('custom range Cancel leaves the previous range unchanged', (
+    tester,
+  ) async {
+    final controller = demoBridgeController()..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    await tester.tap(find.byKey(const Key('history.range.menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('history.range.custom')));
+    await tester.pumpAndSettle();
+    expect(find.text('Custom range'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(controller.historyRange, HistoryRange.twentyFourHours);
+    expect(controller.historyCustomRange, isNull);
+  });
+
+  testWidgets('custom range Apply sets the selected window', (tester) async {
+    final controller = demoBridgeController()..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    await tester.tap(find.byKey(const Key('history.range.menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('history.range.custom')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+
     expect(controller.historyRange, HistoryRange.custom);
     expect(controller.historyCustomRange, controller.entireHistoryRange);
-    expect(find.text('All saved history'), findsOneWidget);
+  });
+
+  testWidgets('Since cook start is disabled with No cook detected yet', (
+    tester,
+  ) async {
+    final controller = BridgeController()
+      ..hasSavedBridge = true
+      ..historyHasData = true
+      ..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    await tester.tap(find.text('Probe order'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No cook detected yet'), findsOneWidget);
+    final item = tester.widget<PopupMenuItem<HistorySort>>(
+      find.byKey(const Key('history.sort.sinceCook')),
+    );
+    expect(item.enabled, isFalse);
   });
 
   testWidgets('Bridge details keeps one sync and one repair path', (

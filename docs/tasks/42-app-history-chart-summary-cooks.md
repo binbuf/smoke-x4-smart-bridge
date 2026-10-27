@@ -72,4 +72,46 @@ Turn the History shell into the approved full archive: every range and custom ra
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Result:** done (host/CI). **Commands:** `flutter analyze` → No issues found;
+`flutter test --timeout 120s` → 194/194 passed.
+
+### Landed
+- History now reads the durable DAO through `HistoryArchive`
+  (`app/lib/data/history/history_archive.dart`): raw rows up to 4,000,
+  SQL bucketing to ~1,200 rows for long ranges, LTTB to 800 points per series
+  with a min/max envelope (`app/lib/domain/history_decimate.dart`), exact
+  Summary from `SampleDao.probeStatsInRange`, gap bands from `gap` rows plus
+  real holes, and Cooks from recorded timestamps
+  (`app/lib/domain/cook_detection.dart`).
+- `HistoryViewLoader` feeds History, the full-screen chart and the Cook view
+  from the archive; a controller without a DAO keeps the synchronous fixture
+  path.
+- Custom range applies only on `Apply`; `Cancel` leaves range and viewport
+  untouched. Quick picks clamp to saved history.
+- `Since cook start` is disabled with `No cook detected yet`; the Cook view
+  receives the archive DAO and keeps History unchanged on back.
+- Every gap band renders its own reason; decimated series use explicit break
+  points instead of the raw 90 s rule.
+- Tests: `history_archive_test.dart` (10, includes 30-day bounded chart,
+  gaps/estimated/detached probes, cook detection/sorting, offline no-cache);
+  `history_archive_widget_test.dart` (3, archive-backed screen at 320 dp, Cook
+  navigation preserving range, disabled no-data probe, 30-day decimation frame
+  budget); updated widget tests for custom range and the disabled cook sort.
+- Docs: ADR 0048 and a T42 note in `docs/design/06-app.md` §6.6.
+
+### Deviations
+- "Persist across app resume" is satisfied for tab switches and lifecycle
+  resume because filters live on the controller; no preference store exists yet,
+  so a process kill does not retain them. Noted for T53/T54.
+- Gap bands are labelled and explained by copy, but tapping a band does not yet
+  open a dedicated explanation sheet (T45 owns the full error/gap matrix).
+- A very long range cannot recover detail below its SQL bucket width on zoom;
+  the chart stays bounded rather than re-querying per viewport.
+
+### Next task must know
+- Call `controller.loadHistoryView()` when `sampleDao != null`; `historyViewFor`
+  is fixture-only.
+- T44 must bump `historyRevision` after deletion.
+- T46 should benchmark the 30-day first paint on the phone and check the Cook
+  back path and viewport preservation.

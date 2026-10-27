@@ -587,13 +587,21 @@ app-bar title is `Cook`.
 - `gap` already has `reason`; render the reason, not a hard-coded marker.
 - Estimated time is shown next to the chart when `time_estimated` is set.
 
-Implementation note (T36): V0 mounts this shell against `RecentHistoryStore`,
-which consumes the link's `BridgeSyncBatch` and holds only the recent (15 min)
-readings in memory. The requested range is the real chart window; wider
-selections show the same recent readings, and a range with no readings shows
-`No readings in this range`. `historySeriesSegments` applies the >90 s rule for
-the painter and the tests. The durable archive replaces the store in T39–T41
-without changing the screen (ADR 0043).
+Implementation note (T42): the shell now reads the durable archive through
+`HistoryArchive` (ADR 0048). Ranges up to 4,000 rows are read raw; longer
+windows are SQL-bucketed to about 1,200 rows and LTTB-decimated to 800 points
+per series with a min/max envelope. Summary is computed by SQL over raw rows, so
+it is exact even when the chart is decimated. Gap bands come from the `gap`
+table and from real holes; a decimated series is drawn with its explicit break
+points instead of the raw 90 s rule, which would otherwise split every bucket.
+Cooks are detected from recorded timestamps by `CookDetection`; the card and the
+Cook view never use fixture cooks in production. `HistoryViewLoader` owns the
+async read, so the same approved widgets render with or without a database.
+
+Implementation note (T36): V0 mounted the same shell against
+`RecentHistoryStore`, which held only the current session's recent readings in
+memory. The T42 read model replaced that source without changing the screen
+(ADR 0043 → ADR 0048).
 
 ## 6.7 Settings
 

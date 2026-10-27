@@ -248,6 +248,7 @@ class HistoryViewState {
 
   String get probeMeta {
     final count = probeCount;
+    if (dataProbeCount == 0) return 'No probes';
     final label = '$count ${count == 1 ? 'probe' : 'probes'}';
     if (dataProbeCount == count) return label;
     return '$dataProbeCount of $label';

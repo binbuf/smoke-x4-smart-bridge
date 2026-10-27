@@ -187,7 +187,7 @@ class _HistoryChartPainter extends CustomPainter {
     _drawGrid(canvas, chart, minValue, maxValue, ticks);
     _drawYAxisLabels(canvas, chart, ticks);
 
-    _drawGapBand(
+    _drawGapBands(
       canvas,
       chart,
       viewStartTime,
@@ -206,7 +206,12 @@ class _HistoryChartPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
 
-      final runs = historySeriesSegments(series);
+      final runs = historySeriesSegments(
+        series,
+        maxDelta: fixture.decimated
+            ? const Duration(days: 3650)
+            : historyGapThreshold,
+      );
       final offsets = <Offset>[];
       final hasGap = runs.length > 1;
       Offset? lastOffset;
@@ -415,7 +420,7 @@ class _HistoryChartPainter extends CustomPainter {
     }
   }
 
-  void _drawGapBand(
+  void _drawGapBands(
     Canvas canvas,
     Rect chart,
     DateTime viewStartTime,
@@ -424,44 +429,43 @@ class _HistoryChartPainter extends CustomPainter {
     double minValue,
     double maxValue,
   ) {
-    if (!fixture.gapStart.isAfter(viewStartTime) ||
-        !fixture.gapEnd.isBefore(viewEndTime)) {
-      return;
-    }
-    final x1 =
-        chart.left +
-        fixture.gapStart.difference(viewStartTime).inMilliseconds /
-            spanMs *
-            chart.width;
-    final x2 =
-        chart.left +
-        fixture.gapEnd.difference(viewStartTime).inMilliseconds /
-            spanMs *
-            chart.width;
-    final band = Paint()..color = gapColor;
-    canvas.drawRect(Rect.fromLTRB(x1, chart.top, x2, chart.bottom), band);
-    final dash = Paint()
-      ..color = labelColor.withValues(alpha: 0.45)
-      ..strokeWidth = 1;
-    _dashedLine(canvas, Offset(x1, chart.top), Offset(x1, chart.bottom), dash);
-    _dashedLine(canvas, Offset(x2, chart.top), Offset(x2, chart.bottom), dash);
-    if (x2 - x1 > 58) {
-      final label = switch (fixture.gapReason) {
-        HistoryGapReason.noSignal => 'No signal',
-        HistoryGapReason.bridgeOff => 'Bridge off',
-        HistoryGapReason.bridgeRotated => 'Not synced',
-      };
-      final painter = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: labelStyle.copyWith(color: labelColor, fontSize: 10),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      painter.paint(
-        canvas,
-        Offset((x1 + x2) / 2 - painter.width / 2, chart.top + 5),
-      );
+    for (final gap in fixture.allGaps) {
+      if (!gap.end.isAfter(viewStartTime) || !gap.start.isBefore(viewEndTime)) {
+        continue;
+      }
+      final x1 =
+          chart.left +
+          gap.start.difference(viewStartTime).inMilliseconds /
+              spanMs *
+              chart.width;
+      final x2 =
+          chart.left +
+          gap.end.difference(viewStartTime).inMilliseconds /
+              spanMs *
+              chart.width;
+      final left = x1.clamp(chart.left, chart.right);
+      final right = x2.clamp(chart.left, chart.right);
+      if (right <= left) continue;
+      final band = Paint()..color = gapColor;
+      canvas.drawRect(Rect.fromLTRB(left, chart.top, right, chart.bottom), band);
+      final dash = Paint()
+        ..color = labelColor.withValues(alpha: 0.45)
+        ..strokeWidth = 1;
+      _dashedLine(canvas, Offset(left, chart.top), Offset(left, chart.bottom), dash);
+      _dashedLine(canvas, Offset(right, chart.top), Offset(right, chart.bottom), dash);
+      if (right - left > 58) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: gap.reason.label,
+            style: labelStyle.copyWith(color: labelColor, fontSize: 10),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        painter.paint(
+          canvas,
+          Offset((left + right) / 2 - painter.width / 2, chart.top + 5),
+        );
+      }
     }
   }
 
