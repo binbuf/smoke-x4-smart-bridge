@@ -263,6 +263,23 @@ add_executable(test_ble_live test_ble_live.c)
 target_link_libraries(test_ble_live PRIVATE sx4_ble_live sx4_test_support)
 add_test(NAME ble-live COMMAND test_ble_live)
 
+# The control dispatcher and result encoder are pure C11 over the real
+# bridge_state clock core (T29). NimBLE is not linked; the ATT error values,
+# every status code, body validation and result truncation are the host gate.
+add_library(sx4_ble_control STATIC
+    "${REPO_ROOT}/firmware/components/ble_service/ble_control.c"
+)
+target_include_directories(sx4_ble_control
+    PUBLIC "${REPO_ROOT}/firmware/components/ble_service/include"
+)
+target_link_libraries(sx4_ble_control
+    PUBLIC sx4_bridge_state sx4_protocol_gen
+)
+
+add_executable(test_ble_control test_ble_control.c)
+target_link_libraries(test_ble_control PRIVATE sx4_ble_control sx4_test_support)
+add_test(NAME ble-control COMMAND test_ble_control)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks

@@ -270,6 +270,25 @@ Maximum 64 B.
 `detail` is for humans ("clock out of range", "bond store full"), not for
 machine branching. The status code is the branch.
 
+### Implementation rules (T29)
+
+- `ble_control.c` owns the dispatcher and the result encoder; both are plain
+  C11 and host-tested. The GATT callback only copies the mbuf and sends the
+  encoded result.
+- The dispatcher validates the exact body size before acting: `set_time` 10 B,
+  `set_billows_target` 2 B, ops 2/3/4/5/7 0 B. A wrong size or wrong `ver`
+  returns `invalid` and changes nothing; an unknown op returns `unsupported`.
+- `set_time` maps `unix_ms / 1000` to `bridge_state_set_time()`. The bridge
+  keeps UTC; `tz_offset_min` is advisory. A backward correction or zero time is
+  `invalid` with "clock out of range".
+- T29 answers ops 2/3/4/5/7 as `unsupported`; T48 fills their handlers through
+  the reply-first action seam (result `action` + a ≈250 ms one-shot timer armed
+  only after the notification is handed off).
+- `result` is split at `MTU−3`; the first chunk always carries the 5-byte
+  header, so the client can reassemble. The app must subscribe before writing.
+- Write security returns the named ATT error: `0x0F` when unencrypted, `0x05`
+  when encrypted but unauthenticated.
+
 ## 5.7 `0005 sync_ctrl` — Write, encrypted
 
 10 B.
