@@ -76,6 +76,15 @@ class BridgeController extends ChangeNotifier {
   int syncProgressPercent = 64;
 
   BillowsAttachment billowsAttachment = BillowsAttachment.attached;
+
+  /// `caps.billows_observe` from the `info` read. A Bridge that does not decode
+  /// Billows fields never shows the card or a loss notice.
+  bool billowsObserveCap = true;
+
+  /// Test/clock seam for the age of the newest valid X4 packet. Production
+  /// fills this from the phone's receipt time (T35); leaving it null keeps the
+  /// prototype-derived age for the approved baseline.
+  Duration? smokeXAgeOverride;
   bool smokeXChannel4SetKnown = true;
   int smokeXChannel4SetF = 225;
   bool billowsSeenThisSession = true;
@@ -179,6 +188,7 @@ class BridgeController extends ChangeNotifier {
         return 'Bridge not connected';
       case ConnectionPhase.failed:
       case ConnectionPhase.offline:
+        if (!offlineCache) return 'Bridge disconnected · nothing saved yet';
         final age = bridgeLastContactAge;
         if (age == null) return 'Bridge not connected';
         return 'Bridge disconnected · last connected ${_proseDuration(age)} ago';
@@ -213,6 +223,8 @@ class BridgeController extends ChangeNotifier {
   }
 
   Duration? get smokeXLastPacketAge {
+    final override = smokeXAgeOverride;
+    if (override != null) return override;
     if (!isConnected) {
       final bridgeAge = bridgeLastContactAge;
       if (bridgeAge == null) return null;
@@ -682,15 +694,17 @@ class BridgeController extends ChangeNotifier {
       probes: List<ProbeView>.unmodifiable(probeViews),
       probePresence: probePresence,
       units: units,
-      billows: _billowsView,
-      billowsLostThisSession: billowsLostThisSession,
+      billows: billowsObserveCap && billowsDetected ? _billowsView : null,
+      billowsLostThisSession: billowsObserveCap && billowsLostThisSession,
+      showSavedReadings: offlineCache,
       lastSyncedLabel: lastSyncedLabel,
     );
   }
 
   ProbeView _probeView(int index, double? sourceTemp, ProbeHealth health) {
+    final noCache = isOffline && !offlineCache;
     final double? temp;
-    if (probePresence == ProbePresence.none) {
+    if (noCache || probePresence == ProbePresence.none) {
       temp = null;
     } else if (probePresence == ProbePresence.detachedP3 && index == 2) {
       temp = null;
@@ -702,7 +716,9 @@ class BridgeController extends ChangeNotifier {
         !connected ||
         health == ProbeHealth.stale ||
         health == ProbeHealth.frozen;
-    final history = content.sparkline(index, hasData: probeHasHistory(index));
+    final history = noCache
+        ? const <ChartPoint>[]
+        : content.sparkline(index, hasData: probeHasHistory(index));
     final values = history
         .where((point) => point.valueF != null)
         .map((point) => point.valueF!)
@@ -732,6 +748,7 @@ class BridgeController extends ChangeNotifier {
   }
 
   String? _probeStatusText(bool connected, ProbeHealth health) {
+    if (isOffline && !offlineCache) return null;
     if (!connected) {
       if (probePresence == ProbePresence.none) return null;
       return 'Not connected';
@@ -1174,6 +1191,8 @@ class BridgeController extends ChangeNotifier {
     syncState = SyncState.idle;
     syncProgressPercent = 64;
     billowsAttachment = BillowsAttachment.attached;
+    billowsObserveCap = true;
+    smokeXAgeOverride = null;
     smokeXChannel4SetKnown = true;
     smokeXChannel4SetF = 225;
     billowsSeenThisSession = true;

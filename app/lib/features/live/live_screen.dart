@@ -43,6 +43,20 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (view.isOffline && !view.showSavedReadings) ...[
+                      const SizedBox(height: 10),
+                      InlineNotice(
+                        key: const Key('live.noCache'),
+                        icon: Icons.cloud_off_outlined,
+                        title: 'Nothing saved yet',
+                        message:
+                            'This phone has no saved readings. Connect to your Bridge to see live values.',
+                        action: TextButton(
+                          onPressed: controller.retryConnection,
+                          child: const Text('Retry'),
+                        ),
+                      ),
+                    ],
                     if (view.isConnected && !view.smokeXReceiving) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
@@ -120,6 +134,7 @@ class LiveScreen extends StatelessWidget {
                           ),
                       itemBuilder: (context, index) {
                         return ProbeCard(
+                          key: Key('live.probe.${index + 1}'),
                           probe: view.probes[index],
                           units: view.units,
                           isOffline: view.isOffline,
@@ -128,7 +143,7 @@ class LiveScreen extends StatelessWidget {
                         );
                       },
                     ),
-                    if (view.billows!.detected) ...[
+                    if (view.billows != null) ...[
                       const SizedBox(height: 14),
                       _BillowsCard(view: view.billows!),
                     ],
@@ -310,6 +325,7 @@ class _ConnectionCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (view.isConnected || view.showSavedReadings) ...[
                       const SizedBox(height: 5),
                       Row(
                         children: [
@@ -342,6 +358,7 @@ class _ConnectionCard extends StatelessWidget {
                             ),
                         ],
                       ),
+                      ],
                     ],
                   ),
                 ),
@@ -454,6 +471,7 @@ class _SyncCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final backfill = view.syncState == SyncState.backfill;
     return SectionCard(
+      key: const Key('live.sync'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -74,6 +74,7 @@ class FakeBridgeSession {
   Future<void> publishLiveSample({
     List<int>? tempsF10,
     int? seq,
+    int? flags,
     int? batteryPct,
     int? rssiLora,
     int? ageS,
@@ -81,11 +82,57 @@ class FakeBridgeSession {
     bridge.publishLive(
       tempsF10: tempsF10,
       seq: seq,
+      flags: flags,
       batteryPct: batteryPct,
       rssiLora: rssiLora,
       ageS: ageS,
     );
     await Future<void>.delayed(Duration.zero);
+  }
+
+  /// Test-only driver for the Live states the scripted wire cannot express on
+  /// its own: clock ages, cache availability, sync failures, probe presence and
+  /// capabilities. Widget tests use this instead of reaching into private
+  /// controller internals; it is unreachable from production code.
+  void driveLiveState({
+    ConnectionPhase? phase,
+    Duration? smokeXAge,
+    bool clearSmokeXAge = false,
+    ProbeHealth? probeHealth,
+    ProbePresence? probePresence,
+    SmokeXStatus? smokeXStatus,
+    SyncState? syncState,
+    int? syncProgressPercent,
+    bool? storageOk,
+    bool? slowLink,
+    bool? offlineCache,
+    List<double?>? probeTemps,
+    BillowsAttachment? billowsAttachment,
+    bool? billowsSeenThisSession,
+    bool? billowsObserve,
+  }) {
+    if (phase != null) controller.phase = phase;
+    if (clearSmokeXAge) controller.smokeXAgeOverride = null;
+    if (smokeXAge != null) controller.smokeXAgeOverride = smokeXAge;
+    if (probeHealth != null) controller.probeHealth = probeHealth;
+    if (probePresence != null) controller.probePresence = probePresence;
+    if (smokeXStatus != null) controller.smokeXStatus = smokeXStatus;
+    if (syncState != null) controller.syncState = syncState;
+    if (syncProgressPercent != null) {
+      controller.syncProgressPercent = syncProgressPercent;
+    }
+    if (storageOk != null) controller.storageOk = storageOk;
+    if (slowLink != null) controller.slowLink = slowLink;
+    if (offlineCache != null) controller.offlineCache = offlineCache;
+    if (probeTemps != null) _content.probeTemps = probeTemps;
+    if (billowsAttachment != null) {
+      controller.billowsAttachment = billowsAttachment;
+    }
+    if (billowsSeenThisSession != null) {
+      controller.billowsSeenThisSession = billowsSeenThisSession;
+    }
+    if (billowsObserve != null) controller.billowsObserveCap = billowsObserve;
+    controller.notifyListeners();
   }
 
   Future<void> disconnect() => client.disconnect();
@@ -181,7 +228,18 @@ class _FakeLiveContent implements BridgeContent {
   String get savedDataSize => '0 B';
 
   @override
-  List<ChartPoint> sparkline(int probe, {required bool hasData}) => const [];
+  List<ChartPoint> sparkline(int probe, {required bool hasData}) {
+    if (!hasData) return const <ChartPoint>[];
+    final base = probeTemps[probe];
+    if (base == null) return const <ChartPoint>[];
+    final start = now.subtract(const Duration(hours: 1));
+    return List<ChartPoint>.generate(13, (index) {
+      return ChartPoint(
+        start.add(Duration(minutes: index * 5)),
+        base + (index - 6) * 0.4,
+      );
+    });
+  }
 
   @override
   HistoryFixture history(

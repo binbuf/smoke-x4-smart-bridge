@@ -65,4 +65,56 @@ Live is the single status surface: the App → Bridge → Smoke X4 chain, four n
 - [ ] Hand-off below filled in
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Status:** done. Live is mounted as the single status surface and every
+§13.4 Live state is driven through the scripted fake and widget-tested.
+
+**Changes**
+- `app/lib/features/live/live_screen.dart` — approved chain, two-row status
+  block, four numbered tiles, inline notices, sync card, Billows card; added
+  the offline-no-cache `Nothing saved yet` notice with one `Retry`, hid the
+  telemetry row when there is no cache, and made the Billows card conditional
+  on the nullable view state. Test keys `live.probe.1..4`, `live.sync`,
+  `live.noCache`.
+- `app/lib/app/view_state.dart` — `LiveViewState.showSavedReadings`;
+  `billows` documented and used as nullable.
+- `app/lib/app/bridge_controller.dart` — `billowsObserveCap`
+  (`caps.billows_observe`), `smokeXAgeOverride` receipt-age seam, no-cache
+  probe/sparkline clearing, exact `Bridge disconnected · nothing saved yet`
+  copy.
+- `app/test/support/fake_bridge_session.dart` — `driveLiveState(...)` fake
+  driver for all Live states, `flags` on `publishLiveSample`, deterministic
+  sparkline content.
+- `app/test/live_screen_test.dart` — 13 widget tests covering healthy, aging,
+  stale, lost, detached, no-probes, offline cache, offline no-cache, sync
+  progress/backfill/slow link, sync failure, Billows detected/lost/never/cap,
+  connection-card and probe-tile navigation, and pull-to-refresh without
+  `Sync now`.
+- ADR `0041-live-state-gating-and-no-cache.md`; `06-app.md` §6.5 notes;
+  `docs/progress/T34.md`.
+
+**Deviations**
+- The prototype-derived packet ages remain the default; T35 replaces them with
+  the phone's monotonic receipt time via `smokeXAgeOverride`.
+- Pull-to-refresh still uses the controller's existing retry/sync simulation;
+  the real forward sync and named pull error belong to T35.
+- Billows set temp in the offline test is shown as `Set temp (last known)`,
+  which is labelled last-known rather than current; probe tiles never render
+  cached values as current.
+
+**Checks**
+```
+cd app
+flutter analyze
+# No issues found! (ran in 0.9s)
+
+flutter test
+# 00:06 +110: All tests passed!
+```
+
+**Remaining work / next task**
+- T35: populate `smokeXAgeOverride` from receipt time, wire real pull-to-refresh
+  forward sync and its named error, and set `billowsObserveCap` from `info`.
+- T37: real-phone sample cadence and screenshot parity.
+- T54: fold these Live cases into the full copy/golden matrix.
+
