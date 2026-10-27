@@ -97,4 +97,72 @@ CREATE TABLE gap (
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** The durable on-phone archive and its DAO:
+
+- `app/lib/data/db/app_database.dart` is schema version 2 with forward-only
+  migrations. A fresh file and an existing empty version-1 T05 file both create
+  the exact `bridge`, `sample` (+ `sample_time`) and `gap` schema from 04 §4.7.
+  `openInMemory(factory: databaseFactoryFfi)` is the host-test database.
+- `app/lib/data/db/sample_dao.dart` defines the `SampleDao` interface and the
+  single `SqfliteSampleDao` implementation:
+  - `insertBatch`/`insertSamples` in one transaction per batch, idempotent by
+    `(bridge_id, generation, seq)`; a re-sync never duplicates a row and never
+    replaces a better record with a worse one. An estimated row is upgraded when
+    a later batch has the real device clock.
+  - unknown clock → `unix_s = NULL`, `time_estimated = 1`, and the estimate
+    `syncWallMs - (deviceMaxSeq - seq) * 30000`; probe sentinels/absent probes
+    become `NULL`, never 0 °F.
+  - `samplesInRange` over `recorded_ms` (half-open `[from, to)`),
+    `newestSamples`, `countSamples`, `extent` (min/max seq and time + count),
+    `gaps`/`insertGaps`.
+  - `deleteRange` returns `samplesDeleted`, `gapsDeleted`, `gapsTrimmed` and
+    `gapsAffected`; it removes gaps detected inside the window and trims or
+    removes gaps overlapping the deleted sequence extent.
+  - saved-Bridge identity: `savedBridge()` (ordered by `last_seen_ms`),
+    `bridgeById`, `saveBridge`, `touchBridge`, `removeBridge`,
+    `removeAllBridges`. The `bridge` row is the only saved-connection store;
+    forgetting removes only that row and leaves `sample`/`gap` orphaned and
+    readable.
+- `app/test/local_database_test.dart` adds 11 tests: schema/index, 10,000-row
+  insert/range/count/extent/delete, duplicate idempotency, estimated→exact
+  upgrade, unknown-clock mapping, Bridge ordering/touch, forget keeps history,
+  gap trim then removal, same-file relaunch with saved identity, and v1→v2
+  migration. `app/test/app_skeleton_test.dart` now seeds the real `sample`
+  table instead of creating a temporary one.
+- Docs: implementation notes in 04 §4.7 and 06 §6.2; ADR 0045; reusable facts
+  and follow-ups in `docs/progress/T40.md`.
+
+**Decisions / deviations.** The deletion window is half-open `[from, to)` so
+“older than N days” and “all” compose without double-counting the boundary.
+`gap` has no time column, so date deletion uses `detected_ms` for gaps detected
+inside the window and also trims by the deleted sequence extent; this keeps a
+stale gap from outliving the samples it described. Upserts use portable
+`INSERT OR IGNORE` + conditional `UPDATE` rather than `ON CONFLICT DO UPDATE`
+for older Android system SQLite. There is no schema FK from `sample`/`gap` to
+`bridge`, deliberately, so orphaned history survives a forget.
+
+**Checks run (all foreground, in `app/`).**
+
+```powershell
+flutter analyze
+# No issues found! (ran in 1.4s)
+
+flutter test test\local_database_test.dart
+# 11/11 passed
+
+flutter test
+# 157/157 passed
+```
+
+**Next task must know.** T41 should call `insertBatch` with the phone receive
+time and the device extent, then advance the `bridge` cursor fields; a batch is
+durable before the cursor moves, but cursor advancement is not yet in the same
+DAO transaction (add one DAO method if that atomicity is required). Record keys
+include `generation`, so a generation change is a new segment, not a delete.
+Deletion is `recorded_ms >= fromMs AND recorded_ms < toMs`; use
+`0 .. 0x7FFFFFFFFFFFFFFF` for “all”. `SavedBridge.copyWith` cannot clear a
+nullable field, so construct a new row when cursors must become `NULL`. T43
+loads `savedBridge()` on launch and calls `touchBridge()` on every successful
+connect.
+

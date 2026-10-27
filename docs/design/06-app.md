@@ -117,6 +117,10 @@ The prototype already contains the approved UI layer. In production:
   security failures. `BridgeController` and `createBridgeController` accept an
   optional `BleClient`; production still passes none until M2. The scripted
   fake and fake GATT bridge live under `app/test/support/`, never in `lib/`;
+- T40 added schema version 2 and the archive DAO in
+  `app/lib/data/db/sample_dao.dart`: bulk insert, range/count/extent reads, gap
+  storage, date deletion and the saved-`bridge` identity queries. The in-memory
+  test database is `AppDatabase.openInMemory` with the same DAO contract;
 - keep simulation timers and fake OS prompts under debug/test only. They must not
   be reachable from a release build.
 

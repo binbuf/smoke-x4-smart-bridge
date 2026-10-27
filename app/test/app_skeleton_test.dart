@@ -78,7 +78,7 @@ void main() {
   });
 
   test(
-    'SQLite repository reports an empty archive before the schema lands',
+    'SQLite repository reports the archive count and newest reading',
     () async {
       final database = await AppDatabase.openInMemory(
         factory: databaseFactoryFfi,
@@ -87,11 +87,22 @@ void main() {
 
       expect((await repository.loadSnapshot()).readingCount, 0);
 
-      await database.database.execute(
-        'CREATE TABLE sample (recorded_ms INTEGER NOT NULL)',
-      );
-      await database.database.insert('sample', {'recorded_ms': 1700000000000});
-      await database.database.insert('sample', {'recorded_ms': 1700000060000});
+      await database.database.insert('sample', <String, Object?>{
+        'bridge_id': 'bridge-a',
+        'generation': 1,
+        'seq': 1,
+        'recorded_ms': 1700000000000,
+        'time_estimated': 0,
+        'flags': 0,
+      });
+      await database.database.insert('sample', <String, Object?>{
+        'bridge_id': 'bridge-a',
+        'generation': 1,
+        'seq': 2,
+        'recorded_ms': 1700000060000,
+        'time_estimated': 0,
+        'flags': 0,
+      });
 
       final snapshot = await repository.loadSnapshot();
       expect(snapshot.readingCount, 2);
