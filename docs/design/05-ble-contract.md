@@ -186,6 +186,22 @@ seq = 1234, Billows target 225.0 °F, battery 87%, RSSI −71, age 12 s, flags
 01 17 CA 08 74 06 00 80 20 03 D2 04 00 00 CA 08 57 B9 0C 00
 ```
 
+### Implementation rules (T28)
+
+- `ble_live_encode()` is the only encoder: it maps one `bridge_state_live_t`
+  snapshot to the generated 20-byte codec. A probe whose attach bit is clear is
+  always sent as `INT16_MIN`, whatever the snapshot temp field says.
+- `seq` is `0xFFFFFFFF` until the log stored a sample; after that it is the
+  stored sequence, including a legitimate first sequence of 0.
+- `billows_output` (bit 3) is always cleared on the wire; an invalid Billows
+  target is sent as 0.
+- A plain read returns the current snapshot, not the last queued notification.
+  A successful CCCD subscription primes the notification queue with the same
+  snapshot, so subscribe and read agree.
+- The `ble_tx` task owns a fixed 8-frame ring of encoded payloads and is the
+  only `live` notification writer. A full ring drops the newest frame; the app
+  recovers the value with a sync from the log.
+
 ## 5.5 `0003 control` — Write, authenticated
 
 ```

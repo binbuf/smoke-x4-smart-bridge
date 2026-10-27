@@ -492,7 +492,11 @@ re-checked by the host `task-budget` test.
   (`board-battery`) with exact curve points. `board_battery_esp.c` is the only
   GPIO37/ADC/calibration code and is not linked by the host tests.
 - `ble_service` payload encoders are pure functions; the NimBLE callbacks are
-  thin.
+  thin. `ble_live_encode()` maps a `bridge_state_live_t` to the 20-byte `live`
+  payload, and the pure `ble_tx_core` ring (`firmware/test/test_ble_live.c`)
+  checks the seq/flags dedupe without NimBLE. The firmware `ble_tx` task is the
+  only notification writer; `bridge_state_set_change_hook()` feeds it from the
+  sample and flag setters (ADR 0035).
 - `sx_radio` publishes raw RX frames through the pure-C seam
   `firmware/components/sx_radio/include/sx_radio_rx.h`: a fixed 128-byte
   payload plus RSSI/SNR in a bounded SPSC queue. Publish never blocks and never

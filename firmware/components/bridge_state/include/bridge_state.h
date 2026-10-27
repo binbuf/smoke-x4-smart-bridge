@@ -65,7 +65,8 @@ typedef struct {
  * every snapshot read. Unknown battery is BRIDGE_STATE_SOC_UNKNOWN.
  */
 typedef struct {
-    uint32_t seq;              /* last valid sample sequence */
+    uint32_t seq;              /* last stored sample sequence */
+    bool have_seq;             /* false before the first stored sample */
     int16_t temp_f10[BRIDGE_STATE_NUM_PROBES]; /* canonical F tenths */
     uint8_t attached_mask;     /* bit 0..3: probe attached in the last sample */
     uint8_t flags;             /* SX4_LIVE_FLAG_* */
@@ -82,6 +83,7 @@ typedef struct {
 /* One validated state packet from sample_pipe (T21). */
 typedef struct {
     uint32_t seq;
+    bool have_seq;         /* true when the log assigned `seq` to this sample */
     int16_t temp_f10[BRIDGE_STATE_NUM_PROBES];
     uint8_t attached_mask; /* bit 0..3 */
     bool billows_attached;
@@ -143,6 +145,15 @@ void bridge_state_set_billows_output(bool output);
 
 /* Battery (T24): mV plus percent, or BRIDGE_STATE_SOC_UNKNOWN for unknown. */
 void bridge_state_set_battery(uint16_t millivolts, uint8_t percent);
+
+/*
+ * Optional observer for the live snapshot (T28). The callback runs after every
+ * stored-sample publication, every flag transition and a successful set_time,
+ * in the caller's task context. It must not block or call back into the
+ * setters; bridge_state_snapshot() is safe from it. Passing NULL unregisters.
+ */
+typedef void (*bridge_state_change_fn)(void *ctx);
+void bridge_state_set_change_hook(bridge_state_change_fn fn, void *ctx);
 
 #define BRIDGE_STATE_SOC_UNKNOWN SX4_BATTERY_UNKNOWN
 

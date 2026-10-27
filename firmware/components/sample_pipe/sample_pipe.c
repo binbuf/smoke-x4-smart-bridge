@@ -92,8 +92,10 @@ static void publish_snapshot(sample_pipe_t *pipe,
         pipe->last_seq = seq;
         pipe->have_seq = true;
         sample.seq = seq;
+        sample.have_seq = true;
     } else {
         sample.seq = pipe->have_seq ? pipe->last_seq : 0;
+        sample.have_seq = pipe->have_seq;
         pipe->counters.log_write_failures++;
     }
     pipe->io.publish_snapshot(pipe->io.ctx, &sample);

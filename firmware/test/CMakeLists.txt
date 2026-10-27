@@ -245,6 +245,24 @@ add_executable(test_ble_info test_ble_info.c)
 target_link_libraries(test_ble_info PRIVATE sx4_ble_info sx4_test_support)
 add_test(NAME ble-info COMMAND test_ble_info)
 
+# The `live` encoder and the bounded ble_tx ring are pure C11 (T28). The
+# NimBLE callbacks are not linked; the 05 section 5.4 vector, the required
+# snapshot states and the queue semantics are the host gate.
+add_library(sx4_ble_live STATIC
+    "${REPO_ROOT}/firmware/components/ble_service/ble_live.c"
+    "${REPO_ROOT}/firmware/components/ble_service/ble_tx_core.c"
+)
+target_include_directories(sx4_ble_live
+    PUBLIC "${REPO_ROOT}/firmware/components/ble_service/include"
+)
+target_link_libraries(sx4_ble_live
+    PUBLIC sx4_bridge_state sx4_protocol_gen
+)
+
+add_executable(test_ble_live test_ble_live.c)
+target_link_libraries(test_ble_live PRIVATE sx4_ble_live sx4_test_support)
+add_test(NAME ble-live COMMAND test_ble_live)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks

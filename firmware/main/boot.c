@@ -9,6 +9,7 @@
 #include <stdbool.h>
 
 #include "ble_service.h"
+#include "ble_tx.h"
 #include "board.h"
 #include "bridge_config.h"
 #include "bridge_state.h"
@@ -109,6 +110,7 @@ void sx4_boot_run(void) {
     run_step("sx_protocol_init", sx_protocol_init);
     run_step("sx_radio_init", sx_radio_init);
     run_step("sample_pipe_start", sample_pipe_start);
+    run_step("ble_tx_start", ble_tx_start);
     run_step("sx_radio_start", sx_radio_start);
     run_step("ble_service_start", ble_service_start);
 
