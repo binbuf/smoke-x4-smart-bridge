@@ -60,7 +60,7 @@ the M5 bench work, not in V0. The MVP is observation-only; no cook is required.
 
 | Check | Result | Evidence |
 |---|---|---|
-| B5.0 passive capture: `billows_attached`, probe 4 `max`/`min` at 225/250/275 °F | ⏳ | |
+| T56 passive capture: `billows_attached`, probe 4 `max`/`min` at 225/250/275 °F | ⏳ | |
 | Attach/detach changes `billows_attached` | ⏳ | |
 | Raw `max`/`min` at three known targets; relation confirmed or marked unknown | ⏳ | |
 | °F/°C target conversion | ⏳ | |

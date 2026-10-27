@@ -75,7 +75,7 @@ The MVP shall:
 
 - Decode `billows_attached` and expose it in `live.flags`.
 - Decode the candidate target field and expose `live.billows_target_f10` only
-  when B5.0 has validated the relation; otherwise return `0` (unknown).
+  when T56 has validated the relation; otherwise return `0` (unknown).
 - Show a Billows card on Live and a page on the OLED **only when a Billows has
   been detected**; no zero or fake target when absent.
 - Say "Set on the Smoke X4" wherever the target is shown.
@@ -97,7 +97,7 @@ must not offer a control affordance when it is `0`.
 | Detected earlier, now missing | `Billows not detected` (one notice, not repeated per screen) |
 | Never detected | No Billows card/page; no empty placeholder |
 
-## 8.5 Target field validation (B5.0)
+## 8.5 Target field validation (T56)
 
 The target relation is captured passively; no setpoint is changed during a cook.
 
@@ -261,8 +261,8 @@ Rules:
 | # | Question | Needed for | Status |
 |---|---|---|---|
 | BQ1 | Does the receiver transmit anything besides the sync ACK? | Any future RF control | **Answered by product docs: no setpoint controls on the receiver. Passive confirmation is post-MVP.** |
-| BQ2 | What changes in the state packet when the target changes? | Observation target | B5.0 passive capture |
-| BQ3 | Is the target probe 4 `max`, `max − 25`, midpoint, or another field? | Observation target | B5.0 passive capture |
+| BQ2 | What changes in the state packet when the target changes? | Observation target | T56 passive capture |
+| BQ3 | Is the target probe 4 `max`, `max − 25`, midpoint, or another field? | Observation target | T56 passive capture |
 | BQ4 | Does the state packet expose fan duty or a fan-running flag? | Extra observation | Post-MVP passive survey |
 | BQ5 | Does the fan adapter or Billows emit any RF telemetry? | Extra observation | Post-MVP passive survey |
 | BQ6 | What is the fan's inrush/steady current? | Future inline controller | Deferred with option B |

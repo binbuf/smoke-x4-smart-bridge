@@ -208,14 +208,14 @@ point at the owner.
 
 | # | P | Where | Current in prototype | Required for production | Task |
 |---:|---|---|---|---|---|
-| C1 | P1 | Setup > unsupported phone / protocol mismatch | Only `Close` | `Update app`, `View history on this phone`, `Learn more` where applicable; explain the Bridge is unchanged | A2.2 |
-| C2 | P1 | Bridge details > Smoke X4 pairing | Compact pill `Receiving` | `Receiving readings` only when a valid X4 packet is ≤90 s old; otherwise `No readings for 4 min` or `Signal lost`; keep `Updated 12s ago` | A4.2 |
-| C3 | P1 | History > Summary sort | Disabled label `Since cook start (no cook detected)` | Keep the option `Since cook start`; show `No cook detected yet` as helper text when disabled | A3.3 |
-| C4 | P1 | Live > offline without cache | Prototype still renders fixture probe values | No probe values presented as current; show the one `Bridge disconnected · nothing saved yet` state and one next action | A2.3, A3.4 |
-| C5 | P1 | About > lab entry | App-bar and About entries now share a debug gate; no release-build test yet | Verify the release build has no lab entry unless `ENABLE_EXPERIMENTAL_LAB=true`; no simulation UI in release | V6.4 |
-| C6 | P1 | All screens > strings and locale | Strings hard-coded; some time helpers are fixture-oriented | Centralize product strings, use locale time/date/number formatting, add a banned-term copy test | A4.5, V6.4 |
-| C7 | P1 | All screens > accessibility | Mostly 48 dp; contrast, semantics and chart controls need a final phone audit | WCAG AA contrast, 48 dp targets, semantics for connection/tiles/chart/summary/filters, reduce-motion | A4.5, V6.4 |
-| C8 | P2 | History > Chart help | Prototype sheet is product-ready | Keep the six help rows; no developer wording | A3.3 |
+| C1 | P1 | Setup > unsupported phone / protocol mismatch | Only `Close` | `Update app`, `View history on this phone`, `Learn more` where applicable; explain the Bridge is unchanged | T33 |
+| C2 | P1 | Bridge details > Smoke X4 pairing | Compact pill `Receiving` | `Receiving readings` only when a valid X4 packet is ≤90 s old; otherwise `No readings for 4 min` or `Signal lost`; keep `Updated 12s ago` | T51 |
+| C3 | P1 | History > Summary sort | Disabled label `Since cook start (no cook detected)` | Keep the option `Since cook start`; show `No cook detected yet` as helper text when disabled | T42 |
+| C4 | P1 | Live > offline without cache | Prototype still renders fixture probe values | No probe values presented as current; show the one `Bridge disconnected · nothing saved yet` state and one next action | T34, T43 |
+| C5 | P1 | About > lab entry | App-bar and About entries now share a debug gate; no release-build test yet | Verify the release build has no lab entry unless `ENABLE_EXPERIMENTAL_LAB=true`; no simulation UI in release | T64 |
+| C6 | P1 | All screens > strings and locale | Strings hard-coded; some time helpers are fixture-oriented | Centralize product strings, use locale time/date/number formatting, add a banned-term copy test | T54, T64 |
+| C7 | P1 | All screens > accessibility | Mostly 48 dp; contrast, semantics and chart controls need a final phone audit | WCAG AA contrast, 48 dp targets, semantics for connection/tiles/chart/summary/filters, reduce-motion | T54, T64 |
+| C8 | P2 | History > Chart help | Prototype sheet is product-ready | Keep the six help rows; no developer wording | T42 |
 | C9 | P2 | Live > probe tile | Signed delta uses `+`/`-` | Keep the sign; it is clearer than an arrow and is screen-reader friendly | Accepted |
 
 ---

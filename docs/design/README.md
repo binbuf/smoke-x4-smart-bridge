@@ -39,11 +39,16 @@ session model, or notification stack** in this MVP.
 | [12 — Copy & Label Review](12-copy-and-label-review.md) | Final copy baseline, state vocabulary, formatting rules and the remaining release copy gaps |
 | [13 — UI/UX Implementation Contract](13-ui-implementation-contract.md) | Prototype-to-production screen map, state inventory, lifecycle flows, view-model seam and UI acceptance |
 
-Task plans live in [`../tasks/`](../tasks/README.md). Bench evidence lives in
+The ordered task plan lives in [`../ROADMAP.md`](../ROADMAP.md), with one detail
+file per task under [`../tasks/`](../tasks/). Bench evidence lives in
 [`../hardware-verified.md`](../hardware-verified.md); the Billows scope decision
 lives in [`../billows-decision.md`](../billows-decision.md).
 
 ## Decisions already made
+
+The foundational decisions below are also recorded as ADRs under
+[`adr/`](adr/); add a new ADR when a substantial decision diverges from this
+design, rather than rewriting history.
 
 | ID | Decision | Why |
 |---|---|---|
@@ -79,7 +84,7 @@ undecided about the product:
 | **Q1** | Is the board exactly the **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + SSD1306)? The brief says "ESP32 LoRa V3"; the enclosure and legacy code assume Heltec V3. | Pin map, partition size, radio driver | M0 bench |
 | **Q2** | ~~Does a safe Billows setpoint command path exist?~~ **Answered: no documented receiver-side path; Option C, observation only.** | Closed; no MVP task | Recorded 2026-10-26 |
 | **Q3** | Does holding **GPIO0** through a deep-sleep wake ever enter the ROM download strap? | Power on/off feature | M0/M1 bench |
-| **Q4** | Is the Billows target probe 4's `alarm_high` field, `max − 25`, or another relation? | Billows target display | M5 B5.0 passive capture |
+| **Q4** | Is the Billows target probe 4's `alarm_high` field, `max − 25`, or another relation? | Billows target display | M5 T56 passive capture |
 | **Q5** | Is BLE throughput sufficient to sync the full ring in a reasonable time on the target phone? | Full-history UX | M2/M3 bench |
 
 ## Invariants

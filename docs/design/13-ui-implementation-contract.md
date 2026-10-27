@@ -395,19 +395,19 @@ are tracked in the task plan, not silently copied.
 
 | Item | Production action | Task |
 |---|---|---|
-| Permission primer is a lab state; `Find bridge` goes straight to scanning | Request permission after tap and show the primer only when needed | A2.2 |
-| Offline-without-cache still renders fixture probe values | Render no values and one offline/no-cache status; never show cached values as current | A2.3, A3.4 |
-| Opening `Custom range…` changes the selected range before the sheet is applied | Apply only on `Apply`; `Cancel` restores the previous range and viewport | A3.3 |
-| About long-press and app-bar lab entry share a gate, but no release-build test proves it | Keep the shared debug/`ENABLE_EXPERIMENTAL_LAB` gate and verify it in the release build | V6.4 |
-| Setup protocol-mismatch/unsupported actions are only `Close` | Add `Update app`, `View history on this phone`, `Learn more` where applicable | A2.2 |
-| Bridge details pill says `Receiving` | Use `Receiving readings` only when fresh; otherwise `No readings for 4 min` | A4.2 |
-| Summary’s disabled sort reads `Since cook start (no cook detected)` | Keep `Since cook start` disabled and show `No cook detected yet` as supporting copy | A3.3 |
+| Permission primer is a lab state; `Find bridge` goes straight to scanning | Request permission after tap and show the primer only when needed | T33 |
+| Offline-without-cache still renders fixture probe values | Render no values and one offline/no-cache status; never show cached values as current | T34, T43 |
+| Opening `Custom range…` changes the selected range before the sheet is applied | Apply only on `Apply`; `Cancel` restores the previous range and viewport | T42 |
+| About long-press and app-bar lab entry share a gate, but no release-build test proves it | Keep the shared debug/`ENABLE_EXPERIMENTAL_LAB` gate and verify it in the release build | T64 |
+| Setup protocol-mismatch/unsupported actions are only `Close` | Add `Update app`, `View history on this phone`, `Learn more` where applicable | T33 |
+| Bridge details pill says `Receiving` | Use `Receiving readings` only when fresh; otherwise `No readings for 4 min` | T51 |
+| Summary’s disabled sort reads `Since cook start (no cook detected)` | Keep `Since cook start` disabled and show `No cook detected yet` as supporting copy | T42 |
 | Probe delta uses `+3.8°F` rather than an arrow | Keep the sign; it is clearer and accessible | Accepted |
-| All strings are hard-coded | Centralize strings, use locale formatting, add a banned-term copy test | A4.5, V6.4 |
-| Fixtures, simulation timers and fake OS prompts | Remove from release; keep under test/debug only | T0.5a, V6.4 |
-| Scenario lab uses the prototype controller | Keep as a debug-only adapter; no release import | T0.5a, V6.4 |
-| Screenshot set is a review artifact | Regenerate intentionally and make the production set a release gate | A4.5, V6.4 |
-| Appearance theme is a lab switch today | Persist it in Preferences and apply on launch | A4.2 |
+| All strings are hard-coded | Centralize strings, use locale formatting, add a banned-term copy test | T54, T64 |
+| Fixtures, simulation timers and fake OS prompts | Remove from release; keep under test/debug only | T06, T64 |
+| Scenario lab uses the prototype controller | Keep as a debug-only adapter; no release import | T06, T64 |
+| Screenshot set is a review artifact | Regenerate intentionally and make the production set a release gate | T54, T64 |
+| Appearance theme is a lab switch today | Persist it in Preferences and apply on launch | T51 |
 
 ---
 
@@ -446,21 +446,21 @@ Required evidence before a UI task is done:
 
 | UI surface / behaviour | Primary tasks |
 |---|---|
-| Production UI scaffold, view-model seam, screenshots | T0.5, **T0.5a**, T0.6 |
-| Setup, permission, scan, pairing, first sync, orphaned history | A2.2 |
-| Live connection card, probes, sparklines, notices, Billows, refresh | A2.3 |
-| Connect/secure/sync lifecycle, time sync, reconnect | A2.4 |
-| History V0 shell with recent data | A2.5 |
-| Full History: ranges, filters, chart, Summary, Cooks, full-screen, custom | A3.3 |
-| Health/stale/offline/error states | A3.4, A3.6 |
-| History & storage and explicit deletion | A3.5 |
-| UI state matrix, accessibility, copy lint, golden suite | **A4.5** |
-| Settings root, Bridge details, History & storage, About, Appearance | A4.1, A4.2 |
-| Destructive actions, power-off screen, saved-history escape | A4.3 |
-| Units, time, theme end-to-end | A4.4 |
-| Billows status-only surfaces | A5.1 |
-| OLED pages, overlays and labels | F1.11 |
-| Release lab gate, parity walk, final UI acceptance | V6.4, V6.7 |
+| Production UI scaffold, view-model seam, screenshots | T05, **T06**, T07 |
+| Setup, permission, scan, pairing, first sync, orphaned history | T33 |
+| Live connection card, probes, sparklines, notices, Billows, refresh | T34 |
+| Connect/secure/sync lifecycle, time sync, reconnect | T35 |
+| History V0 shell with recent data | T36 |
+| Full History: ranges, filters, chart, Summary, Cooks, full-screen, custom | T42 |
+| Health/stale/offline/error states | T43, T45 |
+| History & storage and explicit deletion | T44 |
+| UI state matrix, accessibility, copy lint, golden suite | **T54** |
+| Settings root, Bridge details, History & storage, About, Appearance | T50, T51 |
+| Destructive actions, power-off screen, saved-history escape | T52 |
+| Units, time, theme end-to-end | T53 |
+| Billows status-only surfaces | T58 |
+| OLED pages, overlays and labels | T22 |
+| Release lab gate, parity walk, final UI acceptance | T64, T67 |
 
 ---
 
