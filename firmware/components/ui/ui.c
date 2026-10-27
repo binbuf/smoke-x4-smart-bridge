@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "ble_service.h"
 #include "board.h"
 #include "bridge_config.h"
 #include "bridge_state.h"
@@ -26,6 +27,8 @@
 #include "freertos/task.h"
 #include "sample_log.h"
 #include "ssd1306.h"
+#include "sx_radio.h"
+#include "ui_button.h"
 #include "ui_render.h"
 #include "ui_sleep.h"
 
@@ -33,6 +36,7 @@
 #define UI_TASK_PRIORITY 3u
 #define UI_TASK_CORE 0
 #define UI_BOOT_SPLASH_MS 300u
+#define UI_POWER_OFF_SHOW_MS 300u /* the OFF frame before the rails drop */
 
 static const char *TAG = "sx4.ui";
 
@@ -50,6 +54,8 @@ static char s_passkey[7];
 static uint8_t s_power_countdown_s;
 static bool s_storage_dismissed;
 static bool s_panel_ok;
+static bool s_panel_on; /* physical 0xAF/0xAE state, owned by the ui task */
+static ui_button_t s_button;
 
 static TaskHandle_t s_task;
 static uint64_t s_boot_ms;
@@ -218,6 +224,67 @@ static void render_once(ui_page_t page) {
     }
 }
 
+/* ---- power-off path ----------------------------------------------------- */
+
+static bool storage_notice_visible(void) {
+    taskENTER_CRITICAL(&s_lock);
+    bool dismissed = s_storage_dismissed;
+    taskEXIT_CRITICAL(&s_lock);
+    return !dismissed && !sample_log_storage_ok();
+}
+
+/*
+ * A tap dismisses only the storage notice. Any other overlay (passkey, reset,
+ * clearing, boot, power-off) is owned by another path, so a tap does nothing
+ * there. Normal pages advance.
+ */
+static void handle_tap(void) {
+    uint8_t mask;
+    taskENTER_CRITICAL(&s_lock);
+    mask = s_overlay_mask;
+    taskEXIT_CRITICAL(&s_lock);
+
+    if ((mask & (UI_OVERLAY_MASK_PASSKEY | UI_OVERLAY_MASK_CLEARING_LOG |
+                 UI_OVERLAY_MASK_RESETTING | UI_OVERLAY_MASK_POWER_OFF |
+                 UI_OVERLAY_MASK_OFF | UI_OVERLAY_MASK_BOOT)) != 0) {
+        return;
+    }
+    if (storage_notice_visible()) {
+        ui_dismiss_storage_failure();
+        return;
+    }
+    (void)ui_page_next();
+}
+
+/* The panel is the caller's (ui task): draw OFF, hold it for ~300 ms, then
+ * drop the rails in the order design 03 section 3.10 names. */
+static void power_off_commit(void) {
+    ui_page_t page;
+    taskENTER_CRITICAL(&s_lock);
+    s_power_countdown_s = 0;
+    s_overlay_mask &= (uint8_t)~UI_OVERLAY_MASK_POWER_OFF;
+    s_overlay_mask |= UI_OVERLAY_MASK_OFF;
+    page = s_view.page;
+    taskEXIT_CRITICAL(&s_lock);
+
+    render_once(page);
+    vTaskDelay(pdMS_TO_TICKS(UI_POWER_OFF_SHOW_MS));
+    ESP_LOGI(TAG, "power off: Vext off, radio asleep, BLE down, deep sleep");
+
+    esp_err_t err = board_power_off_vext();
+    (void)sx_radio_sleep();
+    (void)ble_service_stop();
+    err = board_enter_deep_sleep();
+    if (err != ESP_OK) {
+        /* Never claim to be off when the wake source could not be armed. */
+        ESP_LOGE(TAG, "deep sleep failed (%s); staying on", esp_err_to_name(err));
+        taskENTER_CRITICAL(&s_lock);
+        s_overlay_mask &= (uint8_t)~UI_OVERLAY_MASK_OFF;
+        taskEXIT_CRITICAL(&s_lock);
+        ui_mark_dirty();
+    }
+}
+
 /* ---- render task -------------------------------------------------------- */
 
 static void ui_task(void *arg) {
@@ -228,70 +295,106 @@ static void ui_task(void *arg) {
         bool went_to_sleep = false;
         ui_page_t page;
 
+        /* ui_wake() updates the view and sets the flag; the panel's 0xAF is
+         * applied here so every wake source (PRG, BLE, app) goes through one
+         * path and a sample dirty mark can never power the panel on. */
+        if (atomic_exchange(&s_wake_requested, false) && !s_panel_on) {
+            (void)ssd1306_set_power(&s_panel_io, true); /* 0xAF */
+            bridge_state_set_display_on(true);
+            s_panel_on = true;
+            ESP_LOGD(TAG, "panel awake, page unchanged");
+        }
+
         taskENTER_CRITICAL(&s_lock);
+        if (!s_view.asleep && ui_view_tick(&s_view, now)) {
+            went_to_sleep = true;
+        }
         asleep = s_view.asleep;
         page = s_view.page;
-        if (!asleep && ui_view_tick(&s_view, now)) {
-            went_to_sleep = true;
-            asleep = true;
-        }
         taskEXIT_CRITICAL(&s_lock);
 
         if (went_to_sleep) {
             atomic_store(&s_awake, false);
             (void)ssd1306_set_power(&s_panel_io, false); /* 0xAE */
             bridge_state_set_display_on(false);
+            s_panel_on = false;
             ESP_LOGD(TAG, "panel asleep");
-            continue;
         }
 
-        if (asleep) {
-            /* Idle until a wake/activity notification. Sample dirty marks do
-             * not request a wake, so a notification that raced with the sleep
-             * transition cannot turn the panel back on. */
-            (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-            if (!atomic_exchange(&s_wake_requested, false)) {
-                continue;
-            }
-            taskENTER_CRITICAL(&s_lock);
-            (void)ui_view_wake(&s_view, now_ms());
-            taskEXIT_CRITICAL(&s_lock);
+        /* PRG is sampled every 20 ms in all states. A press that arrives while
+         * the panel is asleep is consumed by the machine: it wakes the panel
+         * but produces no tap and no power-off countdown. */
+        ui_button_event_t event = ui_button_sample(
+            &s_button, board_prg_pressed(), now, asleep);
+        switch (event) {
+            case UI_BUTTON_EVENT_PRESS:
+                /* ui_wake() also handles the awake case by restarting the
+                 * display timeout; it never changes the page. */
+                ui_display_activity();
+                break;
+            case UI_BUTTON_EVENT_TAP:
+                handle_tap();
+                break;
+            case UI_BUTTON_EVENT_HOLD_START:
+            case UI_BUTTON_EVENT_HOLD_TICK:
+                ui_display_activity();
+                ui_set_power_off(ui_button_countdown_s(&s_button, now), true);
+                break;
+            case UI_BUTTON_EVENT_HOLD_CANCEL:
+                ui_set_power_off(0, false);
+                break;
+            case UI_BUTTON_EVENT_HOLD_COMMIT:
+                power_off_commit();
+                break;
+            case UI_BUTTON_EVENT_NONE:
+            default:
+                break;
+        }
+
+        taskENTER_CRITICAL(&s_lock);
+        asleep = s_view.asleep;
+        page = s_view.page;
+        taskEXIT_CRITICAL(&s_lock);
+
+        if (!asleep && !s_panel_on) {
             (void)ssd1306_set_power(&s_panel_io, true); /* 0xAF */
             bridge_state_set_display_on(true);
-            atomic_store(&s_awake, true);
-            atomic_store(&s_dirty, true);
+            s_panel_on = true;
             ESP_LOGD(TAG, "panel awake, page unchanged");
-            continue;
         }
 
-        bool dirty = ui_dirty_take();
-        bool time_tick = false;
-        if ((page == UI_PAGE_BRIDGE || page == UI_PAGE_CONNECTION) &&
-            now - s_last_time_render_ms >= 1000u) {
-            time_tick = true;
-        }
-        if (dirty || time_tick || !s_have_frame) {
-            render_once(page);
-            s_last_time_render_ms = now;
-        }
-
-        uint64_t wait_ms;
-        taskENTER_CRITICAL(&s_lock);
-        wait_ms = ui_view_next_tick_ms(&s_view, now);
-        taskEXIT_CRITICAL(&s_lock);
-        if ((page == UI_PAGE_BRIDGE || page == UI_PAGE_CONNECTION) &&
-            wait_ms > 1000u) {
-            wait_ms = 1000u;
-        }
-        if (wait_ms == UINT64_MAX) {
-            (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        } else {
-            TickType_t ticks = pdMS_TO_TICKS(wait_ms);
-            if (ticks == 0) {
-                ticks = 1;
+        if (!asleep && !went_to_sleep) {
+            bool dirty = ui_dirty_take();
+            bool time_tick = false;
+            if ((page == UI_PAGE_BRIDGE || page == UI_PAGE_CONNECTION) &&
+                now - s_last_time_render_ms >= 1000u) {
+                time_tick = true;
             }
-            (void)ulTaskNotifyTake(pdTRUE, ticks);
+            if (dirty || time_tick || !s_have_frame) {
+                render_once(page);
+                s_last_time_render_ms = now;
+            }
         }
+
+        uint64_t wait_ms = UI_BUTTON_SAMPLE_MS;
+        if (!asleep) {
+            uint64_t view_wait;
+            taskENTER_CRITICAL(&s_lock);
+            view_wait = ui_view_next_tick_ms(&s_view, now);
+            taskEXIT_CRITICAL(&s_lock);
+            if ((page == UI_PAGE_BRIDGE || page == UI_PAGE_CONNECTION) &&
+                view_wait > 1000u) {
+                view_wait = 1000u;
+            }
+            if (view_wait < wait_ms) {
+                wait_ms = view_wait;
+            }
+        }
+        TickType_t ticks = pdMS_TO_TICKS(wait_ms);
+        if (ticks == 0) {
+            ticks = 1;
+        }
+        (void)ulTaskNotifyTake(pdTRUE, ticks);
     }
 }
 
@@ -310,6 +413,12 @@ esp_err_t ui_init(void) {
     s_power_countdown_s = 0;
     s_storage_dismissed = false;
     s_have_frame = false;
+    s_panel_on = false;
+
+    (void)board_prg_init();
+    /* An in-progress hold at boot is the tail of hold-to-wake (or a reset with
+     * the button down). Consume it so releasing does not fire a tap. */
+    ui_button_init(&s_button, board_prg_pressed(), start, true);
 
     esp_err_t err = panel_bus_init();
     if (err != ESP_OK) {
@@ -317,6 +426,7 @@ esp_err_t ui_init(void) {
         return err;
     }
     s_panel_ok = true;
+    s_panel_on = true; /* ssd1306_init() ends with 0xAF */
     bridge_state_set_display_on(true);
     render_once(UI_PAGE_PROBES); /* boot overlay wins inside ui_render() */
     /* The 300 ms splash window starts when the frame actually reaches the

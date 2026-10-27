@@ -251,15 +251,24 @@ multi-option menu, so this is a shape, not a hidden feature.
 Properties:
 
 1. **Commit on release.** The user can always cancel by letting go.
-2. **A wake press is consumed.** Waking the display never also changes the page.
+2. **A wake press is consumed.** A press that starts while the panel is asleep
+   wakes it and does nothing else for its whole duration: no tap, no page
+   change, no power-off countdown. To power off from display sleep, wake first,
+   release, then hold again.
 3. **No hidden destructive gesture.** Factory reset is app-only; a pocket press
    cannot erase a cook.
+
+The implementation is a pure-C state machine (`ui_button`) with injected time
+and GPIO level; see [ADR 0031](adr/0031-prg-gesture-seam-and-sleep.md).
 
 ### Deep-sleep wake
 
 The device is woken by GPIO0. The boot code checks that the button is still held
 for ~1.5 s after reset. If not, it goes back to sleep without starting BLE or
-the UI. This is the defense against a pocket press.
+the UI. This is the defense against a pocket press. The confirmation runs only
+when the reset was an EXT1 deep-sleep wake; a cold boot (USB or EN) starts
+normally. The hold tail after confirmation is consumed, so continuing to hold
+does not immediately power the device off again.
 
 The GPIO0 ROM-strap risk is a hardware gate (see [01 §1.4](01-hardware.md)). T09
 verified **20/20** USB-attached hold-PRG wakes with no ROM-download entry

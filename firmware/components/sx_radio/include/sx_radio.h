@@ -32,6 +32,13 @@ esp_err_t sx_radio_set_frequency(uint32_t frequency_hz);
 /* Currently tuned frequency, in Hz. */
 uint32_t sx_radio_frequency(void);
 
+/*
+ * Stop the RX task and put the SX1262 into cold sleep for power-off. Called
+ * once, immediately before deep sleep; the next boot re-runs sx_radio_init().
+ * Safe to call when the radio was never configured (returns ESP_OK).
+ */
+esp_err_t sx_radio_sleep(void);
+
 #ifdef __cplusplus
 }
 #endif

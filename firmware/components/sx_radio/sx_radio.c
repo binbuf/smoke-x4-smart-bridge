@@ -39,6 +39,7 @@ static uint8_t s_scratch[SX4_RX_SCRATCH_BYTES];
 static uint32_t s_frequency_hz = SX4_RADIO_DEFAULT_FREQUENCY_HZ;
 static bool s_configured;
 static bool s_started;
+static volatile bool s_sleeping;
 
 /*
  * Pairing persistence adapter. bridge_config is the only NVS owner; paired_at
@@ -149,6 +150,10 @@ static void radio_task(void *argument) {
     ESP_LOGI(TAG, "radio_rx started on core %d", xPortGetCoreID());
 
     for (;;) {
+        if (s_sleeping) {
+            /* sx_radio_sleep() owns the bus now; never poll a sleeping part. */
+            vTaskDelay(portMAX_DELAY);
+        }
         uint16_t irq = GetIrqStatus();
         if (irq & (SX126X_IRQ_RX_DONE | SX126X_IRQ_CRC_ERR |
                    SX126X_IRQ_HEADER_ERR)) {
@@ -261,3 +266,21 @@ esp_err_t sx_radio_set_frequency(uint32_t frequency_hz) {
 }
 
 uint32_t sx_radio_frequency(void) { return s_frequency_hz; }
+
+esp_err_t sx_radio_sleep(void) {
+    if (!s_configured) {
+        return ESP_OK;
+    }
+
+    /* Let an in-flight RX poll finish, then park the task before touching the
+     * SPI bus from the power-off path. The task checks the flag every poll. */
+    s_sleeping = true;
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    SetStandby(SX126X_STANDBY_RC);
+    uint8_t sleep_config = SX126X_SLEEP_START_COLD;
+    WriteCommand(SX126X_CMD_SET_SLEEP, &sleep_config, 1);
+    s_configured = false;
+    ESP_LOGI(TAG, "SX1262 asleep (cold start)");
+    return ESP_OK;
+}
