@@ -54,3 +54,13 @@ add_test(NAME lora-corpus COMMAND test_lora_corpus)
 add_executable(test_log_io_ram test_log_io_ram.c)
 target_link_libraries(test_log_io_ram PRIVATE sx4_test_support)
 add_test(NAME log-io-ram COMMAND test_log_io_ram)
+
+# tasks.h is pure C on purpose: the task table and its stack budget are checked
+# without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
+add_executable(test_tasks
+    test_tasks.c
+    "${REPO_ROOT}/firmware/main/tasks.c"
+)
+target_include_directories(test_tasks PRIVATE "${REPO_ROOT}/firmware/main")
+target_link_libraries(test_tasks PRIVATE sx4_test_support)
+add_test(NAME task-budget COMMAND test_tasks)

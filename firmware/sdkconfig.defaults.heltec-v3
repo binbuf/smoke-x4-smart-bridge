@@ -1,0 +1,8 @@
+# Heltec WiFi LoRa 32 V3 (ESP32-S3, 8 MB flash). Design 01 section 1.1.
+# Apply after sdkconfig.defaults:
+#   idf.py -B build \
+#     -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+
+CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y

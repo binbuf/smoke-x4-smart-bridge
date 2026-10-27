@@ -1,0 +1,8 @@
+# Smoke X4 Smart Bridge - no-OTA layout (design 01 section 1.8).
+# One factory application slot and one raw sample ring; there is no OTA slot.
+# Name, Type, SubType, Offset, Size, Flags
+nvs,data,nvs,0x9000,0x6000,
+phy_init,data,phy,0x11000,0x1000,
+coredump,data,coredump,0x12000,0xE000,
+factory,app,factory,0x20000,0x200000,
+samples,data,0x40,0x220000,0x5E0000,
