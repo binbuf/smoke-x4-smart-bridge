@@ -1,0 +1,8 @@
+set(component_srcs "ra01s.c")
+
+idf_component_register(
+	SRCS "${component_srcs}"
+	REQUIRES driver esp_driver_spi
+	PRIV_REQUIRES esp_driver_gpio
+	INCLUDE_DIRS "."
+)

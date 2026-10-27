@@ -37,14 +37,40 @@ A known-good `ra01s` SX1262 driver is pinned under `firmware/vendor/`, built as 
 - The legacy driver polls `BUSY`; DIO1 is optional and may remain unused.
 
 ## Done when
-- [ ] A clean build includes the vendored driver with no network fetch at build time.
-- [ ] The upstream commit and MIT licence are recorded in the vendored tree.
-- [ ] The firmware target build succeeds with the pinned ESP-IDF 6.0.x, `esp32s3`, no Wi-Fi/HTTP/OTA:
+- [x] A clean build includes the vendored driver with no network fetch at build time.
+- [x] The upstream commit and MIT licence are recorded in the vendored tree.
+      **Deviation:** the legacy snapshot has no submodule commit, so
+      `PROVENANCE.md` records the upstream URL, source snapshot and MIT licence
+      but says the exact commit is not recoverable from this tree.
+- [x] The firmware target build succeeds with the pinned ESP-IDF 6.0.x, `esp32s3`, no Wi-Fi/HTTP/OTA:
   ```bash
   idf.py -B build -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
   ```
-- [ ] No other component includes the vendor headers directly.
-- [ ] Hand-off below filled in.
+- [x] No other component includes the vendor headers directly.
+- [x] Hand-off below filled in.
+
+## Hand-off
+
+**Landed.** `ra01s` is copied unchanged into
+`firmware/vendor/esp-idf-sx126x/components/ra01s/`, with `LICENSE`,
+`README.md` and `PROVENANCE.md`. The top-level `firmware/CMakeLists.txt` adds
+`vendor/esp-idf-sx126x/components` to `EXTRA_COMPONENT_DIRS`, and `sx_radio`
+now `REQUIRES ra01s` and includes the header. Heltec V3 pins are set through the
+driver's own Kconfig options in `sdkconfig.defaults.heltec-v3` (SCLK 9, MOSI 10,
+MISO 11, NSS 8, RST 12, BUSY 13, no TXEN/RXEN, SPI2, 915 MHz).
+
+**Deviation.** The legacy tree contains a `.gitmodules` entry but no submodule
+commit, so the exact upstream commit cannot be pinned from this snapshot.
+`PROVENANCE.md` records that limitation; if the commit is recovered, re-vendor
+rather than editing the driver.
+
+**Build evidence.** Product image built with IDF 6.0.2 for `esp32s3`;
+`ra01s` appears in `build_components`, and `build/compile_commands.json`
+compiles the vendored `ra01s.c`. The post-build image guard passed; host suite
+4/4 passed.
+
+**Next task.** T13 configures the radio and adds the RX loop; it should call the
+driver only from `sx_radio`.
 
 ## Hand-off
 _(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
