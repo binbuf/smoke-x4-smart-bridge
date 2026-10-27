@@ -26,8 +26,8 @@ feature lands here, but every later task has a place to land.
 - [x] T07 — BLE fake and app test seam → [tasks/07-ble-fake-app-test-seam.md](tasks/07-ble-fake-app-test-seam.md)
 - [x] T08 — CI → [tasks/08-ci.md](tasks/08-ci.md)
 - [x] T09 — Board identity, bench rig, and deep-sleep gate → [tasks/09-board-identity-bench-rig.md](tasks/09-board-identity-bench-rig.md) ⟵ accepted
-- [ ] T10 — Baseline capture → [tasks/10-baseline-capture.md](tasks/10-baseline-capture.md)
-- [ ] T11 — Deep-sleep and power decision record → [tasks/11-deep-sleep-power-decision.md](tasks/11-deep-sleep-power-decision.md)
+- [x] T10 — Baseline capture → [tasks/10-baseline-capture.md](tasks/10-baseline-capture.md)
+- [x] T11 — Deep-sleep and power decision record → [tasks/11-deep-sleep-power-decision.md](tasks/11-deep-sleep-power-decision.md)
 
 **Exit gate:** contract files and generated C/Dart code compile; host tests run
 in CI; the BLE fake works; the UI baseline/view-model seam is in place; board
@@ -39,7 +39,7 @@ A real Smoke X4 pairs, the stock receiver is unaffected, every valid packet
 lands in the ring log, earlier records survive a power cut, and the
 OLED/PRG/power path works. BLE may still be a skeleton.
 
-- [ ] T12 — sx_radio: vendor the SX1262 driver → [tasks/12-sx-radio-vendor-driver.md](tasks/12-sx-radio-vendor-driver.md)
+- [x] T12 — sx_radio: vendor the SX1262 driver → [tasks/12-sx-radio-vendor-driver.md](tasks/12-sx-radio-vendor-driver.md)
 - [ ] T13 — sx_radio: RX loop and parameters → [tasks/13-sx-radio-rx-loop.md](tasks/13-sx-radio-rx-loop.md)
 - [ ] T14 — sx_protocol: port and extend the parser → [tasks/14-sx-protocol-parser.md](tasks/14-sx-protocol-parser.md)
 - [ ] T15 — bridge_config: typed NVS store → [tasks/15-bridge-config-nvs.md](tasks/15-bridge-config-nvs.md)
