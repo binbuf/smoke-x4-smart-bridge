@@ -95,7 +95,10 @@ ble_sync_action_t ble_sync_plan(bool busy, const ble_sync_request_t *request);
  * START/END status. A cancel returns BLE_SYNC_BUILD_NO_STREAM.
  *
  * START snapshots generation/min_seq/max_seq; records written afterwards only
- * appear in the next request.
+ * appear in the next request. A forward cursor older than min_seq - 1 and a
+ * backward cursor newer than max_seq + 1 both return status = gap from the
+ * nearest live edge. A drained direction returns count = 0, start_seq =
+ * cursor_seq and status = ok; an empty whole log returns status = empty.
  */
 ble_sync_build_status_t ble_sync_build(const ble_sync_request_t *request,
                                        const ble_sync_source_t *source,

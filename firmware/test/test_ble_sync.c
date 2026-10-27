@@ -22,10 +22,16 @@ typedef struct {
     bool missing_set;
     uint32_t missing_seq;
     uint32_t read_calls;
+    uint32_t extent_calls;
+    bool mutate_after_first_read;
+    bool mutated;
+    uint32_t mutated_generation;
+    uint32_t mutated_max_seq;
 } fake_source_t;
 
 static bool fake_get_extent(void *ctx, ble_sync_extent_t *out) {
     fake_source_t *fake = ctx;
+    fake->extent_calls++;
     *out = fake->extent;
     return true;
 }
@@ -47,8 +53,17 @@ static bool fake_read_record(void *ctx, uint32_t seq,
     }
     sx4_sample_rec_seq_set(&rec, seq);
     rec.unix_s = 100000u + seq * SX4_SAMPLE_INTERVAL_S;
-    return sx4_sample_rec_encode(&rec, out, SX4_RECORD_SIZE) ==
-           SX4_RECORD_SIZE;
+    bool ok = sx4_sample_rec_encode(&rec, out, SX4_RECORD_SIZE) ==
+              SX4_RECORD_SIZE;
+    /* Simulate records written while a response is being built. */
+    if (ok && fake->mutate_after_first_read && !fake->mutated) {
+        fake->mutated = true;
+        fake->extent.generation = fake->mutated_generation;
+        fake->extent.max_seq = fake->mutated_max_seq;
+        fake->extent.count =
+            fake->extent.max_seq - fake->extent.min_seq + 1u;
+    }
+    return ok;
 }
 
 static ble_sync_source_t fake_source(fake_source_t *fake) {
@@ -436,15 +451,19 @@ static void check_backward_limits(void) {
     CHECK_EQ_UINT(parsed.end.next_seq, 490u);
     CHECK(parsed.ascending);
 
-    /* Cursor beyond max+1 starts at max_seq. */
+    /* Cursor beyond max+1 is a gap and starts from max_seq. */
     request.cursor_seq = 5000;
     request.max_records = 5;
     CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
                                 &len, &status),
                  BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_GAP);
     client_reset(&client);
     (void)frame_stream(stream, len, 247, false, &client, 0);
     parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.end.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.start.start_seq, 995u);
     CHECK_EQ_UINT(parsed.first_seq, 995u);
     CHECK_EQ_UINT(parsed.last_seq, 999u);
     CHECK_EQ_UINT(parsed.end.next_seq, 995u);
@@ -505,16 +524,20 @@ static void check_forward(void) {
     CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_OK);
     CHECK_EQ_UINT(parsed.end.next_seq, 200u);
 
-    /* A cursor before min_seq starts at min_seq (full gap logic is T39). */
+    /* A cursor older than min_seq - 1 is a gap and starts at min_seq. */
     request.cursor_seq = 0;
     request.max_records = 4;
     CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
                                 &len, &status),
                  BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_GAP);
     client_reset(&client);
     (void)frame_stream(stream, len, 247, false, &client, 0);
     parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.end.status, SX4_SYNC_STATUS_GAP);
     CHECK_EQ_UINT(parsed.start.count, 4u);
+    CHECK_EQ_UINT(parsed.start.start_seq, 100u);
     CHECK_EQ_UINT(parsed.first_seq, 100u);
     CHECK_EQ_UINT(parsed.last_seq, 103u);
     CHECK_EQ_UINT(parsed.end.next_seq, 104u);
@@ -726,6 +749,441 @@ static void check_error_and_buffer(void) {
                  BLE_SYNC_BUILD_INVALID);
 }
 
+static void check_forward_gap_boundaries(void) {
+    uint8_t stream[BLE_SYNC_STREAM_MAX];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_OK;
+    ble_sync_request_t request = {
+        .cmd = SX4_SYNC_CMD_READ,
+        .direction = SX4_SYNC_DIRECTION_FORWARD,
+        .cursor_seq = 98,
+        .max_records = 4,
+    };
+
+    fake_source_t fake = extent_source(100, 200);
+    ble_sync_source_t source = fake_source(&fake);
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_GAP);
+    client_t client;
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed_t parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.end.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.start.start_seq, 100u);
+    CHECK_EQ_UINT(parsed.first_seq, 100u);
+    CHECK_EQ_UINT(parsed.last_seq, 103u);
+    CHECK_EQ_UINT(parsed.end.next_seq, 104u);
+    CHECK_EQ_UINT(parsed.start.min_seq, 100u);
+    CHECK_EQ_UINT(parsed.end.max_seq, 200u);
+
+    /* min_seq - 1 == 99: a cursor at 99 is contiguous, not a gap. */
+    request.cursor_seq = 99;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_OK);
+    CHECK_EQ_UINT(parsed.first_seq, 100u);
+
+    /* min_seq == 0 is never a gap: seq 0 is a real record. */
+    fake_source_t zero = extent_source(0, 10);
+    source = fake_source(&zero);
+    request.cursor_seq = 0;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_OK);
+    CHECK_EQ_UINT(parsed.first_seq, 1u);
+    CHECK_EQ_UINT(parsed.last_seq, 4u);
+
+    /* min_seq == 1 has no lower record to miss either. */
+    fake_source_t one = extent_source(1, 10);
+    source = fake_source(&one);
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_OK);
+    CHECK_EQ_UINT(parsed.first_seq, 1u);
+}
+
+static void check_backward_gap_boundaries(void) {
+    uint8_t stream[BLE_SYNC_STREAM_MAX];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_OK;
+
+    fake_source_t fake = extent_source(100, 200);
+    ble_sync_source_t source = fake_source(&fake);
+    ble_sync_request_t request = {
+        .cmd = SX4_SYNC_CMD_READ,
+        .direction = SX4_SYNC_DIRECTION_BACKWARD,
+        .cursor_seq = 202,
+        .max_records = 4,
+    };
+
+    /* max_seq + 1 == 201, so 202 is a gap and restarts at max_seq. */
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_GAP);
+    client_t client;
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed_t parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.end.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.first_seq, 197u);
+    CHECK_EQ_UINT(parsed.last_seq, 200u);
+    CHECK_EQ_UINT(parsed.end.next_seq, 197u);
+
+    /* Exactly max_seq + 1 is the contiguous backward edge. */
+    request.cursor_seq = 201;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_OK);
+    CHECK_EQ_UINT(parsed.first_seq, 197u);
+    CHECK_EQ_UINT(parsed.last_seq, 200u);
+
+    /* A cursor at min_seq has nothing before it: count 0, start = cursor. */
+    request.cursor_seq = 100;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.count, 0u);
+    CHECK_EQ_UINT(parsed.start.start_seq, 100u);
+    CHECK_EQ_UINT(parsed.end.next_seq, 100u);
+    CHECK_EQ_UINT(parsed.end.status, SX4_SYNC_STATUS_OK);
+
+    /* The last valid 24-bit seq: cursor = max + 1 is contiguous, not a gap. */
+    fake_source_t top;
+    memset(&top, 0, sizeof(top));
+    top.extent.generation = TEST_GENERATION;
+    top.extent.min_seq = 0x00FFFFFFu;
+    top.extent.max_seq = 0x00FFFFFFu;
+    top.extent.count = 1u;
+    source = fake_source(&top);
+    request.cursor_seq = 0x01000000u;
+    request.max_records = 8;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.count, 1u);
+    CHECK_EQ_UINT(parsed.first_seq, 0x00FFFFFFu);
+    CHECK_EQ_UINT(parsed.end.next_seq, 0x00FFFFFFu);
+}
+
+static void check_generation_snapshot(void) {
+    fake_source_t fake = extent_source(10, 19);
+    fake.mutate_after_first_read = true;
+    fake.mutated_generation = 0xFEEDFACEu;
+    fake.mutated_max_seq = 29;
+    ble_sync_source_t source = fake_source(&fake);
+    ble_sync_request_t request = {
+        .cmd = SX4_SYNC_CMD_READ,
+        .direction = SX4_SYNC_DIRECTION_BACKWARD,
+        .cursor_seq = 20,
+        .max_records = 32,
+    };
+    uint8_t stream[BLE_SYNC_STREAM_MAX];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_OK;
+
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(fake.extent_calls, 1u);
+    client_t client;
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed_t parsed = parse_stream(&client);
+    /* Records written during the transfer are not in this response. */
+    CHECK_EQ_UINT(parsed.start.count, 10u);
+    CHECK_EQ_UINT(parsed.first_seq, 10u);
+    CHECK_EQ_UINT(parsed.last_seq, 19u);
+    CHECK_EQ_UINT(parsed.start.generation, TEST_GENERATION);
+    CHECK_EQ_UINT(parsed.start.min_seq, 10u);
+    CHECK_EQ_UINT(parsed.start.max_seq, 19u);
+    CHECK_EQ_UINT(parsed.end.min_seq, 10u);
+    CHECK_EQ_UINT(parsed.end.max_seq, 19u);
+    CHECK_EQ_UINT(parsed.end.next_seq, 10u);
+
+    /* The next request sees the new generation and the new high-water mark. */
+    request.cmd = SX4_SYNC_CMD_STATUS;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.generation, 0xFEEDFACEu);
+    CHECK_EQ_UINT(parsed.start.min_seq, 10u);
+    CHECK_EQ_UINT(parsed.start.max_seq, 29u);
+    CHECK_EQ_UINT(parsed.end.max_seq, 29u);
+
+    /* A stale cursor from the old epoch cannot silently fetch new records. */
+    request.cmd = SX4_SYNC_CMD_READ;
+    request.direction = SX4_SYNC_DIRECTION_FORWARD;
+    request.cursor_seq = 0;
+    request.max_records = 5;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    CHECK_EQ_UINT(status, SX4_SYNC_STATUS_GAP);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.generation, 0xFEEDFACEu);
+    CHECK_EQ_UINT(parsed.start.status, SX4_SYNC_STATUS_GAP);
+    CHECK_EQ_UINT(parsed.start.start_seq, 10u);
+
+    /* Forward catch-up from the old max picks the records written after it. */
+    request.cursor_seq = 19;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.generation, 0xFEEDFACEu);
+    CHECK_EQ_UINT(parsed.first_seq, 20u);
+    CHECK_EQ_UINT(parsed.last_seq, 24u);
+    CHECK_EQ_UINT(parsed.end.next_seq, 25u);
+}
+
+static void check_frame_seq_wrap(void) {
+    fake_source_t fake = extent_source(0, 199);
+    ble_sync_source_t source = fake_source(&fake);
+    ble_sync_request_t request = {
+        .cmd = SX4_SYNC_CMD_READ,
+        .direction = SX4_SYNC_DIRECTION_BACKWARD,
+        .cursor_seq = 200,
+        .max_records = 64,
+    };
+    uint8_t stream[BLE_SYNC_STREAM_MAX];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_OK;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+
+    /* MTU 23 gives 75 frames; start at 250 so frame_seq wraps mid-response. */
+    ble_sync_framer_t framer;
+    uint8_t frame[SX4_SYNC_FRAME_SIZE + SX4_BLE_SYNC_FRAME_MAX_PAYLOAD];
+    size_t offset = 0;
+    unsigned frames = 0;
+    uint8_t previous = 0;
+    bool saw_255 = false;
+    bool saw_wrap = false;
+    client_t client;
+    client_reset(&client);
+    ble_sync_framer_init(&framer, 250u);
+    for (;;) {
+        size_t n = ble_sync_next_frame(&framer, stream, len, &offset, 23,
+                                       false, frame, sizeof(frame));
+        if (n == 0u) {
+            break;
+        }
+        sx4_sync_frame_t header;
+        CHECK(sx4_sync_frame_decode(frame, n, &header));
+        if (header.frame_seq == 255u) {
+            saw_255 = true;
+        }
+        if (previous == 255u && header.frame_seq == 0u) {
+            saw_wrap = true;
+        }
+        previous = header.frame_seq;
+        client_ingest(&client, frame, n);
+        frames++;
+    }
+    CHECK_EQ_UINT(frames, 75u);
+    CHECK(saw_255);
+    CHECK(saw_wrap);
+    CHECK(!client.seq_gap);
+    parsed_t parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.count, 64u);
+    CHECK_EQ_UINT(parsed.first_seq, 136u);
+    CHECK_EQ_UINT(parsed.last_seq, 199u);
+}
+
+static void check_disconnect_mid_batch(void) {
+    fake_source_t fake = extent_source(0, 99);
+    ble_sync_source_t source = fake_source(&fake);
+    ble_sync_request_t request = {
+        .cmd = SX4_SYNC_CMD_READ,
+        .direction = SX4_SYNC_DIRECTION_BACKWARD,
+        .cursor_seq = 100,
+        .max_records = 20,
+    };
+    uint8_t stream[BLE_SYNC_STREAM_MAX];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_OK;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+
+    /* Deliver only the first two frames, then the link drops. */
+    ble_sync_framer_t framer;
+    uint8_t frame[SX4_SYNC_FRAME_SIZE + SX4_BLE_SYNC_FRAME_MAX_PAYLOAD];
+    size_t offset = 0;
+    client_t client;
+    client_reset(&client);
+    ble_sync_framer_init(&framer, 0);
+    for (unsigned i = 0; i < 2u; i++) {
+        size_t n = ble_sync_next_frame(&framer, stream, len, &offset, 23,
+                                       false, frame, sizeof(frame));
+        CHECK(n != 0u);
+        client_ingest(&client, frame, n);
+    }
+    CHECK(client.started);
+    CHECK(!client.ended);
+    CHECK(client.len < len);
+    CHECK(!client.seq_gap);
+
+    /*
+     * The device keeps no partial transfer: the app re-sends the same cursor
+     * and gets a fresh START/RECORDS/END stream from the beginning.
+     */
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed_t parsed = parse_stream(&client);
+    CHECK(client.started);
+    CHECK(client.ended);
+    CHECK_EQ_UINT(parsed.start.count, 20u);
+    CHECK_EQ_UINT(parsed.first_seq, 80u);
+    CHECK_EQ_UINT(parsed.last_seq, 99u);
+    CHECK_EQ_UINT(parsed.end.next_seq, 80u);
+}
+
+static void check_full_ring_backfill(void) {
+    /*
+     * 30 days at the 30 s cadence is 86,400 records; this ring also holds
+     * 3,600 older records, so the same backward walk is "30 days, then the
+     * rest of the ring". Batches are 64 records (the wire maximum).
+     */
+    enum { RING_RECORDS = 90000, DAY_30_RECORDS = 86400 };
+    fake_source_t fake = extent_source(0, RING_RECORDS - 1);
+    ble_sync_source_t source = fake_source(&fake);
+    ble_sync_request_t request = {
+        .cmd = SX4_SYNC_CMD_READ,
+        .direction = SX4_SYNC_DIRECTION_BACKWARD,
+        .cursor_seq = RING_RECORDS,
+        .max_records = 64,
+    };
+    uint8_t stream[BLE_SYNC_STREAM_MAX];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_OK;
+
+    uint32_t total = 0;
+    uint32_t cursor = RING_RECORDS;
+    unsigned batches = 0;
+    for (;;) {
+        CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                    &len, &status),
+                     BLE_SYNC_BUILD_OK);
+        client_t client;
+        client_reset(&client);
+        (void)frame_stream(stream, len, 247, false, &client, 0);
+        parsed_t parsed = parse_stream(&client);
+        CHECK(parsed.ascending);
+        CHECK_EQ_UINT(parsed.start.min_seq, 0u);
+        CHECK_EQ_UINT(parsed.start.max_seq, RING_RECORDS - 1);
+        if (parsed.count == 0u) {
+            CHECK_EQ_UINT(parsed.start.start_seq, cursor);
+            CHECK_EQ_UINT(parsed.end.next_seq, cursor);
+            CHECK_EQ_UINT(parsed.end.status, SX4_SYNC_STATUS_OK);
+            break;
+        }
+        CHECK_EQ_UINT(parsed.last_seq, cursor - 1u);
+        CHECK_EQ_UINT(parsed.end.next_seq, parsed.first_seq);
+        total += parsed.count;
+        cursor = parsed.end.next_seq;
+        request.cursor_seq = cursor;
+        batches++;
+        CHECK(batches < 2000u);
+    }
+    CHECK_EQ_UINT(total, RING_RECORDS);
+    CHECK(total > DAY_30_RECORDS);
+    CHECK_EQ_UINT(cursor, 0u);
+    CHECK_EQ_UINT(batches, (RING_RECORDS + 63u) / 64u);
+
+    /* Forward catch-up from the top is already drained. */
+    request.direction = SX4_SYNC_DIRECTION_FORWARD;
+    request.cursor_seq = RING_RECORDS - 1;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    client_t client;
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed_t parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.count, 0u);
+    CHECK_EQ_UINT(parsed.start.start_seq, RING_RECORDS - 1);
+    CHECK_EQ_UINT(parsed.end.next_seq, RING_RECORDS - 1);
+    CHECK_EQ_UINT(parsed.end.status, SX4_SYNC_STATUS_OK);
+}
+
+static void check_build_max_records(void) {
+    fake_source_t fake = extent_source(0, 199);
+    ble_sync_source_t source = fake_source(&fake);
+    ble_sync_request_t request = {
+        .cmd = SX4_SYNC_CMD_READ,
+        .direction = SX4_SYNC_DIRECTION_FORWARD,
+        .cursor_seq = 0,
+        .max_records = 0,
+    };
+    uint8_t stream[BLE_SYNC_STREAM_MAX];
+    size_t len = 0;
+    uint8_t status = SX4_SYNC_STATUS_OK;
+
+    /* Direct callers get the same wire rule: 0 -> 32, above 64 -> 64. */
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    client_t client;
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed_t parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.count, 32u);
+
+    request.max_records = 200;
+    CHECK_EQ_INT(ble_sync_build(&request, &source, stream, sizeof(stream),
+                                &len, &status),
+                 BLE_SYNC_BUILD_OK);
+    client_reset(&client);
+    (void)frame_stream(stream, len, 247, false, &client, 0);
+    parsed = parse_stream(&client);
+    CHECK_EQ_UINT(parsed.start.count, 64u);
+}
+
 static void check_used_record_count(void) {
     /* The START count is the emitted count, never the requested cap. */
     fake_source_t fake = extent_source(5, 5);
@@ -767,5 +1225,12 @@ int main(void) {
     check_frame_seq_gap_detected();
     check_error_and_buffer();
     check_used_record_count();
+    check_forward_gap_boundaries();
+    check_backward_gap_boundaries();
+    check_generation_snapshot();
+    check_frame_seq_wrap();
+    check_disconnect_mid_batch();
+    check_full_ring_backfill();
+    check_build_max_records();
     return sx4_test_summary("ble-sync");
 }

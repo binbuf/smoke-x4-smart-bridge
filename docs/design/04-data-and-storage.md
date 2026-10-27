@@ -353,14 +353,29 @@ The app concatenates payload bytes until the END frame. The logical stream is:
 - If the link drops, the app resumes from its last fully stored record. The
   device does not remember a partial transfer.
 
-### Implementation (T31)
+### Implementation (T31, completed by T39)
 
 `firmware/components/ble_service/ble_sync.c` owns the pure request parser, the
 START/RECORDS/END builder and the MTU-bounded framer; `ble_service.c` binds it
 to the ring (`sample_log_get_info` / `sample_log_read_seq`) and paces one frame
 per 15 ms timer tick. The builder snapshots the extent once, so records written
-during a transfer appear only in the next request. T39 adds gap/generation/
-resume on top of this same stream; ADR 0038 records the seam.
+during a transfer appear only in the next request; the `generation` in START is
+that snapshot (END is a fixed 13 B payload with status/next_seq/min_seq/max_seq,
+so it repeats the extent but not generation).
+
+T39 completes the cursor rules on the same stream (ADR 0044):
+
+- forward cursor past the live edge is `status = ok` with `count = 0` and
+  `start_seq = next_seq = cursor`; a cursor below `min_seq - 1` (only possible
+  when `min_seq > 1`) is `status = gap` and restarts at `min_seq`;
+- backward cursor `> max_seq + 1` is `status = gap` and restarts at `max_seq + 1`
+  (computed in 64 bits); `next_seq = first_seq`, including `0` as a real cursor;
+- an empty log is `status = empty` with `min_seq = max_seq = 0xFFFFFFFF`;
+- `next_seq` advances only on `ok`/`gap`; on `error` it stays at the request
+  cursor so the app re-requests the truncated batch;
+- `max_records` is normalised to 1..64 (0 → 32) by both the parser and the
+  builder. Live notifications use their own `ble_tx` queue and are not gated by
+  the sync pump.
 
 ### First sync (recent first)
 

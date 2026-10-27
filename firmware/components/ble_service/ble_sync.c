@@ -15,6 +15,16 @@ _Static_assert(SX4_SYNC_START_SIZE == 20u, "START payload is 20 bytes");
 _Static_assert(SX4_SYNC_END_SIZE == 13u, "END payload is 13 bytes");
 _Static_assert(SX4_RECORD_SIZE == 18u, "record size is 18 bytes");
 
+static uint16_t normalize_max_records(uint16_t value) {
+    if (value == 0u) {
+        return (uint16_t)SX4_BLE_SYNC_DEFAULT_RECORDS;
+    }
+    if (value > (uint16_t)SX4_BLE_SYNC_MAX_RECORDS) {
+        return (uint16_t)SX4_BLE_SYNC_MAX_RECORDS;
+    }
+    return value;
+}
+
 ble_sync_request_status_t ble_sync_parse_ctrl(const uint8_t *in, size_t len,
                                               ble_sync_request_t *out) {
     if (in == NULL || out == NULL || len != SX4_SYNC_CTRL_SIZE) {
@@ -41,13 +51,7 @@ ble_sync_request_status_t ble_sync_parse_ctrl(const uint8_t *in, size_t len,
     out->cmd = decoded.cmd;
     out->direction = decoded.direction;
     out->cursor_seq = decoded.cursor_seq;
-    uint16_t max_records = decoded.max_records;
-    if (max_records == 0u) {
-        max_records = (uint16_t)SX4_BLE_SYNC_DEFAULT_RECORDS;
-    } else if (max_records > (uint16_t)SX4_BLE_SYNC_MAX_RECORDS) {
-        max_records = (uint16_t)SX4_BLE_SYNC_MAX_RECORDS;
-    }
-    out->max_records = max_records;
+    out->max_records = normalize_max_records(decoded.max_records);
     return BLE_SYNC_REQUEST_OK;
 }
 
@@ -82,58 +86,93 @@ size_t ble_sync_frame_payload_max(size_t mtu) {
     return payload;
 }
 
+typedef struct {
+    uint32_t first_seq;
+    uint32_t last_seq;
+    uint32_t count;
+    uint8_t status; /* ok, gap, or empty is handled by the caller */
+} sync_window_t;
+
 /*
- * Choose the ascending sequence window for a read. Returns the record count and
- * the first/last sequence actually inside [min_seq, max_seq].
+ * Choose the ascending sequence window for a read.
  *
- * Forward clamps to min_seq (full gap reporting is T39). Backward starts at
- * min(cursor - 1, max_seq) and takes the highest `limit` records, but the
- * payload always emits them ascending.
+ * Forward: `seq > cursor`, lowest first, but a cursor older than `min_seq - 1`
+ * is a gap and restarts at `min_seq`. `min_seq == 0` can never be a gap, and
+ * `min_seq - 1` is never computed for it. A non-empty log with a cursor at or
+ * beyond `max_seq` is drained: count 0, start/next cursor unchanged.
+ *
+ * Backward: the highest records with `seq < cursor`, emitted ascending. A cursor
+ * beyond `max_seq + 1` is a gap and restarts at `max_seq + 1`. A cursor at 0 has
+ * nothing before it, but `seq = 0` remains a real record reachable from a later
+ * cursor because `next_seq` is an exclusive cursor, not a stop sentinel.
  */
-static uint32_t sync_window(const ble_sync_request_t *request,
-                            const ble_sync_extent_t *extent,
-                            uint32_t *first_seq, uint32_t *last_seq) {
-    *first_seq = request->cursor_seq;
-    *last_seq = request->cursor_seq;
+static sync_window_t sync_window(const ble_sync_request_t *request,
+                                 const ble_sync_extent_t *extent) {
+    sync_window_t window;
+    window.first_seq = request->cursor_seq;
+    window.last_seq = request->cursor_seq;
+    window.count = 0u;
+    window.status = (uint8_t)SX4_SYNC_STATUS_OK;
+
+    uint32_t limit = normalize_max_records(request->max_records);
+    uint64_t min_seq = (uint64_t)extent->min_seq;
+    uint64_t max_seq = (uint64_t)extent->max_seq;
 
     if (request->direction == SX4_SYNC_DIRECTION_FORWARD) {
-        if (request->cursor_seq >= extent->max_seq) {
-            return 0;
+        uint64_t cursor = (uint64_t)request->cursor_seq;
+        uint64_t first;
+        if (min_seq > 1u && cursor + 1u < min_seq) {
+            /* cursor < min_seq - 1, without ever forming min_seq - 1 at 0. */
+            window.status = (uint8_t)SX4_SYNC_STATUS_GAP;
+            first = min_seq;
+        } else if (cursor >= max_seq) {
+            return window; /* drained: count 0, start/next seq = cursor */
+        } else {
+            first = cursor + 1u;
+            if (first < min_seq) {
+                first = min_seq;
+            }
         }
-        uint64_t first = (uint64_t)request->cursor_seq + 1u;
-        if (first < extent->min_seq) {
-            first = extent->min_seq;
+        uint64_t last = first + (uint64_t)limit - 1u;
+        if (last > max_seq) {
+            last = max_seq;
         }
-        uint64_t last = first + (uint64_t)request->max_records - 1u;
-        if (last > extent->max_seq) {
-            last = extent->max_seq;
-        }
-        *first_seq = (uint32_t)first;
-        *last_seq = (uint32_t)last;
-        return (uint32_t)(last - first + 1u);
+        window.first_seq = (uint32_t)first;
+        window.last_seq = (uint32_t)last;
+        window.count = (uint32_t)(last - first + 1u);
+        return window;
     }
 
-    /* Backward: seq 0 is a real record, so a cursor of 0 has nothing before. */
-    if (request->cursor_seq == 0u) {
-        return 0;
-    }
-    uint32_t end = request->cursor_seq - 1u;
-    if (end > extent->max_seq) {
-        end = extent->max_seq;
-    }
-    if (end < extent->min_seq) {
-        return 0;
+    /* Backward. max_seq + 1 is computed in 64 bits so 0xFFFFFFFF is safe. */
+    uint64_t cursor = (uint64_t)request->cursor_seq;
+    uint64_t max_plus_one = max_seq + 1u;
+    uint64_t end;
+    if (cursor > max_plus_one) {
+        window.status = (uint8_t)SX4_SYNC_STATUS_GAP;
+        end = max_seq;
+    } else {
+        if (cursor == 0u) {
+            return window; /* nothing before seq 0 */
+        }
+        end = cursor - 1u;
+        if (end > max_seq) {
+            end = max_seq;
+        }
+        if (end < min_seq) {
+            return window; /* drained: count 0, start/next seq = cursor */
+        }
     }
     uint64_t first = 0u;
-    if ((uint64_t)end + 1u > (uint64_t)request->max_records) {
-        first = (uint64_t)end + 1u - (uint64_t)request->max_records;
+    if (end + 1u > (uint64_t)limit) {
+        first = end + 1u - (uint64_t)limit;
     }
-    if (first < extent->min_seq) {
-        first = extent->min_seq;
+    if (first < min_seq) {
+        first = min_seq;
     }
-    *first_seq = (uint32_t)first;
-    *last_seq = end;
-    return end - (uint32_t)first + 1u;
+    window.first_seq = (uint32_t)first;
+    window.last_seq = (uint32_t)end;
+    window.count = (uint32_t)(end - first + 1u);
+    return window;
 }
 
 static size_t encode_start(uint8_t *out, size_t cap, uint32_t generation,
@@ -168,6 +207,14 @@ ble_sync_build_status_t ble_sync_build(const ble_sync_request_t *request,
         request->cmd != SX4_SYNC_CMD_READ) {
         return BLE_SYNC_BUILD_INVALID;
     }
+    if (request->direction != SX4_SYNC_DIRECTION_FORWARD &&
+        request->direction != SX4_SYNC_DIRECTION_BACKWARD) {
+        return BLE_SYNC_BUILD_INVALID;
+    }
+
+    /* Direct callers get the same 1..64 rules as the wire parser. */
+    ble_sync_request_t normalised = *request;
+    normalised.max_records = normalize_max_records(request->max_records);
 
     ble_sync_extent_t extent;
     memset(&extent, 0, sizeof(extent));
@@ -178,10 +225,11 @@ ble_sync_build_status_t ble_sync_build(const ble_sync_request_t *request,
     uint8_t status = SX4_SYNC_STATUS_ERROR;
 
     uint32_t requested = 0;
-    uint32_t first_seq = request->cursor_seq;
-    uint32_t last_seq = request->cursor_seq;
+    uint32_t first_seq = normalised.cursor_seq;
+    uint32_t last_seq = normalised.cursor_seq;
 
     if (have_extent) {
+        /* This snapshot is the only extent read for the whole response. */
         generation = extent.generation;
         if (extent.count == 0u) {
             status = (uint8_t)SX4_SYNC_STATUS_EMPTY;
@@ -189,8 +237,12 @@ ble_sync_build_status_t ble_sync_build(const ble_sync_request_t *request,
             min_seq = extent.min_seq;
             max_seq = extent.max_seq;
             status = (uint8_t)SX4_SYNC_STATUS_OK;
-            if (request->cmd == SX4_SYNC_CMD_READ) {
-                requested = sync_window(request, &extent, &first_seq, &last_seq);
+            if (normalised.cmd == SX4_SYNC_CMD_READ) {
+                sync_window_t window = sync_window(&normalised, &extent);
+                requested = window.count;
+                first_seq = window.first_seq;
+                last_seq = window.last_seq;
+                status = window.status;
             }
         }
     }
@@ -216,7 +268,8 @@ ble_sync_build_status_t ble_sync_build(const ble_sync_request_t *request,
     offset += written;
 
     uint16_t emitted = 0;
-    if (requested != 0u && status == (uint8_t)SX4_SYNC_STATUS_OK) {
+    if (requested != 0u) {
+        /* A gap still carries records: it starts at min/max+1 and says why. */
         for (uint32_t i = 0; i < requested; i++) {
             uint32_t seq = first_seq + i;
             if (!source->read_record(source->ctx, seq, out + offset)) {
@@ -233,11 +286,20 @@ ble_sync_build_status_t ble_sync_build(const ble_sync_request_t *request,
                            emitted, status);
     }
 
-    uint32_t next_seq = request->cursor_seq;
-    if (status == (uint8_t)SX4_SYNC_STATUS_OK && emitted != 0u) {
-        next_seq = request->direction == SX4_SYNC_DIRECTION_FORWARD
-                       ? last_seq + 1u
-                       : first_seq;
+    /*
+     * On ok/gap the cursor advances to the next record in this direction.
+     * count == 0 keeps start_seq/next_seq equal to the request cursor, so a
+     * drained direction (including seq 0) is unambiguous. On error the cursor
+     * stays put so the app re-requests the whole batch.
+     */
+    uint32_t next_seq = normalised.cursor_seq;
+    if (emitted != 0u) {
+        if (status == (uint8_t)SX4_SYNC_STATUS_OK ||
+            status == (uint8_t)SX4_SYNC_STATUS_GAP) {
+            next_seq = normalised.direction == SX4_SYNC_DIRECTION_FORWARD
+                           ? last_seq + 1u
+                           : first_seq;
+        }
     }
 
     sx4_sync_end_t end;
