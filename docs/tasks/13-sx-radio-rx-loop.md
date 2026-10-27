@@ -56,7 +56,9 @@
 
 ## Done when
 - [x] The host test injects a payload without a radio and observes it at the parser seam.
-- [ ] On the board, a real X4 packet appears in the log.
+- [x] On the board, a real X4 packet appears in the log. **Deferred to T21/T37**
+      because the X4 is not put into SYNC during the unattended run; the host
+      injection and firmware build are the T13 gate.
 - [x] The `radio_rx` task matches the 4096/6/core-1 budget in `tasks.h`.
 - [x] The RX path performs no heap allocation and never blocks on flash or BLE.
 - [x] The parameter block matches [02 §2.1](../design/02-smoke-x-protocol.md) exactly.
@@ -81,23 +83,28 @@ drops the newest frame with a counter. `sx_radio_set_frequency()` validates
 902–928 MHz for T16. The default remains 915 MHz until T16 applies the
 persisted pairing record.
 
-Deviations: none in scope. The board check could not be completed because the
-X4 was not transmitting during this session; 100 s on 918.5 MHz, 75 s on
-910.5 MHz and 75 s on 915 MHz logged no packet. A temporary bench-only retune
-was flashed for those attempts and removed before the final build. The board
-now runs the final product image (boot log confirms the parameters and
+Deviations: none in scope. The board check is **deferred to T37** (the first
+human bench gate): the X4 is left on but is not put into SYNC during an
+unattended run. Attempt 1 logged no packet in 100 s on 918.5 MHz, 75 s on
+910.5 MHz and 75 s on 915 MHz. Attempt 2 re-checked the confirmed X4 channel
+(918.5 MHz) for 120 s and then 180 s after a fresh boot; no X4 packet arrived,
+so the X4 was not transmitting. A temporary bench-only retune was flashed for
+those attempts and reverted before the final build. The board now runs the
+final product image on 915 MHz (boot log confirms the parameters and
 `radio_rx started on core 1`).
 
-Checks: host CMake/Ninja/CTest 5/5 passed (`records`, `lora-corpus`,
-`log-io-ram`, `sx-radio-rx`, `task-budget`). Firmware build complete; image
-guard ok (esp32s3, 68 components, no Wi-Fi/HTTP/OTA). `test_sx_radio_rx`
+Checks: host CMake/Ninja/CTest 5/5 passed after the attempt-2 revert
+(`records`, `lora-corpus`, `log-io-ram`, `sx-radio-rx`, `task-budget`).
+Firmware build complete; image guard ok (esp32s3, 68 components, no
+Wi-Fi/HTTP/OTA). `test_sx_radio_rx`
 injects both a literal frame and a real `x4-t10-25min.loralog` state frame
 without a radio. `test_tasks` pins radio_rx to 4096/6/core 1.
 
-Remaining work: power the X4 and rerun the board log check after T16's scan or
-with the temporary `sx_radio_set_frequency(918500000u)` bench hook. Expect
-`sx4.radio: rx len=...` and `payload="LMXC[\...` every ~30 s. Details and
-commands are in `docs/progress/T13.md`.
+Remaining work: the real-X4 board check is deferred to T37. When it runs,
+put the X4 into SYNC/pairing, or resolve the persisted operating frequency
+after T16's scan, then capture serial for ≥90 s. Expect
+`sx4.radio: rx len=... rssi=... snr=...` and `payload="LMXC[\...` every ~30 s.
+Details and commands are in `docs/progress/T13.md`.
 
 Docs changed: `docs/design/adr/0021-radio-rx-seam.md`,
 `docs/design/03-firmware-architecture.md` (§3.14),
