@@ -1,7 +1,7 @@
 # T21 — sample_pipe: parser → log → UI
 
 ## Goal
-The sample pipeline validates each packet, builds one 18-byte record, appends it to the ring, updates the live snapshot, counts packets, and marks the UI dirty. Bounded queues and drop counters keep the radio path non-blocking, and a 30-minute replay produces exactly the expected records with no allocation on the path.
+The sample pipeline validates each packet, builds one 18-byte record, appends it to the ring, updates the live snapshot, counts packets, and marks the UI dirty. Bounded queues and drop counters keep the radio path non-blocking, and a replay of the committed `x4-t10-25min` capture produces exactly the expected records with no allocation on the path.
 
 ## Context (read first)
 - [03 §3.6](../design/03-firmware-architecture.md) — the pipeline flow and its rules.
@@ -21,7 +21,7 @@ The sample pipeline validates each packet, builds one 18-byte record, appends it
 - [ ] Mark the UI dirty only after the snapshot is updated; rendering is owned by T22.
 - [ ] Detect the first state packet after pairing and persist the learned probe count via T15.
 - [ ] Translate detached probes to `TEMP_DETACHED` before building the record.
-- [ ] Add a replay test for a 30-minute capture that asserts the exact record count and live values.
+- [ ] Add a replay test for `protocol/fixtures/lora/x4-t10-25min.loralog` (41 state frames across ~22 min) that asserts the exact record count and live values.
 - [ ] Assert no heap allocation occurs on the sample path.
 
 ## Out of scope
@@ -53,7 +53,7 @@ The sample pipeline validates each packet, builds one 18-byte record, appends it
 - `sample_pipe` is pinned to core 0 with `log_writer`, away from the radio task on core 1.
 
 ## Done when
-- [ ] A replay of a 30-minute capture produces exactly the expected record count and live values.
+- [ ] A replay of `x4-t10-25min.loralog` produces exactly the expected record count and live values.
 - [ ] No allocation occurs on the sample path.
 - [ ] A full log queue drops a sample, increments `dropped_samples`, and does not block the radio.
 - [ ] The snapshot updates before the UI is marked dirty.
