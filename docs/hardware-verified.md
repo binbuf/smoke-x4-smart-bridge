@@ -11,6 +11,9 @@ and an artifact link. Do not leave a row silently blank.
 | Check | Result | Evidence |
 |---|---|---|
 | Board is Heltec WiFi LoRa 32 V3, ESP32-S3FN8, 8 MB flash, SX1262, SSD1306 | ⏳ | |
+| As-found image, version and partition layout recorded before flashing | ⏳ | |
+| Legacy pairing/NVS state archived before the wipe | ⏳ | |
+| `erase-flash` completed; follow-up partition-table read is clean | ⏳ | |
 | Antenna fitted before first power | ⏳ | |
 | Battery pack polarity metered before connection | ⏳ | |
 | OLED Vext (GPIO36 LOW) and I²C bus order | ⏳ | |
