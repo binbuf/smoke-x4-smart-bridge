@@ -13,6 +13,26 @@
 | Bench tests | Real board | Radio pairing, OLED, button, deep sleep, BLE, power |
 | Field cook | Real smoker | The product actually works when nobody is watching |
 
+### Pull-request CI jobs
+
+Every pull request runs the six jobs in `.github/workflows/ci.yml`; their names
+are stable because they are the attribution boundary when a build goes red
+(ADR 0019).
+
+| # | Job | Command(s) | Fails on |
+|---|---|---|---|
+| 1 | protocol generate + drift check | `make protocol`, `git diff --exit-code -- protocol/gen`, `make protocol-check`, `make protocol-test` | stale or hand-edited generated output, bad codec vectors |
+| 2 | C host tests | `cmake -S firmware/test -B firmware/test/build -G Ninja`, build, `ctest` | parser/log/geometry/task-budget regressions |
+| 3 | firmware build | `idf.py -B build "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build` | the Heltec image no longer builds or the image guard finds Wi-Fi/HTTP/OTA |
+| 4 | Flutter analyze/test | `flutter analyze`, `flutter test test/view_state_test.dart test/ui_state_matrix_test.dart`, `flutter test` | app compile/analyze failure, UI state or layout regression, BLE-fake regression |
+| 5 | UI screenshot/golden check | `flutter test tool/ui_screenshots_test.dart` | any pixel change against `app/screenshots/` |
+| 6 | no-network/no-OTA dependency guard | `python -m unittest discover -s tools/ci`, `python tools/ci/check_forbidden_deps.py` | `http`, WebSocket, MQTT, OTA packages, release network permissions or ESP-IDF network components |
+
+Job 1 regenerates before checking drift, so a YAML edit without regenerating
+turns the build red rather than silently repairing it in CI. Job 5 runs on the
+same host platform and Flutter version that produced the approved baseline.
+`legacy/` is not built in any job.
+
 The first five layers must be green before a bench sitting. Bench time is the
 scarce resource; do not use it to discover typos.
 

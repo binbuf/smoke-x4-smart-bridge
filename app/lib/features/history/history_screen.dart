@@ -354,8 +354,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         const SizedBox(height: 6),
         if (noData || noProbeData)
-          SizedBox(
-            height: 300,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 300),
             child: EmptyState(
               icon: Icons.show_chart,
               title: noData ? 'No readings yet' : 'No readings in this range',

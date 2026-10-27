@@ -10,6 +10,7 @@
 - **T05 — App skeleton**: Production entrypoint: `app/lib/main.dart` → `app/lib/app/bootstrap.dart`.; `app/lib/app/bridge_controller.dart` is now the single
 - **T06 — UI baseline and view-model seam**: Production view state in `app/lib/app/view_state.dart`: immutable; Screens and shared widgets now render view state: Live, History, full-screen
 - **T07 — BLE fake and app test seam**: Production BLE seam: `app/lib/data/ble/ble_client.dart` with `BleClient`,; `BridgeController` and `createBridgeController` accept an optional `BleClient`.
+- **T08 — CI**: `.github/workflows/ci.yml` — six separately named jobs, all on every pull; `tools/ci/check_forbidden_deps.py`: rejects forbidden app packages in
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -20,6 +21,7 @@
 - [T05](progress/T05.md) — Production entrypoint: `app/lib/main.dart` → `app/lib/app/bootstrap.dart`.
 - [T06](progress/T06.md) — Production view state in `app/lib/app/view_state.dart`: immutable
 - [T07](progress/T07.md) — Production BLE seam: `app/lib/data/ble/ble_client.dart` with `BleClient`,
+- [T08](progress/T08.md) — `.github/workflows/ci.yml` — six separately named jobs, all on every pull
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

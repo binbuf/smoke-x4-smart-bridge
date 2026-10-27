@@ -14,6 +14,10 @@ make protocol-check # generated protocol drift
 make app-check      # flutter analyze + flutter test
 ```
 
+CI (`.github/workflows/ci.yml`) runs the same checks plus the protocol
+generation/drift gate, the ESP-IDF firmware build, the UI golden comparison and
+the no-network/no-OTA dependency guard on every pull request.
+
 The app is Android-only; the iOS, web and desktop Flutter targets are not part of
 the MVP.
 

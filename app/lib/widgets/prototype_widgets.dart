@@ -373,12 +373,16 @@ class ProbeCard extends StatelessWidget {
                         ),
                       )
                     else
-                      Text(
-                        probe.trendText,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: muted
-                              ? scheme.onSurfaceVariant.withValues(alpha: 0.6)
-                              : scheme.onSurfaceVariant,
+                      Expanded(
+                        child: Text(
+                          probe.trendText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: muted
+                                ? scheme.onSurfaceVariant.withValues(alpha: 0.6)
+                                : scheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                   ],
