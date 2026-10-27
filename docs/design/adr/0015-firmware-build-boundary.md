@@ -36,6 +36,9 @@ can be removed without patching IDF.
 - `bt` is intentionally not in the build yet. T27 must add it together with a
   decision about its `esp_wifi` requirement; the guard should not simply be
   loosened.
+  *(T27: resolved by ADR 0034 — `bt` is in the build, a local header-only
+  `esp_wifi` override compiles no Wi-Fi code, and the guard checks linked
+  objects instead of component names.)*
 
 ## Consequences
 

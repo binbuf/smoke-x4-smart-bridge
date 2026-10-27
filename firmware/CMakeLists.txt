@@ -8,17 +8,23 @@ cmake_minimum_required(VERSION 3.16)
 
 set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/vendor/esp-idf-sx126x/components")
 
+# ESP-IDF 6's disabled esp_wifi fallback still exposes esp_mesh.h, which
+# includes lwip/ip_addr.h although Wi-Fi/lwip are not built. A header-only shim
+# keeps the BLE-only image free of the network stack (ADR 0034).
+include_directories("${CMAKE_CURRENT_LIST_DIR}/compat/include")
+
 # Build only main and its transitive requirements. ESP-IDF would otherwise build
 # every component in the IDF tree, including Wi-Fi, HTTP and OTA, even though
 # nothing links them. This list is the image-content boundary; the post-build
 # guard proves the linked set stays clean.
 #
-# `bt` is deliberately not listed yet: in ESP-IDF 6 the bt component requires
-# esp_wifi, which would put a Wi-Fi component in the BLE-only image. T27 must
-# join NimBLE while keeping the guard meaningful (see T04 follow-ups).
-# `espcoredump` is listed so panic dumps actually land in the coredump
-# partition; it is registered as a whole-archive panic handler.
-set(COMPONENTS main espcoredump)
+# `bt` is listed for T27's NimBLE GATT server. ESP-IDF 6's bt component pulls
+# esp_wifi as a build requirement even for a NimBLE-only image; the image guard
+# is updated in ADR 0034 to distinguish that inert controller dependency from
+# an initialised network stack. `espcoredump` is listed so panic dumps actually
+# land in the coredump partition; it is registered as a whole-archive panic
+# handler.
+set(COMPONENTS main espcoredump bt)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(sx4_bridge)

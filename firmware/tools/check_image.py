@@ -19,27 +19,33 @@ import json
 import sys
 from pathlib import Path
 
-# Component names in ESP-IDF 6.0 build_components. This list is the network,
-# HTTP and OTA-update surface, not the stock partition layer: `app_update` is a
-# hard private requirement of esp_partition and is always in the baseline. It
-# is harmless here because the partition table has no OTA slot and none of the
-# update components above it are present (see the ADR/progress note in T04).
+# Component names in ESP-IDF 6.0 build_components. Anything in this list is a
+# hard failure: HTTP/TLS/MQTT/WebSocket and OTA update code have no place in the
+# BLE-only image (ADR 0001, ADR 0006). Wi-Fi/IP/ethernet components are checked
+# separately because ESP-IDF 6's bt component requires esp_wifi at build time;
+# T27 overrides esp_wifi with an empty local component and the linked-object
+# check below proves no Wi-Fi, lwip or esp_netif code reached the image.
 FORBIDDEN_COMPONENTS = {
     "esp_http_client",
     "esp_http_server",
     "esp_https_ota",
     "esp_https_server",
-    "esp_netif",
-    "esp_netif_stack",
     "esp_websocket_client",
-    "esp_wifi",
     "http_parser",
-    "lwip",
     "mqtt",
     "esp-tls",
     "tcp_transport",
 }
 
+# Object files from these archives must never be linked. The build_components
+# list may still contain the component names while they are inert build deps.
+FORBIDDEN_LINKED_ARCHIVES = (
+    "liblwip.a:",
+    "libesp_netif.a:",
+    "libesp_netif_stack.a:",
+    "libwpa_supplicant.a:",
+    "libesp_wifi.a:",
+)
 
 TARGET = "esp32s3"
 
@@ -69,6 +75,24 @@ def check_description(build_dir: Path) -> list[str]:
     return sorted(build_components)
 
 
+def check_linked_network(build_dir: Path) -> None:
+    """Reject linked Wi-Fi/lwIP/netif objects in the ELF map.
+
+    `build_components` is not enough: ESP-IDF 6 lists esp_wifi/lwip because bt
+    requires esp_wifi, but the local esp_wifi override and disabled lwip leave
+    them unlinked. The map's archive-member notation (`*libfoo.a:bar.*`) only
+    appears for objects that actually reached the image, so this is the proof
+    that the binary has no network stack.
+    """
+    maps = sorted(build_dir.glob("*.map"))
+    if not maps:
+        fail(f"missing linker map in {build_dir} (build first)")
+    text = maps[0].read_text(encoding="utf-8", errors="replace")
+    found = [pattern for pattern in FORBIDDEN_LINKED_ARCHIVES if pattern in text]
+    if found:
+        fail("network objects linked: " + ", ".join(found))
+
+
 def check_partitions(partitions: Path) -> None:
     if not partitions.is_file():
         fail(f"missing partition table {partitions}")
@@ -95,10 +119,11 @@ def main() -> None:
     args = parser.parse_args()
 
     components = check_description(args.build_dir)
+    check_linked_network(args.build_dir)
     check_partitions(args.partitions)
     print(
-        f"image guard: ok ({TARGET}, {len(components)} components, no "
-        f"Wi-Fi/HTTP/OTA, no-OTA partition table)"
+        f"image guard: ok ({TARGET}, {len(components)} components, no linked "
+        f"Wi-Fi/lwIP/netif stack, no HTTP/OTA, no-OTA partition table)"
     )
 
 

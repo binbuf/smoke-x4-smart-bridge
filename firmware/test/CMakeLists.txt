@@ -229,6 +229,22 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND NOT APPLE)
 endif()
 add_test(NAME sample-pipe COMMAND test_sample_pipe)
 
+# ble_service's wire encoders and GATT slot table are pure C11 (T27). The
+# NimBLE callbacks are not linked here; the byte vectors and the table are the
+# host gate.
+add_library(sx4_ble_info STATIC
+    "${REPO_ROOT}/firmware/components/ble_service/ble_info.c"
+    "${REPO_ROOT}/firmware/components/ble_service/ble_gatt_spec.c"
+)
+target_include_directories(sx4_ble_info
+    PUBLIC "${REPO_ROOT}/firmware/components/ble_service/include"
+)
+target_link_libraries(sx4_ble_info PUBLIC sx4_protocol_gen)
+
+add_executable(test_ble_info test_ble_info.c)
+target_link_libraries(test_ble_info PRIVATE sx4_ble_info sx4_test_support)
+add_test(NAME ble-info COMMAND test_ble_info)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks
