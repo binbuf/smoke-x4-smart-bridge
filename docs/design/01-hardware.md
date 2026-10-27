@@ -138,6 +138,16 @@ If it fails, the fallback is the board's RST button for wake (and a documented
 "hold RST" instruction), or a small external latch. Do not ship a power button
 that sometimes bricks the boot.
 
+**Bench result, 2026-10-26 (T09):** the application booted on **20/20**
+hold-PRG wake cycles; every cycle was `rst:0x5 (DSLEEP)` /
+`boot:0x8 (SPI_FAST_FLASH_BOOT)` with `EXT1 mask=0x1` and GPIO0 still low at
+`app_main`. No cycle entered the ROM downloader. The physical button and the
+USB-detached condition are still owed as a repeat (the press was driven through
+the CP2102 DTR transistor, the same GPIO0 net); see
+[`hardware-verified.md`](../hardware-verified.md) and
+[ADR 0020](adr/0020-gpio0-ext1-deep-sleep-wake.md). The fallback is therefore
+not selected.
+
 ### Current budget
 
 | State | Estimate | Notes |
@@ -230,3 +240,10 @@ Do this once before firmware depends on the hardware:
       deep-sleep current.
 - [ ] Measure runtime on the 3000 mAh pack for at least 24 h.
 - [ ] Record every result in `docs/hardware-verified.md`, not in a chat.
+
+**T09 status (2026-10-26):** identity, SSD1306/Vext, PRG debounce, the GPIO37
+divider and the GPIO0 deep-sleep wake (USB attached, 20/20) are recorded in
+[`hardware-verified.md`](../hardware-verified.md). Still open from this list:
+the antenna/battery-polarity checks were inherited rather than re-done, the
+USB-detached physical press, all three current measurements, and the 24 h pack
+run.

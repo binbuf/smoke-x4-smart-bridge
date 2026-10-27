@@ -261,10 +261,14 @@ The device is woken by GPIO0. The boot code checks that the button is still held
 for ~1.5 s after reset. If not, it goes back to sleep without starting BLE or
 the UI. This is the defense against a pocket press.
 
-The GPIO0 ROM-strap risk is a hardware gate (see [01 §1.4](01-hardware.md)). If
-the board enters download mode on wake, the fallback is wake-by-RST plus a
-documented instruction, or an external latch. Do not ship a hold-to-wake feature
-that is unreliable.
+The GPIO0 ROM-strap risk is a hardware gate (see [01 §1.4](01-hardware.md)). T09
+verified **20/20** USB-attached hold-PRG wakes with no ROM-download entry
+(2026-10-26); the physical button on battery is still owed. See
+[`hardware-verified.md`](../hardware-verified.md) and
+[ADR 0020](adr/0020-gpio0-ext1-deep-sleep-wake.md). If the detached repeat
+contradicts that result, the fallback is wake-by-RST plus a documented
+instruction, or an external latch. Do not ship a hold-to-wake feature that is
+unreliable.
 
 ## 7.5 Display state priority
 
@@ -301,6 +305,8 @@ notified of alarms; the Smoke X4's own alarm remains the alarm.
 - [ ] Hold shows the countdown; early release cancels; commit sleeps the board.
 - [ ] Hold from sleep boots to page 1; early release goes back to sleep.
 - [ ] PRG wake works 20/20 with USB attached and detached (the strap risk).
+      **USB attached: ✅ 20/20, 2026-10-26** (`rst:0x5 (DSLEEP)`, no ROM
+      download; DTR drove the GPIO0 net). USB detached + physical button: owed.
 - [ ] Passkey is readable at arm's length and only appears during bonding.
 - [ ] Detached probe shows `---`, never `0.0`.
 - [ ] Storage failure overlay appears when the `samples` partition is made
