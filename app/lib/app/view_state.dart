@@ -11,6 +11,8 @@ class LiveViewState {
     required this.isConnected,
     required this.isOffline,
     required this.bridgeConnectedLabel,
+    required this.appBridgeConnectedForLabel,
+    required this.smokeXConnectedForLabel,
     required this.telemetryStatusLabel,
     required this.bridgeLinkStatusLabel,
     required this.smokeXLinkStatusLabel,
@@ -18,7 +20,10 @@ class LiveViewState {
     required this.connectionSubtitle,
     required this.signalBars,
     required this.signalQualityLabel,
+    required this.bleSignalBars,
+    required this.bleSignalQualityLabel,
     required this.rssi,
+    required this.bleRssi,
     required this.batteryPercent,
     required this.smokeXReceiving,
     required this.smokeXStatus,
@@ -39,14 +44,27 @@ class LiveViewState {
   final bool isConnected;
   final bool isOffline;
   final String bridgeConnectedLabel;
+
+  /// Compact duration under the App↔Bridge arrow.
+  final String appBridgeConnectedForLabel;
+
+  /// Compact duration under the Bridge↔Smoke X4 arrow.
+  final String smokeXConnectedForLabel;
   final String telemetryStatusLabel;
   final String bridgeLinkStatusLabel;
   final String smokeXLinkStatusLabel;
   final String connectionTitle;
   final String connectionSubtitle;
+
+  /// Bridge↔Smoke X4 LoRa signal.
   final int signalBars;
   final String signalQualityLabel;
+
+  /// App↔Bridge Bluetooth signal.
+  final int bleSignalBars;
+  final String bleSignalQualityLabel;
   final int rssi;
+  final int? bleRssi;
   final int batteryPercent;
   final bool smokeXReceiving;
   final SmokeXStatus smokeXStatus;
@@ -88,6 +106,10 @@ class ProbeView {
     required this.statusText,
     required this.trendText,
     required this.deltaText,
+    required this.cookRangeText,
+    required this.changeText,
+    required this.changeDirection,
+    required this.changeWindowLabel,
     required this.semanticsLabel,
   });
 
@@ -102,6 +124,16 @@ class ProbeView {
   final String? statusText;
   final String trendText;
   final String? deltaText;
+
+  /// `Min 225.0°F · Max 231.2°F` for the current cook's stored readings.
+  final String? cookRangeText;
+
+  /// Signed temperature change over [changeWindowLabel], e.g. `+0.4°F`.
+  final String? changeText;
+
+  /// 1 up, -1 down, 0 flat/unknown.
+  final int changeDirection;
+  final String changeWindowLabel;
   final String semanticsLabel;
 
   String get tempLabel => connected ? '$valueText$unitSuffix' : '—';
@@ -315,6 +347,7 @@ class SettingsViewState {
     required this.bridgeLastContactDetail,
     required this.themeModeLabel,
     required this.units,
+    required this.tempChangeWindowMinutes,
     required this.phoneRecords,
     required this.bridgeRecords,
     required this.bridgeCapacity,
@@ -340,6 +373,7 @@ class SettingsViewState {
   final String bridgeLastContactDetail;
   final String themeModeLabel;
   final Units units;
+  final int tempChangeWindowMinutes;
   final int phoneRecords;
   final int bridgeRecords;
   final int bridgeCapacity;
@@ -354,6 +388,8 @@ class SettingsViewState {
   bool get canEdit => connected;
 
   bool get canClearBridgeHistory => connected;
+
+  String get tempChangeWindowLabel => '$tempChangeWindowMinutes min';
 
   double get bridgeFraction =>
       bridgeCapacity == 0 ? 0 : bridgeRecords / bridgeCapacity;

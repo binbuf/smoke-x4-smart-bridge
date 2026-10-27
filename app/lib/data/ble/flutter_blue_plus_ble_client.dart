@@ -243,10 +243,7 @@ class FlutterBluePlusBleClient implements BleClient {
     try {
       await _connectOnce(device, timeout);
     } catch (error) {
-      var mapped = mapBlePlatformError(
-        error,
-        operation: BleOperation.connect,
-      );
+      var mapped = mapBlePlatformError(error, operation: BleOperation.connect);
       // Android frequently reports GATT status 133 for the first attempt
       // immediately after a scan stops. One short, sequential retry is the
       // documented workaround and does not mask a real permission, bond, or
@@ -407,6 +404,22 @@ class FlutterBluePlusBleClient implements BleClient {
 
   @override
   int? get negotiatedMtu => _negotiatedMtu;
+
+  @override
+  Future<int> readRssi() async {
+    _checkConnected();
+    try {
+      return await _device!.readRssi();
+    } catch (error) {
+      final mapped = mapBlePlatformError(error, operation: BleOperation.read);
+      diagnostics.record(
+        'read RSSI failed (${mapped.failure.name})',
+        level: BleLogLevel.warning,
+        failure: mapped.failure,
+      );
+      throw mapped;
+    }
+  }
 
   @override
   Future<int> requestMtu(int mtu) async {

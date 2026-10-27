@@ -86,24 +86,63 @@ void main() {
     );
   });
 
-  test('selections beyond the recent window keep the same honest data', () async {
-    final store = await _syncedStore();
+  test(
+    'selections beyond the recent window keep the same honest data',
+    () async {
+      final store = await _syncedStore();
 
-    final day = store.fixture(range: HistoryRange.twentyFourHours);
-    expect(day.hasValues, isTrue);
-    expect(historySeriesSegments(day.series[0]), hasLength(2));
+      final day = store.fixture(range: HistoryRange.twentyFourHours);
+      expect(day.hasValues, isTrue);
+      expect(historySeriesSegments(day.series[0]), hasLength(2));
 
-    final outside = store.fixture(
-      range: HistoryRange.custom,
-      customStart: _now.subtract(const Duration(days: 3)),
-      customEnd: _now.subtract(const Duration(days: 2)),
-    );
-    expect(outside.hasValues, isFalse);
+      final outside = store.fixture(
+        range: HistoryRange.custom,
+        customStart: _now.subtract(const Duration(days: 3)),
+        customEnd: _now.subtract(const Duration(days: 2)),
+      );
+      expect(outside.hasValues, isFalse);
+      expect(
+        outside.series.every((series) => series.points.isEmpty),
+        isTrue,
+        reason: 'an out-of-range selection must not show another period',
+      );
+    },
+  );
+
+  test('live samples update the sparkline between sync passes', () {
+    final store = RecentHistoryStore(now: () => _now);
+    for (var index = 0; index < 6; index++) {
+      store.recordLive(
+        seq: 200 + index,
+        time: _now.subtract(Duration(minutes: 5 - index)),
+        tempsF: <double?>[200.0 + index, 150.0 + index, null, 80.0],
+        clockValid: true,
+        billowsAttached: false,
+      );
+    }
+
+    expect(store.hasRecords, isTrue);
+    final p1 = store.sparkline(0);
+    expect(p1, hasLength(6));
+    expect(p1.first.valueF, 200.0);
+    expect(p1.last.valueF, 205.0);
+    expect(store.sparkline(2), hasLength(6));
     expect(
-      outside.series.every((series) => series.points.isEmpty),
+      store.sparkline(2).every((point) => point.valueF == null),
       isTrue,
-      reason: 'an out-of-range selection must not show another period',
+      reason: 'a detached probe stays blank',
     );
+
+    // A later sync of the same sequence replaces the live sample.
+    store.recordLive(
+      seq: 205,
+      time: _now,
+      tempsF: const <double?>[210.0, 160.0, null, 81.0],
+      clockValid: true,
+      billowsAttached: false,
+    );
+    expect(store.samples, hasLength(6));
+    expect(store.sparkline(0).last.valueF, 210.0);
   });
 
   test('empty store and empty request never invent a series', () async {

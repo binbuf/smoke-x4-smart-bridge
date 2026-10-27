@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -86,6 +87,7 @@ class BridgeController extends ChangeNotifier {
         onInfo: _onLinkInfo,
         onSync: _onLinkSync,
         onReconnect: _onLinkReconnect,
+        onRssi: _onLinkRssi,
         // The OS bond is started only by SetupFlow.pair(), after the approved
         // "look at the Bridge screen" instruction. A reconnect that finds a
         // stale bond therefore falls through to the named unreachable/Forget
@@ -109,13 +111,47 @@ class BridgeController extends ChangeNotifier {
   }
 
   void _onLinkPhase(ConnectionPhase value) {
+    final previous = phase;
     phase = value;
+    switch (value) {
+      case ConnectionPhase.live:
+      case ConnectionPhase.stale:
+      case ConnectionPhase.syncing:
+        // A new Bluetooth session starts the App/Bridge timer again. A plain
+        // syncing pass on an already-healthy link keeps the existing timer.
+        if (_bridgeConnectedSince == null ||
+            previous == ConnectionPhase.reconnecting ||
+            previous == ConnectionPhase.failed ||
+            previous == ConnectionPhase.offline ||
+            previous == ConnectionPhase.blocked ||
+            previous == ConnectionPhase.setup) {
+          _bridgeConnectedSince = DateTime.now();
+          _smokeXConnectedSince = null;
+          // A new link session has not observed Billows yet.
+          billowsAttachment = BillowsAttachment.unknown;
+          billowsSeenThisSession = false;
+        }
+        break;
+      case ConnectionPhase.reconnecting:
+      case ConnectionPhase.failed:
+      case ConnectionPhase.offline:
+      case ConnectionPhase.blocked:
+      case ConnectionPhase.setup:
+        _bridgeConnectedSince = null;
+        _smokeXConnectedSince = null;
+        break;
+    }
     if (value == ConnectionPhase.syncing) {
       syncState = SyncState.recent;
       syncProgressPercent = 10;
     } else if (value == ConnectionPhase.reconnecting) {
       syncState = SyncState.idle;
     }
+    notifyListeners();
+  }
+
+  void _onLinkRssi(int value) {
+    bleRssi = value;
     notifyListeners();
   }
 
@@ -135,14 +171,32 @@ class BridgeController extends ChangeNotifier {
         ? (live.smokeLive ? SmokeXStatus.pairedLive : SmokeXStatus.pairedLost)
         : SmokeXStatus.unpaired;
     smokeXLiveHint = live.smokeLive;
+    if (live.smokePaired && live.smokeLive && live.ageS <= 90) {
+      _smokeXConnectedSince ??= update.receivedAt;
+    } else {
+      _smokeXConnectedSince = null;
+    }
     smokeXChannel4SetKnown = live.billowsTargetF10 != 0;
     if (live.billowsTargetF10 != 0) {
       smokeXChannel4SetF = (live.billowsTargetF10 / 10).round();
     }
-    if (live.billowsAttached) {
-      billowsAttachment = BillowsAttachment.attached;
-      billowsSeenThisSession = true;
-    }
+    // The live flag is authoritative in both directions. Only a real attached
+    // reading makes the Billows card appear; a stale previous session must not.
+    billowsAttachment = live.billowsAttached
+        ? BillowsAttachment.attached
+        : BillowsAttachment.detached;
+    if (live.billowsAttached) billowsSeenThisSession = true;
+    // Make the graph move as the readings arrive instead of waiting for the
+    // next history sync.
+    recentHistory.recordLive(
+      seq: live.seq,
+      time: update.receivedAt.toLocal().subtract(Duration(seconds: live.ageS)),
+      tempsF: <double?>[
+        for (var index = 0; index < 4; index++) live.tempF(index),
+      ],
+      clockValid: live.clockValid,
+      billowsAttached: live.billowsAttached,
+    );
     notifyListeners();
   }
 
@@ -157,6 +211,9 @@ class BridgeController extends ChangeNotifier {
   void _onLinkSync(BridgeSyncProgress progress) {
     syncState = progress.state;
     syncProgressPercent = progress.percent;
+    if (progress.state == SyncState.complete) {
+      lastSyncedAt = DateTime.now();
+    }
     if (progress.state == SyncState.complete && progress.storedRecords > 0) {
       hasSavedData = true;
       savedDataEmpty = false;
@@ -235,6 +292,21 @@ class BridgeController extends ChangeNotifier {
   /// cannot fake freshness (06 §6.3).
   DateTime? liveReceivedAt;
 
+  /// Start of the current App/Bridge Bluetooth session. Cleared on every link
+  /// loss, so the Live card's timer never accumulates across reconnects.
+  DateTime? _bridgeConnectedSince = DateTime.now().subtract(
+    const Duration(hours: 2, minutes: 14),
+  );
+
+  /// Start of the current Smoke X4 receive session, as seen through the Bridge.
+  DateTime? _smokeXConnectedSince = DateTime.now().subtract(
+    const Duration(hours: 2, minutes: 10),
+  );
+
+  /// RSSI of the phone's Bluetooth link to the Bridge. This is a different
+  /// radio link from the Bridge→Smoke X4 LoRa RSSI in [rssi].
+  int? bleRssi = -58;
+
   /// Probe temperatures from the newest `live` sample, in °F. `null` keeps the
   /// content-provided fixture values (review builds and pre-sync launches).
   List<double?>? liveProbeTemps;
@@ -257,6 +329,9 @@ class BridgeController extends ChangeNotifier {
   bool savedDataEmpty = false;
 
   Units units = Units.fahrenheit;
+
+  /// Window used for the Live probe change indicator.
+  int tempChangeWindowMinutes = 5;
   int displayTimeoutSeconds = 60;
   String deviceName = 'Backyard Bridge';
 
@@ -284,6 +359,10 @@ class BridgeController extends ChangeNotifier {
   /// The newest sequence stored on this phone. T35 uses it as the forward-sync
   /// cursor; T39–T41 replace it with the durable archive cursor.
   int? localMaxSeq;
+
+  /// Phone time of the last completed sync, so History never shows a fixed
+  /// "Synced 2 min ago" while background syncs keep running.
+  DateTime? lastSyncedAt;
 
   /// The production link procedures over [bleClient]. Setup creates it after a
   /// bond; Live refresh/resume call into the same instance.
@@ -331,16 +410,44 @@ class BridgeController extends ChangeNotifier {
     }
   }
 
-  Duration get bridgeConnectedFor => const Duration(hours: 2, minutes: 14);
+  Duration get bridgeConnectedFor {
+    final since = _bridgeConnectedSince;
+    if (since == null) return Duration.zero;
+    final value = DateTime.now().difference(since);
+    return value.isNegative ? Duration.zero : value;
+  }
+
+  /// Duration of the current App→Bridge Bluetooth session.
+  String get appBridgeConnectedForLabel {
+    if (!isConnected) {
+      return phase == ConnectionPhase.reconnecting ? 'Reconnecting' : 'Offline';
+    }
+    return _compactDuration(bridgeConnectedFor);
+  }
+
+  Duration get smokeXConnectedFor {
+    final since = _smokeXConnectedSince;
+    if (since == null) return Duration.zero;
+    final value = DateTime.now().difference(since);
+    return value.isNegative ? Duration.zero : value;
+  }
+
+  /// Duration the Smoke X4 has been continuously delivering readings.
+  String get smokeXConnectedForLabel {
+    if (!isConnected) return 'Last known';
+    switch (smokeXStatus) {
+      case SmokeXStatus.unpaired:
+        return 'Not paired';
+      case SmokeXStatus.pairedLost:
+        return 'Signal lost';
+      case SmokeXStatus.pairedLive:
+        if (!smokeXReceiving) return 'No readings';
+        return _compactDuration(smokeXConnectedFor);
+    }
+  }
 
   /// Connected duration without seconds, for the compact Live status row.
-  String get bridgeConnectedForLabel {
-    final value = bridgeConnectedFor;
-    final hours = value.inHours;
-    final minutes = value.inMinutes % 60;
-    if (hours == 0) return '${minutes}m';
-    return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
-  }
+  String get bridgeConnectedForLabel => _compactDuration(bridgeConnectedFor);
 
   /// The BLE link state, separate from Smoke X4 telemetry freshness.
   String get bridgeConnectedLabel {
@@ -373,7 +480,7 @@ class BridgeController extends ChangeNotifier {
       final age = smokeXLastPacketAge;
       if (age == null) return 'No readings yet';
       if (smokeXReceiving && age <= const Duration(seconds: 90)) {
-        return 'Receiving readings · updated ${_shortDuration(age)} ago';
+        return 'Sensor data received ${_shortDuration(age)} ago';
       }
       if (age <= const Duration(minutes: 10)) {
         return 'No readings for ${_proseDuration(age)}';
@@ -454,15 +561,24 @@ class BridgeController extends ChangeNotifier {
   }
 
   /// Four cell-style bars, from weak (1) to excellent (4).
-  int get signalBars {
-    if (rssi >= -60) return 4;
-    if (rssi >= -70) return 3;
-    if (rssi >= -80) return 2;
+  int get signalBars => _barsForRssi(rssi);
+
+  /// The Bluetooth link between this phone and the Bridge.
+  int get bleSignalBars => _barsForRssi(bleRssi ?? -85);
+
+  String get signalQualityLabel => _signalWord(signalBars);
+
+  String get bleSignalQualityLabel => _signalWord(bleSignalBars);
+
+  int _barsForRssi(int value) {
+    if (value >= -60) return 4;
+    if (value >= -70) return 3;
+    if (value >= -80) return 2;
     return 1;
   }
 
-  String get signalQualityLabel {
-    switch (signalBars) {
+  String _signalWord(int level) {
+    switch (level) {
       case 4:
         return 'Excellent';
       case 3:
@@ -525,6 +641,11 @@ class BridgeController extends ChangeNotifier {
   }
 
   String get lastSyncedLabel {
+    final synced = lastSyncedAt;
+    if (synced != null) {
+      final age = DateTime.now().difference(synced);
+      return 'Synced ${_proseDuration(age.isNegative ? Duration.zero : age)} ago';
+    }
     if (isOffline) return 'Synced 2 hr ago';
     if (phase == ConnectionPhase.stale) return 'Synced 4 min ago';
     return 'Synced 2 min ago';
@@ -642,7 +763,7 @@ class BridgeController extends ChangeNotifier {
         ConnectionEvent(
           title: 'History synced',
           detail: 'Recent readings are on this phone',
-          time: now.subtract(const Duration(minutes: 2)),
+          time: lastSyncedAt ?? now.subtract(const Duration(minutes: 2)),
           kind: ConnectionEventKind.sync,
         ),
       );
@@ -856,6 +977,8 @@ class BridgeController extends ChangeNotifier {
       isConnected: isConnected,
       isOffline: isOffline,
       bridgeConnectedLabel: bridgeConnectedLabel,
+      appBridgeConnectedForLabel: appBridgeConnectedForLabel,
+      smokeXConnectedForLabel: smokeXConnectedForLabel,
       telemetryStatusLabel: telemetryStatusLabel,
       bridgeLinkStatusLabel: bridgeLinkStatusLabel,
       smokeXLinkStatusLabel: smokeXLinkStatusLabel,
@@ -863,7 +986,10 @@ class BridgeController extends ChangeNotifier {
       connectionSubtitle: connectionSubtitle,
       signalBars: signalBars,
       signalQualityLabel: signalQualityLabel,
+      bleSignalBars: bleSignalBars,
+      bleSignalQualityLabel: bleSignalQualityLabel,
       rssi: rssi,
+      bleRssi: bleRssi,
       batteryPercent: batteryPercent,
       smokeXReceiving: smokeXReceiving,
       smokeXStatus: smokeXStatus,
@@ -898,13 +1024,35 @@ class BridgeController extends ChangeNotifier {
         health == ProbeHealth.frozen;
     final history = noCache
         ? const <ChartPoint>[]
+        : recentHistory.hasRecords
+        ? recentHistory.sparkline(index)
         : content.sparkline(index, hasData: probeHasHistory(index));
-    final values = history
+    final points = history
         .where((point) => point.valueF != null)
-        .map((point) => point.valueF!)
-        .toList();
-    final delta = values.length >= 2 ? values.last - values.first : null;
+        .toList(growable: false);
+    final values = points.map((point) => point.valueF!).toList();
+    final minValue = values.isEmpty ? null : values.reduce(math.min);
+    final maxValue = values.isEmpty ? null : values.reduce(math.max);
+    final cookRange = minValue == null || maxValue == null
+        ? null
+        : 'Min ${valueFor(minValue)}$unitSuffix  '
+              'Max ${valueFor(maxValue)}$unitSuffix';
+    final changeWindow = Duration(minutes: tempChangeWindowMinutes);
+    final cutoff = content.now.subtract(changeWindow);
+    final windowPoints = points
+        .where((point) => !point.time.isBefore(cutoff))
+        .toList(growable: false);
+    final change = windowPoints.length >= 2
+        ? windowPoints.last.valueF! - windowPoints.first.valueF!
+        : null;
+    final changeText = change == null ? null : _probeDeltaLabel(change);
+    final changeDirection = change == null || change.abs() < 0.05
+        ? 0
+        : change > 0
+        ? 1
+        : -1;
     final status = _probeStatusText(connected, health);
+    final delta = values.length >= 2 ? values.last - values.first : null;
     final trend = values.isEmpty
         ? ''
         : delta == null
@@ -923,7 +1071,11 @@ class BridgeController extends ChangeNotifier {
       statusText: status,
       trendText: trend,
       deltaText: deltaText,
-      semanticsLabel: _probeSemantics(index, temp, status, delta),
+      cookRangeText: cookRange,
+      changeText: changeText,
+      changeDirection: changeDirection,
+      changeWindowLabel: '${tempChangeWindowMinutes}m',
+      semanticsLabel: _probeSemantics(index, temp, status, change),
     );
   }
 
@@ -954,11 +1106,12 @@ class BridgeController extends ChangeNotifier {
   ) {
     final probe = index + 1;
     if (temp == null) return 'Probe $probe, not connected.';
+    final window = '${tempChangeWindowMinutes}m';
     final trend = delta == null
         ? ''
         : delta.abs() < 0.05
-        ? ', flat in the last hour'
-        : ', ${delta > 0 ? 'up' : 'down'} ${_displayDelta(delta.abs()).toStringAsFixed(1)} degrees in the last hour';
+        ? ', flat over the last $window'
+        : ', ${delta > 0 ? 'up' : 'down'} ${_displayDelta(delta.abs()).toStringAsFixed(1)} degrees over the last $window';
     final state = status ?? 'updated live';
     return 'Probe $probe, ${tempFor(temp)}, $state$trend. Tap for History.';
   }
@@ -1123,6 +1276,7 @@ class BridgeController extends ChangeNotifier {
     bridgeLastContactDetail: bridgeLastContactDetail,
     themeModeLabel: themeModeLabel,
     units: units,
+    tempChangeWindowMinutes: tempChangeWindowMinutes,
     phoneRecords: phoneRecords,
     bridgeRecords: bridgeRecords,
     bridgeCapacity: bridgeCapacity,
@@ -1172,6 +1326,11 @@ class BridgeController extends ChangeNotifier {
 
   void setUnits(Units value) {
     units = value;
+    notifyListeners();
+  }
+
+  void setTempChangeWindowMinutes(int value) {
+    tempChangeWindowMinutes = value.clamp(1, 60);
     notifyListeners();
   }
 
@@ -1232,6 +1391,8 @@ class BridgeController extends ChangeNotifier {
     offlineCache = true;
     liveReceivedAt = null;
     syncState = SyncState.idle;
+    _bridgeConnectedSince = null;
+    _smokeXConnectedSince = null;
     notifyListeners();
   }
 
@@ -1291,6 +1452,12 @@ class BridgeController extends ChangeNotifier {
     smokeXLiveHint = true;
     syncState = SyncState.complete;
     tab = AppTab.live;
+    _bridgeConnectedSince ??= DateTime.now();
+    // The first live read already started the Smoke X4 timer. Keep it rather
+    // than resetting it when the setup screen hands over to Live.
+    if (smokeXStatus == SmokeXStatus.pairedLive) {
+      _smokeXConnectedSince ??= DateTime.now();
+    }
     notifyListeners();
   }
 
@@ -1299,6 +1466,12 @@ class BridgeController extends ChangeNotifier {
     hasSavedBridge = false;
     phase = ConnectionPhase.setup;
     tab = AppTab.live;
+    _bridgeConnectedSince = null;
+    _smokeXConnectedSince = null;
+    // Nothing has been observed by this app session yet. Billows only becomes
+    // visible after the Bridge reports a genuinely attached unit.
+    billowsAttachment = BillowsAttachment.unknown;
+    billowsSeenThisSession = false;
     notifyListeners();
   }
 
@@ -1324,6 +1497,8 @@ class BridgeController extends ChangeNotifier {
     rememberedBridgeId = null;
     rememberedBridgeName = null;
     localMaxSeq = null;
+    _bridgeConnectedSince = null;
+    _smokeXConnectedSince = null;
     notifyListeners();
   }
 
@@ -1336,6 +1511,8 @@ class BridgeController extends ChangeNotifier {
     rememberedBridgeId = null;
     rememberedBridgeName = null;
     localMaxSeq = null;
+    _bridgeConnectedSince = null;
+    _smokeXConnectedSince = null;
     notifyListeners();
   }
 
@@ -1358,6 +1535,14 @@ class BridgeController extends ChangeNotifier {
         break;
     }
     notifyListeners();
+  }
+
+  String _compactDuration(Duration duration) {
+    if (duration.inSeconds < 60) return '${duration.inSeconds}s';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    if (hours == 0) return '${minutes}m';
+    return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
   }
 
   String _shortDuration(Duration duration) {
@@ -1400,12 +1585,20 @@ class BridgeController extends ChangeNotifier {
     liveReceivedAt = null;
     liveProbeTemps = null;
     localMaxSeq = null;
+    lastSyncedAt = null;
     reconnectAttempt = 2;
     reconnectAttempts = 6;
     nextReconnectIn = const Duration(seconds: 4);
     smokeXChannel4SetKnown = true;
     smokeXChannel4SetF = 225;
     billowsSeenThisSession = true;
+    bleRssi = -58;
+    _bridgeConnectedSince = DateTime.now().subtract(
+      const Duration(hours: 2, minutes: 14),
+    );
+    _smokeXConnectedSince = DateTime.now().subtract(
+      const Duration(hours: 2, minutes: 10),
+    );
     historyRange = HistoryRange.twentyFourHours;
     historyProbe = null;
     historyCustomRange = null;
@@ -1419,6 +1612,7 @@ class BridgeController extends ChangeNotifier {
     hasSavedData = false;
     savedDataEmpty = false;
     units = Units.fahrenheit;
+    tempChangeWindowMinutes = 5;
     displayTimeoutSeconds = 60;
     deviceName = 'Backyard Bridge';
     saveState = SettingsSaveState.idle;

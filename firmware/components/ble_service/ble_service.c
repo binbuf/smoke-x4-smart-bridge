@@ -846,6 +846,13 @@ static void sync_pump(void) {
     }
     if (s_sync_offset >= s_sync_stream_len) {
         sync_transfer_finish();
+        return;
+    }
+    /* The timer is one-shot: without this the first frame left s_sync_busy
+     * true forever and every later sync_ctrl read was dropped. */
+    if (esp_timer_start_once(s_sync_timer, BLE_SERVICE_SYNC_TICK_US) !=
+        ESP_OK) {
+        sync_transfer_finish();
     }
 }
 

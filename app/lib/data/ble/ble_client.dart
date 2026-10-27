@@ -49,6 +49,9 @@ abstract interface class BleClient {
   /// The negotiated ATT MTU, or `null` before connection/negotiation.
   int? get negotiatedMtu;
 
+  /// Reads the current RSSI of the connected phone→Bridge link.
+  Future<int> readRssi();
+
   /// Requests [mtu] and returns the negotiated value. A controller must treat a
   /// small result as a slow link, not an error.
   Future<int> requestMtu(int mtu);

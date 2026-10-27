@@ -340,7 +340,20 @@ class ProbeCard extends StatelessWidget {
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
-                const SizedBox(height: 6),
+                if (connected && probe.cookRangeText != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    probe.cookRangeText!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
                 Expanded(
                   child: Align(
                     alignment: Alignment.bottomCenter,
@@ -350,12 +363,12 @@ class ProbeCard extends StatelessWidget {
                         color: accent,
                         units: units,
                         muted: muted,
-                        height: 46,
+                        height: 40,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     if (status != null)
@@ -372,6 +385,8 @@ class ProbeCard extends StatelessWidget {
                           ),
                         ),
                       )
+                    else if (probe.changeText != null)
+                      Expanded(child: _ProbeChange(probe: probe))
                     else
                       Expanded(
                         child: Text(
@@ -392,6 +407,48 @@ class ProbeCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ProbeChange extends StatelessWidget {
+  const _ProbeChange({required this.probe});
+
+  final ProbeView probe;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final direction = probe.changeDirection;
+    final color = direction > 0
+        ? StatusColors.live(context)
+        : direction < 0
+        ? scheme.error
+        : scheme.onSurfaceVariant;
+    final icon = direction > 0
+        ? Icons.arrow_drop_up
+        : direction < 0
+        ? Icons.arrow_drop_down
+        : Icons.remove;
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        Flexible(
+          child: Text(
+            probe.changeText ?? '—',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: color, fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 3),
+        Text(
+          '· ${probe.changeWindowLabel}',
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: scheme.onSurfaceVariant, fontSize: 9),
+        ),
+      ],
     );
   }
 }

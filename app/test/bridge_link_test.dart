@@ -91,6 +91,17 @@ void main() {
       expect(harness.controller.syncState, SyncState.complete);
     });
 
+    test('Billows stays hidden until the live flag reports attached', () async {
+      final harness = _Harness(bridge: FakeBridge(billowsAttached: false));
+      addTearDown(harness.dispose);
+
+      await harness.link.connectAndSecure(harness.device);
+
+      expect(harness.controller.billowsDetected, isFalse);
+      expect(harness.controller.billowsLostThisSession, isFalse);
+      expect(harness.controller.liveView.billows, isNull);
+    });
+
     test('a valid stored bond skips the passkey prompt on reconnect', () async {
       final harness = _Harness();
       addTearDown(harness.dispose);

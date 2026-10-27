@@ -12,6 +12,7 @@ import 'package:smoke_bridge/app/smoke_bridge_app.dart';
 import 'package:smoke_bridge/debug/scenario_lab.dart';
 import 'package:smoke_bridge/theme/app_theme.dart';
 import 'package:smoke_bridge/widgets/probe_sparkline.dart';
+import 'package:smoke_bridge/widgets/prototype_widgets.dart';
 
 Widget shell(BridgeController controller) {
   return MaterialApp(
@@ -57,8 +58,14 @@ void main() {
     expect(find.byKey(const Key('status.connection')), findsOneWidget);
     expect(find.text('App'), findsOneWidget);
     expect(find.text('Connected · 4s'), findsNothing);
-    expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
-    expect(find.text('Fair'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('status.appBridgeLink')),
+        matching: find.text('2h 14m'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(SignalBars), findsNWidgets(2));
     expect(find.textContaining('Last data 12s ago'), findsNothing);
     expect(find.text('updated 4s ago · bridge 87% · -71 dBm'), findsNothing);
 
@@ -255,9 +262,22 @@ void main() {
     expect(find.text('Connected'), findsNothing);
     expect(find.text('Receiving'), findsNothing);
     expect(find.textContaining('Connected for'), findsNothing);
-    expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
-    expect(find.text('Receiving readings · updated 12s ago'), findsOneWidget);
-    expect(find.text('Fair'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('status.appBridgeLink')),
+        matching: find.text('2h 14m'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('status.x4Link')),
+        matching: find.text('2h 10m'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Sensor data received 12s ago'), findsOneWidget);
+    expect(find.byType(SignalBars), findsNWidgets(2));
   });
 
   testWidgets('Live distinguishes stale X4 telemetry from a connected Bridge', (
@@ -269,21 +289,21 @@ void main() {
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
-    final connection = find.byKey(const Key('status.connection'));
     expect(
       find.descendant(
-        of: connection,
-        matching: find.text('Bridge connected · 2h 14m'),
+        of: find.byKey(const Key('status.appBridgeLink')),
+        matching: find.text('2h 14m'),
       ),
       findsOneWidget,
     );
     expect(
       find.descendant(
-        of: connection,
-        matching: find.text('No readings for 4 min'),
+        of: find.byKey(const Key('status.x4Link')),
+        matching: find.text('No readings'),
       ),
       findsOneWidget,
     );
+    expect(find.textContaining('Sensor data received'), findsNothing);
   });
 
   testWidgets('Live names a lost Smoke X4 signal', (tester) async {
@@ -292,7 +312,19 @@ void main() {
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
-    expect(find.text('Smoke X4 signal lost · 14 min ago'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('status.x4Link')),
+        matching: find.text('Signal lost'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Sensor data received'), findsNothing);
+    expect(find.byKey(const Key('live.smokeXWarning')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('live.smokeXWarning')));
+    await tester.pumpAndSettle();
+    expect(find.text('Smoke X4 signal lost'), findsOneWidget);
   });
 
   testWidgets('Billows only appears when detected and loss is explained', (
@@ -343,16 +375,16 @@ void main() {
     await pumpShell(tester, controller);
 
     expect(
-      find.textContaining('Bridge disconnected · last connected 2 hr ago'),
+      find.descendant(
+        of: find.byKey(const Key('status.appBridgeLink')),
+        matching: find.text('Offline'),
+      ),
       findsOneWidget,
     );
-    expect(
-      find.textContaining('Showing saved readings · last reading 2 hr ago'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Showing saved readings'), findsNothing);
+    expect(find.textContaining('Sensor data received'), findsNothing);
     expect(find.text('Not connected'), findsNothing);
     expect(find.text('Fair'), findsNothing);
-    expect(find.text('Offline'), findsNothing);
   });
 
   testWidgets('Summary shows latest, min and max without deltas', (

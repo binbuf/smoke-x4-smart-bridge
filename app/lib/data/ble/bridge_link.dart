@@ -23,6 +23,7 @@ class BridgeLinkHost {
     this.onInfo,
     this.onSync,
     this.onReconnect,
+    this.onRssi,
     this.onBondPrompt,
   });
 
@@ -30,6 +31,9 @@ class BridgeLinkHost {
   final void Function(BridgeLiveUpdate update) onLive;
   final void Function(BridgeInfo info)? onInfo;
   final void Function(BridgeSyncProgress progress)? onSync;
+
+  /// RSSI of the phone→Bridge Bluetooth link.
+  final void Function(int rssi)? onRssi;
 
   /// `attempt` is 1-based; `nextDelay` is null once the attempts are exhausted.
   final void Function(int attempt, int total, Duration? nextDelay)? onReconnect;
@@ -121,6 +125,7 @@ class BridgeLinkSettings {
     this.forwardPageSize = 32,
     this.syncTimeout = const Duration(seconds: 10),
     this.maxForwardPages = 16,
+    this.syncInterval = const Duration(seconds: 30),
   });
 
   final List<Duration> reconnectBackoff;
@@ -132,6 +137,11 @@ class BridgeLinkSettings {
   final int forwardPageSize;
   final Duration syncTimeout;
   final int maxForwardPages;
+
+  /// Background forward sync cadence while the link is healthy. Readings land
+  /// on the phone every few seconds either way; this keeps the complete
+  /// sequence (and anything missed during a gap) current.
+  final Duration syncInterval;
 }
 
 /// Named procedural failures. The screens map these to approved copy; the raw
@@ -232,6 +242,8 @@ class BridgeLink {
   Completer<void>? _wake;
   BridgeLinkTimer? _watchdog;
   BridgeLinkTimer? _syncTimeoutTimer;
+  BridgeLinkTimer? _periodicSync;
+  bool _periodicSyncBusy = false;
 
   StreamSubscription<BleConnectionState>? _connectionSubscription;
   StreamSubscription<Uint8List>? _liveSubscription;
@@ -379,7 +391,59 @@ class BridgeLink {
 
     _setPhase(ConnectionPhase.live);
     _armWatchdog();
+    _startPeriodicSync();
+    unawaited(_refreshRssi());
     return bridgeInfo;
+  }
+
+  Future<void> _refreshRssi() async {
+    if (_disposed || !_secure) return;
+    try {
+      host.onRssi?.call(await client.readRssi());
+    } catch (_) {
+      // RSSI is decoration; a failed read never changes link health.
+    }
+  }
+
+  void _startPeriodicSync() {
+    _periodicSync?.cancel();
+    if (_disposed) return;
+    _periodicSync = _schedule(settings.syncInterval, _onPeriodicSync);
+  }
+
+  void _onPeriodicSync() {
+    _periodicSync = null;
+    if (_disposed) return;
+    if (_reconnecting || !_secure) {
+      _startPeriodicSync();
+      return;
+    }
+    unawaited(_runPeriodicSync());
+  }
+
+  Future<void> _runPeriodicSync() async {
+    if (_periodicSyncBusy) {
+      _startPeriodicSync();
+      return;
+    }
+    _periodicSyncBusy = true;
+    try {
+      await _refreshRssi();
+      await syncForward(quiet: true);
+      // Quiet suppresses the card, not the "last synced" truth.
+      host.onSync?.call(
+        BridgeSyncProgress(
+          state: SyncState.complete,
+          percent: 100,
+          storedRecords: _storedRecords,
+        ),
+      );
+    } catch (_) {
+      // Live data keeps flowing; the next interval retries.
+    } finally {
+      _periodicSyncBusy = false;
+      if (!_disposed && !_reconnecting && _secure) _startPeriodicSync();
+    }
   }
 
   Future<void> _ensureSecure() async {
@@ -647,13 +711,18 @@ class BridgeLink {
   // Sync
   // ---------------------------------------------------------------------------
 
-  Future<void> _syncRecent({required BridgeLive live}) async {
+  Future<void> _syncRecent({
+    required BridgeLive live,
+    bool quiet = false,
+  }) async {
     final cursor = live.seq == bleSeqNone || live.seq == 0
         ? bleSeqNone
         : (live.seq + 1) & 0xFFFFFFFF;
-    host.onSync?.call(
-      const BridgeSyncProgress(state: SyncState.recent, percent: 20),
-    );
+    if (!quiet) {
+      host.onSync?.call(
+        const BridgeSyncProgress(state: SyncState.recent, percent: 20),
+      );
+    }
     final stream = await _requestSync(
       BridgeSyncRequest(
         cmd: BridgeSyncCmd.read,
@@ -662,9 +731,11 @@ class BridgeLink {
         maxRecords: 64,
       ),
     );
-    host.onSync?.call(
-      const BridgeSyncProgress(state: SyncState.recent, percent: 70),
-    );
+    if (!quiet) {
+      host.onSync?.call(
+        const BridgeSyncProgress(state: SyncState.recent, percent: 70),
+      );
+    }
     final cutoff = _nowUtc().subtract(settings.firstSyncWindow);
     final recent = stream.records
         .where(
@@ -682,17 +753,22 @@ class BridgeLink {
       direction: BridgeSyncDirection.backward,
       advanceCursorTo: stream.end.maxSeq,
     );
-    host.onSync?.call(
-      BridgeSyncProgress(
-        state: SyncState.complete,
-        percent: 100,
-        storedRecords: _storedRecords,
-      ),
-    );
+    if (!quiet) {
+      host.onSync?.call(
+        BridgeSyncProgress(
+          state: SyncState.complete,
+          percent: 100,
+          storedRecords: _storedRecords,
+        ),
+      );
+    }
   }
 
   /// Catches up from the local max immediately. Never re-reads the last 24 h.
-  Future<void> syncForward() async {
+  ///
+  /// [quiet] suppresses the visible sync card for the 30 s background pass; the
+  /// readings still land in the sink and repaint History and the sparklines.
+  Future<void> syncForward({bool quiet = false}) async {
     if (!_secure) {
       throw const BridgeLinkException(BridgeLinkFailure.notSecured);
     }
@@ -701,13 +777,15 @@ class BridgeLink {
       // No forward cursor yet: behave like a first sync rather than duplicating
       // the archive.
       final live = _lastLive ?? await _readLiveWithBond();
-      await _syncRecent(live: live);
+      await _syncRecent(live: live, quiet: quiet);
       return;
     }
     var cursor = startCursor;
-    host.onSync?.call(
-      BridgeSyncProgress(state: SyncState.backfill, percent: 10),
-    );
+    if (!quiet) {
+      host.onSync?.call(
+        BridgeSyncProgress(state: SyncState.backfill, percent: 10),
+      );
+    }
     var page = 0;
     while (page < settings.maxForwardPages) {
       page++;
@@ -734,22 +812,26 @@ class BridgeLink {
       final more =
           stream.end.nextSeq > cursor &&
           stream.start.count >= settings.forwardPageSize;
+      if (!quiet) {
+        host.onSync?.call(
+          BridgeSyncProgress(
+            state: SyncState.backfill,
+            percent: math.min(90, 10 + page * 20),
+            storedRecords: _storedRecords,
+          ),
+        );
+      }
+      if (!more) break;
+    }
+    if (!quiet) {
       host.onSync?.call(
         BridgeSyncProgress(
-          state: SyncState.backfill,
-          percent: math.min(90, 10 + page * 20),
+          state: SyncState.complete,
+          percent: 100,
           storedRecords: _storedRecords,
         ),
       );
-      if (!more) break;
     }
-    host.onSync?.call(
-      BridgeSyncProgress(
-        state: SyncState.complete,
-        percent: 100,
-        storedRecords: _storedRecords,
-      ),
-    );
   }
 
   Future<void> _accept(
@@ -861,6 +943,8 @@ class BridgeLink {
     _cleanupSubscriptions();
     _watchdog?.cancel();
     _watchdog = null;
+    _periodicSync?.cancel();
+    _periodicSync = null;
     _failPendingControls(
       const BridgeLinkException(BridgeLinkFailure.notConnected),
     );
@@ -1079,6 +1163,8 @@ class BridgeLink {
     _secure = false;
     _watchdog?.cancel();
     _watchdog = null;
+    _periodicSync?.cancel();
+    _periodicSync = null;
     _syncTimeoutTimer?.cancel();
     _syncTimeoutTimer = null;
     final wake = _wake;

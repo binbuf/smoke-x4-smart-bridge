@@ -7,6 +7,7 @@ import 'package:smoke_bridge/features/settings/bridge_details.dart';
 import 'package:smoke_bridge/features/shell/app_shell.dart';
 import 'package:smoke_bridge/theme/app_theme.dart';
 import 'package:smoke_bridge/widgets/probe_sparkline.dart';
+import 'package:smoke_bridge/widgets/prototype_widgets.dart';
 
 import 'support/fake_bridge_session.dart';
 
@@ -46,6 +47,9 @@ void main() {
     matching: matching,
   );
 
+  Finder inLink(String key, Finder matching) =>
+      find.descendant(of: find.byKey(Key(key)), matching: matching);
+
   FakeBridgeSession healthy(FakeBridgeSession session) {
     session.driveLiveState(
       phase: ConnectionPhase.live,
@@ -69,18 +73,37 @@ void main() {
     expect(find.text('App'), findsOneWidget);
     expect(find.text('Bridge'), findsOneWidget);
     expect(find.text('Smoke X4'), findsOneWidget);
-    expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
-    expect(find.text('Receiving readings · updated 12s ago'), findsOneWidget);
+    expect(inLink('status.appBridgeLink', find.text('2h 14m')), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('2h 10m')), findsOneWidget);
+    expect(find.byType(SignalBars), findsNWidgets(2));
+    expect(find.text('Bridge connected · 2h 14m'), findsNothing);
+    expect(find.text('Sensor data received 12s ago'), findsOneWidget);
+    expect(
+      find.byTooltip('Time since last data was received from Smoke X4'),
+      findsOneWidget,
+    );
     for (var probe = 1; probe <= 4; probe++) {
       expect(find.byKey(Key('live.probe.$probe')), findsOneWidget);
       expect(find.text('P$probe'), findsOneWidget);
     }
     expect(find.byType(ProbeSparkline), findsNWidgets(4));
-    expect(inProbe(1, find.text('1h · +4.8°F')), findsOneWidget);
+    expect(inProbe(1, find.text('+0.4°F')), findsOneWidget);
+    expect(inProbe(1, find.textContaining('Min 222.6')), findsOneWidget);
+    expect(inProbe(1, find.textContaining('Max 227.4')), findsOneWidget);
     expect(inProbe(1, find.text('No history yet')), findsNothing);
     expect(inProbe(3, find.text('No history yet')), findsOneWidget);
     expect(inProbe(3, find.text('Not connected')), findsOneWidget);
     expect(find.text('Sync now'), findsNothing);
+  });
+
+  testWidgets('telemetry icon opens the last-data tooltip', (tester) async {
+    await pumpLive(tester, drive: healthy);
+
+    const message = 'Time since last data was received from Smoke X4';
+    await tester.tap(find.byTooltip(message));
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsOneWidget);
   });
 
   testWidgets('aging keeps the Bridge healthy and names the reading age', (
@@ -95,9 +118,9 @@ void main() {
         ),
     );
 
-    expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
+    expect(inLink('status.appBridgeLink', find.text('2h 14m')), findsOneWidget);
     expect(inProbe(1, find.text('Updated 62s ago')), findsOneWidget);
-    expect(find.text('Receiving readings · updated 1m ago'), findsOneWidget);
+    expect(find.text('Sensor data received 1m ago'), findsOneWidget);
   });
 
   testWidgets('stale X4 telemetry keeps the Bridge row connected', (
@@ -112,8 +135,14 @@ void main() {
         ),
     );
 
-    expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
+    expect(inLink('status.appBridgeLink', find.text('2h 14m')), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('No readings')), findsOneWidget);
     expect(find.text('No readings for 4 min'), findsWidgets);
+    expect(find.byKey(const Key('live.smokeXWarning')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('live.smokeXWarning')));
+    await tester.pumpAndSettle();
+    expect(find.text('No data from Smoke X4'), findsOneWidget);
   });
 
   testWidgets('lost X4 signal shows the age and one troubleshooting notice', (
@@ -129,9 +158,15 @@ void main() {
         ),
     );
 
-    expect(find.text('Smoke X4 signal lost · 14 min ago'), findsOneWidget);
-    expect(find.text('No data from Smoke X4'), findsOneWidget);
-    expect(find.text('Troubleshoot'), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('Signal lost')), findsOneWidget);
+    expect(find.textContaining('Sensor data received'), findsNothing);
+    expect(find.byKey(const Key('live.smokeXWarning')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('live.smokeXWarning')));
+    await tester.pumpAndSettle();
+    expect(find.text('Smoke X4 signal lost'), findsOneWidget);
+    expect(find.text('Pairing steps'), findsOneWidget);
+    expect(find.text('Got it'), findsOneWidget);
   });
 
   testWidgets('an unpaired X4 gets a guided pairing action', (tester) async {
@@ -194,13 +229,12 @@ void main() {
     );
 
     expect(
-      find.text('Bridge disconnected · last connected 2 hr ago'),
+      inLink('status.appBridgeLink', find.text('Offline')),
       findsOneWidget,
     );
-    expect(
-      find.text('Showing saved readings · last reading 2 hr ago'),
-      findsOneWidget,
-    );
+    expect(inLink('status.x4Link', find.text('Last known')), findsOneWidget);
+    expect(find.textContaining('Sensor data received'), findsNothing);
+    expect(find.textContaining('Showing saved readings'), findsNothing);
     expect(find.text('Fair'), findsNothing);
     expect(inProbe(1, find.text('225.0°F')), findsOneWidget);
     expect(find.text('Set temp (last known)'), findsOneWidget);
@@ -216,7 +250,7 @@ void main() {
     );
 
     expect(
-      find.text('Bridge disconnected · nothing saved yet'),
+      inLink('status.appBridgeLink', find.text('Offline')),
       findsOneWidget,
     );
     expect(find.textContaining('Showing saved readings'), findsNothing);
@@ -281,7 +315,7 @@ void main() {
 
     expect(find.text('History sync failed'), findsOneWidget);
     expect(find.text('Retry sync'), findsOneWidget);
-    expect(find.text('Receiving readings · updated 12s ago'), findsOneWidget);
+    expect(find.text('Sensor data received 12s ago'), findsOneWidget);
     expect(inProbe(1, find.text('225.0°F')), findsOneWidget);
   });
 
