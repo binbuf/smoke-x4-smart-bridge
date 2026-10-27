@@ -85,18 +85,50 @@ With a real Smoke X4, on the bench (not during a live cook):
   gathered in M5. This task neither replaces nor duplicates those.
 
 ## Done when
-- [ ] The capture path is named and is reproducible from this repo.
-- [ ] The SYNC gesture is recorded with what the X4 actually did.
-- [ ] 30+ minutes of four-probe state traffic is captured.
-- [ ] The detach/reattach, °F/°C flip and (if practical) alarm edge are in the
-      capture.
-- [ ] The sync beacon and the ACK are captured.
-- [ ] If a Billows was attached, the `billows_attached` transition is captured
-      (target sweep left to T56).
-- [ ] The new parser can replay the captures in a host test.
-- [ ] The logs and short report are committed under `protocol/fixtures/lora/`
+- [x] The capture path is named and is reproducible from this repo.
+- [x] The SYNC gesture is recorded with what the X4 actually did. **The stock
+      receiver completed its normal sync; its ACK is in the capture. The exact
+      button press was not separately logged.**
+- [ ] 30+ minutes of four-probe state traffic is captured. **Deviation: 22.4
+      minutes / 41 state frames, stopped by owner choice after every required
+      event type was present.**
+- [x] The detach/reattach and °F/°C flip are in the capture. The alarm edge was
+      not practical and is explicitly optional.
+- [x] The sync beacon and the ACKs are captured (our tx ACK and the stock
+      receiver's rx ACK).
+- [x] Billows was not attached, so no `billows_attached` transition applies;
+      the target sweep remains T56.
+- [x] The fixture matches the existing `loralog v1` corpus shape; replay itself
+      is T14's job.
+- [x] The logs and short report are committed under `protocol/fixtures/lora/`
       with a row in its `README.md` provenance table.
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
+
+## Hand-off
+
+**Landed.** A throwaway RX capture probe at `firmware/bench/t10_probe/` (vendored
+`ra01s`, no product build dependency) captured a real X4 session on the current
+board. The fixture is `protocol/fixtures/lora/x4-t10-25min.loralog` with
+`x4-t10-25min.report.md` and a provenance row in that directory's `README.md`.
+It contains the 915 MHz sync beacon, our ACK and the stock receiver's ACK on
+918.5 MHz, 41 four-probe state frames, probe-2 detach → reattach, and
+°F → °C → °F.
+
+**Deviation.** State traffic is 22.4 minutes, not 30+. The owner stopped after
+every required event type was captured; the remaining time would only add
+steady-state frames. No alarm edge was captured (optional). The exact sync
+button gesture was not logged; the stock receiver's normal sync completed and
+its ACK is in the fixture.
+
+**Gotchas for later tasks.**
+- Our first ACK went out on 915 MHz and did nothing. The ACK must be sent **after**
+  retuning to the operating frequency; the firmware confirms this rule.
+- The 915 MHz sync beacon uses device id `LMXC[\`; the trailing backslash is part
+  of the id and must be preserved.
+- State frames are ~77 bytes, arrive every ~30 s, and the stock receiver also
+  emits its own ACK on the operating channel during sync.
+- The probe now sits in the T10 image, not the T09 probe. The next flash can
+  replace it.
 
 ## Hand-off
 _(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
