@@ -96,4 +96,57 @@ Remaining for this task:
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Status: done (host/CI).** Board/phone proof remains with T46.
+
+### What landed
+- `BridgeController.prepareLaunch()` loads the saved `bridge` row and the newest
+  archived sample before the first frame; `bootstrap` then runs
+  `connectSavedBridge()` without blocking `runApp`.
+- `connectSavedBridge()` is the bounded 10 s foreground scan: BLE identity first,
+  advertised name second, unrelated results ignored. A match uses the existing
+  `connectAndSecure`; a valid stored bond shows no passkey prompt.
+- A missing saved Bridge leaves Live with `Looking for the Bridge…`, the
+  last-known archive and a manual `Connect`. No Setup route.
+- `BleClient.platformStates` + `BridgeLink` handling: phone Bluetooth off while
+  on Live leaves `Connected`, clears secure/timers/subscriptions, enters the
+  named BLOCKED state and drops live receipt values; Bluetooth on resumes the
+  bounded reconnect budget.
+- Saved identity is touched on every healthy transition. `forgetPhone()` and
+  `factoryReset()` delete only the `bridge` row; orphaned `sample`/`gap` remain.
+- Offline last-known probe values and their age now come from SQLite, so they
+  survive a process kill. No-cache still renders no probe values.
+- `retryConnection`/`refreshLink` no longer simulate Live; they resume reconnect
+  or rerun the launch scan.
+
+### Deviations / decisions
+- The archive/saved identity is now the **BLE address** (`bridge.id`) rather than
+  `info.device_id`, matching the task's "BLE identity" wording and the scan
+  contract. Pre-release only; old archive rows remain readable. See ADR 0047.
+- A stale bond on launch lands on the named `Can’t reach the Bridge` surface
+  (Retry/Forget) and never raises an OS prompt. The approved
+  `Forget and re-pair` screen still belongs to SetupFlow; placement is T50/T51.
+- The BLOCKED system action is an instructional Android-settings dialog; the
+  app has no plugin seam to launch system settings, and final action placement
+  is T50/T51.
+
+### Checks
+```
+cd app
+flutter analyze                                           # No issues found
+flutter test test\launch_connect_test.dart --timeout 60s  # 10/10
+flutter test --timeout 120s                               # 179/179
+```
+
+### Docs
+- `docs/design/06-app.md` §6.9 launch/health note.
+- `docs/design/adr/0047-saved-bridge-launch-and-adapter-health.md`.
+- `docs/progress/T43.md` (facts + follow-ups).
+
+### Next task must know
+- T46 runs the real-phone cold-launch proof. Do not add a second scan loop: the
+  link owns reconnect when `link.device != null`; the controller only re-runs
+  the launch scan when there is no link device.
+- T44 deletion must keep the `bridge` row (identity) and reconcile cursors.
+- Widget tests that drive launch need `tester.runAsync` because the bounded scan
+  uses a real `Timer`.

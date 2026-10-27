@@ -17,7 +17,14 @@ class FlutterBluePlusBleClient implements BleClient {
   FlutterBluePlusBleClient({
     BleDiagnostics? diagnostics,
     this.scanTimeout = bleScanTimeout,
-  }) : diagnostics = diagnostics ?? BleDiagnostics();
+  }) : diagnostics = diagnostics ?? BleDiagnostics() {
+    // Adapter changes are the only reliable "Bluetooth was turned off" signal
+    // while a GATT link is up; Android does not always deliver a disconnect.
+    _adapterSubscription = fbp.FlutterBluePlus.adapterState.listen(
+      _onAdapterState,
+      onError: (Object _) {},
+    );
+  }
 
   @override
   final BleDiagnostics diagnostics;
@@ -30,6 +37,9 @@ class FlutterBluePlusBleClient implements BleClient {
       StreamController<BleConnectionState>.broadcast();
   final StreamController<BleBondState> _bondController =
       StreamController<BleBondState>.broadcast();
+  final StreamController<BleAppState> _platformController =
+      StreamController<BleAppState>.broadcast();
+  StreamSubscription<fbp.BluetoothAdapterState>? _adapterSubscription;
   final Map<String, StreamController<Uint8List>> _notificationControllers =
       <String, StreamController<Uint8List>>{};
   final Map<String, StreamSubscription<List<int>>> _notificationSubscriptions =
@@ -91,6 +101,34 @@ class FlutterBluePlusBleClient implements BleClient {
       );
     }
     return status;
+  }
+
+  @override
+  Stream<BleAppState> get platformStates => _platformController.stream;
+
+  void _onAdapterState(fbp.BluetoothAdapterState state) {
+    BleAppState? named;
+    switch (state) {
+      case fbp.BluetoothAdapterState.on:
+        named = BleAppState.ready;
+      case fbp.BluetoothAdapterState.off:
+      case fbp.BluetoothAdapterState.unavailable:
+        named = BleAppState.bluetoothOff;
+      case fbp.BluetoothAdapterState.unauthorized:
+        named = BleAppState.permissionBlocked;
+      case fbp.BluetoothAdapterState.unknown:
+      case fbp.BluetoothAdapterState.turningOn:
+      case fbp.BluetoothAdapterState.turningOff:
+        named = null;
+    }
+    if (named == null || _platformController.isClosed) return;
+    diagnostics.record(
+      'adapter state ${named.name}',
+      level: named == BleAppState.ready
+          ? BleLogLevel.info
+          : BleLogLevel.warning,
+    );
+    _platformController.add(named);
   }
 
   @override
@@ -553,6 +591,8 @@ class FlutterBluePlusBleClient implements BleClient {
     _disposed = true;
     _scanTimer?.cancel();
     _scanTimer = null;
+    await _adapterSubscription?.cancel();
+    _adapterSubscription = null;
     await _scanSubscription?.cancel();
     _scanSubscription = null;
     try {
@@ -567,6 +607,7 @@ class FlutterBluePlusBleClient implements BleClient {
     _notificationControllers.clear();
     await _connectionController.close();
     await _bondController.close();
+    await _platformController.close();
   }
 
   Future<void> _cleanupLink() async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -40,9 +42,12 @@ Future<BridgeController> createBridgeController({
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   final controller = await createBridgeController();
-  // Bridge identity persistence lands with the archive tasks. Until then a
-  // launch has no saved Bridge, so start on the approved setup route instead
-  // of showing simulated Live data.
-  controller.beginSetup();
+  // Load the saved Bridge and the last-known archive before the first frame, so
+  // a returning user lands in the shell (never Setup) and offline values are
+  // real stored readings. The bounded scan then runs in the foreground.
+  await controller.prepareLaunch();
   runApp(SmokeBridgeApp(controller: controller));
+  if (controller.hasSavedBridge) {
+    unawaited(controller.connectSavedBridge());
+  }
 }

@@ -67,6 +67,328 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Loads the saved Bridge and the last-known archive before the first frame.
+  ///
+  /// A saved Bridge keeps the approved shell (Live), never Setup. With no saved
+  /// Bridge, this is a first install and Setup remains the owner of pairing.
+  Future<void> prepareLaunch({Duration? scanWindow}) async {
+    if (scanWindow != null) launchScanWindow = scanWindow;
+    final dao = sampleDao;
+    SavedBridge? saved;
+    if (dao != null) {
+      saved = await dao.savedBridge();
+      final newest = await dao.newestSamples(limit: 1);
+      if (newest.isNotEmpty) {
+        final row = newest.single;
+        liveProbeTemps = <double?>[
+          for (final value in row.tempsF10)
+            value == null ? null : value / 10,
+        ];
+        lastKnownReadingAt = DateTime.fromMillisecondsSinceEpoch(
+          row.recordedMs,
+          isUtc: true,
+        );
+        hasSavedData = true;
+        savedDataEmpty = false;
+      } else {
+        hasSavedData = phoneRecords > 0;
+        savedDataEmpty = phoneRecords == 0;
+      }
+    }
+    // Offline values come only from the archive; a launch with nothing stored
+    // must not present fixture values as last-known (ADR 0041).
+    offlineCache = hasSavedData;
+    _subscribePlatformStates();
+    if (saved == null) {
+      beginSetup();
+      return;
+    }
+    savedBridge = saved;
+    rememberedBridgeId = saved.id;
+    rememberedBridgeName = saved.name;
+    localMaxSeq = saved.cursorAfter;
+    lastSyncedAt = DateTime.fromMillisecondsSinceEpoch(saved.lastSeenMs);
+    hasSavedBridge = true;
+    lookingForBridge = true;
+    phase = ConnectionPhase.offline;
+    tab = AppTab.live;
+    _bridgeConnectedSince = null;
+    _smokeXConnectedSince = null;
+    billowsAttachment = BillowsAttachment.unknown;
+    billowsSeenThisSession = false;
+    notifyListeners();
+  }
+
+  /// Scans for the saved Bridge by BLE identity, then by name, and connects.
+  ///
+  /// Returns after the bounded foreground scan. A missing Bridge leaves the
+  /// shell on Live with `Looking for the Bridge…` and the archive's values.
+  Future<void> connectSavedBridge() async {
+    final saved = savedBridge;
+    if (saved == null) {
+      beginSetup();
+      return;
+    }
+    final client = bleClient;
+    if (client == null || launchScanning) return;
+    launchScanning = true;
+    lookingForBridge = true;
+    phase = ConnectionPhase.offline;
+    notifyListeners();
+    _LaunchScanResult result;
+    try {
+      final status = await client.platformStatus();
+      if (status.state != BleAppState.ready) {
+        _applyPlatformBlocked(status.state);
+        return;
+      }
+      result = await _scanForSavedBridge(saved);
+    } finally {
+      // A blocked launch already cleared the flag; a scan result path clears it
+      // below. Either way the Connect action becomes available again.
+    }
+    if (result.blockedBy != null) {
+      _applyPlatformBlocked(result.blockedBy!);
+      return;
+    }
+    final device = result.device;
+    if (device == null) {
+      launchScanning = false;
+      lookingForBridge = true;
+      phase = ConnectionPhase.offline;
+      notifyListeners();
+      return;
+    }
+    phase = ConnectionPhase.syncing;
+    notifyListeners();
+    final link = ensureLink();
+    try {
+      await link.connectAndSecure(device);
+      await _persistBridgeIdentity(device.id, device.name);
+      lookingForBridge = false;
+    } on BridgeLinkException catch (error) {
+      lookingForBridge = false;
+      // Bluetooth going off mid-connect is BLOCKED, not a generic failure.
+      if (phase != ConnectionPhase.blocked) {
+        // A stale bond is a named failure with the Forget/re-pair escape; it is
+        // never an unexplained OS prompt on launch.
+        phase = _isBondFailure(error)
+            ? ConnectionPhase.failed
+            : (hasSavedData ? ConnectionPhase.offline : ConnectionPhase.failed);
+      }
+    } catch (_) {
+      lookingForBridge = false;
+      if (phase != ConnectionPhase.blocked) {
+        phase = hasSavedData ? ConnectionPhase.offline : ConnectionPhase.failed;
+      }
+    } finally {
+      launchScanning = false;
+      notifyListeners();
+    }
+  }
+
+  bool _isBondFailure(BridgeLinkException error) {
+    switch (error.failure) {
+      case BridgeLinkFailure.bondRequired:
+      case BridgeLinkFailure.bondFailed:
+      case BridgeLinkFailure.bondCancelled:
+        return true;
+      case BridgeLinkFailure.protocolMismatch:
+      case BridgeLinkFailure.notSecured:
+      case BridgeLinkFailure.controlTimeout:
+      case BridgeLinkFailure.syncTimeout:
+      case BridgeLinkFailure.syncFailed:
+      case BridgeLinkFailure.syncGap:
+      case BridgeLinkFailure.notConnected:
+      case BridgeLinkFailure.operationFailed:
+        return false;
+    }
+  }
+
+  Future<_LaunchScanResult> _scanForSavedBridge(SavedBridge saved) async {
+    final client = bleClient;
+    if (client == null) return const _LaunchScanResult();
+    final completer = Completer<_LaunchScanResult>();
+    StreamSubscription<BleDevice>? subscription;
+    Timer? timeout;
+    void finish(_LaunchScanResult result) {
+      if (!completer.isCompleted) completer.complete(result);
+    }
+
+    timeout = Timer(launchScanWindow, () async {
+      await subscription?.cancel();
+      await client.stopScan();
+      finish(const _LaunchScanResult());
+    });
+    try {
+      subscription = client.scan(timeout: launchScanWindow).listen(
+        (device) {
+          if (!device.isCompatibleBridge) return;
+          final match = selectPreferredBridge(
+            <BleDevice>[device],
+            rememberedDeviceId: saved.id,
+            rememberedName: saved.name,
+          );
+          if (match == null) return;
+          unawaited(subscription?.cancel());
+          unawaited(client.stopScan());
+          finish(_LaunchScanResult(device: match));
+        },
+        onError: (Object error) {
+          final blocked = error is BleException ? error.appState : null;
+          finish(_LaunchScanResult(blockedBy: blocked));
+        },
+        onDone: () => finish(const _LaunchScanResult()),
+      );
+    } on BleException catch (error) {
+      finish(_LaunchScanResult(blockedBy: error.appState));
+    } catch (_) {
+      finish(const _LaunchScanResult());
+    }
+    final result = await completer.future;
+    timeout.cancel();
+    await subscription?.cancel();
+    await client.stopScan();
+    return result;
+  }
+
+  void _subscribePlatformStates() {
+    _platformSubscription ??= bleClient?.platformStates.listen(
+      _onPlatformState,
+    );
+  }
+
+  void _onPlatformState(BleAppState state) {
+    switch (state) {
+      case BleAppState.ready:
+        if (phase == ConnectionPhase.blocked &&
+            hasSavedBridge &&
+            link?.device == null) {
+          unawaited(connectSavedBridge());
+        }
+        break;
+      case BleAppState.bluetoothOff:
+        _applyPlatformBlocked(state);
+        break;
+      case BleAppState.permissionNeeded:
+      case BleAppState.permissionBlocked:
+        _applyPlatformBlocked(state);
+        break;
+      case BleAppState.unsupportedPhone:
+        _applyPlatformBlocked(state);
+        break;
+      case BleAppState.noResults:
+      case BleAppState.pairingFailed:
+      case BleAppState.promptTimeout:
+      case BleAppState.staleBond:
+      case BleAppState.phoneListFull:
+      case BleAppState.connectionFailed:
+      case BleAppState.gattError:
+      case BleAppState.timeout:
+        break;
+    }
+  }
+
+  void _applyPlatformBlocked(BleAppState state) {
+    switch (state) {
+      case BleAppState.bluetoothOff:
+        blockReason = BlockReason.bluetoothOff;
+        break;
+      case BleAppState.permissionNeeded:
+        blockReason = BlockReason.permissionDenied;
+        break;
+      case BleAppState.permissionBlocked:
+        blockReason = BlockReason.permissionBlocked;
+        break;
+      case BleAppState.unsupportedPhone:
+        blockReason = BlockReason.unsupportedPhone;
+        break;
+      default:
+        return;
+    }
+    launchScanning = false;
+    lookingForBridge = false;
+    phase = ConnectionPhase.blocked;
+    _bridgeConnectedSince = null;
+    _smokeXConnectedSince = null;
+    notifyListeners();
+  }
+
+  void _onLinkBlocked(BlockReason reason) {
+    blockReason = reason;
+    launchScanning = false;
+    lookingForBridge = false;
+    notifyListeners();
+  }
+
+  Future<void> _persistBridgeIdentity(String id, String name) async {
+    if (id.trim().isEmpty) return;
+    rememberedBridgeId = id;
+    rememberedBridgeName = name;
+    final existing = savedBridge;
+    savedBridge = SavedBridge(
+      id: id,
+      name: name,
+      lastSeenMs: content.now.millisecondsSinceEpoch,
+      generation: existing?.generation ?? 0,
+      cursorAfter: existing?.cursorAfter,
+      cursorBefore: existing?.cursorBefore,
+      deviceMinSeq: existing?.deviceMinSeq,
+      deviceMaxSeq: existing?.deviceMaxSeq,
+    );
+    final dao = sampleDao;
+    if (dao == null) return;
+    final stored = await dao.bridgeById(id);
+    if (stored == null) {
+      await dao.saveBridge(savedBridge!);
+    } else {
+      await dao.touchBridge(
+        id: id,
+        name: name,
+        lastSeenMs: content.now.millisecondsSinceEpoch,
+        generation: existing?.generation,
+      );
+    }
+    final refreshed = await dao.bridgeById(id);
+    if (refreshed != null) {
+      savedBridge = refreshed;
+      localMaxSeq = refreshed.cursorAfter;
+    }
+  }
+
+  Future<void> _touchSavedIdentity() async {
+    final id = rememberedBridgeId;
+    final name = rememberedBridgeName;
+    if (id == null || name == null) return;
+    final dao = sampleDao;
+    if (dao == null) return;
+    try {
+      await dao.touchBridge(
+        id: id,
+        name: name,
+        lastSeenMs: content.now.millisecondsSinceEpoch,
+      );
+    } catch (_) {
+      // A failed touch never breaks a healthy link; the next connect retries.
+    }
+  }
+
+  Future<void> _clearSavedIdentity() async {
+    final dao = sampleDao;
+    final ids = <String>{?savedBridge?.id, ?rememberedBridgeId};
+    savedBridge = null;
+    rememberedBridgeId = null;
+    rememberedBridgeName = null;
+    if (dao == null) return;
+    if (ids.isEmpty) {
+      await dao.removeAllBridges();
+      return;
+    }
+    for (final id in ids) {
+      await dao.removeBridge(id);
+    }
+  }
+
   /// Creates the link procedures once and wires them to this controller.
   ///
   /// Setup calls it after the bond; Live pull-to-refresh and app resume reuse
@@ -97,6 +419,7 @@ class BridgeController extends ChangeNotifier {
         onSync: _onLinkSync,
         onReconnect: _onLinkReconnect,
         onRssi: _onLinkRssi,
+        onBlocked: _onLinkBlocked,
         // The OS bond is started only by SetupFlow.pair(), after the approved
         // "look at the Bridge screen" instruction. A reconnect that finds a
         // stale bond therefore falls through to the named unreachable/Forget
@@ -184,6 +507,15 @@ class BridgeController extends ChangeNotifier {
   void _onLinkPhase(ConnectionPhase value) {
     final previous = phase;
     phase = value;
+    final becameHealthy =
+        (value == ConnectionPhase.live || value == ConnectionPhase.stale) &&
+        previous != ConnectionPhase.live &&
+        previous != ConnectionPhase.stale;
+    if (becameHealthy) {
+      lookingForBridge = false;
+      blockReason = BlockReason.none;
+      unawaited(_touchSavedIdentity());
+    }
     switch (value) {
       case ConnectionPhase.live:
       case ConnectionPhase.stale:
@@ -208,6 +540,7 @@ class BridgeController extends ChangeNotifier {
       case ConnectionPhase.offline:
       case ConnectionPhase.blocked:
       case ConnectionPhase.setup:
+        lookingForBridge = false;
         _bridgeConnectedSince = null;
         _smokeXConnectedSince = null;
         break;
@@ -307,11 +640,11 @@ class BridgeController extends ChangeNotifier {
   /// and catches up forward.
   Future<void> refreshLink() async {
     final current = link;
-    if (current != null) {
+    if (current != null && current.device != null) {
       await current.pullToRefresh();
       return;
     }
-    retryConnection();
+    await retryConnection();
   }
 
   /// App resume: health check + forward sync, or resume the reconnect loop.
@@ -427,6 +760,26 @@ class BridgeController extends ChangeNotifier {
   String? rememberedBridgeName;
   int? negotiatedMtu;
 
+  /// The saved `bridge` row loaded on launch. `id` is the BLE address, `name`
+  /// the last observed advertised name and `last_seen_ms` the ordering key.
+  SavedBridge? savedBridge;
+
+  /// Wall time of the newest archived reading, used by the offline-with-cache
+  /// copy instead of a made-up age.
+  DateTime? lastKnownReadingAt;
+
+  /// A saved Bridge exists but is not connected. The shell stays on Live and
+  /// offers a manual Connect instead of reopening Setup (06 §6.3).
+  bool lookingForBridge = false;
+
+  /// A launch scan is in flight; the Connect action is hidden until it ends.
+  bool launchScanning = false;
+
+  /// Foreground-only launch scan window, injectable for host tests.
+  Duration launchScanWindow = bleScanTimeout;
+
+  StreamSubscription<BleAppState>? _platformSubscription;
+
   /// The newest sequence stored on this phone. T35 uses it as the forward-sync
   /// cursor; T39–T41 replace it with the durable archive cursor.
   int? localMaxSeq;
@@ -454,7 +807,8 @@ class BridgeController extends ChangeNotifier {
   bool get isOffline =>
       phase == ConnectionPhase.offline ||
       phase == ConnectionPhase.failed ||
-      phase == ConnectionPhase.reconnecting;
+      phase == ConnectionPhase.reconnecting ||
+      phase == ConnectionPhase.blocked;
 
   bool get billowsDetected => billowsAttachment == BillowsAttachment.attached;
 
@@ -473,9 +827,13 @@ class BridgeController extends ChangeNotifier {
         return const Duration(minutes: 2);
       case ConnectionPhase.failed:
       case ConnectionPhase.offline:
-        return const Duration(hours: 2);
       case ConnectionPhase.blocked:
-        return const Duration(hours: 2);
+        final stored = lastKnownReadingAt;
+        if (stored != null) {
+          final age = DateTime.now().toUtc().difference(stored.toUtc());
+          return age.isNegative ? Duration.zero : age;
+        }
+        return offlineCache ? const Duration(hours: 2) : null;
       case ConnectionPhase.setup:
         return null;
     }
@@ -523,6 +881,7 @@ class BridgeController extends ChangeNotifier {
   /// The BLE link state, separate from Smoke X4 telemetry freshness.
   String get bridgeConnectedLabel {
     if (isConnected) return 'Bridge connected · $bridgeConnectedForLabel';
+    if (lookingForBridge) return 'Looking for the Bridge…';
     switch (phase) {
       case ConnectionPhase.reconnecting:
         return 'Reconnecting… attempt $reconnectAttempt of $reconnectAttempts';
@@ -671,7 +1030,9 @@ class BridgeController extends ChangeNotifier {
         return 'Attempt $reconnectAttempt of $reconnectAttempts · next try in ${_shortDuration(nextReconnectIn)}';
       case ConnectionPhase.failed:
       case ConnectionPhase.offline:
-        return 'Last connected ${_proseDuration(bridgeLastContactAge!)} ago';
+        final age = bridgeLastContactAge;
+        if (age == null) return 'Not connected';
+        return 'Last connected ${_proseDuration(age)} ago';
       case ConnectionPhase.blocked:
         switch (blockReason) {
           case BlockReason.bluetoothOff:
@@ -717,7 +1078,14 @@ class BridgeController extends ChangeNotifier {
       final age = DateTime.now().difference(synced);
       return 'Synced ${_proseDuration(age.isNegative ? Duration.zero : age)} ago';
     }
-    if (isOffline) return 'Synced 2 hr ago';
+    if (isOffline) {
+      final last = lastKnownReadingAt;
+      if (last != null) {
+        final age = DateTime.now().toUtc().difference(last.toUtc());
+        return 'Synced ${_proseDuration(age.isNegative ? Duration.zero : age)} ago';
+      }
+      return offlineCache ? 'Synced 2 hr ago' : 'Not synced yet';
+    }
     if (phase == ConnectionPhase.stale) return 'Synced 4 min ago';
     return 'Synced 2 min ago';
   }
@@ -869,6 +1237,7 @@ class BridgeController extends ChangeNotifier {
   String tempFor(double? fahrenheit) => '${valueFor(fahrenheit)}$unitSuffix';
 
   String get connectionTitle {
+    if (lookingForBridge && !isConnected) return 'Looking for the Bridge…';
     switch (phase) {
       case ConnectionPhase.live:
         return 'Bridge connected';
@@ -902,6 +1271,12 @@ class BridgeController extends ChangeNotifier {
   }
 
   String get connectionSubtitle {
+    if (lookingForBridge && !isConnected) {
+      if (!offlineCache) {
+        return 'The Bridge was last connected ${_lastConnectedLabel()}. Nothing is saved on this phone yet.';
+      }
+      return 'Showing saved readings · last reading ${_lastConnectedLabel()}.';
+    }
     switch (phase) {
       case ConnectionPhase.live:
         if (!smokeXLiveHint) {
@@ -920,7 +1295,7 @@ class BridgeController extends ChangeNotifier {
         return 'Tap to retry. Recording continues on the Bridge.';
       case ConnectionPhase.offline:
         return offlineCache
-            ? 'Last reading 2 hr ago'
+            ? 'Last reading ${_lastConnectedLabel()}'
             : 'Nothing has been saved on this phone yet';
       case ConnectionPhase.blocked:
         switch (blockReason) {
@@ -1075,6 +1450,8 @@ class BridgeController extends ChangeNotifier {
       billowsLostThisSession: billowsObserveCap && billowsLostThisSession,
       showSavedReadings: offlineCache,
       lastSyncedLabel: lastSyncedLabel,
+      lookingForBridge: lookingForBridge && !isConnected,
+      launchScanning: launchScanning,
     );
   }
 
@@ -1504,14 +1881,16 @@ class BridgeController extends ChangeNotifier {
     });
   }
 
-  void retryConnection() {
-    phase = ConnectionPhase.reconnecting;
-    notifyListeners();
-    Future<void>.delayed(const Duration(milliseconds: 900), () {
-      phase = ConnectionPhase.live;
-      syncState = SyncState.complete;
-      notifyListeners();
-    });
+  /// The manual Retry/Connect action. A live link resumes its bounded
+  /// reconnect budget; a saved Bridge that was not found runs the launch scan
+  /// again. It never pretends a link exists.
+  Future<void> retryConnection() async {
+    final current = link;
+    if (current != null && current.device != null) {
+      await current.retryNow();
+      return;
+    }
+    if (hasSavedBridge) await connectSavedBridge();
   }
 
   void completeSetup() {
@@ -1535,6 +1914,12 @@ class BridgeController extends ChangeNotifier {
   /// Starts the production setup route on a phone with no saved Bridge.
   void beginSetup() {
     hasSavedBridge = false;
+    savedBridge = null;
+    lookingForBridge = false;
+    launchScanning = false;
+    final hasOrphanedHistory = phoneRecords > 0 || hasSavedData;
+    offlineCache = hasOrphanedHistory;
+    savedDataEmpty = !hasOrphanedHistory;
     phase = ConnectionPhase.setup;
     tab = AppTab.live;
     _bridgeConnectedSince = null;
@@ -1556,34 +1941,44 @@ class BridgeController extends ChangeNotifier {
       rememberedBridgeName = deviceName.trim();
     }
     negotiatedMtu = mtu;
+    final id = rememberedBridgeId;
+    final name = rememberedBridgeName;
+    if (id != null && name != null) {
+      unawaited(_persistBridgeIdentity(id, name));
+    }
     notifyListeners();
   }
 
   void forgetPhone() {
     link?.abandon();
     hasSavedBridge = false;
-    hasSavedData = true;
-    savedDataEmpty = false;
+    final hasOrphanedHistory = phoneRecords > 0 || hasSavedData;
+    hasSavedData = hasOrphanedHistory;
+    savedDataEmpty = !hasOrphanedHistory;
+    offlineCache = hasOrphanedHistory;
     phase = ConnectionPhase.setup;
-    rememberedBridgeId = null;
-    rememberedBridgeName = null;
+    lookingForBridge = false;
+    launchScanning = false;
     localMaxSeq = null;
     _bridgeConnectedSince = null;
     _smokeXConnectedSince = null;
+    unawaited(_clearSavedIdentity());
     notifyListeners();
   }
 
   void factoryReset() {
     link?.abandon();
     hasSavedBridge = false;
-    hasSavedData = true;
-    savedDataEmpty = false;
+    final hasOrphanedHistory = phoneRecords > 0 || hasSavedData;
+    savedDataEmpty = !hasOrphanedHistory;
+    offlineCache = hasOrphanedHistory;
     phase = ConnectionPhase.setup;
-    rememberedBridgeId = null;
-    rememberedBridgeName = null;
+    lookingForBridge = false;
+    launchScanning = false;
     localMaxSeq = null;
     _bridgeConnectedSince = null;
     _smokeXConnectedSince = null;
+    unawaited(_clearSavedIdentity());
     notifyListeners();
   }
 
@@ -1606,6 +2001,12 @@ class BridgeController extends ChangeNotifier {
         break;
     }
     notifyListeners();
+  }
+
+  String _lastConnectedLabel() {
+    final age = bridgeLastContactAge;
+    if (age == null) return 'earlier';
+    return '${_proseDuration(age)} ago';
   }
 
   String _compactDuration(Duration duration) {
@@ -1698,9 +2099,18 @@ class BridgeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(_platformSubscription?.cancel() ?? Future<void>.value());
+    _platformSubscription = null;
     unawaited(link?.dispose() ?? Future<void>.value());
     unawaited(repository.close());
     unawaited(bleClient?.dispose() ?? Future<void>.value());
     super.dispose();
   }
+}
+
+class _LaunchScanResult {
+  const _LaunchScanResult({this.device, this.blockedBy});
+
+  final BleDevice? device;
+  final BleAppState? blockedBy;
 }
