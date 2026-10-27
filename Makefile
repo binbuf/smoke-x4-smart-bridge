@@ -18,7 +18,7 @@ endif
 PROTO_TEST_BIN := build/protocol_test$(EXE)
 HOST_TEST_BUILD ?= firmware/test/build
 
-.PHONY: protocol protocol-check protocol-test host-test app-analyze app-test app-check
+.PHONY: protocol protocol-check protocol-test host-test bench-test app-analyze app-test app-check
 
 protocol:
 	$(PYTHON) tools/protogen/protogen.py
@@ -37,6 +37,10 @@ host-test:
 	cmake -S firmware/test -B $(HOST_TEST_BUILD) -G Ninja
 	cmake --build $(HOST_TEST_BUILD)
 	ctest --test-dir $(HOST_TEST_BUILD) --output-on-failure
+
+# Bench tooling (no board, no third-party dependencies).
+bench-test:
+	$(PYTHON) -m unittest discover -s tools/bench -p "test_*.py" -v
 
 # Flutter app checks. Run from the repository root; CI (T08) uses app-check.
 app-analyze:

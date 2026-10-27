@@ -104,6 +104,13 @@ Run in this order; each row is evidence, not a checkbox.
 
 - [ ] Board identity, flash size, antenna fitted.
 - [ ] OLED Vext/order, button, battery divider.
+- [ ] OLED pages/overlays legible at arm's length; display sleep/wake keeps the
+      page. Host framebuffer goldens cover every page/overlay, but T37 walks the
+      real panel (checklist step 7).
+- [ ] PRG power off/on: countdown, early-release cancel, hold-to-wake, waking
+      press consumed (T37); USB-detached 20/20 wake and currents are T62.
+- [ ] Battery reading vs DMM/known state; unknown renders `—` (T37; the ±2 %
+      DMM tolerance and calibrated divider ratio are T62).
 - [ ] Deep-sleep wake 20/20, USB attached and detached.
 - [ ] On/connected/sleep current; 24 h runtime on the pack.
 
@@ -117,6 +124,14 @@ evidence.
 
 - [ ] Pair with a real X4; the stock receiver keeps updating.
 - [ ] Four probes, detached probe, °C/°F flip.
+- [ ] 30-minute cadence with four probes and the OLED awake then asleep: packet
+      count vs expected, interval min/mean/max, RSSI range, missed samples, and
+      a cause for every gap > 90 s. Fill
+      [`CADENCE-REPORT-TEMPLATE.md`](../../artifacts/bench/T37/CADENCE-REPORT-TEMPLATE.md)
+      from the real capture with
+      `python tools/bench/cadence_report.py <capture> --out <report>` (checklist
+      step 6). Host parser tests: `python -m unittest discover -s tools/bench -p
+      "test_*.py"`.
 - [ ] Pull power mid-cook; reboot; earlier records survive; only the last
       record is at risk.
 - [ ] Fill the ring (or simulate) and confirm oldest-sector rotation.

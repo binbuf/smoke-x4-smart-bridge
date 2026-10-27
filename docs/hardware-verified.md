@@ -24,6 +24,15 @@ product firmware; the legacy image, NVS and cooks were wiped by design.
 | PRG (GPIO0) debounce after boot | ✅ 2026-10-26 — GPIO0 idles high; a 400 ms press (DTR driving the same CP2102 GPIO0 net) produced exactly one DOWN then one UP with a 30 ms debounce, no bounce | [`probe/cold-boot-serial.txt`](../artifacts/bench/T09/probe/cold-boot-serial.txt) |
 | Battery divider: GPIO37 HIGH enables, ratio ≈ 4.9 | ✅ 2026-10-26 — GPIO37 LOW → raw 2 / 0 mV; GPIO37 HIGH → raw 947 / 823 mV → **≈4032 mV** at ×4.9; GPIO37 LOW again → raw 0. Pack is on USB and near full, consistent with the legacy 4062 mV reading. | [`probe/cold-boot-serial.txt`](../artifacts/bench/T09/probe/cold-boot-serial.txt) |
 
+## Display and controls
+
+| Check | Result | Evidence |
+|---|---|---|
+| All visible pages walked and legible at arm's length (Probes, Connection, Billows only when detected, Bridge) | ⏳ T37 — host goldens cover every page and overlay (including a coverage assertion), but the real panel and case window are **not walked yet**. Procedure: [checklist step 7](../artifacts/bench/T37/CHECKLIST.md). | — |
+| Display sleep/wake works and does not change the page | ⏳ T37 — host `ui-render` proves sleep/wake keeps the page and a sample cannot wake the panel; physical panel `0xAE`/`0xAF` and wake-by-tap are **not observed yet**. | — |
+| Battery reading checked against DMM/known state; unknown renders as `—` | ⏳ T37 — host Li-ion curve and `SOC_UNKNOWN` tests pass and golden `04-probes-unknown-battery` draws `—`; the physical reading and known-state comparison are **not done**. The ±2 % DMM tolerance and calibrated ratio remain T62. | — |
+| PRG power off/on: hold countdown, early-release cancel, hold-to-wake, waking press consumed | ⏳ T37 — host `ui-button` covers the 399/400 ms and 1499/1500 ms boundaries and waking-press consumption; the physical press/release sequence and `OFF` frame are **not observed yet**. USB-detached wake count and currents are T62. | — |
+
 ## Power
 
 | Check | Result | Evidence |
@@ -97,6 +106,9 @@ no independent scanner was used in this session.
 | Power cut mid-cook; earlier records survive and the log resumes | ⏳ T37 — [checklist step 3](../artifacts/bench/T37/CHECKLIST.md), not run. Host torn-tail recovery passes (`sample-log-flash`); bench recovery timing is recorded above. | — |
 | Ring rotation (fill/wrap) | ⏳ | |
 | `min_seq`/`max_seq`/`generation` through BLE | ⏳ | |
+| 30-minute cadence run: four probes, OLED awake and asleep | ⏳ T37 — procedure and report template prepared by T26 ([checklist step 6](../artifacts/bench/T37/CHECKLIST.md)); **no run yet**. Host extractor `tools/bench/cadence_report.py` is tested on the T10 capture. | — |
+| Packet counts vs expected, observed intervals and missed samples recorded | ⏳ T37 — `CADENCE-REPORT.md` must record packet count, expected count, min/mean/max interval, missing sequence numbers and missed samples. Not generated yet. | — |
+| RSSI range recorded; every gap > 90 s has a cause | ⏳ T37 — the report records RSSI min/mean/max and leaves the cause column for the sitting; **no gap observed or explained yet**. | — |
 
 ## BLE and app
 
