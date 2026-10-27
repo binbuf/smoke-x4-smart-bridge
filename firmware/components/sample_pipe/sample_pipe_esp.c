@@ -143,10 +143,7 @@ static void log_writer_task(void *argument) {
         bridge_state_set_storage_ok(sample_log_storage_ok());
         sample_pipe_complete(&s_pipe, &pending, stored,
                              stored ? sx4_sample_rec_seq_get(&rec) : 0u);
-        if (stored) {
-            /* T20: the writer is the tick caller until T24 owns housekeeping. */
-            (void)bridge_state_tick();
-        }
+        /* Clock persistence is owned by the housekeeping task (T24). */
     }
 }
 

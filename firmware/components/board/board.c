@@ -48,6 +48,14 @@ esp_err_t board_power_init(void) {
     /* Vext settle before the I2C bus/panel is touched (T09: 100 ms). */
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGI(TAG, "Vext on (GPIO%d low), OLED reset released", BOARD_PIN_VEXT);
+
+    /* Battery is non-fatal: a failed init leaves the housekeeping sample
+     * path reporting SOC_UNKNOWN rather than blocking the rails/UI. */
+    err = board_battery_init();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "battery ADC init failed (%s); battery stays unknown",
+                 esp_err_to_name(err));
+    }
     return ESP_OK;
 }
 

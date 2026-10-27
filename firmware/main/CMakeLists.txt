@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "boot.c" "tasks.c"
+    SRCS "main.c" "boot.c" "tasks.c" "housekeeping.c"
     INCLUDE_DIRS "."
     REQUIRES
         board

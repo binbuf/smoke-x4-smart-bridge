@@ -92,6 +92,27 @@ Report:
 
 The app and OLED must render unknown as "—", never 0%.
 
+### Implementation (T24, ADR 0032)
+
+- `firmware/components/board/board_battery.c` is the pure core: divider
+  scaling, curve and stats. `board_battery_esp.c` owns GPIO37, the ADC1_CH0
+  oneshot unit and curve-fitting calibration.
+- One sample: GPIO37 HIGH, `BOARD_BATTERY_SETTLE_US` (200 µs), 32 reads at
+  12 dB, GPIO37 LOW on every exit path, then the calibrated raw average is
+  converted. At least 3/4 of the reads must succeed or the sample is failed.
+- `BOARD_BATTERY_DIVIDER_X100` is the only calibration constant (default 490,
+  i.e. ×4.9). A `-D` override or an edited value replaces it after T62's DMM
+  comparison.
+- The curve points are 4200/100, 4100/90, 4000/80, 3900/70, 3850/65, 3800/60,
+  3750/50, 3700/40, 3650/30, 3600/20, 3550/15, 3500/10, 3450/7, 3400/5,
+  3350/2, 3300/0 (mV/%). Values between points interpolate; above/below clamp.
+  A 0 mV divider read is `SOC_UNKNOWN`, not 0 %.
+- The `housekeeping` task samples every 10 s (`HOUSEKEEPING_BATTERY_PERIOD_MS`)
+  and publishes `bridge_state_set_battery()`; it also owns
+  `bridge_state_tick()`. No radio or sample-pipeline task reads the ADC.
+- `board_battery_stats_t` exposes the last mV/% and since-boot success/failure
+  counts for the later BLE `stats` encoder. There is still no charging state.
+
 ### USB vs battery
 
 There is no reliable charge-detect pin. The MVP does **not** report USB or
