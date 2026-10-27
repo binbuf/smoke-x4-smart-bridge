@@ -12,17 +12,17 @@ The app has a real `BleClient` on `flutter_blue_plus` that handles permissions, 
 - Depends on T07 (BLE fake and app test seam) and T30.
 
 ## Scope
-- [ ] Define the `BleClient` interface used by the app: permission/Bluetooth-state query, scan start/stop, connect/disconnect, bond/removeBond, MTU request, read, write, subscribe/unsubscribe.
-- [ ] Implement the real client on `flutter_blue_plus`.
-- [ ] Keep `FakeBleClient` implementing the same interface; no screen or controller imports the plugin directly.
-- [ ] Map permission states: not determined, granted, denied, permanently denied/blocked; surface Android 12+ `BLUETOOTH_SCAN` (with `neverForLocation`) and `BLUETOOTH_CONNECT`, and location on Android 11 and below.
-- [ ] Detect Bluetooth off and unsupported phones, returning a named state rather than a raw plugin error.
-- [ ] Scan by the service UUID `7f9b0000-4c5b-4b0f-9a3d-1c2e3f405162`; stop after 10 s; prefer the remembered bridge by device ID, then by name; do not auto-connect to an arbitrary first result.
-- [ ] Connect/disconnect GATT, call `bond()`/`removeBond()`, and request MTU **247** while recording the negotiated value.
-- [ ] Implement read (including Read Blob for `info`), write, and subscribe/unsubscribe, including CCCD writes at the characteristic's security level.
-- [ ] Define typed exceptions for every platform failure and map each to the named app states in 06 §6.8; no raw exception, stack trace, or platform error string reaches the UI.
-- [ ] Keep a debug log of scan/connect/bond failures plus phone model, Android version, and negotiated MTU.
-- [ ] Add unit tests for every exception mapping using the fake/plugin fault injection.
+- [x] Define the `BleClient` interface used by the app: permission/Bluetooth-state query, scan start/stop, connect/disconnect, bond/removeBond, MTU request, read, write, subscribe/unsubscribe.
+- [x] Implement the real client on `flutter_blue_plus`.
+- [x] Keep `FakeBleClient` implementing the same interface; no screen or controller imports the plugin directly.
+- [x] Map permission states: not determined, granted, denied, permanently denied/blocked; surface Android 12+ `BLUETOOTH_SCAN` (with `neverForLocation`) and `BLUETOOTH_CONNECT`, and location on Android 11 and below.
+- [x] Detect Bluetooth off and unsupported phones, returning a named state rather than a raw plugin error.
+- [x] Scan by the service UUID `7f9b0000-4c5b-4b0f-9a3d-1c2e3f405162`; stop after 10 s; prefer the remembered bridge by device ID, then by name; do not auto-connect to an arbitrary first result.
+- [x] Connect/disconnect GATT, call `bond()`/`removeBond()`, and request MTU **247** while recording the negotiated value.
+- [x] Implement read (including Read Blob for `info`), write, and subscribe/unsubscribe, including CCCD writes at the characteristic's security level.
+- [x] Define typed exceptions for every platform failure and map each to the named app states in 06 §6.8; no raw exception, stack trace, or platform error string reaches the UI.
+- [x] Keep a debug log of scan/connect/bond failures plus phone model, Android version, and negotiated MTU.
+- [x] Add unit tests for every exception mapping using the fake/plugin fault injection.
 
 ## Out of scope
 - Setup screens, copy, and passkey flow → T33.
@@ -44,12 +44,78 @@ The app has a real `BleClient` on `flutter_blue_plus` that handles permissions, 
 - Scanning is foreground-only. Do not add a foreground service, background scan, or battery-optimization exemption.
 
 ## Done when
-- [ ] Unit tests cover every platform exception mapping to a named state, run with `flutter test`.
+- [x] Unit tests cover every platform exception mapping to a named state, run with `flutter test`.
 - [x] A manual scan on a real phone sees the bridge advertising the service UUID. **Deferred to T37**; unit/fake tests are the gate now.
-- [ ] A denied permission produces the named state and the approved recovery action; a permanently denied permission produces the blocked state.
-- [ ] The negotiated MTU is recorded and visible in diagnostics.
-- [ ] `FakeBleClient` still satisfies the same interface and the existing fake-driven tests pass.
-- [ ] Hand-off below filled in
+- [x] A denied permission produces the named state and the approved recovery action; a permanently denied permission produces the blocked state.
+- [x] The negotiated MTU is recorded and visible in diagnostics.
+- [x] `FakeBleClient` still satisfies the same interface and the existing fake-driven tests pass.
+- [x] Hand-off below filled in
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+**Result:** done · **Verification:** host/CI + Android debug build · **Board:** no (manual phone scan deferred to T37)
+
+### What landed
+- `BleClient` now has `platformStatus()`, `requestPermissions()`,
+  `removeBond()` and `diagnostics`; the T07 methods keep their shape.
+- Named state model in `app/lib/data/ble/ble_client.dart`: permission states
+  (not determined/granted/denied/permanently denied), `BlePlatformStatus`,
+  `BleAppState`, `BleRecoveryAction`, `BleException.appState`/`recoveryAction`.
+  Mapping covers every `BleFailure` to the 06 §6.8 states.
+- `app/lib/data/ble/flutter_blue_plus_ble_client.dart` is the only plugin
+  import (plus `ble_error_mapper.dart`, which maps plugin/GATT/platform errors).
+  It uses `flutter_blue_plus` 1.35.12 and `permission_handler` 11.4.0.
+- Scan filters `7f9b0000-4c5b-4b0f-9a3d-1c2e3f405162`, stops after 10 s, and
+  `selectPreferredBridge` matches remembered device ID then name (never an
+  arbitrary first result). Legacy `7f9a…` devices are rejected by
+  `isCompatibleBridge`.
+- Connect/disconnect, `createBond`/`removeBond`, `requestMtu(247)`, read, write,
+  subscribe/unsubscribe. A short ATT read at MTU < 247 triggers one MTU
+  renegotiation and re-read (long-read fallback for the 32-byte `info`; the
+  plugin exposes no Read Blob offset).
+- Android manifest: `BLUETOOTH_SCAN` with `neverForLocation`, `BLUETOOTH_CONNECT`,
+  and location capped at API 30. `MainActivity` exposes the phone model /
+  Android version to `BleDiagnostics`.
+- `FakeBleClient` implements the expanded interface, records diagnostics, and
+  accepts scripted permission/adapter/support and per-operation faults.
+- 22 new tests in `app/test/ble_client_mapping_test.dart`: every failure/state
+  mapping and recovery action, plugin/native-GATT fault injection, selection
+  rules, fake faults, bond states and MTU diagnostics.
+
+### Deviations / decisions
+- Pinned `flutter_blue_plus` to **1.35.12**, the last BSD-3 release. 2.x adds a
+  paid commercial licence gate; upgrading is a licensing decision (ADR 0039).
+- No true Read Blob offset is available from the plugin. The T32 fallback raises
+  MTU to 247 and re-reads once when a read hits the ATT boundary. All fixed
+  payloads fit at 247; a controller capped below 247 yields a short read that
+  the codec rejects rather than a fabricated value.
+- Android cannot report "permanently denied" from a status check alone.
+  `platformStatus` reports denied; `requestPermissions` returns permanently
+  denied after the OS rejects the request, which maps to the blocked state.
+- The real client does not auto-request MTU on connect; T35 owns the fixed
+  procedure order and calls `requestMtu(247)`. A read may negotiate early.
+
+### Checks run
+```powershell
+cd app
+flutter analyze                 # No issues found!
+flutter test                    # 76 tests pass (22 new)
+flutter build apk --debug      # Built app-debug.apk
+cd ..
+make app-check                  # PASS
+```
+`python tools/ci/check_forbidden_deps.py` still fails on the pre-existing T27
+`firmware/components/esp_wifi` stub; it is unrelated to the app deps and is
+recorded in `docs/progress/T32.md` Follow-ups.
+
+### Next task needs
+- T33: render `BlePlatformStatus.state`/`BleAppState` with the approved copy and
+  `recoveryAction`; do not import the plugin.
+- T35: connect → read `info` → `requestMtu(247)` → bond → subscribe → read
+  `live` → set time → sync; treat `notBonded` as "bond first", not fatal.
+- T33/T35: persist device ID + name and use `selectPreferredBridge`.
+- T37: manual phone scan/denied/blocked/MTU evidence and record the test phone.
+
+### Docs changed
+- `docs/design/adr/0039-platform-ble-client-and-named-states.md` (new)
+- `docs/design/06-app.md` §6.9/§6.10
+- `docs/progress/T32.md` (new)

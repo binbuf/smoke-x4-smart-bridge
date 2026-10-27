@@ -727,6 +727,14 @@ platform exceptions to these named states.
   background execution.
 - **Manufacturer quirks**: keep a debug log of scan/connect/bond failures and the
   phone model/Android version. The test phone must be recorded in release notes.
+- **Implementation (T32)**: `data/ble/flutter_blue_plus_ble_client.dart` is the
+  only plugin import. `flutter_blue_plus` is pinned to 1.35.12 (BSD-3); 2.x adds
+  a commercial licence gate. `BlePlatformStatus` resolves unsupported phone,
+  Bluetooth off, permission needed and permission blocked before scanning.
+  Scan filters the new service UUID and stops after 10 s; the remembered bridge
+  is matched by device ID then name and never replaced by the first result.
+  `BleDiagnostics` records phone model, Android version, negotiated MTU and
+  scan/connect/bond failures. See ADR 0039.
 
 ## 6.10 Testing
 
@@ -742,10 +750,10 @@ platform exceptions to these named states.
   `fake_bridge.dart` implements the GATT server with the generated codecs. A
   widget test drives scan → connect → bond → subscribe → live → disconnect with
   no radio; `flutter test` runs it. The fake stays in test support, never in the
-  release import graph. Generated Dart is reached through
-  `app/test/support/codecs.dart` because `app/lib/` may not import across the
-  package root; the production client will need its own packaged codec import in
-  M2.
+  release import graph. T32 adds `ble_client_mapping_test.dart`, which injects
+  `FlutterBluePlusException`/`PlatformException` objects and fake faults to
+  prove every plugin failure maps to a named state, and pins the production
+  service UUID/local-name constants to the generated contract.
 - **Widget**: the full state inventory in
   [13 §13.4](13-ui-implementation-contract.md#134-complete-state-inventory) —
   Live healthy/aging/stale/frozen/detached/no-probes/offline-cache/no-cache,
