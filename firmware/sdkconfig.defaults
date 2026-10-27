@@ -1,0 +1,31 @@
+# Shared defaults for every board (design 03 section 3.13).
+#
+# Target and layout: ESP32-S3, one factory application slot and a raw samples
+# partition; firmware updates are over USB, so there is no OTA slot.
+CONFIG_IDF_TARGET="esp32s3"
+
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# BLE-only device: no Wi-Fi, no IP stack, no HTTP server/client and no OTA.
+# These options are deliberately off; CMakeLists.txt also runs
+# tools/check_image.py after linking so a reintroduced component fails build.
+# The network components are also outside `set(COMPONENTS main espcoredump)`, so
+# their Kconfig symbols are absent until a task adds the component to the build.
+# CONFIG_ESP_WIFI_ENABLED is not set
+# CONFIG_ESP_WIFI_REMOTE_ENABLED is not set
+# CONFIG_ESP_WIFI_NAN_ENABLED is not set
+# CONFIG_LWIP_ENABLE is not set
+# CONFIG_ESP_NETIF_ENABLE is not set
+
+# NimBLE (not Bluedroid) is the chosen BLE host, but T04 does not link `bt` yet:
+# ESP-IDF 6's bt component requires esp_wifi. T27 adds the BT build component
+# and resolves that with the image guard.
+# CONFIG_BT_BLUEDROID_ENABLED is not set
+
+# Panic evidence lives in the dedicated coredump partition (design 03 section
+# 3.11); it is read over USB, not uploaded.
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_COREDUMP_CHECKSUM_CRC32=y

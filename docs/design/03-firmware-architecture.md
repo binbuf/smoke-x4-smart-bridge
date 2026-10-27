@@ -61,7 +61,10 @@ carried over. See [09](09-legacy-audit.md).
 ## 3.3 Tasks
 
 One table, compiled into an assert that the declared stack total stays under
-budget.
+budget. The table lives in `firmware/main/tasks.h`; the declared total is
+22,528 B and `SX4_TASK_STACK_BUDGET_BYTES` is 24 KiB. Editing the table without
+revisiting the budget fails the firmware build and the host `task-budget` test.
+
 
 | Task | Stack | Prio | Core | Role |
 |---|---:|---:|---|---|
@@ -305,6 +308,17 @@ idf.py -B build -p COMx flash monitor
 CI runs the host tests and `idf.py build` for the Heltec target. A release is a
 merged image plus a version string; the app displays the version but cannot
 update it.
+
+The project is a whitelist build: `firmware/CMakeLists.txt` sets
+`set(COMPONENTS main espcoredump)` so IDF does not build its whole component
+tree. After linking, `firmware/tools/check_image.py` checks
+`project_description.json` for Wi-Fi/IP/HTTP/OTA components, checks the target
+and the partition table, and fails `idf.py build` on a match (ADR 0015). `app_update` is a stock
+`esp_partition` dependency and is allowed; it contributes only the
+running-partition lookup because there is no OTA slot or update component. The
+application task stacks are asserted in `firmware/main/tasks.h` (22,528 B
+declared against a 24 KiB budget) and re-checked by the host `task-budget` test.
+
 
 ## 3.14 Test seams
 
