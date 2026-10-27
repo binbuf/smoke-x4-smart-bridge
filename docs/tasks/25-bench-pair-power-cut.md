@@ -65,4 +65,62 @@ paths that the sitting will exercise. The physical run is executed at **T37**.
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Status:** done (host/CI). No board run was performed; physical evidence is
+T37.
+
+### What landed
+
+- `artifacts/bench/T37/CHECKLIST.md` — step-by-step T37 procedure for real X4
+  pairing, stock receiver, USB power cut, detach/reattach and °F/°C. Each step
+  names its capture command, artifact filenames and pass/fail rule.
+- `artifacts/bench/T37/README.md` — evidence manifest (settings, time, what
+  changed, artifacts, result). All result cells are `⏳`.
+- `docs/hardware-verified.md` — radio/storage rows now name T37 as owner and
+  link the checklist; the combined four-probe/detached/units row was split into
+  separate rows. No PASS was added.
+- `docs/design/10-test-and-release.md` §10.3 B1 — links the checklist.
+- `docs/design/03-firmware-architecture.md` §3.6 — documents the new stored
+  sample log.
+- `firmware/components/sample_pipe/sample_pipe_esp.c` — after a successful
+  append, logs `sx4.sample: stored seq=<n> t=<f10>,... flags=0x<hex>`; on
+  failure logs `sx4.sample: not stored: <err>`. This gives T37 serial evidence
+  for canonical °F, the detached sentinel and Celsius provenance instead of
+  adding new bench tooling.
+- `firmware/bench/t10_probe/tools/capture.py` — creates the `--out` parent
+  directory and turns a USB power-cut `SerialException` into a
+  `# serial error: ...` line with a clean close.
+- `docs/progress/T25.md` — facts and follow-ups.
+
+### Deviations
+
+- No new ADR: the task adds no architectural decision, only a bench procedure
+  and a one-line observability log.
+- No new host suites: torn-tail, detached-sentinel and canonical-°F coverage
+  already existed and was confirmed (test names and assertions are listed in
+  `docs/progress/T25.md`).
+- The checklist's power-cut step requires the pack to be disconnected (or both
+  rails switched); pulling USB while the pack is connected is not a power cut.
+
+### Check results
+
+```text
+cmake -S firmware/test -B firmware/test/build -G Ninja
+cmake --build firmware/test/build
+ctest --test-dir firmware/test/build --output-on-failure
+# 100% tests passed, 16/16 (includes sample-log-flash, sample-pipe, ui-render,
+# sx-protocol, sample-log-rec)
+```
+
+`python -m py_compile firmware/bench/t10_probe/tools/capture.py` — ok.
+
+Firmware build (no flash, board gate is T37) — see `docs/progress/T25.md`.
+
+### Remaining work
+
+- **T37:** execute `artifacts/bench/T37/CHECKLIST.md`, fill
+  `artifacts/bench/T37/README.md`, commit the logs/photos, then replace the
+  T37 `⏳` rows in `docs/hardware-verified.md` with dated results and links.
+- **T26:** add the cadence/page-walk captures to the same sitting.
+- Out of scope and still open: app-driven unpair/re-pair (T55), ring rotation
+  and BLE `min_seq`/`max_seq`/`generation` (T39/T46).

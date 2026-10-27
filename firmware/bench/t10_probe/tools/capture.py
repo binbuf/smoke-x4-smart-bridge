@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""T10 serial capture helper (bench only).
+"""Bench serial capture helper.
 
 Opens the board's console without toggling DTR/RTS, optionally pulses EN to
-reset, and appends every line to artifacts/bench/T10/serial-<stamp>.log.
+reset, and appends every line to artifacts/bench/T10/serial-<stamp>.log by
+default. Pass --out to capture a named evidence file (T37 uses this); the
+parent directory is created. A USB power cut is written as a `# serial error:`
+line instead of a traceback, so the capture stays usable as evidence.
 """
 import argparse
 import datetime as dt
@@ -26,6 +29,7 @@ def main() -> int:
     outdir.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now().strftime("%Y%m%dT%H%M%S")
     outpath = pathlib.Path(args.out) if args.out else outdir / f"serial-{stamp}.log"
+    outpath.parent.mkdir(parents=True, exist_ok=True)
 
     ser = serial.Serial()
     ser.port = args.port
@@ -47,7 +51,14 @@ def main() -> int:
         fh.flush()
         try:
             while True:
-                raw = ser.readline()
+                try:
+                    raw = ser.readline()
+                except serial.SerialException as exc:
+                    # A USB power cut removes the port. Keep the capture as
+                    # evidence: record the error and close cleanly.
+                    fh.write(f"# serial error: {exc}\n")
+                    print(f"serial error: {exc}", file=sys.stderr, flush=True)
+                    break
                 if not raw:
                     continue
                 line = raw.decode("utf-8", errors="replace").rstrip("\r\n")

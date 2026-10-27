@@ -261,7 +261,11 @@ Implementation (T21): `firmware/components/sample_pipe/`.
   (4096/5/core 0) and the `log_writer` task (4096/4/core 0). The sample task
   drains `sx4_radio_rx_take()`; `enqueue_log` uses a zero-tick `xQueueSend`, so
   a full queue is a counted drop, never a wait. The writer appends through
-  `sample_log_append()`, then calls `sample_pipe_complete()`.
+  `sample_log_append()`, then calls `sample_pipe_complete()`. After a successful
+  append it logs the assigned sequence, the four canonical °F-tenths values and
+  the flag byte (`sx4.sample: stored seq=... t=... flags=0x..`). T37 uses that
+  line as serial evidence for the detached sentinel and Celsius provenance;
+  it is one line per accepted sample, not a second record path.
 - The live snapshot is published at completion, when the ring sequence is
   known: `bridge_state_update()` first, then `ui_mark_dirty()`. A failed append
   still publishes live values but keeps the previous live sequence and

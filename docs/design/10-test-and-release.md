@@ -109,6 +109,12 @@ Run in this order; each row is evidence, not a checkbox.
 
 ### B1 — Radio and storage
 
+Execute B1 at T37 with
+[`artifacts/bench/T37/CHECKLIST.md`](../../artifacts/bench/T37/CHECKLIST.md):
+every step names its serial capture, committed artifact and pass/fail rule. The
+rows in `docs/hardware-verified.md` stay `⏳` until that sitting records
+evidence.
+
 - [ ] Pair with a real X4; the stock receiver keeps updating.
 - [ ] Four probes, detached probe, °C/°F flip.
 - [ ] Pull power mid-cook; reboot; earlier records survive; only the last

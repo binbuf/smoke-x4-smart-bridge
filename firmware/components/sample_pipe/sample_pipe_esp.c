@@ -18,6 +18,7 @@
 #include "bridge_config.h"
 #include "bridge_state.h"
 #include "esp_err.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -34,6 +35,8 @@
 #define SAMPLE_LOG_WRITER_PRIORITY 4u
 #define SAMPLE_LOG_WRITER_CORE 0
 #define SAMPLE_PIPE_POLL_MS 5u
+
+static const char *TAG = "sx4.sample";
 
 static sample_pipe_t s_pipe;
 static bool s_started;
@@ -140,6 +143,18 @@ static void log_writer_task(void *argument) {
         sx4_sample_rec_t rec = pending.rec;
         esp_err_t err = sample_log_append(&rec);
         const bool stored = err == ESP_OK;
+        if (stored) {
+            /* Bench evidence: show the canonical record, after sequence
+             * assignment, including the detached sentinel and Celsius
+             * provenance. */
+            ESP_LOGI(TAG,
+                     "stored seq=%lu t=%d,%d,%d,%d flags=0x%02x",
+                     (unsigned long)sx4_sample_rec_seq_get(&rec),
+                     rec.temp[0], rec.temp[1], rec.temp[2], rec.temp[3],
+                     rec.flags);
+        } else {
+            ESP_LOGW(TAG, "not stored: %s", esp_err_to_name(err));
+        }
         bridge_state_set_storage_ok(sample_log_storage_ok());
         sample_pipe_complete(&s_pipe, &pending, stored,
                              stored ? sx4_sample_rec_seq_get(&rec) : 0u);
