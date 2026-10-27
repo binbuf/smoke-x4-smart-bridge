@@ -1,0 +1,825 @@
+import 'package:sqflite/sqflite.dart';
+
+import 'app_database.dart';
+
+/// Temperature sentinel carried by the wire record. A stored `NULL` means the
+/// probe was absent or invalid; it never becomes 0 °F.
+const int deviceTempDetached = -32768;
+const int deviceTempInvalid = -32767;
+
+/// The nominal cadence used only to place a sample with an unknown device
+/// clock on the History axis. It never makes the time exact.
+const int estimatedSampleCadenceMs = 30000;
+
+/// One saved Bridge identity: the `bridge` row T43 loads on launch.
+class SavedBridge {
+  const SavedBridge({
+    required this.id,
+    required this.name,
+    required this.lastSeenMs,
+    this.generation = 0,
+    this.cursorAfter,
+    this.cursorBefore,
+    this.deviceMinSeq,
+    this.deviceMaxSeq,
+  });
+
+  final String id;
+  final String name;
+  final int lastSeenMs;
+  final int generation;
+
+  /// Highest contiguous sequence stored locally; `null` until there is data.
+  final int? cursorAfter;
+
+  /// Lowest contiguous sequence stored locally; `null` until there is data.
+  final int? cursorBefore;
+
+  /// Device extent; `null` when the bridge log is empty.
+  final int? deviceMinSeq;
+  final int? deviceMaxSeq;
+
+  static SavedBridge fromRow(Map<String, Object?> row) => SavedBridge(
+    id: row['id']! as String,
+    name: row['name']! as String,
+    lastSeenMs: row['last_seen_ms']! as int,
+    generation: row['generation']! as int,
+    cursorAfter: row['cursor_after'] as int?,
+    cursorBefore: row['cursor_before'] as int?,
+    deviceMinSeq: row['device_min_seq'] as int?,
+    deviceMaxSeq: row['device_max_seq'] as int?,
+  );
+
+  Map<String, Object?> toRow() => <String, Object?>{
+    'id': id,
+    'name': name,
+    'last_seen_ms': lastSeenMs,
+    'generation': generation,
+    'cursor_after': cursorAfter,
+    'cursor_before': cursorBefore,
+    'device_min_seq': deviceMinSeq,
+    'device_max_seq': deviceMaxSeq,
+  };
+
+  SavedBridge copyWith({
+    String? name,
+    int? lastSeenMs,
+    int? generation,
+    int? cursorAfter,
+    int? cursorBefore,
+    int? deviceMinSeq,
+    int? deviceMaxSeq,
+  }) => SavedBridge(
+    id: id,
+    name: name ?? this.name,
+    lastSeenMs: lastSeenMs ?? this.lastSeenMs,
+    generation: generation ?? this.generation,
+    cursorAfter: cursorAfter ?? this.cursorAfter,
+    cursorBefore: cursorBefore ?? this.cursorBefore,
+    deviceMinSeq: deviceMinSeq ?? this.deviceMinSeq,
+    deviceMaxSeq: deviceMaxSeq ?? this.deviceMaxSeq,
+  );
+}
+
+/// A sync record as read from the bridge, before the archive pins its wall
+/// time. [unixS] is null (or 0) when the device clock was unknown.
+class DeviceSample {
+  const DeviceSample({
+    required this.seq,
+    required this.unixS,
+    required this.tempsF10,
+    required this.flags,
+    required this.clockValid,
+  });
+
+  final int seq;
+  final int? unixS;
+
+  /// P1–P4 in tenths °F. Null or a wire sentinel means the probe was absent.
+  final List<int?> tempsF10;
+  final int flags;
+  final bool clockValid;
+}
+
+/// One row of the `sample` table.
+class StoredSample {
+  const StoredSample({
+    required this.bridgeId,
+    required this.generation,
+    required this.seq,
+    required this.unixS,
+    required this.recordedMs,
+    required this.timeEstimated,
+    required this.tempsF10,
+    required this.flags,
+  });
+
+  final String bridgeId;
+  final int generation;
+  final int seq;
+
+  /// Device clock in seconds, or null when it was unknown.
+  final int? unixS;
+
+  /// Wall time (or estimated wall time) in milliseconds; the query axis.
+  final int recordedMs;
+  final int timeEstimated;
+
+  /// Exactly four entries; null means absent, never 0 °F.
+  final List<int?> tempsF10;
+  final int flags;
+
+  bool get clockValid => timeEstimated == 0;
+
+  /// Maps a device record to storage, including the unknown-clock estimate from
+  /// 04 §4.7:
+  ///
+  /// `recorded_ms = sync_wall_ms - (device_max_seq - seq) * 30000`
+  ///
+  /// A known device clock is stored as-is with `time_estimated = 0`.
+  factory StoredSample.fromDevice({
+    required String bridgeId,
+    required int generation,
+    required DeviceSample sample,
+    required int syncWallMs,
+    required int deviceMaxSeq,
+    int cadenceMs = estimatedSampleCadenceMs,
+  }) {
+    final known =
+        sample.clockValid && sample.unixS != null && sample.unixS! > 0;
+    final unixS = known ? sample.unixS : null;
+    final recordedMs = known
+        ? unixS! * 1000
+        : syncWallMs - (deviceMaxSeq - sample.seq) * cadenceMs;
+    final temps = <int?>[
+      for (var index = 0; index < 4; index++)
+        _validTemp(
+          index < sample.tempsF10.length ? sample.tempsF10[index] : null,
+        ),
+    ];
+    return StoredSample(
+      bridgeId: bridgeId,
+      generation: generation,
+      seq: sample.seq,
+      unixS: unixS,
+      recordedMs: recordedMs,
+      timeEstimated: known ? 0 : 1,
+      tempsF10: temps,
+      flags: sample.flags,
+    );
+  }
+
+  static int? _validTemp(int? value) {
+    if (value == null ||
+        value == deviceTempDetached ||
+        value == deviceTempInvalid) {
+      return null;
+    }
+    return value;
+  }
+
+  static StoredSample fromRow(Map<String, Object?> row) => StoredSample(
+    bridgeId: row['bridge_id']! as String,
+    generation: row['generation']! as int,
+    seq: row['seq']! as int,
+    unixS: row['unix_s'] as int?,
+    recordedMs: row['recorded_ms']! as int,
+    timeEstimated: row['time_estimated']! as int,
+    tempsF10: <int?>[
+      row['p1'] as int?,
+      row['p2'] as int?,
+      row['p3'] as int?,
+      row['p4'] as int?,
+    ],
+    flags: row['flags']! as int,
+  );
+}
+
+/// One row of the `gap` table.
+class StoredGap {
+  const StoredGap({
+    required this.bridgeId,
+    required this.generation,
+    required this.fromSeq,
+    required this.toSeq,
+    required this.reason,
+    required this.detectedMs,
+  });
+
+  final String bridgeId;
+  final int generation;
+  final int fromSeq;
+  final int toSeq;
+  final String reason;
+  final int detectedMs;
+
+  static StoredGap fromRow(Map<String, Object?> row) => StoredGap(
+    bridgeId: row['bridge_id']! as String,
+    generation: row['generation']! as int,
+    fromSeq: row['from_seq']! as int,
+    toSeq: row['to_seq']! as int,
+    reason: row['reason']! as String,
+    detectedMs: row['detected_ms']! as int,
+  );
+
+  Map<String, Object?> toRow() => <String, Object?>{
+    'bridge_id': bridgeId,
+    'generation': generation,
+    'from_seq': fromSeq,
+    'to_seq': toSeq,
+    'reason': reason,
+    'detected_ms': detectedMs,
+  };
+}
+
+/// Local sequence and time extent. Non-null only when at least one row matches.
+class SampleExtent {
+  const SampleExtent({
+    required this.count,
+    required this.minSeq,
+    required this.maxSeq,
+    required this.minRecordedMs,
+    required this.maxRecordedMs,
+  });
+
+  final int count;
+  final int minSeq;
+  final int maxSeq;
+  final int minRecordedMs;
+  final int maxRecordedMs;
+}
+
+/// What a date-range deletion removed.
+class HistoryDeletion {
+  const HistoryDeletion({
+    required this.samplesDeleted,
+    required this.gapsDeleted,
+    required this.gapsTrimmed,
+  });
+
+  final int samplesDeleted;
+
+  /// Gap rows removed entirely because they fell inside the deleted range.
+  final int gapsDeleted;
+
+  /// Gap rows shortened because only part of their sequence range was deleted.
+  final int gapsTrimmed;
+
+  int get gapsAffected => gapsDeleted + gapsTrimmed;
+}
+
+/// Durable archive operations. The in-memory test database implements the same
+/// contract through [SqfliteSampleDao] over `AppDatabase.openInMemory`.
+abstract interface class SampleDao {
+  /// Inserts one sync batch in a single transaction.
+  ///
+  /// The primary key `(bridge_id, generation, seq)` is the idempotency key. An
+  /// existing row is kept unless it was time-estimated and this batch carries a
+  /// real device clock. Returns the number of newly inserted rows.
+  Future<int> insertBatch({
+    required String bridgeId,
+    required int generation,
+    required Iterable<DeviceSample> samples,
+    required int syncWallMs,
+    required int deviceMaxSeq,
+  });
+
+  /// Inserts already-mapped rows in one transaction.
+  Future<int> insertSamples(Iterable<StoredSample> samples);
+
+  Future<void> insertGaps(Iterable<StoredGap> gaps);
+
+  /// Readings ordered by `recorded_ms`. The range is `[fromMs, toMs)`.
+  Future<List<StoredSample>> samplesInRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
+    int? limit,
+    bool ascending = true,
+  });
+
+  /// Newest readings first, used for last-known values.
+  Future<List<StoredSample>> newestSamples({int limit = 1, String? bridgeId});
+
+  Future<int> countSamples({
+    String? bridgeId,
+    int? generation,
+    int? fromMs,
+    int? toMs,
+  });
+
+  /// Min/max sequence and time extent, or null when no row matches.
+  Future<SampleExtent?> extent({String? bridgeId, int? generation});
+
+  Future<List<StoredGap>> gaps({String? bridgeId, int? generation});
+
+  /// Deletes readings in `[fromMs, toMs)` and any gap rows they described.
+  ///
+  /// Gap rows detected inside the range are removed; gap rows overlapping the
+  /// deleted sequence extent are removed or trimmed. `sample` and `gap` rows for
+  /// other bridges/generations are untouched.
+  Future<HistoryDeletion> deleteRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
+  });
+
+  /// The most recently used saved Bridge, or null before first pairing.
+  Future<SavedBridge?> savedBridge();
+
+  Future<SavedBridge?> bridgeById(String id);
+
+  /// Inserts or replaces the full saved-connection row.
+  Future<void> saveBridge(SavedBridge bridge);
+
+  /// Updates only the observed identity, keeping cursors and extent intact.
+  Future<void> touchBridge({
+    required String id,
+    required String name,
+    required int lastSeenMs,
+    int? generation,
+  });
+
+  /// Forgets the saved connection. `sample`/`gap` rows stay readable as
+  /// orphaned history.
+  Future<bool> removeBridge(String id);
+
+  /// Forgets every saved connection; archive rows are still kept.
+  Future<int> removeAllBridges();
+
+  Future<void> close();
+}
+
+/// SQLite implementation over [AppDatabase].
+class SqfliteSampleDao implements SampleDao {
+  SqfliteSampleDao(this._appDatabase);
+
+  final AppDatabase _appDatabase;
+
+  Database get _db => _appDatabase.database;
+
+  @override
+  Future<int> insertBatch({
+    required String bridgeId,
+    required int generation,
+    required Iterable<DeviceSample> samples,
+    required int syncWallMs,
+    required int deviceMaxSeq,
+  }) {
+    return insertSamples(<StoredSample>[
+      for (final sample in samples)
+        StoredSample.fromDevice(
+          bridgeId: bridgeId,
+          generation: generation,
+          sample: sample,
+          syncWallMs: syncWallMs,
+          deviceMaxSeq: deviceMaxSeq,
+        ),
+    ]);
+  }
+
+  @override
+  Future<int> insertSamples(Iterable<StoredSample> samples) async {
+    final rows = samples.toList(growable: false);
+    if (rows.isEmpty) return 0;
+    return _db.transaction<int>((txn) async {
+      final before = Sqflite.firstIntValue(
+        await txn.rawQuery('SELECT COUNT(*) FROM sample'),
+      )!;
+      final batch = txn.batch();
+      for (final sample in rows) {
+        final values = <Object?>[
+          sample.bridgeId,
+          sample.generation,
+          sample.seq,
+          sample.unixS,
+          sample.recordedMs,
+          sample.timeEstimated,
+          sample.tempsF10[0],
+          sample.tempsF10[1],
+          sample.tempsF10[2],
+          sample.tempsF10[3],
+          sample.flags,
+        ];
+        // Portable across the Android system SQLite versions: never replace an
+        // existing row, then upgrade it only if it was time-estimated and this
+        // batch has the device's real clock.
+        batch.rawInsert('''
+          INSERT OR IGNORE INTO sample (
+            bridge_id, generation, seq, unix_s, recorded_ms, time_estimated,
+            p1, p2, p3, p4, flags
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ''', values);
+        batch.rawUpdate(
+          '''
+          UPDATE sample SET
+            unix_s = ?,
+            recorded_ms = ?,
+            time_estimated = ?,
+            p1 = ?,
+            p2 = ?,
+            p3 = ?,
+            p4 = ?,
+            flags = ?
+          WHERE bridge_id = ? AND generation = ? AND seq = ?
+            AND time_estimated = 1 AND ? = 0
+          ''',
+          <Object?>[
+            sample.unixS,
+            sample.recordedMs,
+            sample.timeEstimated,
+            sample.tempsF10[0],
+            sample.tempsF10[1],
+            sample.tempsF10[2],
+            sample.tempsF10[3],
+            sample.flags,
+            sample.bridgeId,
+            sample.generation,
+            sample.seq,
+            sample.timeEstimated,
+          ],
+        );
+      }
+      await batch.commit(noResult: true);
+      final after = Sqflite.firstIntValue(
+        await txn.rawQuery('SELECT COUNT(*) FROM sample'),
+      )!;
+      return after - before;
+    });
+  }
+
+  @override
+  Future<void> insertGaps(Iterable<StoredGap> gaps) async {
+    final rows = gaps.toList(growable: false);
+    if (rows.isEmpty) return;
+    await _db.transaction<void>((txn) async {
+      final batch = txn.batch();
+      for (final gap in rows) {
+        batch.insert(
+          'gap',
+          gap.toRow(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  @override
+  Future<List<StoredSample>> samplesInRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
+    int? limit,
+    bool ascending = true,
+  }) async {
+    final where = <String>['recorded_ms >= ?', 'recorded_ms < ?'];
+    final args = <Object?>[fromMs, toMs];
+    if (bridgeId != null) {
+      where.add('bridge_id = ?');
+      args.add(bridgeId);
+    }
+    if (generation != null) {
+      where.add('generation = ?');
+      args.add(generation);
+    }
+    final rows = await _db.query(
+      'sample',
+      where: where.join(' AND '),
+      whereArgs: args,
+      orderBy: 'recorded_ms ${ascending ? 'ASC' : 'DESC'}, seq ASC',
+      limit: limit,
+    );
+    return rows.map(StoredSample.fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<List<StoredSample>> newestSamples({
+    int limit = 1,
+    String? bridgeId,
+  }) async {
+    final rows = await _db.query(
+      'sample',
+      where: bridgeId == null ? null : 'bridge_id = ?',
+      whereArgs: bridgeId == null ? null : <Object?>[bridgeId],
+      orderBy: 'recorded_ms DESC, seq DESC',
+      limit: limit,
+    );
+    return rows.map(StoredSample.fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<int> countSamples({
+    String? bridgeId,
+    int? generation,
+    int? fromMs,
+    int? toMs,
+  }) async {
+    final where = <String>[];
+    final args = <Object?>[];
+    if (bridgeId != null) {
+      where.add('bridge_id = ?');
+      args.add(bridgeId);
+    }
+    if (generation != null) {
+      where.add('generation = ?');
+      args.add(generation);
+    }
+    if (fromMs != null) {
+      where.add('recorded_ms >= ?');
+      args.add(fromMs);
+    }
+    if (toMs != null) {
+      where.add('recorded_ms < ?');
+      args.add(toMs);
+    }
+    final rows = await _db.rawQuery(
+      'SELECT COUNT(*) AS count FROM sample'
+      '${where.isEmpty ? '' : ' WHERE ${where.join(' AND ')}'}',
+      args,
+    );
+    return (rows.first['count'] as int?) ?? 0;
+  }
+
+  @override
+  Future<SampleExtent?> extent({String? bridgeId, int? generation}) async {
+    final where = <String>[];
+    final args = <Object?>[];
+    if (bridgeId != null) {
+      where.add('bridge_id = ?');
+      args.add(bridgeId);
+    }
+    if (generation != null) {
+      where.add('generation = ?');
+      args.add(generation);
+    }
+    final rows = await _db.rawQuery('''
+      SELECT COUNT(*) AS count,
+             MIN(seq) AS min_seq,
+             MAX(seq) AS max_seq,
+             MIN(recorded_ms) AS min_ms,
+             MAX(recorded_ms) AS max_ms
+      FROM sample
+      ${where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}'}
+      ''', args);
+    final row = rows.first;
+    final count = (row['count'] as int?) ?? 0;
+    if (count == 0) return null;
+    return SampleExtent(
+      count: count,
+      minSeq: row['min_seq']! as int,
+      maxSeq: row['max_seq']! as int,
+      minRecordedMs: row['min_ms']! as int,
+      maxRecordedMs: row['max_ms']! as int,
+    );
+  }
+
+  @override
+  Future<List<StoredGap>> gaps({String? bridgeId, int? generation}) async {
+    final where = <String>[];
+    final args = <Object?>[];
+    if (bridgeId != null) {
+      where.add('bridge_id = ?');
+      args.add(bridgeId);
+    }
+    if (generation != null) {
+      where.add('generation = ?');
+      args.add(generation);
+    }
+    final rows = await _db.query(
+      'gap',
+      where: where.isEmpty ? null : where.join(' AND '),
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: 'generation ASC, from_seq ASC',
+    );
+    return rows.map(StoredGap.fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<HistoryDeletion> deleteRange({
+    required int fromMs,
+    required int toMs,
+    String? bridgeId,
+    int? generation,
+  }) async {
+    return _db.transaction<HistoryDeletion>((txn) async {
+      final groupWhere = <String>['recorded_ms >= ?', 'recorded_ms < ?'];
+      final groupArgs = <Object?>[fromMs, toMs];
+      if (bridgeId != null) {
+        groupWhere.add('bridge_id = ?');
+        groupArgs.add(bridgeId);
+      }
+      if (generation != null) {
+        groupWhere.add('generation = ?');
+        groupArgs.add(generation);
+      }
+      final groups = await txn.rawQuery('''
+        SELECT bridge_id, generation, MIN(seq) AS min_seq, MAX(seq) AS max_seq
+        FROM sample
+        WHERE ${groupWhere.join(' AND ')}
+        GROUP BY bridge_id, generation
+        ''', groupArgs);
+
+      var gapsDeleted = 0;
+      var gapsTrimmed = 0;
+      final touchedRows = <int>{};
+
+      for (final group in groups) {
+        final groupBridge = group['bridge_id']! as String;
+        final groupGeneration = group['generation']! as int;
+        final minSeq = group['min_seq']! as int;
+        final maxSeq = group['max_seq']! as int;
+        final overlapping = await txn.rawQuery(
+          '''
+          SELECT rowid AS row_id, from_seq, to_seq, reason, detected_ms
+          FROM gap
+          WHERE bridge_id = ? AND generation = ?
+            AND from_seq <= ? AND to_seq >= ?
+          ''',
+          <Object?>[groupBridge, groupGeneration, maxSeq, minSeq],
+        );
+        for (final gap in overlapping) {
+          final rowId = gap['row_id']! as int;
+          final fromSeq = gap['from_seq']! as int;
+          final toSeq = gap['to_seq']! as int;
+          final leftRemains = fromSeq < minSeq;
+          final rightRemains = toSeq > maxSeq;
+          if (leftRemains && rightRemains) {
+            await txn.update(
+              'gap',
+              <String, Object?>{'to_seq': minSeq - 1},
+              where: 'rowid = ?',
+              whereArgs: <Object?>[rowId],
+            );
+            await txn.insert('gap', <String, Object?>{
+              'bridge_id': groupBridge,
+              'generation': groupGeneration,
+              'from_seq': maxSeq + 1,
+              'to_seq': toSeq,
+              'reason': gap['reason'],
+              'detected_ms': gap['detected_ms'],
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
+            gapsTrimmed++;
+            touchedRows.add(rowId);
+          } else if (leftRemains) {
+            await txn.update(
+              'gap',
+              <String, Object?>{'to_seq': minSeq - 1},
+              where: 'rowid = ?',
+              whereArgs: <Object?>[rowId],
+            );
+            gapsTrimmed++;
+            touchedRows.add(rowId);
+          } else if (rightRemains) {
+            await txn.delete(
+              'gap',
+              where: 'rowid = ?',
+              whereArgs: <Object?>[rowId],
+            );
+            await txn.insert('gap', <String, Object?>{
+              'bridge_id': groupBridge,
+              'generation': groupGeneration,
+              'from_seq': maxSeq + 1,
+              'to_seq': toSeq,
+              'reason': gap['reason'],
+              'detected_ms': gap['detected_ms'],
+            });
+            gapsTrimmed++;
+            touchedRows.add(rowId);
+          } else {
+            await txn.delete(
+              'gap',
+              where: 'rowid = ?',
+              whereArgs: <Object?>[rowId],
+            );
+            gapsDeleted++;
+            touchedRows.add(rowId);
+          }
+        }
+      }
+
+      final deleteWhere = <String>['recorded_ms >= ?', 'recorded_ms < ?'];
+      final deleteArgs = <Object?>[fromMs, toMs];
+      if (bridgeId != null) {
+        deleteWhere.add('bridge_id = ?');
+        deleteArgs.add(bridgeId);
+      }
+      if (generation != null) {
+        deleteWhere.add('generation = ?');
+        deleteArgs.add(generation);
+      }
+      final samplesDeleted = await txn.delete(
+        'sample',
+        where: deleteWhere.join(' AND '),
+        whereArgs: deleteArgs,
+      );
+
+      final gapWhere = <String>['detected_ms >= ?', 'detected_ms < ?'];
+      final gapArgs = <Object?>[fromMs, toMs];
+      if (bridgeId != null) {
+        gapWhere.add('bridge_id = ?');
+        gapArgs.add(bridgeId);
+      }
+      if (generation != null) {
+        gapWhere.add('generation = ?');
+        gapArgs.add(generation);
+      }
+      if (touchedRows.isNotEmpty) {
+        gapWhere.add(
+          'rowid NOT IN (${List.filled(touchedRows.length, '?').join(',')})',
+        );
+        gapArgs.addAll(touchedRows);
+      }
+      gapsDeleted += await txn.delete(
+        'gap',
+        where: gapWhere.join(' AND '),
+        whereArgs: gapArgs,
+      );
+
+      return HistoryDeletion(
+        samplesDeleted: samplesDeleted,
+        gapsDeleted: gapsDeleted,
+        gapsTrimmed: gapsTrimmed,
+      );
+    });
+  }
+
+  @override
+  Future<SavedBridge?> savedBridge() async {
+    final rows = await _db.query(
+      'bridge',
+      orderBy: 'last_seen_ms DESC, id ASC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return SavedBridge.fromRow(rows.first);
+  }
+
+  @override
+  Future<SavedBridge?> bridgeById(String id) async {
+    final rows = await _db.query(
+      'bridge',
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return SavedBridge.fromRow(rows.first);
+  }
+
+  @override
+  Future<void> saveBridge(SavedBridge bridge) async {
+    await _db.insert(
+      'bridge',
+      bridge.toRow(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  @override
+  Future<void> touchBridge({
+    required String id,
+    required String name,
+    required int lastSeenMs,
+    int? generation,
+  }) async {
+    await _db.transaction<void>((txn) async {
+      await txn.rawInsert(
+        '''
+        INSERT OR IGNORE INTO bridge (id, name, last_seen_ms, generation)
+        VALUES (?, ?, ?, ?)
+        ''',
+        <Object?>[id, name, lastSeenMs, generation ?? 0],
+      );
+      await txn.rawUpdate(
+        '''
+        UPDATE bridge SET
+          name = ?,
+          last_seen_ms = ?,
+          generation = COALESCE(?, generation)
+        WHERE id = ?
+        ''',
+        <Object?>[name, lastSeenMs, generation, id],
+      );
+    });
+  }
+
+  @override
+  Future<bool> removeBridge(String id) async {
+    final deleted = await _db.delete(
+      'bridge',
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
+    );
+    return deleted > 0;
+  }
+
+  @override
+  Future<int> removeAllBridges() => _db.delete('bridge');
+
+  @override
+  Future<void> close() => _appDatabase.close();
+}

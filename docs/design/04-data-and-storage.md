@@ -476,6 +476,18 @@ recorded_ms = sync_wall_ms - (device_max_seq - seq) * 30000
 The estimate is for axis placement only; the app never claims the time is exact.
 A real device time is stored as-is and `time_estimated = 0`.
 
+Implementation note (T40): the schema is schema version 2 in
+`app/lib/data/db/app_database.dart`; version 1 was the empty T05 open path and
+is migrated in place. `app/lib/data/db/sample_dao.dart` owns the DAO over the
+fixed tables. Batch writes run in one transaction, insert with `INSERT OR
+IGNORE`, and only upgrade an existing estimated row when a later batch carries a
+real device clock; a worse duplicate never replaces a row. Range and count
+queries use `recorded_ms` with a half-open `[from, to)` window. Deletion removes
+samples in that window, removes gaps detected inside it, and trims/removes gaps
+that overlap the deleted sequence extent. The saved connection is the `bridge`
+row; forgetting it deletes only that row and leaves `sample`/`gap` readable as
+orphaned history. See ADR 0045.
+
 ## 4.8 Retention and deletion
 
 ### Bridge
