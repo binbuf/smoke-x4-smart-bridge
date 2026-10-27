@@ -333,6 +333,25 @@ class BridgeLink {
     BridgeInfo? info,
     required bool firstSync,
   }) async {
+    try {
+      return await _prepareLinkUnsafe(info: info, firstSync: firstSync);
+    } on BleException catch (error) {
+      // A transport/GATT failure is a named procedure failure. Letting the raw
+      // client exception escape used to fall through to the setup "no results"
+      // page, which looked like the device had vanished.
+      throw BridgeLinkException(
+        _isBondRequired(error)
+            ? BridgeLinkFailure.bondRequired
+            : BridgeLinkFailure.operationFailed,
+        error.message,
+      );
+    }
+  }
+
+  Future<BridgeInfo> _prepareLinkUnsafe({
+    BridgeInfo? info,
+    required bool firstSync,
+  }) async {
     final bridgeInfo =
         info ?? BridgeInfo.decode(await client.read(bleInfoCharacteristicUuid));
     _info = bridgeInfo;

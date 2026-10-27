@@ -70,10 +70,7 @@ void main() {
     expect(find.text('Bridge'), findsOneWidget);
     expect(find.text('Smoke X4'), findsOneWidget);
     expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
-    expect(
-      find.text('Receiving readings · updated 12s ago'),
-      findsOneWidget,
-    );
+    expect(find.text('Receiving readings · updated 12s ago'), findsOneWidget);
     for (var probe = 1; probe <= 4; probe++) {
       expect(find.byKey(Key('live.probe.$probe')), findsOneWidget);
       expect(find.text('P$probe'), findsOneWidget);
@@ -100,10 +97,7 @@ void main() {
 
     expect(find.text('Bridge connected · 2h 14m'), findsOneWidget);
     expect(inProbe(1, find.text('Updated 62s ago')), findsOneWidget);
-    expect(
-      find.text('Receiving readings · updated 1m ago'),
-      findsOneWidget,
-    );
+    expect(find.text('Receiving readings · updated 1m ago'), findsOneWidget);
   });
 
   testWidgets('stale X4 telemetry keeps the Bridge row connected', (
@@ -135,12 +129,31 @@ void main() {
         ),
     );
 
-    expect(
-      find.text('Smoke X4 signal lost · 14 min ago'),
-      findsOneWidget,
-    );
+    expect(find.text('Smoke X4 signal lost · 14 min ago'), findsOneWidget);
     expect(find.text('No data from Smoke X4'), findsOneWidget);
     expect(find.text('Troubleshoot'), findsOneWidget);
+  });
+
+  testWidgets('an unpaired X4 gets a guided pairing action', (tester) async {
+    await pumpLive(
+      tester,
+      drive: (session) => healthy(session)
+        ..driveLiveState(
+          smokeXStatus: SmokeXStatus.unpaired,
+          probePresence: ProbePresence.none,
+        ),
+    );
+
+    expect(find.byKey(const Key('live.smokeXUnpaired')), findsOneWidget);
+    expect(find.text('Pair the Smoke X4'), findsOneWidget);
+    expect(find.text('Show pairing steps'), findsOneWidget);
+    expect(find.textContaining('no Smoke X4 is paired yet'), findsOneWidget);
+
+    await tester.tap(find.text('Show pairing steps'));
+    await tester.pumpAndSettle();
+    expect(find.text('Put the Smoke X4 into SYNC mode.'), findsOneWidget);
+    expect(find.textContaining('No reset is needed'), findsOneWidget);
+    expect(find.text('Got it'), findsOneWidget);
   });
 
   testWidgets('a detached probe is a dash and Not connected, never zero', (
@@ -159,8 +172,8 @@ void main() {
   ) async {
     await pumpLive(
       tester,
-      drive: (session) => healthy(session)
-        ..driveLiveState(probePresence: ProbePresence.none),
+      drive: (session) =>
+          healthy(session)..driveLiveState(probePresence: ProbePresence.none),
     );
 
     for (var probe = 1; probe <= 4; probe++) {
@@ -176,8 +189,8 @@ void main() {
   ) async {
     await pumpLive(
       tester,
-      drive: (session) => healthy(session)
-        ..driveLiveState(phase: ConnectionPhase.offline),
+      drive: (session) =>
+          healthy(session)..driveLiveState(phase: ConnectionPhase.offline),
     );
 
     expect(
@@ -199,10 +212,7 @@ void main() {
     await pumpLive(
       tester,
       drive: (session) => healthy(session)
-        ..driveLiveState(
-          phase: ConnectionPhase.offline,
-          offlineCache: false,
-        ),
+        ..driveLiveState(phase: ConnectionPhase.offline, offlineCache: false),
     );
 
     expect(
@@ -221,12 +231,13 @@ void main() {
   ) async {
     await pumpLive(
       tester,
-      drive: (session) => healthy(session)..driveLiveState(
-        phase: ConnectionPhase.syncing,
-        syncState: SyncState.recent,
-        syncProgressPercent: 35,
-        slowLink: true,
-      ),
+      drive: (session) => healthy(session)
+        ..driveLiveState(
+          phase: ConnectionPhase.syncing,
+          syncState: SyncState.recent,
+          syncProgressPercent: 35,
+          slowLink: true,
+        ),
     );
 
     expect(find.byKey(const Key('live.sync')), findsOneWidget);
@@ -264,16 +275,13 @@ void main() {
   ) async {
     await pumpLive(
       tester,
-      drive: (session) => healthy(session)
-        ..driveLiveState(syncState: SyncState.error),
+      drive: (session) =>
+          healthy(session)..driveLiveState(syncState: SyncState.error),
     );
 
     expect(find.text('History sync failed'), findsOneWidget);
     expect(find.text('Retry sync'), findsOneWidget);
-    expect(
-      find.text('Receiving readings · updated 12s ago'),
-      findsOneWidget,
-    );
+    expect(find.text('Receiving readings · updated 12s ago'), findsOneWidget);
     expect(inProbe(1, find.text('225.0°F')), findsOneWidget);
   });
 

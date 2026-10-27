@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "ble_service.h"
 #include "board.h"
 #include "bridge_state.h"
 #include "esp_log.h"
@@ -63,6 +64,10 @@ static void housekeeping_task(void *argument) {
         }
 
         (void)bridge_state_tick();
+        /* Discovery watchdog: idle+synced must always be advertising. This
+         * recovers from a missed disconnect/timeout event without extending
+         * the fast interval window. */
+        ble_service_keep_advertising();
         vTaskDelay(pdMS_TO_TICKS(HOUSEKEEPING_TICK_MS));
     }
 }

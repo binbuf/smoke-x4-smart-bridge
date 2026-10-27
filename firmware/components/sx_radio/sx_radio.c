@@ -15,6 +15,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "bridge_config.h"
@@ -115,12 +116,20 @@ static const sx4_radio_pair_io_t s_pair_io = {
 
 static void log_payload(const uint8_t *payload, uint8_t length) {
     char text[SX4_RADIO_MAX_PAYLOAD + 1];
+    char hex[SX4_RADIO_MAX_PAYLOAD * 3u + 1u];
+    size_t pos = 0;
     for (uint8_t i = 0; i < length; i++) {
         uint8_t byte = payload[i];
         text[i] = (byte >= 0x20 && byte <= 0x7e) ? (char)byte : '.';
+        int written = snprintf(&hex[pos], sizeof(hex) - pos, "%02X ", byte);
+        if (written <= 0) {
+            break;
+        }
+        pos += (size_t)written;
     }
     text[length] = '\0';
-    ESP_LOGI(TAG, "payload=\"%s\"", text);
+    hex[pos] = '\0';
+    ESP_LOGI(TAG, "payload=\"%s\" hex=%s", text, hex);
 }
 
 /* Copy the radio FIFO without allocating. Returns the payload length, or 0. */
@@ -171,8 +180,10 @@ static void radio_task(void *argument) {
                     (void)sx4_radio_pair_on_packet(payload, length,
                                                    pair_now_ms());
                     if (sx4_radio_rx_publish(payload, length, rssi, snr)) {
-                        ESP_LOGI(TAG, "rx len=%u rssi=%d snr=%d", length,
-                                 rssi, snr);
+                        ESP_LOGI(TAG,
+                                 "rx len=%u rssi=%d snr=%d freq=%lu", length,
+                                 rssi, snr,
+                                 (unsigned long)sx_radio_frequency());
                         log_payload(payload, length);
                     } else {
                         ESP_LOGW(TAG,
@@ -213,17 +224,30 @@ esp_err_t sx_radio_init(void) {
     }
 
     SetSyncWord(sx4_radio_params.sync_word);
+
+    /* Read back what the radio actually latched. A mismatch here is a deaf
+     * receiver even though LoRaBegin() and SetRx() both look healthy. */
+    uint8_t sync_read[2] = {0, 0};
+    ReadRegister(SX126X_REG_LORA_SYNC_WORD_MSB, sync_read, 2);
+    uint16_t sync_actual = (uint16_t)((sync_read[0] << 8) | sync_read[1]);
+    if (sync_actual != (uint16_t)sx4_radio_params.sync_word) {
+        ESP_LOGE(TAG, "sync word mismatch: wrote 0x%04x read 0x%04x",
+                 (unsigned)sx4_radio_params.sync_word, (unsigned)sync_actual);
+        return ESP_FAIL;
+    }
+
     LoRaConfig(sx4_radio_params.spreading_factor,
                sx4_radio_params.bandwidth_index, sx4_radio_params.coding_rate,
                sx4_radio_params.preamble_symbols, 0, sx4_radio_params.crc_on,
                false);
 
     s_configured = true;
-    ESP_LOGI(TAG, "configured: SF%u BW%u CR0x%02x preamble=%u sync=0x%02x "
+    ESP_LOGI(TAG, "configured: SF%u BW%u CR0x%02x preamble=%u sync=0x%04x "
                   "crc=%d tcxo=%.1fV ldo=%d freq=%lu",
              sx4_radio_params.spreading_factor,
              sx4_radio_params.bandwidth_index, sx4_radio_params.coding_rate,
-             sx4_radio_params.preamble_symbols, sx4_radio_params.sync_word,
+             sx4_radio_params.preamble_symbols,
+             (unsigned)sx4_radio_params.sync_word,
              sx4_radio_params.crc_on ? 1 : 0,
              (double)sx4_radio_params.tcxo_voltage,
              sx4_radio_params.use_regulator_ldo ? 1 : 0,

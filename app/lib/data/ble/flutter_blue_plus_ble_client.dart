@@ -34,7 +34,7 @@ class FlutterBluePlusBleClient implements BleClient {
       <String, StreamController<Uint8List>>{};
   final Map<String, StreamSubscription<List<int>>> _notificationSubscriptions =
       <String, StreamSubscription<List<int>>>{};
-  final Set<String> _seenScanIds = <String>{};
+  final Map<String, _ScanSnapshot> _lastScanResults = <String, _ScanSnapshot>{};
 
   fbp.BluetoothDevice? _device;
   BleDevice? _connectedDevice;
@@ -146,7 +146,7 @@ class FlutterBluePlusBleClient implements BleClient {
         if (!status.canScan) {
           throw exceptionForBleAppState(status.state);
         }
-        _seenScanIds.clear();
+        _lastScanResults.clear();
         await fbp.FlutterBluePlus.startScan(
           // Scan unfiltered and filter in Dart. Android's platform service
           // filter can drop a connectable advertisement whose 128-bit UUID is
@@ -157,12 +157,17 @@ class FlutterBluePlusBleClient implements BleClient {
         );
         _scanSubscription = fbp.FlutterBluePlus.onScanResults.listen(
           (results) {
+            // The plugin re-emits the whole list. A device can appear first in
+            // the primary advertisement and only gain its name/manufacturer
+            // block when the scan response arrives, so emit an update rather
+            // than dropping every later report for that address.
             for (final result in results) {
-              final id = result.device.remoteId.str;
-              if (!_seenScanIds.add(id)) continue;
-              if (!controller.isClosed) {
-                controller.add(_toBleDevice(result));
-              }
+              final device = _toBleDevice(result);
+              final previous = _lastScanResults[device.id];
+              final next = _ScanSnapshot.of(device);
+              if (previous == next) continue;
+              _lastScanResults[device.id] = next;
+              if (!controller.isClosed) controller.add(device);
             }
           },
           onError: (Object error, StackTrace stack) {
@@ -236,49 +241,90 @@ class FlutterBluePlusBleClient implements BleClient {
     await stopScan();
     _setConnection(BleConnectionState.connecting);
     try {
-      final target = fbp.BluetoothDevice.fromId(device.id);
-      await target.connect(timeout: timeout, mtu: null);
-      _device = target;
-      _connectedDevice = device;
-      _negotiatedMtu = bleDefaultMtu;
-      diagnostics.negotiatedMtu = _negotiatedMtu;
-      _connectionSubscription = target.connectionState.listen((state) {
-        if (state == fbp.BluetoothConnectionState.connected) {
-          _setConnection(BleConnectionState.connected);
-        } else if (state == fbp.BluetoothConnectionState.disconnected) {
-          _onLinkLost();
-        }
-      });
-      _bondSubscription = target.bondState.listen((state) {
-        switch (state) {
-          case fbp.BluetoothBondState.bonded:
-            _setBond(BleBondState.bonded);
-          case fbp.BluetoothBondState.bonding:
-            _setBond(BleBondState.bonding);
-          case fbp.BluetoothBondState.none:
-            if (_bondState != BleBondState.failed &&
-                _bondState != BleBondState.wrongPasskey) {
-              _setBond(BleBondState.none);
-            }
-        }
-      });
-      await target.discoverServices();
-      _setConnection(BleConnectionState.connected);
-      diagnostics.record('connected to ${device.id}');
+      await _connectOnce(device, timeout);
     } catch (error) {
-      final mapped = mapBlePlatformError(
+      var mapped = mapBlePlatformError(
         error,
         operation: BleOperation.connect,
       );
+      // Android frequently reports GATT status 133 for the first attempt
+      // immediately after a scan stops. One short, sequential retry is the
+      // documented workaround and does not mask a real permission, bond, or
+      // range failure (those map to other failures).
+      if (mapped.failure == BleFailure.connectionFailed ||
+          mapped.failure == BleFailure.failed) {
+        diagnostics.record(
+          'connect failed (${mapped.failure.name}); retrying once',
+          level: BleLogLevel.warning,
+          failure: mapped.failure,
+        );
+        await _dropConnection();
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        try {
+          await _connectOnce(device, timeout);
+          diagnostics.record('connected to ${device.id} (retry)');
+          return;
+        } catch (retryError) {
+          mapped = mapBlePlatformError(
+            retryError,
+            operation: BleOperation.connect,
+          );
+        }
+      }
       diagnostics.record(
         'connect failed (${mapped.failure.name})',
         level: BleLogLevel.error,
         failure: mapped.failure,
       );
-      await _cleanupLink();
+      await _dropConnection();
       _setConnection(BleConnectionState.disconnected);
       throw mapped;
     }
+  }
+
+  /// Best-effort teardown after a partially successful connect (for example,
+  /// GATT discovery failed). Leaving the OS link up would occupy the bridge's
+  /// single connection slot and make the next attempt fail.
+  Future<void> _dropConnection() async {
+    try {
+      await _device?.disconnect();
+    } catch (_) {
+      // Best effort only; the state reset below is what the app relies on.
+    }
+    await _cleanupLink();
+  }
+
+  Future<void> _connectOnce(BleDevice device, Duration timeout) async {
+    final target = fbp.BluetoothDevice.fromId(device.id);
+    await target.connect(timeout: timeout, mtu: null);
+    _device = target;
+    _connectedDevice = device;
+    _negotiatedMtu = bleDefaultMtu;
+    diagnostics.negotiatedMtu = _negotiatedMtu;
+    _connectionSubscription = target.connectionState.listen((state) {
+      if (state == fbp.BluetoothConnectionState.connected) {
+        _setConnection(BleConnectionState.connected);
+      } else if (state == fbp.BluetoothConnectionState.disconnected) {
+        _onLinkLost();
+      }
+    });
+    _bondSubscription = target.bondState.listen(_applyBondState);
+    // The stream's first value is the OS bond state, but it is delivered
+    // asynchronously. Wait for it before returning so a reconnect with a stored
+    // bond never races into the "bond first" path (which has no prompt surface
+    // outside setup).
+    try {
+      final initialBond = await target.bondState.first.timeout(
+        const Duration(seconds: 3),
+      );
+      _applyBondState(initialBond);
+    } catch (_) {
+      // An OS that cannot report the bond state is treated as not bonded; the
+      // procedure then takes the explicit bond path once.
+    }
+    await target.discoverServices();
+    _setConnection(BleConnectionState.connected);
+    diagnostics.record('connected to ${device.id}');
   }
 
   @override
@@ -581,6 +627,22 @@ class FlutterBluePlusBleClient implements BleClient {
     if (!_bondController.isClosed) _bondController.add(state);
   }
 
+  void _applyBondState(fbp.BluetoothBondState state) {
+    switch (state) {
+      case fbp.BluetoothBondState.bonded:
+        _setBond(BleBondState.bonded);
+      case fbp.BluetoothBondState.bonding:
+        _setBond(BleBondState.bonding);
+      case fbp.BluetoothBondState.none:
+        // A just-finished attempt keeps its named failure so the UI does not
+        // lose "wrong code" as the OS settles back to none.
+        if (_bondState != BleBondState.failed &&
+            _bondState != BleBondState.wrongPasskey) {
+          _setBond(BleBondState.none);
+        }
+    }
+  }
+
   BleDevice _toBleDevice(fbp.ScanResult result) {
     final data = result.advertisementData;
     Uint8List? manufacturerData;
@@ -705,6 +767,41 @@ BlePermissionState _worstPermission(
     return BlePermissionState.notDetermined;
   }
   return BlePermissionState.granted;
+}
+
+/// The fields a later scan report may improve on. RSSI is deliberately not
+/// included: it changes constantly, and the results list only needs identity,
+/// name, service UUIDs and the manufacturer preview.
+class _ScanSnapshot {
+  const _ScanSnapshot({
+    required this.name,
+    required this.serviceUuids,
+    required this.manufacturerData,
+  });
+
+  factory _ScanSnapshot.of(BleDevice device) {
+    return _ScanSnapshot(
+      name: device.name,
+      serviceUuids: device.serviceUuids.join(','),
+      manufacturerData: device.manufacturerData == null
+          ? ''
+          : device.manufacturerData!.join(','),
+    );
+  }
+
+  final String name;
+  final String serviceUuids;
+  final String manufacturerData;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ScanSnapshot &&
+      other.name == name &&
+      other.serviceUuids == serviceUuids &&
+      other.manufacturerData == manufacturerData;
+
+  @override
+  int get hashCode => Object.hash(name, serviceUuids, manufacturerData);
 }
 
 class _PhoneInfo {

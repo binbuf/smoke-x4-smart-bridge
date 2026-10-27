@@ -416,11 +416,16 @@ static void render_probes(ui_framebuffer_t *fb,
              (snapshot->x4_age_s <= UI_LIVE_TIMEOUT_S) ? GLYPH_DOT_FILLED
                                                        : GLYPH_DOT_HOLLOW);
     char right[12];
+    /* Small blinking "BT" while the bridge is advertising and no phone is
+     * connected, so the OLED says it is looking even on an idle page. */
+    const char *bt =
+        (snapshot->ble_advertising && snapshot->ble_blink_on) ? " BT" : "";
     if (snapshot->battery_pct == UI_BATTERY_UNKNOWN) {
-        snprintf(right, sizeof(right), "%s%s", s_em_dash,
+        snprintf(right, sizeof(right), "%s%s%s", s_em_dash, bt,
                  snapshot->storage_ok ? "" : " !");
     } else {
-        snprintf(right, sizeof(right), "%u%%%s", (unsigned)snapshot->battery_pct,
+        snprintf(right, sizeof(right), "%u%%%s%s",
+                 (unsigned)snapshot->battery_pct, bt,
                  snapshot->storage_ok ? "" : " !");
     }
     ui_fb_row_lr(fb, 7, strip, right);

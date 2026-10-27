@@ -18,7 +18,7 @@ static void check_parameter_block(void) {
     CHECK_EQ_UINT(sx4_radio_params.bandwidth_index, 4u);
     CHECK_EQ_UINT(sx4_radio_params.coding_rate, 0x01u);
     CHECK_EQ_UINT(sx4_radio_params.preamble_symbols, 10u);
-    CHECK_EQ_UINT(sx4_radio_params.sync_word, 0x12u);
+    CHECK_EQ_UINT(sx4_radio_params.sync_word, 0x1424u);
     CHECK(sx4_radio_params.crc_on);
     CHECK(sx4_radio_params.tcxo_voltage > 3.29f &&
           sx4_radio_params.tcxo_voltage < 3.31f);

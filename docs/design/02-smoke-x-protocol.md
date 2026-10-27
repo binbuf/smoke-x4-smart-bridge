@@ -24,10 +24,17 @@ is not part of this contract.
 | Bandwidth | 125 kHz (SX126x driver index 4) | [K] |
 | Coding rate | 4/5 | [K] |
 | Preamble | 10 symbols | [K] |
-| Sync word | `0x12` | [K] |
+| Sync word | `0x12` (SX126x register value `0x1424`) | [K] |
 | CRC | on | [K] |
 | Payload | ASCII CSV, trailing comma, no terminator | [K] |
 | Max observed length | ~120 bytes | [I] |
+
+The "sync word 0x12" above is the SX127x-era private byte. On the SX1262 it is
+programmed as the 16-bit private sync word `0x1424`; the driver default is
+already `0x1424`. Writing the bare byte `0x12` makes the receiver look for
+`0x0012` and it never matches a real packet (the radio tunes and reports a
+healthy state, but stays deaf). The T10 probe, which captured a real X4 on this
+board, never called `SetSyncWord()` and therefore used the `0x1424` default.
 
 The payload is unencrypted and unauthenticated. Anyone within range with an
 SX1262 can read probe temperatures and could forge packets. That is a property

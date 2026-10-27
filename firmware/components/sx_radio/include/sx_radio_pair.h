@@ -36,7 +36,10 @@ extern "C" {
 /* Longest stored device ID (7 wire chars in the capture) plus NUL. */
 #define SX4_PAIR_DEVICE_ID_MAX 16u
 
-/* Unpaired scan alternates these two sync channels. */
+/* Unpaired scan alternates these two sync channels (design 02 section 2.7).
+ * The X4 beacons on 915.0 MHz; 920.0 MHz covers the X2 defensively. Do not
+ * add operating channels here: the beacon only carries the operating
+ * frequency, it is never transmitted on it. */
 #define SX4_PAIR_SYNC_CHANNEL_A_HZ 915000000u
 #define SX4_PAIR_SYNC_CHANNEL_B_HZ 920000000u
 #define SX4_PAIR_SCAN_INTERVAL_MS 3300u

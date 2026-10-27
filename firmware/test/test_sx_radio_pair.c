@@ -157,6 +157,16 @@ static void check_scan_alternation(void) {
     CHECK_EQ_UINT(sx4_radio_pair_scan_frequency_hz(), 915000000u);
     CHECK_EQ_UINT(fake.tuned_hz, 915000000u);
     CHECK_EQ_INT(fake.tune_calls, 3);
+
+    sx4_radio_pair_tick(9900);
+    CHECK_EQ_UINT(sx4_radio_pair_scan_frequency_hz(), 920000000u);
+    CHECK_EQ_UINT(fake.tuned_hz, 920000000u);
+    CHECK_EQ_INT(fake.tune_calls, 4);
+
+    sx4_radio_pair_tick(13200);
+    CHECK_EQ_UINT(sx4_radio_pair_scan_frequency_hz(), 915000000u);
+    CHECK_EQ_UINT(fake.tuned_hz, 915000000u);
+    CHECK_EQ_INT(fake.tune_calls, 5);
     CHECK_EQ_INT(fake.ack_calls, 0);
 }
 

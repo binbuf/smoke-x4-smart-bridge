@@ -78,7 +78,22 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (view.isConnected && !view.smokeXReceiving) ...[
+                    if (view.isConnected &&
+                        !view.smokeXReceiving &&
+                        view.smokeXStatus == SmokeXStatus.unpaired) ...[
+                      const SizedBox(height: 10),
+                      InlineNotice(
+                        key: const Key('live.smokeXUnpaired'),
+                        icon: Icons.sensors_off_outlined,
+                        color: StatusColors.aging(context),
+                        title: 'Pair the Smoke X4',
+                        message: 'The Bridge is connected, but no Smoke X4 is paired yet. Put the Smoke X4 in SYNC mode, then hold its button until it beeps.',
+                        action: TextButton(
+                          onPressed: () => _showSmokeXHelp(context),
+                          child: const Text('Show pairing steps'),
+                        ),
+                      ),
+                    ] else if (view.isConnected && !view.smokeXReceiving) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         icon: Icons.sensors_off_outlined,
@@ -201,31 +216,93 @@ class LiveScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pair the Smoke X4',
-              style: Theme.of(context).textTheme.headlineSmall,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pair the Smoke X4',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              const _PairingStep(
+                number: '1',
+                text: 'Put the Smoke X4 into SYNC mode.',
+              ),
+              const _PairingStep(
+                number: '2',
+                text: 'Hold its button until it beeps.',
+              ),
+              const _PairingStep(
+                number: '3',
+                text: 'Keep it near the Bridge while the pairing is confirmed.',
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'No reset is needed. Pairing the X4 keeps the Bridge’s history, settings, and phone pairings.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Got it'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PairingStep extends StatelessWidget {
+  const _PairingStep({required this.number, required this.text});
+
+  final String number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(height: 12),
-            const Text('1. Put the Smoke X4 into SYNC mode.'),
-            const SizedBox(height: 6),
-            const Text('2. Hold its button until it beeps.'),
-            const SizedBox(height: 6),
-            const Text('3. The Bridge confirms the pairing.'),
-            const SizedBox(height: 16),
-            Text(
-              'Re-pairing doesn’t delete history on the Bridge or remove paired phones.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+            child: Text(
+              number,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: scheme.primary,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(text),
+            ),
+          ),
+        ],
       ),
     );
   }

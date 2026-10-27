@@ -8,7 +8,10 @@ CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
 CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y
 
 # Vendored ra01s SX1262 driver (T12). Heltec V3 pin map from design 01 §1.2.
-CONFIG_FREQUENCY_915MHZ=y
+# The frequency choice is only the driver's menu default; sx_radio passes the
+# runtime frequency explicitly. Keep it valid so a fresh config does not fall
+# back to the Kconfig default of 433 MHz.
+CONFIG_915MHZ=y
 CONFIG_MISO_GPIO=11
 CONFIG_MOSI_GPIO=10
 CONFIG_SCLK_GPIO=9

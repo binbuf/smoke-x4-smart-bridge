@@ -110,6 +110,30 @@ no independent scanner was used in this session.
 | Packet counts vs expected, observed intervals and missed samples recorded | ⏳ T37 — `CADENCE-REPORT.md` must record packet count, expected count, min/mean/max interval, missing sequence numbers and missed samples. Not generated yet. | — |
 | RSSI range recorded; every gap > 90 s has a cause | ⏳ T37 — the report records RSSI min/mean/max and leaves the cause column for the sitting; **no gap observed or explained yet**. | — |
 
+### LoRa receive root cause and re-check (2026-10-27)
+
+The product image tuned the SX1262 and reported a healthy radio, but received
+nothing from a real X4. Root cause: `sx_radio_init()` called
+`SetSyncWord(0x12)`; the SX126x wants the 16-bit private sync word `0x1424`
+(`0x12` is the SX127x-era byte). The receiver therefore looked for `0x0012` and
+never matched a packet. The known-good T10 probe on this same board never called
+`SetSyncWord()` and used the `0x1424` default. The TCXO setting was also reverted
+from an unverified `1.8 V` back to the T10/legacy-proven `3.3 V`.
+
+After the fix, on the same board (ESP32-S3FN8, MAC `ac:a7:04:38:82:74`,
+operating channel 918.5 MHz, paired record persisted across reboot):
+
+- Four real X4 state frames at ≈28.0 / 58.3 / 88.6 / 118.9 s (30 s cadence),
+  RSSI −35 to −36 dBm, SNR 10–11, payload `LMXC[\` (26 commas), stored as
+  sequence 1–4.
+- Phone/app: `SmokeX4-8276` discovered, connected with the stored bond, `set_time`
+  and a 195-byte recent sync completed; Live showed P1 79.4 °F, P2 78.9 °F,
+  P3 79.5 °F, P4 79.3 °F, updated 22 s earlier, signal −35 dBm.
+
+Evidence: [`T37/lora-rx-after-syncword-fix.log`](../artifacts/bench/T37/lora-rx-after-syncword-fix.log),
+[`T37/lora-rx-ble-sync-after-fix.log`](../artifacts/bench/T37/lora-rx-ble-sync-after-fix.log).
+The formal T37 pairing/unpair, cadence and gap rows above are still open.
+
 ## BLE and app
 
 | Check | Result | Evidence |

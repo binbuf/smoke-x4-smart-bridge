@@ -92,6 +92,8 @@ typedef struct {
     uint8_t attached_mask; /* bit 0..3 */
     int16_t temp_f10[4];   /* canonical Fahrenheit tenths, or a sentinel */
     bool app_connected;    /* false = advertising */
+    bool ble_advertising;  /* idle and looking for a phone */
+    bool ble_blink_on;     /* caller toggles ~2 Hz for the discovery icon */
     bool storage_ok;
     uint8_t battery_pct;   /* UI_BATTERY_UNKNOWN when unknown */
     uint16_t battery_mv;

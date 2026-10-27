@@ -237,6 +237,26 @@ static void test_probes_page(void) {
     join_rows(rows, joined, sizeof(joined));
     CHECK_CONTAINS(joined, "\xE2\x80\x94");
     CHECK_NOT_CONTAINS(joined, "0%");
+
+    /* Idle + advertising shows a blinking BT mark; the off phase removes it
+     * and a connected bridge never shows it. */
+    s = full_snapshot();
+    s.app_connected = false;
+    s.ble_advertising = true;
+    s.ble_blink_on = true;
+    ui_render_page(&fb, UI_PAGE_PROBES, &s);
+    extract_rows(&fb, rows);
+    CHECK_CONTAINS(rows[7], "BT");
+    s.ble_blink_on = false;
+    ui_render_page(&fb, UI_PAGE_PROBES, &s);
+    extract_rows(&fb, rows);
+    CHECK_NOT_CONTAINS(rows[7], "BT");
+    s.app_connected = true;
+    s.ble_advertising = false;
+    s.ble_blink_on = true;
+    ui_render_page(&fb, UI_PAGE_PROBES, &s);
+    extract_rows(&fb, rows);
+    CHECK_NOT_CONTAINS(rows[7], "BT");
 }
 
 static void test_connection_and_billows(void) {
