@@ -74,7 +74,7 @@ end-to-end build.
 - [x] T33 — app: setup and passkey flow → [tasks/33-app-setup-passkey-flow.md](tasks/33-app-setup-passkey-flow.md)
 - [x] T34 — app: Live screen → [tasks/34-app-live-screen.md](tasks/34-app-live-screen.md)
 - [x] T35 — app: link procedures and time sync → [tasks/35-app-link-procedures-time-sync.md](tasks/35-app-link-procedures-time-sync.md) ⟵ accepted
-- [~] T36 — app: recent History (V0) → [tasks/36-app-recent-history-v0.md](tasks/36-app-recent-history-v0.md) ⟵ running
+- [x] T36 — app: recent History (V0) → [tasks/36-app-recent-history-v0.md](tasks/36-app-recent-history-v0.md)
 - [ ] T37 — Bench: V0 end-to-end → [tasks/37-bench-v0-end-to-end.md](tasks/37-bench-v0-end-to-end.md)
 - [ ] T38 — Field observation: first normal cook on V0 → [tasks/38-field-observation-first-cook.md](tasks/38-field-observation-first-cook.md)
 
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T13:39:28Z · 34/67 done
+**Pipeline status** — updated 2026-10-27T14:02:13Z · 36/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36
 - Blocked: none
-- Failed: T35
-- Remaining: T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T35 — failed · timeout: wall-clock timeout
+- Failed: none
+- Remaining: T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T36 — done · Mounted the approved History shell on a real in-memory recent-sync store with four series, >90 s gap breaking, detached probes, empty/offline states, and 9 new tests; 141 tests pass. Real-phone bench check remains deferred to T37.
 <!-- /symphony:status -->
