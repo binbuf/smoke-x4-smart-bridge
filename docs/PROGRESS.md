@@ -31,6 +31,7 @@
 - **T29 — ble_service: control, result, and the clock**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_control.h`, `ble_control.c` —
 - **T30 — ble_service: security, passkey, and advertising**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_adv.h`, `ble_adv.c` — pure C11
 - **T31 — ble_service: sync status and recent records**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_sync.h`, `ble_sync.c` — pure C11:
+- **T32 - app: BLE client and scan**: **Date:** 2026-10-27 · **Verification:** host/CI + Android debug build · **Result:** done; `app/lib/data/ble/ble_client.dart`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -62,6 +63,7 @@
 - [T29](progress/T29.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T30](progress/T30.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T31](progress/T31.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
+- [T32](progress/T32.md) — **Date:** 2026-10-27 · **Verification:** host/CI + Android debug build · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/
