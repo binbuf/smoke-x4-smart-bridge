@@ -12,14 +12,14 @@ A subscribed phone receives the 20-byte live snapshot on every stored sample and
 - Depends on T27 and T21.
 
 ## Scope
-- [ ] Implement the pure encoder for the fixed **20-byte** `live` payload from the `bridge_state` snapshot.
-- [ ] Add the standard CCCD (`0x2902`) for `live` and require the encrypted security level (set by T30) for subscribing and reading.
-- [ ] Send a notification on every stored sample.
-- [ ] Send a notification whenever a `live.flags` bit changes: connection, pairing, Billows, clock, display, and sync start/end.
-- [ ] Implement the read fallback: a plain read returns the latest snapshot, not a queued value.
-- [ ] Feed notifications from a bounded queue/hand-off owned by `ble_tx`, not from the radio task; no dynamic allocation on the sample path.
-- [ ] Keep the payload at ≤20 B so it always fits an MTU 23 notification.
-- [ ] Add host tests for the 05 §5.4 byte vector and the required states: four attached, one detached, all detached, clock invalid, Billows attached.
+- [x] Implement the pure encoder for the fixed **20-byte** `live` payload from the `bridge_state` snapshot.
+- [x] Add the standard CCCD (`0x2902`) for `live` and require the encrypted security level (set by T30) for subscribing and reading.
+- [x] Send a notification on every stored sample.
+- [x] Send a notification whenever a `live.flags` bit changes: connection, pairing, Billows, clock, display, and sync start/end.
+- [x] Implement the read fallback: a plain read returns the latest snapshot, not a queued value.
+- [x] Feed notifications from a bounded queue/hand-off owned by `ble_tx`, not from the radio task; no dynamic allocation on the sample path.
+- [x] Keep the payload at ≤20 B so it always fits an MTU 23 notification.
+- [x] Add host tests for the 05 §5.4 byte vector and the required states: four attached, one detached, all detached, clock invalid, Billows attached.
 
 ## Out of scope
 - `info` and service registration → T27.
@@ -46,8 +46,63 @@ A subscribed phone receives the 20-byte live snapshot on every stored sample and
 - [x] A subscribed client receives one notification per stored sample and on every flag change. **Deferred to T37** for a real phone; the host notification vector is the gate now.
 - [x] The host test reproduces the 05 §5.4 vector byte for byte, plus the four-attached, one-detached, all-detached, clock-invalid, and Billows-attached cases.
 - [ ] A missed notification is recoverable by a sync from the log (verified in the bench pass with T31/T37).
-- [ ] The read fallback returns the same latest snapshot as the last notification.
-- [ ] Hand-off below filled in
+- [x] The read fallback returns the same latest snapshot as the last notification.
+- [x] Hand-off below filled in
 
 ## Hand-off
 _(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+### What landed
+- `ble_live.c/.h` — pure 20-byte `live` encoder over the generated `sx4_live_t`.
+  Detached probes are forced to `SX4_TEMP_DETACHED`; `seq = 0xFFFFFFFF` until a
+  stored sample; invalid Billows target → 0; reserved `billows_output` cleared.
+- `ble_tx_core.c/.h` — pure bounded 8-frame ring. It dedupes on the wire `seq`
+  and `flags` (one frame per stored sample and per flag transition), drops the
+  newest frame when full and exposes `queued`/`dropped`/`sent` counters.
+- `ble_tx.c` — the single writer task. `ble_tx_start()` creates it and installs
+  the `bridge_state` change hook; producers only encode + append under a short
+  critical section; the task calls `ble_gatts_notify_custom()`. A 1 s timeout
+  catches clock-driven `smoke_live` expiry. Subscribe clears stale frames and
+  primes with the current snapshot; disconnect clears.
+- `ble_service.c` — `live` read now returns the current `bridge_state_snapshot()`
+  through the same encoder; GAP CONNECT/DISCONNECT/SUBSCRIBE drive `ble_tx`;
+  CCCD/read encryption flags unchanged (NimBLE auto-CCCD).
+- `bridge_state` — additive `have_seq` on the sample/live snapshot and an
+  optional change hook that fires after sample publication, a real flag
+  transition and a successful `set_time`.
+- `boot.c` starts `ble_tx` before `ble_service`.
+- Tests: `firmware/test/test_ble_live.c` (`ble-live` CTest) plus a change-hook
+  case in `test_bridge_state.c`. Covers the 05 §5.4 vector byte-for-byte, the
+  four-attached/one-detached/all-detached/clock-invalid/Billows-attached states,
+  the no-sample sentinel, the reserved bit, one-frame-per-sample, every flag
+  transition, unchanged-snapshot dedupe and queue overflow.
+- Docs: design 05 §5.4 implementation rules, design 03 §3.14, ADR 0035,
+  `docs/progress/T28.md`.
+
+### Deviations
+- Added `have_seq` because the log's first stored sequence is legitimately 0, so
+  `seq == 0` cannot mean "none".
+- Flag notifications use a `bridge_state` observer rather than wiring every
+  caller; it covers current and future setters. The hook must stay non-blocking.
+- `ble_tx` polls once per second in addition to queue wake-ups to catch
+  time-driven `smoke_live` expiry.
+- Battery-only changes do not notify (no `seq`/flag change); read and sync carry
+  them, per the notification policy.
+
+### Checks
+- Host: `cmake -S firmware/test -B firmware/test/build -G Ninja`,
+  `cmake --build firmware/test/build`,
+  `ctest --test-dir firmware/test/build --output-on-failure` → 18/18 pass,
+  including `ble-live` and the extended `bridge-state`.
+- Firmware: `idf.py -B build "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build`
+  → complete; image guard ok (84 components, no linked Wi-Fi/lwIP/netif,
+  no HTTP/OTA); `sx4_bridge.bin` 0x8e330 bytes, 72% free.
+
+### Remaining
+- T37 (with T31): phone/bench notification count on stored samples and every
+  flag transition, and a forced missed notification recovered by a
+  sequence-cursor sync. This is the only unchecked Done-when item.
+- T30: advertising/bonding/passkey; keep the live CCCD encryption requirement.
+- T31: set `sync_active` around a transfer; the change hook emits start/end.
+- T29/T47/T51: `control`/`result`/`set_time`, `config` and `stats` remain
+  separate; `set_time` already triggers the live flag notification.

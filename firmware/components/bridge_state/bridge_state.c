@@ -39,6 +39,8 @@ typedef struct {
 
 static bridge_state_state_t s_state;
 static atomic_uint s_version;
+static bridge_state_change_fn s_change_fn;
+static void *s_change_ctx;
 
 /* ---- sequence lock ------------------------------------------------------- */
 
@@ -49,6 +51,23 @@ static void state_write_begin(void) {
 
 static void state_write_end(void) {
     atomic_fetch_add_explicit(&s_version, 1u, memory_order_release);
+}
+
+/*
+ * Snapshot observers run after the write completes, so they can call
+ * bridge_state_snapshot() without deadlocking. They are deliberately outside
+ * the seqlock: the BLE hand-off only copies 20 bytes into a bounded queue.
+ */
+static void notify_change(void) {
+    bridge_state_change_fn fn = s_change_fn;
+    if (fn != NULL) {
+        fn(s_change_ctx);
+    }
+}
+
+void bridge_state_set_change_hook(bridge_state_change_fn fn, void *ctx) {
+    s_change_fn = fn;
+    s_change_ctx = ctx;
 }
 
 static void state_read(bridge_state_state_t *out) {
@@ -201,6 +220,7 @@ bridge_state_result_t bridge_state_set_time(uint64_t unix_s) {
         /* Persist promptly on the first set; the normal 10-minute cadence
          * applies afterwards. A storage failure keeps the RAM clock valid. */
         (void)bridge_state_tick();
+        notify_change();
     }
     return result;
 }
@@ -287,6 +307,8 @@ bridge_state_result_t bridge_state_update(
     }
     live->attached_mask =
         (uint8_t)(sample->attached_mask & ((1u << BRIDGE_STATE_NUM_PROBES) - 1u));
+    live->seq = sample->seq;
+    live->have_seq = sample->have_seq;
     live->billows_target_f10 = sample->billows_target_f10;
     live->billows_target_valid = sample->billows_target_valid;
     live->rssi_lora = sample->rssi_lora;
@@ -299,6 +321,7 @@ bridge_state_result_t bridge_state_update(
     s_state.have_sample = true;
     s_state.last_sample_ms = now;
     state_write_end();
+    notify_change();
     return BRIDGE_STATE_OK;
 }
 
@@ -336,13 +359,19 @@ bridge_state_result_t bridge_state_snapshot(bridge_state_live_t *out) {
 /* ---- device-level snapshot fields --------------------------------------- */
 
 static void set_flag(uint8_t bit, bool on) {
+    bool changed;
     state_write_begin();
+    uint8_t before = s_state.live.flags;
     if (on) {
         s_state.live.flags |= bit;
     } else {
         s_state.live.flags &= (uint8_t)~bit;
     }
+    changed = before != s_state.live.flags;
     state_write_end();
+    if (changed) {
+        notify_change();
+    }
 }
 
 void bridge_state_set_smoke_paired(bool paired) {

@@ -143,6 +143,7 @@ static bridge_state_sample_t sample(uint32_t seq, int16_t p1, int16_t p2,
     bridge_state_sample_t s;
     memset(&s, 0, sizeof(s));
     s.seq = seq;
+    s.have_seq = true;
     s.temp_f10[0] = p1;
     s.temp_f10[1] = p2;
     s.temp_f10[2] = p3;
@@ -434,6 +435,53 @@ static void test_factory_reset_clears_anchor_pair(void) {
     CHECK_EQ_UINT(now.unix_s, 0u);
 }
 
+static int s_change_calls;
+static uint32_t s_change_seq;
+
+static void change_hook(void *ctx) {
+    (void)ctx;
+    s_change_calls++;
+    bridge_state_live_t live;
+    if (bridge_state_snapshot(&live) == BRIDGE_STATE_OK) {
+        s_change_seq = live.have_seq ? live.seq : SX4_SEQ_NONE;
+    }
+}
+
+static void test_change_hook_for_live_notify(void) {
+    fake_t fake;
+    fake_init(&fake);
+    config_init(&fake);
+    clock_fake_t clock = {.now_ms = 0};
+    bridge_state_time_source_t source = source_for(&clock);
+    CHECK_EQ_INT(bridge_state_core_init(&source, 0), BRIDGE_STATE_OK);
+
+    s_change_calls = 0;
+    s_change_seq = 0;
+    bridge_state_set_change_hook(change_hook, NULL);
+
+    /* A new stored sample publishes once and reports its sequence. */
+    bridge_state_sample_t s = sample(9, 100, 200, 300, 400);
+    CHECK_EQ_INT(bridge_state_update(&s), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(s_change_calls, 1u);
+    CHECK_EQ_UINT(s_change_seq, 9u);
+
+    /* Setting the same flag value is not a transition. */
+    bridge_state_set_smoke_paired(true);
+    CHECK_EQ_UINT(s_change_calls, 2u);
+    bridge_state_set_smoke_paired(true);
+    CHECK_EQ_UINT(s_change_calls, 2u);
+    bridge_state_set_smoke_paired(false);
+    CHECK_EQ_UINT(s_change_calls, 3u);
+
+    /* A successful clock set changes clock_valid and notifies. */
+    CHECK_EQ_INT(bridge_state_set_time(1700000000u), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(s_change_calls, 4u);
+
+    bridge_state_set_change_hook(NULL, NULL);
+    bridge_state_set_display_on(true);
+    CHECK_EQ_UINT(s_change_calls, 4u);
+}
+
 int main(void) {
     test_arguments();
     test_fresh_boot_unknown_clock();
@@ -444,5 +492,6 @@ int main(void) {
     test_snapshot_updates_on_valid_sample();
     test_liveness_timeout();
     test_factory_reset_clears_anchor_pair();
+    test_change_hook_for_live_notify();
     return sx4_test_summary("bridge-state");
 }

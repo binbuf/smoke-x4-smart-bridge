@@ -19,7 +19,10 @@
 
 #include "ble_gatt_spec.h"
 #include "ble_info.h"
+#include "ble_live.h"
+#include "ble_tx.h"
 #include "bridge_config.h"
+#include "bridge_state.h"
 #include "esp_log.h"
 #include "host/ble_att.h"
 #include "host/ble_gap.h"
@@ -67,8 +70,7 @@ static const ble_uuid128_t s_stats_uuid = BLE_UUID128_INIT(
     0x62, 0x51, 0x40, 0x3f, 0x2e, 0x1c, 0x3d, 0x9a, 0x0f, 0x4b, 0x5b, 0x4c,
     0x08, 0x00, 0x9b, 0x7f);
 
-/* V0 placeholder values. T28/T47/T51 replace these with real snapshots. */
-static const uint8_t s_live_value[SX4_LIVE_SIZE] = {1};
+/* V0 placeholder values. T47/T51 replace config/stats with real snapshots. */
 static const uint8_t s_config_value[SX4_CONFIG_SIZE] = {1};
 static const uint8_t s_stats_value[SX4_STATS_SIZE] = {1};
 
@@ -237,6 +239,7 @@ static int check_access_security(uint16_t conn_handle,
 static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
                       const ble_gatt_spec_t *spec) {
     uint8_t info[SX4_INFO_SIZE];
+    uint8_t live[SX4_LIVE_SIZE];
     const uint8_t *data = NULL;
     size_t len = 0;
     uint16_t mtu;
@@ -248,8 +251,17 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
         len = sizeof(info);
         break;
     case SX4_BLE_CHAR_LIVE_SLOT:
-        data = s_live_value;
-        len = sizeof(s_live_value);
+        /* Read fallback: the latest snapshot, never a queued notification. */
+        {
+            bridge_state_live_t snapshot;
+            if (bridge_state_snapshot(&snapshot) != BRIDGE_STATE_OK ||
+                ble_live_encode(&snapshot, live, sizeof(live)) !=
+                    SX4_LIVE_SIZE) {
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+        }
+        data = live;
+        len = sizeof(live);
         break;
     case SX4_BLE_CHAR_CONFIG_SLOT:
         data = s_config_value;
@@ -344,6 +356,7 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
     case BLE_GAP_EVENT_CONNECT:
         if (event->connect.status == 0) {
             s_connected = true;
+            ble_tx_on_connect(event->connect.conn_handle);
             ESP_LOGI(TAG, "central connected (handle %u)",
                      event->connect.conn_handle);
         } else {
@@ -353,9 +366,18 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
         break;
     case BLE_GAP_EVENT_DISCONNECT:
         s_connected = false;
+        ble_tx_on_disconnect();
         ESP_LOGI(TAG, "central disconnected (reason 0x%02x)",
                  event->disconnect.reason);
         /* T30 owns restarting advertising from here. */
+        break;
+    case BLE_GAP_EVENT_SUBSCRIBE:
+        /* The encrypted CCCD was enforced by the characteristic flags before
+         * this event. A live subscription primes the queue with the current
+         * snapshot so the app has the same value as a read would give. */
+        if (event->subscribe.attr_handle == s_live_handle) {
+            ble_tx_on_live_subscribe(event->subscribe.cur_notify != 0);
+        }
         break;
     default:
         break;
@@ -419,6 +441,7 @@ esp_err_t ble_service_start(void) {
         (void)nimble_port_deinit();
         return ESP_FAIL;
     }
+    ble_tx_set_live_handle(s_live_handle);
     if (ble_att_set_preferred_mtu(SX4_BLE_MTU_REQUEST) != 0) {
         ESP_LOGW(TAG, "preferred MTU %u rejected", SX4_BLE_MTU_REQUEST);
     }
@@ -434,6 +457,7 @@ esp_err_t ble_service_stop(void) {
     if (!s_started) {
         return ESP_OK;
     }
+    ble_tx_on_disconnect();
     if (s_synced) {
         (void)ble_gap_event_listener_unregister(&s_gap_listener);
     }
