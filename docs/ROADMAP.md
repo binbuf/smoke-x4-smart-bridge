@@ -71,7 +71,7 @@ end-to-end build.
 - [x] T30 — ble_service: security, passkey, and advertising → [tasks/30-ble-security-passkey.md](tasks/30-ble-security-passkey.md)
 - [x] T31 — ble_service: sync status and recent records → [tasks/31-ble-sync-recent-records.md](tasks/31-ble-sync-recent-records.md)
 - [x] T32 — app: BLE client and scan → [tasks/32-app-ble-client-scan.md](tasks/32-app-ble-client-scan.md)
-- [ ] T33 — app: setup and passkey flow → [tasks/33-app-setup-passkey-flow.md](tasks/33-app-setup-passkey-flow.md)
+- [x] T33 — app: setup and passkey flow → [tasks/33-app-setup-passkey-flow.md](tasks/33-app-setup-passkey-flow.md)
 - [ ] T34 — app: Live screen → [tasks/34-app-live-screen.md](tasks/34-app-live-screen.md)
 - [ ] T35 — app: link procedures and time sync → [tasks/35-app-link-procedures-time-sync.md](tasks/35-app-link-procedures-time-sync.md)
 - [ ] T36 — app: recent History (V0) → [tasks/36-app-recent-history-v0.md](tasks/36-app-recent-history-v0.md)
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T07:53:39Z · 32/67 done
+**Pipeline status** — updated 2026-10-27T08:03:00Z · 33/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33
 - Blocked: none
 - Failed: none
-- Remaining: T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T32 — done · Real BLE client, permissions, scan/selection, bond/MTU/GATT operations, named-state error mapping, diagnostics and 22 tests landed; analyze/test/Android debug build pass.
+- Remaining: T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T33 — done · Production setup/passkey flow wired through the BLE seam with all 13 §13.4 states, routing to Live, 21 new setup tests, ADR 0040, and passing analyze/test/APK build; real time/sync writes and settings intents remain for T35/T37.
 <!-- /symphony:status -->
