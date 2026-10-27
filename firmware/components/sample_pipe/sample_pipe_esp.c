@@ -127,7 +127,9 @@ static void sample_pipe_task(void *argument) {
                                       packet.rssi, packet.snr);
         }
         if (!did_work) {
-            vTaskDelay(pdMS_TO_TICKS(SAMPLE_PIPE_POLL_MS));
+            /* One FreeRTOS tick, not pdMS_TO_TICKS(5): the default 100 Hz tick
+             * rounds 5 ms to zero and the task would spin, starving IDLE0. */
+            vTaskDelay(1);
         }
     }
 }
