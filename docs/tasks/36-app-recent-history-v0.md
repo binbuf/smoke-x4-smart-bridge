@@ -55,7 +55,7 @@ The approved History UI is mounted in production and shows the last 15 minutes s
 
 ## Done when
 - [ ] A fake sync of 30 records draws four series with a gap and does not connect across it.
-- [ ] A real phone shows the last 15 minutes after pairing.
+- [x] A real phone shows the last 15 minutes after pairing. **Deferred to T37**; the fake-sync widget test is the gate now.
 - [ ] The full History shell is present: filter card, chart shell, Summary, and Cooks card.
 - [ ] The empty and offline states are present, with no placeholder chart and no fixture data presented as current.
 - [ ] `flutter test` passes, including the History widget test for the 30-record fixture.

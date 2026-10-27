@@ -1,18 +1,23 @@
 # T37 — Bench: V0 end-to-end
 
 ## Goal
-The V0 build is exercised end to end on a factory-fresh install and a real board: advertising, pairing with the OLED code, four live temperatures, the last 15 minutes in the full History shell, disconnect/reconnect, offline cache, and a power cycle. This is the first deployable end-to-end proof and the gate before any field use.
+The V0 build is exercised end to end on a factory-fresh install and a real board: advertising, pairing with the OLED code, four live temperatures, the last 15 minutes in the full History shell, disconnect/reconnect, offline cache, and a power cycle. This is the first deployable end-to-end proof and the human bench gate that absorbs every physical check deferred by the unattended run (T15/T16, T19, T22–T26, T27–T31, T32–T36).
 
 ## Context (read first)
 - **Human checkpoint before this task.** T36 carries `hitl: true`, so the
   harness places `.stop` after T36 and pauses here. T37 starts only after a
   human removes the sentinel and confirms the phone/board bench setup.
+- **Absorbs deferred physical proof:** real X4 pairing and stock receiver (T16),
+  power-cut log recovery (T19/T25), OLED page walk/legibility and PRG/power
+  (T22/T23/T26), battery reading (T24), real BLE bond/passkey/MTU (T27/T30), and
+  the real-phone Setup/Live/History/time-sync checks (T32–T36). Currents,
+  USB-detached 20/20 and 24 h runtime stay with T62.
 - [10 §10.3 B2/B3](../design/10-test-and-release.md) — the BLE and app bench matrices this run executes.
 - [13 §13.4](../design/13-ui-implementation-contract.md#134-complete-state-inventory) — the setup and Live states to walk on the phone.
 - [10 §10.6](../design/10-test-and-release.md) — the acceptance matrix: four probes, BLE health/reconnect, History, and the UI state matrix.
 - [05 §5.12](../design/05-ble-contract.md) — first-connect and reconnect procedures.
 - Design: [10 §10.3 B2/B3](../design/10-test-and-release.md).
-- Verify tier: **P**. Board: **yes**.
+- Verify tier: **P/B**. Board: **yes**.
 - Depends on T30, T31, T35, and T36.
 
 ## Scope
@@ -27,6 +32,18 @@ On a factory-fresh install and a real board:
 - [ ] 7. Power-cycle the bridge; confirm auto-reconnect and history.
 - [ ] 8. Confirm the stock receiver still works.
 - [ ] 9. Walk the setup and Live states in [13 §13.4](../design/13-ui-implementation-contract.md#134-complete-state-inventory) on the phone; no prototype chrome is visible.
+- [ ] 10. Confirm a real X4 pair and that the stock receiver keeps updating;
+      record the exact sync gesture.
+- [ ] 11. Start recording, pull USB power mid-recording, reboot, and confirm
+      earlier records survive and the log resumes.
+- [ ] 12. Detach and reattach one probe; confirm `---`/`—` and the sentinel;
+      flip °F/°C and confirm canonical °F storage.
+- [ ] 13. Walk all OLED pages through the case window, including display
+      sleep/wake and PRG power off/on with the hold countdown and early-release
+      cancel.
+- [ ] 14. Confirm the battery reading is plausible and unknown renders as `—`.
+- [ ] 15. Bond a real phone with the OLED passkey, reject a wrong code, confirm
+      the bond survives reboot, and record the negotiated MTU.
 - [ ] Record the phone model, Android version, negotiated MTU, timings, and any failure.
 - [ ] Commit the V0 evidence (logs, screenshots, and the recorded measurements) in the named evidence location.
 - [ ] Confirm no `Sync now` on Live, no fixture/last-session values shown as current, and no BLE/GATT/MTU language on product screens.

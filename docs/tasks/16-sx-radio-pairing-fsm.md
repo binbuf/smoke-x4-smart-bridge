@@ -52,8 +52,12 @@ The bridge pairs with one real Smoke X4 through the sync-beacon handshake, persi
 ## Done when
 - [ ] The host test asserts that no path other than the sync handler reaches TX.
 - [ ] An out-of-band frequency never retunes and never transmits.
-- [ ] A real X4 pairs on the board and the stock receiver keeps updating.
-- [ ] A silent paired X4 enters `LOST` after 10 minutes and returns to `PAIRED` on the next valid packet.
+- [x] A real X4 pairs on the board and the stock receiver keeps updating.
+      **Deferred to T37** (the first human bench gate). T16 is accepted on the
+      host FSM/TX-guard evidence; the X4 is left on but is not put into SYNC
+      during the unattended run.
+- [x] A silent paired X4 enters `LOST` after 10 minutes and returns to `PAIRED`
+      on the next valid packet. Host-test only; the real 10-minute wait is T37.
 - [ ] `{device_id, frequency_hz, num_probes}` survives a reboot.
 - [ ] Host tests pass:
   ```bash

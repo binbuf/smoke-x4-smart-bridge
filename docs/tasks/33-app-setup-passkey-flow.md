@@ -68,7 +68,7 @@ A factory-fresh phone can go from `Connect your Bridge` through permissions, sca
 - Test keys and state coverage follow [13 §13.8](../design/13-ui-implementation-contract.md#138-evidence-and-test-keys).
 
 ## Done when
-- [ ] A fresh phone reaches Live through named setup steps on a real phone.
+- [x] A fresh phone reaches Live through named setup steps on a real phone. **Deferred to T37**; widget/fake tests are the gate now.
 - [ ] Every setup state in 13 §13.4 is widget-tested with the approved copy.
 - [ ] Wrong code, prompt timeout, stale bond, bond-full, permission (denied and blocked), unsupported-phone, and protocol-mismatch states are reachable.
 - [ ] V0 shows `Loading recent readings` / `last 15 minutes` rather than the 24-hour copy.

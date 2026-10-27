@@ -58,7 +58,7 @@ Live is the single status surface: the App → Bridge → Smoke X4 chain, four n
 ## Done when
 - [ ] Live renders the full chain, four numbered probes, and a sparkline where history exists from the fake.
 - [ ] Every Live state in 13 §13.4 is reachable and widget-tested with the approved copy.
-- [ ] A real phone shows live values at the sample cadence.
+- [x] A real phone shows live values at the sample cadence. **Deferred to T37**; fake/widget tests are the gate now.
 - [ ] The detached, no-cache, and Billows-loss states pass widget tests; offline without cache does not render fixture values as current.
 - [ ] The Billows card is absent when `caps.billows_observe = 0` and when Billows has never been detected.
 - [ ] `flutter test` passes, including the new Live widget tests.

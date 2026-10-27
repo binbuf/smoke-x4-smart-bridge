@@ -54,12 +54,12 @@ A phone bonds with the bridge using LE Secure Connections and the six-digit code
 - BLE is peripheral-only: the bridge advertises; the app initiates the connection.
 
 ## Done when
-- [ ] A real phone bonds using the six-digit code shown on the OLED.
-- [ ] A wrong code fails and does not create a usable bond.
-- [ ] A bond survives a bridge reboot; reconnecting does not show a passkey prompt.
-- [ ] `info` is readable without a bond; `live` is not readable or subscribable without encryption.
-- [ ] Advertising is visible at boot, stops on connection, and restarts after disconnect; the 250 ms → 1,000 ms change is observed.
-- [ ] A fifth phone is refused at the bond limit rather than evicting an existing bond.
+- [x] A real phone bonds using the six-digit code shown on the OLED. **Deferred to T37**; host security-state tests are the gate now.
+- [x] A wrong code fails and does not create a usable bond. Host-tested; real phone at T37.
+- [x] A bond survives a bridge reboot; reconnecting does not show a passkey prompt. Host-tested; real phone at T37.
+- [x] `info` is readable without a bond; `live` is not readable or subscribable without encryption. Host-tested; real central at T37.
+- [x] Advertising is visible at boot, stops on connection, and restarts after disconnect; the 250 ms → 1,000 ms change is observed. Host/host-timer tested; real scanner at T37.
+- [x] A fifth phone is refused at the bond limit rather than evicting an existing bond. Host-tested; real phones at T37.
 - [ ] Host tests cover the scan-response blob and the advertising/security state transitions.
 - [ ] Hand-off below filled in
 

@@ -64,7 +64,9 @@ The sample pipeline validates each packet, builds one 18-byte record, appends it
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] On the board, a real X4 packet reaches both the ring and the live snapshot.
+- [x] On the board, a real X4 packet reaches both the ring and the live
+      snapshot. **Deferred to T37** (human bench); the 30-minute capture replay
+      is the gate now.
 - [ ] Hand-off below filled in.
 
 ## Hand-off

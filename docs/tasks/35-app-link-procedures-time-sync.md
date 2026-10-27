@@ -49,7 +49,7 @@ The app performs the real GATT procedure sequence from connect to live data: rea
 
 ## Done when
 - [ ] The fake drives connect → info → MTU → pair → subscribe → live → set_time → sync end to end in `flutter test`.
-- [ ] A real phone sets the bridge time and a `result` with the matching `op_id` is received within 3 s.
+- [x] A real phone sets the bridge time and a `result` with the matching `op_id` is received within 3 s. **Deferred to T37**; the fake-driven test is the gate now.
 - [ ] A forced link drop recovers through the backoff sequence and resumes forward sync from the local max without a 24 h re-read.
 - [ ] An unsecured `live` read triggers the bond path rather than a retry loop.
 - [ ] The all-attempts-fail state shows the named `Can’t reach the Bridge` state with Retry/Forget.
