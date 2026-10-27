@@ -8,6 +8,11 @@ Build the repository that turns raw BLE sync batches into a durable, resumable l
 - Verification: **H/P** (host/CI plus phone) · Board required: **no / phone**
 - Depends on T40, T39, and T35.
 - The device contract is [05 §5.7, §5.8, §5.10](../design/05-ble-contract.md); the local schema is [04 §4.7](../design/04-data-and-storage.md).
+- **Post-T36 status:** `BridgeLink` already runs a quiet forward sync every
+  30 s from `localMaxSeq` and appends live notifications to the in-memory
+  `RecentHistoryStore`. T41 replaces that store and cursor with the durable
+  repository; keep one timer and one live-append path, do not add a second
+  cadence.
 
 ## Scope
 - [ ] Read `stats` and/or issue `sync_ctrl cmd = 0` to learn `generation`, `min_seq`, `max_seq`, and storage state.
@@ -44,7 +49,10 @@ Build the repository that turns raw BLE sync batches into a durable, resumable l
 - Gap reasons follow [04 §4.6](../design/04-data-and-storage.md): `No signal`, `Bridge off`, `Not synced`. Do not invent a reason.
 - Map unknown device time to `unix_s = NULL`, `time_estimated = 1`, and the estimate in [04 §4.7](../design/04-data-and-storage.md). Never write an estimated time as exact.
 - Product status copy while syncing is `Syncing saved readings` for the recent pass and `Loading saved readings` for background backfill; `backfill` is internal only.
-- Every 60 s while connected, run forward catch-up; on reconnect, run it before enabling live display.
+- Every 30 s while connected, run a quiet forward catch-up; on reconnect, run it
+  before enabling live display. The 30 s pass must not show the sync card, but
+  must update `lastSyncedAt` and the stored cursor. This replaces the V0
+  15-minute recent window with the durable recent-first path.
 
 ## Done when
 - [ ] A fake device with a 30-day ring syncs recent-first, then backfills.

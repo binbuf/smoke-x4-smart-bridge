@@ -13,9 +13,17 @@ Turn the prototype review into a production gate: every reachable UI state has a
 - `app/tool/ui_screenshots_test.dart` — screenshot generator for the committed dark/light set.
 - **Verify:** H · **Board:** no
 - Depends on T42, T45, T52 and T53.
+- **Post-T36 status:** `ui_state_matrix_test.dart` already renders seven states
+  at 320/390 dp in both themes, and `tool/ui_screenshots_test.dart` is the
+  golden generator. The post-T36 connection chain, X4 warning dialog, probe
+  Min/Max line and `Live change window` are not yet in the contract tests; T54
+  owns their state rows, copy and screenshots.
 
 ## Scope
 - [ ] Add widget tests for every state in 13 §13.4 that is reachable without hardware: Setup, Live, History, Settings, Bridge details, confirmations, Cook view and the product error/empty states.
+- [ ] Add the post-T36 Live states: separate BLE/LoRa signal meters and
+      durations, the amber X4 warning dialog, probe Min/Max range line, and the
+      signed change for each `Live change window` value.
 - [ ] Add 320 dp and 390 dp layout tests for Live, History, Settings and the Cook view; assert no overflow.
 - [ ] Regenerate the dark/light screenshot set from the production widgets, review it intentionally, and commit it.
 - [ ] Add semantics for the connection card, probe tiles, chart summary, filter menus, Summary rows and destructive actions.
@@ -59,7 +67,7 @@ Turn the prototype review into a production gate: every reachable UI state has a
   ```
 
   `Cooks` is allowed; `cook sessions` is not. `Technical details` may contain `MTU`/`RSSI`; the main status card may not.
-- Stable settings keys: `settings.bridge.status`, `settings.history.logs`, `settings.units`, `settings.appearance`. Bridge keys: `bridge.name`, `bridge.timeout`, `bridge.billows`, `bridge.repair`, `bridge.connectionLog`.
+- Stable settings keys: `settings.bridge.status`, `settings.history.logs`, `settings.units`, `settings.tempChangeWindow`, `settings.appearance`. Bridge keys: `bridge.name`, `bridge.timeout`, `bridge.billows`, `bridge.repair`, `bridge.connectionLog`. Live keys: `status.appBridgeLink`, `status.x4Link`, `live.smokeXWarning`.
 - Screenshot command: `flutter test --update-goldens tool/ui_screenshots_test.dart`. Review the diff before committing; do not accept golden changes blindly.
 - No fixture, simulation, lab-only control or fake success may be reachable in a release build.
 - Design: [13 §13.4](../design/13-ui-implementation-contract.md#134-complete-state-inventory), [13 §13.6](../design/13-ui-implementation-contract.md#136-visual-interaction-and-accessibility-contract), [13 §13.8](../design/13-ui-implementation-contract.md#138-evidence-and-test-keys), [12 §12.6](../design/12-copy-and-label-review.md).

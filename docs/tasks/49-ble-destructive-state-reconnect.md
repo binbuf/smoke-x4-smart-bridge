@@ -12,13 +12,20 @@ Make the BLE link behave correctly after forget, factory reset and power off: an
 - [03 §3.13](../design/03-firmware-architecture.md) — host and firmware build commands.
 - **Verify:** H/B · **Board:** no / B
 - Depends on T48 and T30.
+- **Post-T36 status:** ordinary disconnect recovery already landed.
+  `ble_service_keep_advertising()` runs from the housekeeping tick, restarts at
+  the current fast/slow interval when the host is synced, idle and not
+  advertising, and the GAP callback now receives connect/disconnect/passkey
+  events directly. The destructive paths below remain open.
 
 ## Scope
 - [ ] Send `result ok` before disconnect where possible.
 - [ ] Forget: remove the current bond, disconnect the link, and re-advertise; other bonds stay intact.
 - [ ] Factory reset: wipe config, log and all bonds, then reboot.
 - [ ] Power off: enter deep sleep and stop advertising.
-- [ ] Restart advertising on a normal disconnect (app closed, out of range, failed connect or advertising timeout).
+- [x] Restart advertising on a normal disconnect (app closed, out of range,
+      failed connect or advertising timeout) — `ble_service_keep_advertising()`
+      plus the housekeeping tick; keep the host state test.
 - [ ] Restart advertising after a forget, with the current bond gone and the remaining bonds unaffected.
 - [ ] Do not leave the radio in a half-state if the app drops mid-op: the action either completed before the link was lost or remains pending with a defined recovery on the next boot/connect.
 - [ ] Handle a power cut during a destructive op, including the `clear_pending` state, so boot resolves to a defined outcome rather than a half-wiped or half-unpaired bridge.

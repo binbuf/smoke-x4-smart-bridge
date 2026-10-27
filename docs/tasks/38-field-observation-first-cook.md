@@ -19,7 +19,12 @@ The V0 build is used for a normal cook with no staged changes, producing the fir
 - [ ] Record sample cadence, gaps, RSSI/SNR, and reconnect behaviour.
 - [ ] Record firmware counters (valid/bad packets, queue drops, heap) if the build exposes them.
 - [ ] Record ring-log continuity after the cook and after a power cycle.
-- [ ] Record battery behaviour and any UX friction.
+- [ ] Record battery behaviour and any UX friction, including the connection
+      chain, the X4 warning dialog, the probe Min/Max line and the **Live change
+      window**.
+- [ ] Record whether a cold app launch reaches Live without the setup flow. If
+      T43 has not landed yet, record the manual-setup friction rather than
+      treating it as a V0 defect.
 - [ ] Record anything that changes a design assumption.
 - [ ] Commit a short field report plus screenshots (and the serial log if captured).
 - [ ] Update `docs/hardware-verified.md` and the open-decisions table with what the data proves or changes.
@@ -44,6 +49,8 @@ The V0 build is used for a normal cook with no staged changes, producing the fir
 
 ## Done when
 - [ ] The field report is committed, with screenshots and the serial log if captured.
+- [ ] Reconnect and cold-launch friction are recorded; any missing auto-connect
+      is routed to T43 rather than hidden.
 - [ ] Each open unknown touched by the cook is advanced or explicitly left open.
 - [ ] `docs/hardware-verified.md` and the open-decisions table reflect the result.
 - [ ] The roadmap reflects any retired or newly created risk.

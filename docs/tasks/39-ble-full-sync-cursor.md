@@ -8,6 +8,10 @@ Complete the firmware sync engine so the app can pull the whole ring in both dir
 - Verification: **H/B** (host/CI plus bench/board) · Board required: **no / B**
 - Depends on T31.
 - Read [04 §4.3](../design/04-data-and-storage.md) for the generation and ring-rotation rules the cursor must respect.
+- **Post-T36 status:** the SX1262 sync-word/TCXO fix now lets real X4 frames
+  reach the ring (four frames at ~30 s cadence, stored and synced); T37 has the
+  evidence. T39 still owns the full cursor, gap/generation and two-direction
+  transfer; the real packets do not implement those.
 
 ## Scope
 - [ ] Implement forward direction: return records with `seq > cursor_seq`, lowest first, with `next_seq = last_seq + 1`.

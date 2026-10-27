@@ -13,6 +13,10 @@ Ship the approved destructive flows with exact cost-before-send copy: Forget thi
 - `app/lib/features/settings/bridge_details.dart` — entry point for the action rows.
 - **Verify:** H/P · **Board:** no / phone
 - Depends on T50 and T49.
+- **Post-T36 status:** the four confirmation sheets, loss copy, Setup return and
+  the local `forgetPhone`/`factoryReset` state changes already exist in
+  `settings_details.dart`. They do not send control ops yet. T52 wires the real
+  ops and the `result ok` / expected-disconnect outcome; do not change the copy.
 
 ## Scope
 - [ ] **Forget this phone** — confirm with the exact loss copy; clear the saved connection and send a best-effort `forget_phone`; keep local history; explain if the Bridge may still hold the pairing; return to Setup with the `History on this phone` escape.

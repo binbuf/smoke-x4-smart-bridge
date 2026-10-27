@@ -75,31 +75,44 @@ end-to-end build.
 - [x] T34 — app: Live screen → [tasks/34-app-live-screen.md](tasks/34-app-live-screen.md)
 - [x] T35 — app: link procedures and time sync → [tasks/35-app-link-procedures-time-sync.md](tasks/35-app-link-procedures-time-sync.md) ⟵ accepted
 - [x] T36 — app: recent History (V0) → [tasks/36-app-recent-history-v0.md](tasks/36-app-recent-history-v0.md)
-- [ ] T37 — Bench: V0 end-to-end → [tasks/37-bench-v0-end-to-end.md](tasks/37-bench-v0-end-to-end.md)
+- [ ] T37 — Bench: V0 end-to-end → [tasks/37-bench-v0-end-to-end.md](tasks/37-bench-v0-end-to-end.md) ⟵ first real-hardware evidence captured
 - [ ] T38 — Field observation: first normal cook on V0 → [tasks/38-field-observation-first-cook.md](tasks/38-field-observation-first-cook.md)
 
 **Exit gate (V0):** a fresh phone scans, pairs with the OLED code, sees four live
 temperatures, and shows the last 15 minutes in the full History shell; reconnect
 and offline-cache states work; no prototype chrome appears on product screens.
 
-## Phase 4 — History
+Post-T36 real-hardware bring-up already proved advertising, the stored-bond
+reconnect, the OLED passkey, `set_time`, a recent sync and four live values on a
+Pixel + Heltec V3. T37 remains the formal gate for the checks that still need a
+human at the bench; it also absorbs the new Live/connection-card UI. Later-launch
+auto-connect is owned by T43 and bench-checked in T46.
 
-The app syncs the full ring, resumes after disconnect, survives relaunch, draws
-gaps honestly, and never deletes data without an explicit user action. History,
-Summary, Cooks and the Cook view match the approved UI contract.
+## Phase 4 — Archive, Relaunch & History
+
+The app syncs the full ring, survives relaunch, auto-connects to the saved
+Bridge, resumes after disconnect, draws gaps honestly, and never deletes data
+without an explicit user action. History, Summary, Cooks and the Cook view match
+the approved UI contract.
 
 - [ ] T39 — ble_service: full sync cursor, gap, and generation → [tasks/39-ble-full-sync-cursor.md](tasks/39-ble-full-sync-cursor.md)
 - [ ] T40 — app: local database and DAO → [tasks/40-app-local-database.md](tasks/40-app-local-database.md)
 - [ ] T41 — app: repository and two-phase sync → [tasks/41-app-repository-two-phase-sync.md](tasks/41-app-repository-two-phase-sync.md)
+- [ ] T43 — app: connection health, saved Bridge and launch auto-connect → [tasks/43-app-connection-health.md](tasks/43-app-connection-health.md)
 - [ ] T42 — app: full History chart, Summary and Cooks → [tasks/42-app-history-chart-summary-cooks.md](tasks/42-app-history-chart-summary-cooks.md)
-- [ ] T43 — app: connection health and stale states → [tasks/43-app-connection-health.md](tasks/43-app-connection-health.md)
 - [ ] T44 — app: data use and explicit deletion → [tasks/44-app-data-use-deletion.md](tasks/44-app-data-use-deletion.md)
 - [ ] T45 — app: History/data empty and error states → [tasks/45-app-history-empty-error-states.md](tasks/45-app-history-empty-error-states.md)
 - [ ] T46 — Bench: full history and resume → [tasks/46-bench-full-history-resume.md](tasks/46-bench-full-history-resume.md)
 
-**Exit gate:** the full ring syncs and resumes; relaunch keeps the archive;
-gaps and estimated times are honest; Summary/Cooks work; deletion is explicit;
-the History UI matches the approved contract.
+**Exit gate:** the full ring syncs and resumes; a cold launch reconnects to the
+saved Bridge without the setup flow; gaps and estimated times are honest;
+Summary/Cooks work; deletion is explicit; the History UI matches the approved
+contract.
+
+T43 runs immediately after the archive exists because launch auto-connect needs
+the persisted `bridge` row and the offline cache. It lands before the full
+History chart so the app stops asking a returning user to set up the same Bridge
+again; T46 proves the cold-launch path on the phone.
 
 ## Phase 5 — Settings & Actions
 

@@ -206,6 +206,7 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 | Unsupported phone | No BLE scanning; saved history remains reachable | `Close` / `View history on this phone` |
 | Scanning | “Looking for your Bridge…”; stops after 10 s; checks remembered Bridge first | `Cancel` |
 | No results | “No Bridge found”; distance and PRG hint; saved history footer | `Try again` / `Open Bluetooth settings` |
+| Connect failed | “Couldn’t connect to the Bridge”; the Bridge was found but GATT did not finish; it keeps recording | `Try again` (no rescan) / `Find another Bridge` |
 | Results | “Nearby bridges”; remembered first; `P4 225°F · 87%`; signal words; legacy row | row tap / `Rescan` |
 | Protocol mismatch | “Update the app to use this Bridge”; Bridge unchanged | `Update app` (+ saved history / learn more in production) |
 | Passkey | “Pair with the Bridge”; example code only; “Only the Bridge screen shows the real code.” | `Pair` / `Cancel` |
@@ -214,17 +215,17 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 | Prompt timeout | “No prompt appeared”; notification-shade hint | `Try again` / `Open Bluetooth settings` |
 | Stale bond | “This phone’s pairing is out of date”; explains Bridge reset | `Forget and re-pair` / `Cancel` |
 | Phone list full | “This Bridge already has 4 phones paired”; USB recovery if no paired phone | `Try again` / `Cancel` |
-| First sync | “Loading history”; progress; Time set → last 24 hours → older readings → Live ready | `View live readings` |
+| First sync | “Loading history”; progress; Time set → recent readings (15 min in V0, 24 h in M3) → older readings → Live ready. The button appears only after the recent pass; older backfill continues on Live | `View live readings` |
 | Orphaned history | “History on this phone”; readings, range, storage, delete; never auto-deleted | `Delete history from this phone…` / `Back` |
 
 ### Live
 
 | State | Required UI |
 |---|---|
-| Healthy | Chain + `Bridge connected · 2h 14m` + `Receiving readings · updated 12s ago`; four quiet tiles; sparklines |
+| Healthy | Chain with separate phone→Bridge BLE and Bridge→X4 LoRa signal meters; `Receiving readings · updated 12s ago`; four quiet tiles with sparklines, Min/Max line and `<window> · signed change` footer |
 | Aging | Bridge row stays healthy; tile says `Updated 62s ago`; amber cue plus text |
 | Stale | Bridge stays connected; `No readings for 4 min`; values remain |
-| Frozen / lost X4 | `Smoke X4 signal lost · 10 min ago`; values dim; one inline notice with `Troubleshoot` |
+| Frozen / lost X4 | `Smoke X4 signal lost · 10 min ago`; values dim; one amber warning icon on the X4 node opens the pairing dialog, not an inline notice |
 | Syncing recent | `Syncing saved readings`; progress; “Newest readings load first.” |
 | Backfill | `Loading saved readings`; “Your latest readings are ready. Older readings continue in the background.”; `Slow connection` when MTU is low |
 | Sync failed | `History sync failed`; live readings still update; `Retry sync` |
@@ -233,7 +234,7 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 | Blocked | Named reason and the system settings action |
 | Offline with cache | `Bridge disconnected · last connected 2h ago`; `Showing saved readings · last reading 20 min ago`; signal hidden; values dim |
 | Offline without cache | `Bridge disconnected · nothing saved yet`; no fake probe values; one next action |
-| No X4 data | `No data from Smoke X4` notice; SYNC-mode help |
+| No X4 data | Amber X4-node warning with a dialog: `No data from Smoke X4`; SYNC-mode help; no repeated tile notices |
 | Detached probe | `—` and `Not connected`; never `0 °F` |
 | No probes | `No probes connected`; “Plug a probe into the Smoke X4 to see a reading.” |
 | No sparkline history | `No history yet`; tile height unchanged |
@@ -268,9 +269,10 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 
 | State | Required UI |
 |---|---|
-| Settings connected | Bridge status, `History & storage`, units, Appearance, About |
+| Settings connected | Bridge status, `History & storage`, units, `Live change window`, Appearance, About |
 | Settings offline | `Bridge disconnected` + last connected; controls disabled with reasons; local delete/forget still available |
 | Units | Segmented `°F` / `°C`; applies immediately; offline copy says the Bridge screen updates on reconnect |
+| Live change window | `1 / 5 / 10 / 15 / 30 / 60 min`; default 5; immediate; local only; persists across relaunch |
 | Appearance | `System / Light / Dark`; immediate; local only |
 | History & storage | `History on this phone` and `History on the Bridge`; separate counts/ranges/rules; delete and clear actions |
 | Bridge details | Status, sync/reconnect, disconnect, Smoke X4 pairing, re-pair, name, timeout, Billows, technical details, connection log, actions |
@@ -352,7 +354,8 @@ reset / first-run flow, and never be reachable in a release build unless
 
 - Preferences apply immediately; no global save bar.
 - Unit changes update Live, History, Billows, confirmations and the OLED (queued
-  if offline).
+  if offline). `Live change window` updates the probe footer in the same frame
+  and is stored locally with units and appearance.
 - Bridge name/timeout require a connection; disabled controls explain why.
 - `Sync now` and `Reconnect` live only in Bridge details.
 - Forget/reset return to Setup and keep phone history until explicitly deleted.
@@ -421,7 +424,8 @@ are tracked in the task plan, not silently copied.
 Stable keys from the prototype must be preserved or deliberately renamed with a
 test update:
 
-- Live: `status.connection`, `live.probe.1`–`4`, `live.sparkline.1`–`4`,
+- Live: `status.connection`, `status.appBridgeLink`, `status.x4Link`,
+  `live.probe.1`–`4`, `live.sparkline.1`–`4`, `live.smokeXWarning`,
   `live.billows`
 - History: `history.filters`, `history.range.menu`, `history.range.1h/.6h/.24h/.2d/.custom`,
   `history.filter.menu`, `history.filter.all/.p1`–`.p4`, `history.filters.reset`,
@@ -429,7 +433,7 @@ test update:
   `history.zoom.out/.in/.fit/.now`
 - Cook view: `pastCook.history`
 - Settings: `settings.bridge.status`, `settings.history.logs`,
-  `settings.units`, `settings.appearance`
+  `settings.units`, `settings.tempChangeWindow`, `settings.appearance`
 - Bridge: `bridge.name`, `bridge.timeout`, `bridge.billows`, `bridge.repair`,
   `bridge.connectionLog`
 - Navigation/lab: `nav.experimental`

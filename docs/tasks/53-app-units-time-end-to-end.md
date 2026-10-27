@@ -14,13 +14,18 @@ Make one conversion path and one formatting layer govern every screen: Live, spa
 - `app/lib/features/history/` — History axis, tooltip, Summary and Cook view.
 - **Verify:** H/P · **Board:** no / phone
 - Depends on T51, T35 and T29.
+- **Post-T36 status:** units, Appearance and the new `Live change window` are
+  already wired through `BridgeController` and repaint in the same frame. They
+  are process-local only. T53 adds the persisted store, the launch restore and
+  the remaining locale/formatting coverage; it does not add a second conversion
+  path.
 
 ## Scope
 - [ ] Wire `set_time` into the connect path exactly once per connect, sending `unix_ms` and `tz_offset_min` when the bridge clock differs by more than 2 s.
 - [ ] Implement one conversion path used by every temperature surface: Live tiles, sparklines, History axis, tooltip and Summary, Cook view, Billows target readout, confirmations, storage counts and the OLED.
 - [ ] Apply the theme and locale formatting at the same layer as conversion, not per-widget.
-- [ ] Persist the unit choice and Appearance across app relaunch; apply the saved theme on launch.
-- [ ] Repaint every visible temperature in the same frame when units change; no screen keeps the old unit until it is reopened.
+- [ ] Persist the unit choice, Appearance and `Live change window` across app relaunch; apply the saved theme and window on launch.
+- [ ] Repaint every visible temperature and probe change value in the same frame when units or the change window changes; no screen keeps the old unit until it is reopened.
 - [ ] Keep stored samples in °F. The unit only changes presentation and the OLED setting.
 - [ ] Respect the device locale and 12/24-hour setting for dates and times; no hard-coded `AM`/`PM`.
 - [ ] Use locale number formatting for counts and storage (`128,430`, not `128430`).
@@ -56,7 +61,7 @@ Make one conversion path and one formatting layer govern every screen: Live, spa
 
 ## Done when
 - [ ] A unit change persists across relaunch and updates Live, History, Cooks and Billows in the same frame.
-- [ ] Theme persists across relaunch and is applied on launch.
+- [ ] Theme and `Live change window` persist across relaunch and are applied on launch.
 - [ ] The clock is set once per connect (when the difference exceeds 2 s), with the correct timezone offset.
 - [ ] Locale date/time formatting and the 12/24-hour setting are respected; no hard-coded `AM`/`PM`.
 - [ ] Conversion and formatting tests pass, and `flutter analyze` / `flutter test` are clean.

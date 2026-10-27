@@ -8,6 +8,11 @@ The app shows the approved status-only Billows surfaces on Live and in Settings,
 - Original verification: **H/P** · **board:** no / phone.
 - Depends on T56, T57.
 - The screen and states are fixed by [13](../design/13-ui-implementation-contract.md); the copy is fixed by the source bullets below. Implement against the contract, not a new mockup.
+- **Post-T36 status:** the Live card, the lost-this-session notice and the
+  Settings → Billows status-only screen already exist and are driven by
+  `caps.billows_observe` plus the live flags. T58 still owns the real
+  capability/target gate and the final widget states; do not add a mode switch
+  or target editor.
 
 ## Scope
 - [ ] Add a Live Billows card only when **detected**, with no `Connected` pill and no `Read-only` label.

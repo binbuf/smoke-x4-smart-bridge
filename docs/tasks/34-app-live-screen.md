@@ -3,6 +3,13 @@
 ## Goal
 Live is the single status surface: the App → Bridge → Smoke X4 chain, four numbered probe tiles with last-hour sparklines, inline notices, and a Billows card only when observed. It shows the approved healthy, delayed, stale, lost, syncing, offline, and no-cache states without ever presenting cached values as current.
 
+> **Post-T36 supersession:** the fixed `1h · +3.8°F` footer, the single signal
+> meter and the inline lost-X4 notice were replaced by the configurable Live
+> change window, per-link signal meters and the X4-node warning dialog. The
+> current contract is [06 §6.5](../design/06-app.md) and
+> [13 §13.4](../design/13-ui-implementation-contract.md#live); follow those, not
+> the historical checkboxes below.
+
 ## Context (read first)
 - [06 §6.5](../design/06-app.md) — Live layout, chain rules, tiles, notices, Billows card, and refresh behaviour.
 - [13 §13.4 Live](../design/13-ui-implementation-contract.md#live) — the complete Live state inventory.

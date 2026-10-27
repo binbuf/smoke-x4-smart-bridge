@@ -14,6 +14,11 @@ Implement the approved Settings editors and Bridge details against the real conf
 - `app/lib/features/settings/settings_details.dart` — current editor widgets.
 - **Verify:** H/P · **Board:** no / phone
 - Depends on T50 and T47.
+- **Post-T36 status:** the Bridge details layout, editors, technical details,
+  connection log, Billows status-only screen and action rows already exist in
+  `bridge_details.dart`/`settings_details.dart`. They read controller fields and
+  simulate saves. T51 replaces the simulated paths with the real 80-byte config
+  read-modify-write, per-field save states and named refusals.
 
 ## Scope
 - [ ] Implement `Temperature units` as inline segmented `°F` / `°C` in Preferences, applied immediately.
@@ -38,6 +43,7 @@ Implement the approved Settings editors and Bridge details against the real conf
 - The Settings root, section order and one-Bridge-header rule → T50.
 - Destructive confirmation sheets, `Bridge is off` screen and Setup return → T52.
 - End-to-end units/time/theme/locale wiring across Live, History, Cook and Billows → T53.
+- `Live change window` (a local Live display preference, not a Bridge config field) → T50/T53.
 - UI state matrix, accessibility audit, screenshot suite and copy-lint gate → T54.
 - `config` characteristic implementation and validation → T47.
 - Control op implementation → T48.

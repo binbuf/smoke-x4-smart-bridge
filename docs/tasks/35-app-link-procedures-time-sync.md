@@ -86,4 +86,4 @@ the cursor to the bridge max, matching V0 semantics.
 within 3 s, forced drop/backoff, no passkey prompt with a stored bond). Durable
 sync sink/cursor and background loading are T39–T41; the packaged codecs are
 T40/T47; destructive controls and reconnect-time re-pair UI are T48; remembered
-bridge persistence/auto-connect is T50.
+bridge persistence/auto-connect is T40/T43.
