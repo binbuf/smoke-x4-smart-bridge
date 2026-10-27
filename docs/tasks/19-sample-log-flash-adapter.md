@@ -29,7 +29,7 @@ The ring core is bound to the raw `samples` partition with read/write/erase, hea
 - Pure ring geometry and the `log_io` seam → T18.
 - Sample-pipeline wiring and drop counters → T21.
 - App `clear_history` / factory-reset command and UI → M4 settings (T47–T55); this task only completes an already-pending clear at boot.
-- BLE sync reads and `min_seq`/`max_seq`/`generation` reporting → Phase 3 BLE tasks (T27–T38).
+- BLE sync reads and `min_seq`/`max_seq`/`generation` reporting → Phase 3 BLE tasks (T27–T37).
 - LittleFS, wear-levelling layers, OTA slots, or a filesystem: outside MVP; no task owns them.
 - Any Wi-Fi/HTTP/OTA path: outside MVP; no task owns it.
 

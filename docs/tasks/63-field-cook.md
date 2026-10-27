@@ -7,7 +7,10 @@ One supervised cook and one overnight cook prove the bridge records continuously
 - Design: [10 §10.3 B5](../design/10-test-and-release.md); acceptance context in [10 §10.6](../design/10-test-and-release.md).
 - Original verification: **C** (real cook) · **board:** yes.
 - Depends on T46, T55.
-- This repeats the field-data loop T38 established: a field cook that changes an assumption changes a task. Update the open-decisions table and roadmap the same way T38 does.
+- This task also absorbs the former T38 first-field-observation task: the first
+  supervised cook is now the field-data loop, not a separate early bench run.
+  A field cook that changes an assumption changes a task; update the
+  open-decisions table and roadmap in the same change.
 
 ## Scope
 - [ ] Run one supervised cook with the phone present.
@@ -16,11 +19,17 @@ One supervised cook and one overnight cook prove the bridge records continuously
 - [ ] Confirm the bridge records continuously.
 - [ ] Confirm the phone reconnects and syncs the whole period.
 - [ ] Confirm History shows the cook and any real gaps.
+- [ ] Record sample cadence, gaps, RSSI/SNR and reconnect behaviour from the
+      supervised cook, including the stock receiver and battery/UX friction.
+- [ ] Record ring-log continuity after the cook and after a power cycle.
+- [ ] Record anything that changes a design assumption.
 - [ ] Confirm no reboot or panic.
 - [ ] Confirm delete/retention is not accidentally triggered.
-- [ ] Commit a short field report and screenshots.
+- [ ] Commit a short field report and screenshots (and the serial log if
+      captured).
 - [ ] Create a named follow-up for any defect.
-- [ ] Update the open-decisions table and roadmap the same way T38 does.
+- [ ] Update `docs/hardware-verified.md`, the open-decisions table and the
+      roadmap with what the field data proves or changes.
 
 ## Out of scope
 - The 24-hour soak and its memory criteria (→ T61).
@@ -33,6 +42,10 @@ One supervised cook and one overnight cook prove the bridge records continuously
 - Wi-Fi/HTTP/OTA, web UI, multi-bridge, iOS/web/desktop — outside MVP; no task owns them.
 
 ## Design notes
+- The supervised cook is the first normal field observation: do not stage target
+  changes, receiver button presses, probe detaches, or a special capture
+  sequence. Use the product as intended and record the real cadence, gaps,
+  battery and UX friction.
 - The overnight cook is the long test: phone away for at least 6 h, then reconnect and sync the whole period.
 - History must show the cook and any real gaps; do not paper over a gap that has a real cause.
 - The stock receiver must keep updating throughout; a regression there fails the cook even if the bridge records correctly.
@@ -42,7 +55,10 @@ One supervised cook and one overnight cook prove the bridge records continuously
 ## Done when
 - [ ] A short field report and screenshots are committed.
 - [ ] Any defect has a named follow-up.
-- [ ] The open-decisions table and roadmap are updated the same way T38 does.
+- [ ] The field report records cadence, gaps, RSSI/SNR, reconnects, ring-log
+      continuity, battery/UX friction and any changed design assumptions.
+- [ ] The open-decisions table, `docs/hardware-verified.md` and roadmap are
+      updated with what the field data proves or changes.
 - [ ] The supervised and overnight cooks both meet the bullets above.
 - [ ] Hand-off below filled in.
 

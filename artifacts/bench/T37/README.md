@@ -1,12 +1,54 @@
-# T37 bench evidence — pair, stock receiver, power cut, detach, units, cadence, display
+# T37 bench evidence - pair, stock receiver, power cut, detach, units, cadence, display
 
-**Status:** awaiting the T37 sitting (prepared by T25 and T26, 2026-10-26). No
-result in this directory is hardware evidence yet.
+**Status:** **closed 2026-10-27** — the automatable residual run passed; the
+physical-only checks are deferred with named owners (T55/T61/T62/T67) so V0 does
+not block the harness. This file records only artifacts that exist.
 
-Procedure: [`artifacts/bench/T37/CHECKLIST.md`](CHECKLIST.md).
+Procedure: [`artifacts/bench/T37/CHECKLIST.md`](CHECKLIST.md) plus the residual
+scope in [`docs/tasks/37-bench-v0-end-to-end.md`](../../../docs/tasks/37-bench-v0-end-to-end.md).
 Cadence report template: [`CADENCE-REPORT-TEMPLATE.md`](CADENCE-REPORT-TEMPLATE.md).
-Result rows: [`docs/hardware-verified.md`](../../docs/hardware-verified.md).
+Result rows: [`docs/hardware-verified.md`](../../../docs/hardware-verified.md).
 Keep this manifest in sync with the files actually committed.
+
+## Residual run — 2026-10-27
+
+| Field | Value |
+|---|---|
+| Session window | 2026-10-27 11:09–11:29 PDT (18:09–18:29Z) |
+| Phone | Pixel 11 Pro Fold, Android 17 / API 37 |
+| ADB serial | `adb-67021FDDJ000CF-zWIo1k._adb-tls-connect._tcp` (wireless) |
+| App | `com.binbuf.smoke_bridge` 0.1.0, package update 2026-10-27 10:29 |
+| Board | Heltec WiFi LoRa 32 V3, MAC `ac:a7:04:38:82:76`, COM5 |
+| Firmware | `010bbd3-dirty`, compile 2026-10-27 09:37:04 |
+| `sx4_bridge.bin` SHA-256 | `B0A9943BE1CBEA88820BD2671C0CF689B7C27CF6024BA328323563A092AAFC36` |
+| X4 | 918.5 MHz, four probes, already synced |
+| MTU | 247 |
+| Phone bonds | 1/4 |
+| Cadence run | pending (physical 30 min) |
+| OLED awake/asleep split | pending |
+
+| Step | Artifact | Result |
+|---|---|---|
+| 0 Preflight | `00-preflight.log` | PASS — fresh X4 frames, `stored seq=243`, live sync |
+| 1 Bridge reset | `01-bridge-reboot.log` | PASS — recovered `seq 0..243`, next 244, state OK; app reconnected in 31 s with no passkey prompt |
+| 1 MTU / details | `01-technical-details-scrolled.xml` | PASS — MTU 247, 1 bond, firmware 0.1.0, protocol 1.0 |
+| 2 Forced drop | `02-bt-off.xml` | PARTIAL — `Reconnecting` attempts 3/6, then `Can’t reach the Bridge`; bounded retry UI passed |
+| 2 Adapter off/on finding | `02-bt-restored.xml`, `03-bt-on-recovered.xml`, `03-bridge-details-offline.xml` | **Finding** — after adapter off/on the app still showed stale `Bridge Connected` while the bridge had no central link; required a process restart, then Setup reconnect. Routed to T43 |
+| 3 Quiet 30 s sync | `03-quiet-sync.log`, `03-quiet-sync-ui-connected.xml` | PASS — sync pairs 30.18 s apart, no sync card, Live current |
+| 1 Wrong-code / re-pair | — | deferred to T55 |
+| 4 Cadence | — | deferred to T61 |
+| 5 Power cut | — | deferred to T61 |
+| 6 Detach / units | — | deferred to T61 |
+| 7 OLED / controls / battery | — | OLED walk deferred to T67; battery/PRG deferred to T62 |
+| 8 History | `08-history.xml` | PASS — real 24 h shell, four probes, Summary |
+| 8 Offline cache | `08-history-failed-cache.xml` | **Finding** — chart retained, but banner says `Can’t reach the Bridge`, not `Showing saved readings`; routed to T43/T45 |
+| 9 Billows absent | `01-bridge-details.xml` | PASS — `Billows: Not detected`; no Live card |
+| 9 Stock receiver | — | deferred to T61/T63 |
+| — Cold launch (expected) | `03-cold-launch.xml` | Setup appears; auto-connect is T43/T46, not this gate |
+| — New Live UI | `00-current-live.png`, `00-current-live.xml` | PASS — four probes, BLE/LoRa meters, Min/Max line, 5m change |
+
+The old manifest rows below stay as the template for the remaining physical
+steps; do not mark them `?`-free until the artifact exists.
 
 ## Common settings (fill once)
 

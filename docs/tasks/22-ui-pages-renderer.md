@@ -52,9 +52,9 @@ The bridge drives the SSD1306 through Vext/I²C, renders four status pages plus 
 ## Out of scope
 - PRG tap/hold gestures, power-off commit, deep sleep, and boot hold confirmation → T23.
 - Battery ADC sampling and the SoC curve → T24; this task renders the supplied mV/%/unknown.
-- BLE passkey generation, bonding, and `Phones paired` counts → Phase 3 BLE tasks (T27–T38).
+- BLE passkey generation, bonding, and `Phones paired` counts → Phase 3 BLE tasks (T27–T37).
 - Billows target validation → M5 Billows (T56–T60); the page shows `SET —` until validated.
-- App screens, themes, and navigation → Phase 3 app tasks (T27–T38 and later milestones).
+- App screens, themes, and navigation → Phase 3 app tasks (T27–T37 and later milestones).
 - A boot-time menu/reset gesture or on-device factory reset: outside MVP; no task owns it. M4 settings (T47–T55) owns app-initiated reset.
 - Alarm overlays or notifications: outside MVP; no task owns them.
 - A local web UI or HTTP debug server: outside MVP; no task owns it.

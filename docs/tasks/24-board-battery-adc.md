@@ -31,7 +31,7 @@ The board samples the battery divider with the correct GPIO37 enable/sample/disa
 ## Out of scope
 - OLED rendering of battery/unknown → T22.
 - Snapshot structure and clock → T20; this task feeds battery values into it.
-- BLE `stats`/`live` encoding and notifications → Phase 3 BLE tasks (T27–T38).
+- BLE `stats`/`live` encoding and notifications → Phase 3 BLE tasks (T27–T37).
 - Charging status, USB detection, or a fuel gauge: outside MVP; no task owns it. Do not infer charging from voltage.
 - Power-off/deep-sleep sequencing → T23.
 - Any safety decision based on an inferred cable state: outside MVP; no task owns it.

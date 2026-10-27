@@ -22,7 +22,7 @@
 - [x] Never adjust sample time backwards; a clock correction affects future records only.
 
 ## Out of scope
-- BLE `set_time` op, `control` characteristic, and connection lifecycle → Phase 3 BLE tasks (T27–T38).
+- BLE `set_time` op, `control` characteristic, and connection lifecycle → Phase 3 BLE tasks (T27–T37).
 - Battery ADC sampling and SoC curve → T24; this task only carries the resulting mV/% in the snapshot.
 - UI rendering of snapshot fields → T22.
 - Record encoding and flash writes → T17/T19.

@@ -15,6 +15,9 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 ## Scope
 - [ ] Change every Bridge/Preferences setting; verify read-back, persistence and the OLED. Check units, Appearance, Bridge name and screen timeout copy.
 - [ ] Forget this phone; verify bond removal, re-pair, and the orphaned `History on this phone` entry.
+- [ ] Reject a wrong passkey once, confirm the named `The code didn’t match`
+      state, then complete a correct re-pair. Confirm the bond survives a bridge
+      reboot with no prompt. This absorbs the T37 wrong-code/bond residual.
 - [ ] Re-pair the Smoke X4 from Settings; verify the log is preserved and the new channel is heard after SYNC.
 - [ ] Factory reset; verify config/log/pairings wiped, the app returns to Setup, and phone history is kept.
 - [ ] Power off; verify the `Bridge is off` screen and hold-PRG wake.

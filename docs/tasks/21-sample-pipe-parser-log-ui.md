@@ -29,7 +29,7 @@ The sample pipeline validates each packet, builds one 18-byte record, appends it
 - Ring geometry, record codec, and flash binding → T17/T18/T19.
 - Clock policy and snapshot fields → T20.
 - UI page rendering and display sleep → T22.
-- BLE notification queue, `live` characteristic, and sync → Phase 3 BLE tasks (T27–T38). A missed notification is not a data-loss path and is recovered by sync later.
+- BLE notification queue, `live` characteristic, and sync → Phase 3 BLE tasks (T27–T37). A missed notification is not a data-loss path and is recovered by sync later.
 - App-side history import → M3 history tasks (T39–T46).
 - Alarms/notifications and any Wi-Fi/HTTP/OTA path: outside MVP; no task owns them.
 - Billows TX/control: outside MVP; M5 (T56–T60) is observation only.
@@ -113,7 +113,7 @@ The sample pipeline validates each packet, builds one 18-byte record, appends it
 - `log_write_failures` is a new counter; a failed append still publishes live
   values but keeps the previous live sequence. Storage health is taken from
   `sample_log_storage_ok()`, not from an append result alone.
-- No BLE enqueue was added (T27–T38 own it).
+- No BLE enqueue was added (T27–T37 own it).
 
 **Checks.**
 - `cmake -S firmware/test -B firmware/test/build -G Ninja` + build: OK.

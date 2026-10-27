@@ -1,0 +1,61 @@
+# opened 2026-10-27T11:21:04 port=COM5 baud=115200
+I (312810) sx4.house: battery 4047 mV (85%)
+I (322810) sx4.house: battery 4047 mV (85%)
+I (332810) sx4.house: battery 4047 mV (85%)
+I (337030) sx4.radio: rx len=77 rssi=-27 snr=11 freq=918500000
+I (337030) sx4.radio: payload="LMXC[\,30,1,1,0,743,0,99,47,0,730,0,160,32,0,749,0,160,32,0,739,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 34 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 33 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 33 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (337040) sx4.sample: stored seq=255 t=743,730,749,739 flags=0x2f
+I (342810) sx4.house: battery 4052 mV (85%)
+I (352810) sx4.house: battery 4052 mV (85%)
+I (362810) sx4.house: battery 4047 mV (85%)
+I (367320) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+I (367320) sx4.radio: payload="LMXC[\,30,1,1,0,744,0,99,47,0,731,0,160,32,0,750,0,160,32,0,740,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 34 34 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 33 31 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 30 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (367330) sx4.sample: stored seq=256 t=744,731,750,740 flags=0x2f
+I (372810) sx4.house: battery 4047 mV (85%)
+I (382810) sx4.house: battery 4052 mV (85%)
+# closed 2026-10-27T11:22:19
+# opened 2026-10-27T11:23:11 port=COM5 baud=115200
+I (442810) sx4.house: battery 4052 mV (85%)
+I (452810) sx4.house: battery 4052 mV (85%)
+I (458010) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+I (458010) sx4.radio: payload="LMXC[\,30,1,1,0,743,0,99,47,0,730,0,160,32,0,750,0,160,32,0,739,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 34 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 33 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 35 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 33 39 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (458020) sx4.sample: stored seq=259 t=743,730,750,739 flags=0x2f
+I (462810) sx4.house: battery 4047 mV (85%)
+I (472810) sx4.house: battery 4047 mV (85%)
+I (482810) sx4.house: battery 4052 mV (85%)
+I (488240) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+I (488240) sx4.radio: payload="LMXC[\,30,1,1,0,742,0,99,47,0,728,0,160,32,0,749,0,160,32,0,738,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 34 32 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 32 38 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 39 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 33 38 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (488250) sx4.sample: stored seq=260 t=742,728,749,738 flags=0x2f
+I (492810) sx4.house: battery 4052 mV (85%)
+I (502810) sx4.house: battery 4052 mV (85%)
+I (512810) sx4.house: battery 4052 mV (85%)
+# closed 2026-10-27T11:24:26
+# reopened 2026-10-27T11:27:24 port=COM5 baud=115200
+I (692820) sx4.house: battery 4052 mV (85%)
+I (700670) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+I (700670) sx4.radio: payload="LMXC[\,30,1,1,0,739,0,99,47,0,726,0,160,32,0,747,0,160,32,0,735,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 33 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 32 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 33 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (700680) sx4.sample: stored seq=267 t=739,726,747,735 flags=0x2f
+I (702820) sx4.house: battery 4047 mV (85%)
+I (710580) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+I (710580) NimBLE: GATT procedure initiated: notify; 
+I (710580) NimBLE: att_handle=28
+
+I (710590) sx4.ble: sync transfer ended (status 0)
+I (712820) sx4.house: battery 4052 mV (85%)
+I (722820) sx4.house: battery 4052 mV (85%)
+I (730900) sx4.radio: rx len=77 rssi=-29 snr=10 freq=918500000
+I (730900) sx4.radio: payload="LMXC[\,30,1,1,0,739,0,99,47,0,727,0,160,32,0,747,0,160,32,0,735,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 33 39 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 32 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 33 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (730910) sx4.sample: stored seq=268 t=739,727,747,735 flags=0x2f
+I (732820) sx4.house: battery 4052 mV (85%)
+I (740760) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+I (740760) NimBLE: GATT procedure initiated: notify; 
+I (740760) NimBLE: att_handle=28
+
+I (740760) sx4.ble: sync transfer ended (status 0)
+I (742820) sx4.house: battery 4047 mV (85%)
+I (752820) sx4.house: battery 4052 mV (85%)
+I (761150) sx4.radio: rx len=77 rssi=-30 snr=10 freq=918500000
+I (761150) sx4.radio: payload="LMXC[\,30,1,1,0,740,0,99,47,0,726,0,160,32,0,747,0,160,32,0,735,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 37 34 30 2C 30 2C 39 39 2C 34 37 2C 30 2C 37 32 36 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 34 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 37 33 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (761160) sx4.sample: stored seq=269 t=740,726,747,735 flags=0x2f
+I (762820) sx4.house: battery 4047 mV (85%)
+# closed 2026-10-27T11:28:39
