@@ -148,7 +148,10 @@ class FlutterBluePlusBleClient implements BleClient {
         }
         _seenScanIds.clear();
         await fbp.FlutterBluePlus.startScan(
-          withServices: <fbp.Guid>[fbp.Guid(bleContractServiceUuid)],
+          // Scan unfiltered and filter in Dart. Android's platform service
+          // filter can drop a connectable advertisement whose 128-bit UUID is
+          // in the primary PDU while the local name is in the scan response.
+          // The bridge contract still requires both (isCompatibleBridge).
           timeout: timeout,
           androidScanMode: fbp.AndroidScanMode.lowLatency,
         );
