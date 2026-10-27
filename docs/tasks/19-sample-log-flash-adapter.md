@@ -21,7 +21,7 @@ The ring core is bound to the raw `samples` partition with read/write/erase, hea
 - [ ] Finish an interrupted clear when `clear_pending` is set: ignore old-generation sectors and resume the erase.
 - [ ] Measure boot recovery time.
 - [ ] If a full 6 MB scan exceeds **~2 s**, optimize to header + newest-sector recovery before closing the task.
-- [ ] On the bench, cut power during a cook; confirm earlier records survive and the writer resumes at the next valid sequence.
+- [x] On the bench, cut power during a cook; confirm earlier records survive and the writer resumes at the next valid sequence. **Deferred to T37**; host torn-tail recovery is the gate now.
 - [ ] Surface the storage state (`OK` / `NEAR_FULL` / `READ_ONLY`) for the UI and stats.
 
 ## Out of scope

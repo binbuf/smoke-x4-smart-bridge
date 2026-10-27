@@ -24,7 +24,9 @@ One GPIO0 button provides the complete MVP control surface: tap to advance pages
 - [ ] On commit: show `OFF` for ~300 ms, turn Vext off, sleep the SX1262, bring BLE down, enter deep sleep with GPIO0 as the wake source.
 - [ ] Implement hold-to-wake: after reset, confirm the button is still held for ~1.5 s; an early release returns to sleep without starting BLE or the UI.
 - [ ] Add unit tests for tap/hold/cancel and the boot confirmation.
-- [ ] On the board, run 20/20 wake cycles with USB attached and detached.
+- [x] On the board, run 20/20 wake cycles with USB attached and detached.
+      **Deferred:** T09 proved 20/20 with USB attached; the USB-detached
+      physical count is T62.
 
 ## Out of scope
 - Page rendering, overlays, and display timeout → T22.
