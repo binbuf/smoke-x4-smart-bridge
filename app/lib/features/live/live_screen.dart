@@ -37,6 +37,7 @@ class LiveScreen extends StatelessWidget {
                               BridgeDetailsScreen(controller: controller),
                         ),
                       ),
+                      onShowSmokeXHelp: () => _showSmokeXHelp(context),
                     ),
                     if (view.phase == ConnectionPhase.failed) ...[
                       const SizedBox(height: 10),
@@ -91,18 +92,6 @@ class LiveScreen extends StatelessWidget {
                         action: TextButton(
                           onPressed: () => _showSmokeXHelp(context),
                           child: const Text('Show pairing steps'),
-                        ),
-                      ),
-                    ] else if (view.isConnected && !view.smokeXReceiving) ...[
-                      const SizedBox(height: 10),
-                      InlineNotice(
-                        icon: Icons.sensors_off_outlined,
-                        color: StatusColors.aging(context),
-                        title: 'No data from Smoke X4',
-                        message: 'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
-                        action: TextButton(
-                          onPressed: () => _showSmokeXHelp(context),
-                          child: const Text('Troubleshoot'),
                         ),
                       ),
                     ],
@@ -166,7 +155,7 @@ class LiveScreen extends StatelessWidget {
                             crossAxisCount: 2,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
-                            childAspectRatio: 0.86,
+                            childAspectRatio: 0.78,
                           ),
                       itemBuilder: (context, index) {
                         return ProbeCard(
@@ -309,19 +298,24 @@ class _PairingStep extends StatelessWidget {
 }
 
 class _ConnectionCard extends StatelessWidget {
-  const _ConnectionCard({required this.view, required this.onOpenBridge});
+  const _ConnectionCard({
+    required this.view,
+    required this.onOpenBridge,
+    required this.onShowSmokeXHelp,
+  });
 
   final LiveViewState view;
   final VoidCallback onOpenBridge;
+  final VoidCallback onShowSmokeXHelp;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final bridgeColor = _bridgeColor(context);
     final smokeColor = _smokeColor(context);
-    final appColor = view.isConnected
-        ? StatusColors.live(context)
-        : StatusColors.stale(context);
+    final appColor = _appColor(context);
+    final bleSignalColor = StatusColors.signal(context, view.bleSignalBars);
+    final loraSignalColor = StatusColors.signal(context, view.signalBars);
 
     return Card(
       key: const Key('status.connection'),
@@ -330,9 +324,13 @@ class _ConnectionCard extends StatelessWidget {
         onTap: onOpenBridge,
         child: Semantics(
           button: true,
-          label: 'Connection details. App to Bridge to Smoke X4.',
+          label:
+              'Connection details. App ${view.appBridgeConnectedForLabel}. '
+              'Bridge ${view.bridgeLinkStatusLabel}. '
+              'Smoke X4 ${view.smokeXLinkStatusLabel}, '
+              '${view.smokeXConnectedForLabel}.',
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
             child: Column(
               children: [
                 Row(
@@ -346,7 +344,17 @@ class _ConnectionCard extends StatelessWidget {
                         color: appColor,
                       ),
                     ),
-                    _ChainArrow(color: scheme.outline),
+                    _ChainLink(
+                      key: const Key('status.appBridgeLink'),
+                      signalLevel: view.bleSignalBars,
+                      signalColor: bleSignalColor,
+                      signalLabel:
+                          '${view.bleSignalQualityLabel} Bluetooth signal, ${view.bleRssi ?? '—'} dBm',
+                      color: _bluetoothLinkColor(context),
+                      durationLabel: view.appBridgeConnectedForLabel,
+                      durationSemantics:
+                          'App to Bridge: ${view.appBridgeConnectedForLabel}',
+                    ),
                     Expanded(
                       child: _ChainNode(
                         icon: Icons.bluetooth_rounded,
@@ -355,111 +363,69 @@ class _ConnectionCard extends StatelessWidget {
                         color: bridgeColor,
                       ),
                     ),
-                    _ChainArrow(color: scheme.outline),
+                    _ChainLink(
+                      key: const Key('status.x4Link'),
+                      signalLevel: view.signalBars,
+                      signalColor: loraSignalColor,
+                      signalLabel:
+                          '${view.signalQualityLabel} radio signal, ${view.rssi} dBm',
+                      color: _x4LinkColor(context),
+                      durationLabel: view.smokeXConnectedForLabel,
+                      durationSemantics:
+                          'Bridge to Smoke X4: ${view.smokeXConnectedForLabel}',
+                    ),
                     Expanded(
                       child: _ChainNode(
                         icon: Icons.sensors_rounded,
                         label: 'Smoke X4',
                         status: view.smokeXLinkStatusLabel,
                         color: smokeColor,
+                        warning:
+                            view.isConnected &&
+                            !view.smokeXReceiving &&
+                            view.smokeXStatus != SmokeXStatus.unpaired,
+                        warningColor: smokeColor,
+                        onWarningTap: () => _showSmokeXWarning(context),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(11, 8, 4, 8),
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHighest.withValues(
-                      alpha: 0.45,
+                if (view.isConnected && view.smokeXReceiving) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(11, 8, 11, 8),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest.withValues(
+                        alpha: 0.45,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.schedule,
+                    child: Row(
+                      children: [
+                        Tooltip(
+                          message:
+                              'Time since last data was received from Smoke X4',
+                          triggerMode: TooltipTriggerMode.tap,
+                          child: Icon(
+                            Icons.sensors,
                             size: 15,
                             color: scheme.onSurfaceVariant,
                           ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              view.bridgeConnectedLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
-                            ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            view.telemetryStatusLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
-                          if (view.isConnected) ...[
-                            const SizedBox(width: 6),
-                            SignalBars(
-                              level: view.signalBars,
-                              color: StatusColors.signal(
-                                context,
-                                view.signalBars,
-                              ),
-                              semanticLabel:
-                                  '${view.signalQualityLabel} signal, ${view.rssi} dBm',
-                            ),
-                            const SizedBox(width: 7),
-                            Text(
-                              view.signalQualityLabel,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Icon(
-                            Icons.chevron_right,
-                            size: 18,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ),
-                      if (view.isConnected || view.showSavedReadings) ...[
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            Icon(
-                              view.isConnected ? Icons.sensors : Icons.history,
-                              size: 15,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                view.telemetryStatusLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color:
-                                          view.isConnected &&
-                                              !view.smokeXReceiving
-                                          ? StatusColors.aging(context)
-                                          : scheme.onSurfaceVariant,
-                                    ),
-                              ),
-                            ),
-                            if (!view.isConnected)
-                              Icon(
-                                Icons.chevron_right,
-                                size: 18,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                          ],
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -468,7 +434,39 @@ class _ConnectionCard extends StatelessWidget {
     );
   }
 
-  Color _bridgeColor(BuildContext context) {
+  void _showSmokeXWarning(BuildContext context) {
+    final lost = view.smokeXStatus == SmokeXStatus.pairedLost;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: Text(lost ? 'Smoke X4 signal lost' : 'No data from Smoke X4'),
+        content: Text(
+          lost
+              ? 'The Bridge is connected but hasn’t received data from the Smoke X4 for a while. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.'
+              : 'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              onShowSmokeXHelp();
+            },
+            child: const Text('Pairing steps'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _appColor(BuildContext context) {
     switch (view.phase) {
       case ConnectionPhase.live:
       case ConnectionPhase.stale:
@@ -478,23 +476,55 @@ class _ConnectionCard extends StatelessWidget {
         return StatusColors.aging(context);
       case ConnectionPhase.failed:
       case ConnectionPhase.offline:
-        return StatusColors.stale(context);
       case ConnectionPhase.blocked:
-        return Theme.of(context).colorScheme.error;
       case ConnectionPhase.setup:
-        return StatusColors.stale(context);
+        return Theme.of(context).colorScheme.error;
     }
   }
 
+  Color _bridgeColor(BuildContext context) {
+    switch (view.phase) {
+      case ConnectionPhase.live:
+      case ConnectionPhase.syncing:
+        return StatusColors.live(context);
+      case ConnectionPhase.stale:
+        return StatusColors.aging(context);
+      case ConnectionPhase.reconnecting:
+        return StatusColors.aging(context);
+      case ConnectionPhase.failed:
+      case ConnectionPhase.offline:
+      case ConnectionPhase.blocked:
+      case ConnectionPhase.setup:
+        return Theme.of(context).colorScheme.error;
+    }
+  }
+
+  Color _bluetoothLinkColor(BuildContext context) {
+    if (view.isConnected) return StatusColors.live(context);
+    if (view.phase == ConnectionPhase.reconnecting) {
+      return StatusColors.aging(context);
+    }
+    return Theme.of(context).colorScheme.error;
+  }
+
+  Color _x4LinkColor(BuildContext context) {
+    if (!view.isConnected) return Theme.of(context).colorScheme.error;
+    if (view.smokeXReceiving) return StatusColors.live(context);
+    if (view.smokeXStatus == SmokeXStatus.pairedLive) {
+      return StatusColors.aging(context);
+    }
+    return Theme.of(context).colorScheme.error;
+  }
+
   Color _smokeColor(BuildContext context) {
-    if (!view.isConnected) return StatusColors.stale(context);
+    if (!view.isConnected) return Theme.of(context).colorScheme.error;
     if (view.smokeXReceiving) return StatusColors.live(context);
     switch (view.smokeXStatus) {
       case SmokeXStatus.pairedLive:
-      case SmokeXStatus.pairedLost:
         return StatusColors.aging(context);
+      case SmokeXStatus.pairedLost:
       case SmokeXStatus.unpaired:
-        return StatusColors.stale(context);
+        return Theme.of(context).colorScheme.error;
     }
   }
 }
@@ -505,6 +535,9 @@ class _ChainNode extends StatelessWidget {
     required this.label,
     required this.status,
     required this.color,
+    this.warning = false,
+    this.warningColor,
+    this.onWarningTap,
   });
 
   final IconData icon;
@@ -514,30 +547,65 @@ class _ChainNode extends StatelessWidget {
   /// colour carries healthy / issue / not-connected state.
   final String status;
   final Color color;
+  final bool warning;
+  final Color? warningColor;
+  final VoidCallback? onWarningTap;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       label: '$label, $status',
       child: Column(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.26)),
-            ),
-            child: Icon(icon, size: 24, color: color),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: color.withValues(alpha: 0.26)),
+                ),
+                child: Icon(icon, size: 24, color: color),
+              ),
+              if (warning)
+                Positioned(
+                  top: -5,
+                  right: -7,
+                  child: Material(
+                    color: scheme.surface,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onWarningTap,
+                      child: Padding(
+                        padding: const EdgeInsets.all(1),
+                        child: Icon(
+                          Icons.warning_amber_rounded,
+                          key: const Key('live.smokeXWarning'),
+                          size: 18,
+                          color: warningColor ?? scheme.error,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 7),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall
-                ?.copyWith(color: color, fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+              height: 1.1,
+            ),
           ),
         ],
       ),
@@ -545,16 +613,68 @@ class _ChainNode extends StatelessWidget {
   }
 }
 
-class _ChainArrow extends StatelessWidget {
-  const _ChainArrow({required this.color});
+/// One radio link between two chain nodes: signal and connected duration sit
+/// together. Their colour carries the health code.
+class _ChainLink extends StatelessWidget {
+  const _ChainLink({
+    super.key,
+    required this.signalLevel,
+    required this.signalColor,
+    required this.signalLabel,
+    required this.color,
+    required this.durationLabel,
+    required this.durationSemantics,
+  });
 
+  final int signalLevel;
+  final Color signalColor;
+  final String signalLabel;
   final Color color;
+  final String durationLabel;
+  final String durationSemantics;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: Icon(Icons.arrow_forward_rounded, size: 17, color: color),
+    return SizedBox(
+      width: 52,
+      child: Column(
+        children: [
+          // Mirrors the chain node above: the bars sit on the icon centre...
+          SizedBox(
+            height: 48,
+            child: Center(
+              child: SignalBars(
+                level: signalLevel,
+                color: signalColor,
+                semanticLabel: signalLabel,
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          // ...and the elapsed time sits on the node label baseline.
+          SizedBox(
+            height: 12,
+            child: Center(
+              child: Semantics(
+                label: durationSemantics,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    durationLabel,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

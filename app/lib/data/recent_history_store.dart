@@ -90,6 +90,45 @@ class RecentHistoryStore implements BridgeSyncSink {
     onChanged?.call();
   }
 
+  /// Adds the reading carried by a `live` notification.
+  ///
+  /// Live notifications arrive between sync passes, so recording them keeps the
+  /// Live sparklines and the History chart moving every few seconds instead of
+  /// waiting for the next Bluetooth sync. A later sync of the same sequence
+  /// replaces this sample with the Bridge's stored timestamp and flags.
+  void recordLive({
+    required int seq,
+    required DateTime time,
+    required List<double?> tempsF,
+    required bool clockValid,
+    required bool billowsAttached,
+  }) {
+    if (seq <= 0 || seq == 0xFFFFFFFF) return;
+    _bySeq[seq] = RecentSample(
+      seq: seq,
+      time: time,
+      tempsF: List<double?>.unmodifiable(tempsF),
+      clockValid: clockValid,
+      billowsAttached: billowsAttached,
+    );
+    onChanged?.call();
+  }
+
+  /// The last hour of one probe, ready for [ProbeSparkline]. Nulls are kept so
+  /// a detached probe or a real transmission gap breaks the line.
+  List<ChartPoint> sparkline(
+    int probe, {
+    Duration window = const Duration(hours: 1),
+  }) {
+    final end = _now();
+    final start = end.subtract(window);
+    return <ChartPoint>[
+      for (final sample in samples)
+        if (!sample.time.isBefore(start) && !sample.time.isAfter(end))
+          ChartPoint(sample.time, sample.tempsF[probe]),
+    ];
+  }
+
   /// Builds the view shape used by the approved History screen.
   ///
   /// The requested range is the real chart window. In V0 that window may be
@@ -117,13 +156,10 @@ class RecentHistoryStore implements BridgeSyncSink {
 
     final series = <ChartSeries>[
       for (var probe = 0; probe < 4; probe++)
-        ChartSeries(
-          probe,
-          <ChartPoint>[
-            for (final sample in inWindow)
-              ChartPoint(sample.time, sample.tempsF[probe]),
-          ],
-        ),
+        ChartSeries(probe, <ChartPoint>[
+          for (final sample in inWindow)
+            ChartPoint(sample.time, sample.tempsF[probe]),
+        ]),
     ];
 
     final gap = _largestGap(inWindow);

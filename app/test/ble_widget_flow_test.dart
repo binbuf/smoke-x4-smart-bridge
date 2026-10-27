@@ -55,7 +55,14 @@ void main() {
       expect(session.controller.liveView.rssi, -71);
       expect(find.text('P1'), findsOneWidget);
       expect(find.textContaining('225.0', findRichText: true), findsWidgets);
-      expect(find.textContaining('Bridge connected'), findsWidgets);
+      expect(find.byKey(const Key('status.appBridgeLink')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('status.appBridgeLink')),
+          matching: find.text('2h 14m'),
+        ),
+        findsOneWidget,
+      );
 
       // A disconnect from the fake moves the same UI to the offline state.
       await tester.runAsync(session.disconnect);
@@ -65,12 +72,17 @@ void main() {
       expect(session.controller.liveView.isOffline, isTrue);
       expect(
         find.textContaining('Showing saved readings', findRichText: true),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.textContaining('Sensor data received'), findsNothing);
       expect(
-        find.textContaining('Bridge disconnected', findRichText: true),
+        find.descendant(
+          of: find.byKey(const Key('status.appBridgeLink')),
+          matching: find.text('Offline'),
+        ),
         findsOneWidget,
       );
+      expect(find.textContaining('Bridge disconnected'), findsNothing);
       expect(
         find.textContaining('225.0', findRichText: true),
         findsWidgets,

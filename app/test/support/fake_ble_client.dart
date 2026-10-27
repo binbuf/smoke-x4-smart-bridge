@@ -113,6 +113,7 @@ class FakeBleClient implements BleClient {
   BleBondState _bondState = BleBondState.none;
   BleDevice? _connectedDevice;
   int? _negotiatedMtu;
+  int linkRssi = -52;
   bool _scanning = false;
   bool _disposed = false;
 
@@ -321,6 +322,13 @@ class FakeBleClient implements BleClient {
 
   @override
   int? get negotiatedMtu => _negotiatedMtu;
+
+  @override
+  Future<int> readRssi() async {
+    _checkConnected();
+    operations.add('rssi');
+    return linkRssi;
+  }
 
   @override
   Future<int> requestMtu(int mtu) async {

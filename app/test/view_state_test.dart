@@ -66,6 +66,9 @@ void main() {
     expect(settings.phoneRecordsLabel, '128,430');
     expect(settings.bridgeRecordsLabel, '24,810');
     expect(settings.themeModeLabel, 'System');
+    expect(settings.tempChangeWindowMinutes, 5);
+    controller.setTempChangeWindowMinutes(10);
+    expect(controller.settingsView.tempChangeWindowMinutes, 10);
 
     final details = controller.bridgeDetailsView;
     expect(details.firmware, '0.1.0');
@@ -119,7 +122,9 @@ void main() {
 
     expect(find.text('P1'), findsOneWidget);
     expect(find.textContaining('165.2', findRichText: true), findsOneWidget);
-    expect(find.textContaining('1h · '), findsOneWidget);
+    expect(probe.changeText, isNotNull);
+    expect(find.text(probe.changeText!), findsOneWidget);
+    expect(find.textContaining('Min '), findsOneWidget);
   });
 
   testWidgets('release entrypoint hides the experimental lab', (tester) async {
@@ -131,19 +136,13 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      SmokeBridgeApp(
-        controller: controller,
-        enableExperimentalLab: false,
-      ),
+      SmokeBridgeApp(controller: controller, enableExperimentalLab: false),
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('nav.experimental')), findsNothing);
 
     await tester.pumpWidget(
-      SmokeBridgeApp(
-        controller: controller,
-        enableExperimentalLab: true,
-      ),
+      SmokeBridgeApp(controller: controller, enableExperimentalLab: true),
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('nav.experimental')), findsOneWidget);

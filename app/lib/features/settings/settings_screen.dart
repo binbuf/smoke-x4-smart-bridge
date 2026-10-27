@@ -297,6 +297,36 @@ class _UnitsTile extends StatelessWidget {
                   controller.setUnits(selection.first),
             ),
           ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Live change window',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ),
+              DropdownButton<int>(
+                key: const Key('settings.tempChangeWindow'),
+                value: view.tempChangeWindowMinutes,
+                underline: const SizedBox.shrink(),
+                items: const [1, 5, 10, 15, 30, 60]
+                    .map(
+                      (minutes) => DropdownMenuItem<int>(
+                        value: minutes,
+                        child: Text('$minutes min'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    controller.setTempChangeWindowMinutes(value);
+                  }
+                },
+              ),
+            ],
+          ),
         ],
       ),
     );
