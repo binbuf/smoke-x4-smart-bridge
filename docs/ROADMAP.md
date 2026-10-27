@@ -17,7 +17,7 @@ Protocol contract, host tests, firmware and app skeletons, the approved-UI
 baseline, the BLE fake, CI and the bench identity/power answers. No product
 feature lands here, but every later task has a place to land.
 
-- [~] T01 — Workspace scaffold and ignore rules → [tasks/01-workspace-scaffold.md](tasks/01-workspace-scaffold.md) ⟵ running
+- [x] T01 — Workspace scaffold and ignore rules → [tasks/01-workspace-scaffold.md](tasks/01-workspace-scaffold.md)
 - [ ] T02 — Protocol contract and codegen → [tasks/02-protocol-contract-codegen.md](tasks/02-protocol-contract-codegen.md)
 - [ ] T03 — Host test harness and fixtures → [tasks/03-host-test-harness.md](tasks/03-host-test-harness.md)
 - [ ] T04 — Firmware skeleton and partition table → [tasks/04-firmware-skeleton.md](tasks/04-firmware-skeleton.md)
@@ -167,3 +167,13 @@ a product control path.
 **Exit gate:** a receive-only report records whether any additional displayable
 Billows telemetry exists; if not, the question closes and observation stays
 as-is.
+
+<!-- symphony:status -->
+**Pipeline status** — updated 2026-10-27T00:20:03Z · 1/67 done
+
+- Completed: T01
+- Blocked: none
+- Failed: none
+- Remaining: T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T01 — done · Created firmware/protocol/tools scaffold with tracked placeholders, expanded ignore rules for builds and ESP-IDF/Flutter local state, documented the layout in ADR 0012, and verified clean-clone visibility with legacy untouched.
+<!-- /symphony:status -->
