@@ -377,7 +377,9 @@ Rules:
   repeat a no-reading line four times.
 - Offline without cache: show `Bridge disconnected · nothing saved yet` and do
   not render fixture or last-session probe values as if they were current. One
-  next action (`Retry`) is enough.
+  next action (`Retry`) is enough. The view state carries this explicitly as
+  `showSavedReadings = false`; probe values and sparklines become empty rather
+  than falling back to the last known content. See ADR 0041.
 - No aggregate preview graph and no footer instruction text on Live.
 - Pull-to-refresh reads `live`, runs a forward sync, and reports failure with a
   named error. It is the one action allowed to throw visibly.
@@ -385,8 +387,10 @@ Rules:
   mode switch, no target setter, and no second “Connected” pill. `Detected` comes
   only from the `billows_attached` field in a recent valid X4 packet; never claim
   the fan is running. The target is the Smoke X4 channel 4 set temp; when it has
-  not been validated it shows `—`. The Live card shows `Billows`, `Set temp`,
-  `Last detected`, and the caption `Set on the Smoke X4.` The `Last detected`
+  not been validated it shows `-`. The Live card shows `Billows`, `Set temp`,
+  `Last detected`, and the caption `Set on the Smoke X4.` When
+  `caps.billows_observe = 0` the card and every Billows notice are absent; Live
+  models that as a null `billows` view state (ADR 0041). The `Last detected`
   value is an age (`12s ago`), not a bare `Detected`. When offline, use
   `Set temp (last known)` and a last-detected age. If Billows was detected
   earlier in the session and is now missing, Live shows one `Billows not

@@ -31,6 +31,7 @@ class LiveViewState {
     required this.units,
     required this.billows,
     required this.billowsLostThisSession,
+    required this.showSavedReadings,
     required this.lastSyncedLabel,
   });
 
@@ -56,8 +57,14 @@ class LiveViewState {
   final List<ProbeView> probes;
   final ProbePresence probePresence;
   final Units units;
+  /// `null` when the card must not render: Billows was never detected or the
+  /// Bridge reports `caps.billows_observe = 0`.
   final BillowsView? billows;
   final bool billowsLostThisSession;
+
+  /// True when the offline surface is backed by saved readings. False means
+  /// "nothing saved yet": probe values must render empty, never as current.
+  final bool showSavedReadings;
   final String lastSyncedLabel;
 
   String get unitSuffix => unitLabel(units);
