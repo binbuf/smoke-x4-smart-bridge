@@ -163,6 +163,34 @@ reconstruction from valid records mean a torn sector header does not discard the
 sector's committed records. The design does not claim "zero loss"; it claims
 "earlier records are safe".
 
+### Ring core and the `log_io` seam
+
+`firmware/components/sample_log/log_core.c` holds the pure ring. It sees storage
+only through `log_io.h` (`read`, `write`, `erase`, capacity, sector size), so
+the same code runs against the RAM fake in host tests and the `esp_partition`
+adapter in firmware (T19). No heap and no ESP-IDF dependency.
+
+- `log_ring_mount()` scans both header copies in every sector. It accepts any
+  copy with a valid CRC, magic `SX4L` and version 1, then scans records to the
+  first bad CRC/layout or sequence gap.
+- A sector header is trusted only when `first_seq` agrees with its first valid
+  record. With a known generation, a missing or torn header is rewritten from
+  the first valid record and verified by read-back.
+- `have_generation` is the NVS generation. Sectors with another generation are
+  ignored and become reclaimable. When the caller has no generation, the newest
+  valid header restores it; headerless sectors are not adopted in that mode.
+- `log_ring_format()` selects a fresh generation without erasing the partition.
+  Old-generation sectors are reclaimed lazily as rotation reaches them, so a
+  clear is not a multi-second whole-partition erase.
+- Append assigns the sequence (`0` for an empty log), writes the 18-byte record
+  after a verified header, and rotates only when the head sector is full.
+  Rotation erases the oldest sector and advances `min_seq`; `max_seq` and
+  `next_seq` advance per record.
+- `log_ring_read_seq()` re-checks the record CRC/layout on every read.
+- The geometry constants and `_Static_assert`s in `log_core.h` pin 4,096-byte
+  sectors, 32 header bytes, 225 records/sector, 1,504 sectors and
+  **338,400** records.
+
 ### Capacity arithmetic
 
 ```

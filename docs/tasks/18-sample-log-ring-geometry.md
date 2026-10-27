@@ -11,8 +11,8 @@ A pure ring core over a `log_io` seam implements sector headers, append, wrap, o
 - Depends on T17.
 
 ## Scope
-- [ ] Define the `log_io` seam (`read`, `write`, `erase`) so the core is independent of ESP-IDF.
-- [ ] Implement sector headers with two 16-byte copies, A and B:
+- [x] Define the `log_io` seam (`read`, `write`, `erase`) so the core is independent of ESP-IDF.
+- [x] Implement sector headers with two 16-byte copies, A and B:
 
   | Offset | Size | Field |
   |---|---:|---|
@@ -24,10 +24,10 @@ A pure ring core over a `log_io` seam implements sector headers, append, wrap, o
   | 13 | 2 | CRC-16/CCITT-FALSE over bytes 0..12 |
   | 15 | 1 | reserved |
 
-- [ ] Implement append, sector transitions, wrap, and oldest-sector erase (rotation).
-- [ ] Write header copies A and B before the first record of a sector, then verify by read-back.
-- [ ] Implement `min_seq`, `max_seq`, and `generation` tracking.
-- [ ] Implement the capacity arithmetic and assert it matches **338,400 records**:
+- [x] Implement append, sector transitions, wrap, and oldest-sector erase (rotation).
+- [x] Write header copies A and B before the first record of a sector, then verify by read-back.
+- [x] Implement `min_seq`, `max_seq`, and `generation` tracking.
+- [x] Implement the capacity arithmetic and assert it matches **338,400 records**:
 
   ```
   6,160,384 bytes / 4,096 = 1,504 sectors
@@ -35,9 +35,9 @@ A pure ring core over a `log_io` seam implements sector headers, append, wrap, o
   1,504 × 225 = 338,400 records
   ```
 
-- [ ] Implement the recovery scan: accept any valid header copy; scan records until the first bad CRC or impossible sentinel combination; reconstruct a missing header from valid records when the generation still matches; set `next_seq = max_seq + 1` (or 0 when empty).
-- [ ] Simulate with the RAM fake: torn tails, dual-header recovery, empty log, full log, and full wrap.
-- [ ] Add a test for generation mismatch: sectors from an old generation are ignored and reclaimed.
+- [x] Implement the recovery scan: accept any valid header copy; scan records until the first bad CRC or impossible sentinel combination; reconstruct a missing header from valid records when the generation still matches; set `next_seq = max_seq + 1` (or 0 when empty).
+- [x] Simulate with the RAM fake: torn tails, dual-header recovery, empty log, full log, and full wrap.
+- [x] Add a test for generation mismatch: sectors from an old generation are ignored and reclaimed.
 
 ## Out of scope
 - Binding the core to the `samples` partition and mapping `esp_partition` errors → T19.
@@ -60,17 +60,78 @@ A pure ring core over a `log_io` seam implements sector headers, append, wrap, o
 - There is no per-sample `fsync`; NOR writes commit as they complete. The per-record CRC catches a torn tail.
 
 ## Done when
-- [ ] The RAM fake passes all scenarios: fill, wrap, oldest-sector erase, torn tail, dual-header recovery, empty, full, full-wrap, and generation change.
-- [ ] The capacity assert matches **338,400 records**.
-- [ ] A torn tail leaves earlier records readable and resumes at the next valid sequence.
-- [ ] A valid record set with one damaged header copy is still usable; a wholly bad header can be reconstructed when the generation matches.
-- [ ] Host tests pass:
+- [x] The RAM fake passes all scenarios: fill, wrap, oldest-sector erase, torn tail, dual-header recovery, empty, full, full-wrap, and generation change.
+- [x] The capacity assert matches **338,400 records**.
+- [x] A torn tail leaves earlier records readable and resumes at the next valid sequence.
+- [x] A valid record set with one damaged header copy is still usable; a wholly bad header can be reconstructed when the generation matches.
+- [x] Host tests pass:
   ```bash
   cmake -S firmware/test -B firmware/test/build -G Ninja
   cmake --build firmware/test/build
   ctest --test-dir firmware/test/build
   ```
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+Landed:
+- `firmware/components/sample_log/include/log_core.h` — ring geometry and API.
+  Constants pin 4,096-byte sectors, 32 header bytes (two 16-byte copies), 225
+  records/sector, 1,504 sectors and **338,400 records** with `_Static_assert`s
+  (including the 14 spare bytes). `log_ring_t`, `log_ring_info_t`,
+  `log_ring_mount`, `log_ring_format`, `log_ring_append`, `log_ring_read_seq`
+  and `log_ring_info`.
+- `firmware/components/sample_log/log_core.c` — pure ring over the existing
+  `log_io.h` seam (no ESP-IDF, no heap):
+  - dual header copies, magic/version/CRC checks, write A+B then read-back
+    verify before the first record;
+  - recovery scans each usable sector to the first bad CRC/layout or sequence
+    gap, accepts either header copy, repairs a missing/torn header from the
+    first valid record when the generation is known, and sets
+    `next_seq = max_seq + 1` (0 when empty);
+  - generation tracking: supplied NVS generation wins; other-generation
+    sectors are ignored and reclaimed later; unknown mode restores the newest
+    valid header; `format` is lazy and does not stall boot on an erase of all
+    1,504 sectors;
+  - append assigns `seq`, rotates at 225 records, erases the oldest sector,
+    handles a single-sector wrap and skips holes left by a wholly bad sector;
+  - `min_seq`/`max_seq`/`next_seq`/live-count bookkeeping and CRC-checked reads.
+- `firmware/test/test_sample_log_ring.c` + `sample-log-ring` CTest: capacity
+  arithmetic, empty/format, fill, wrap, oldest-sector erase, torn tail,
+  dual-header recovery, wholly bad header reconstruction, generation mismatch
+  and reclamation, unknown-generation restore, full 338,400-record default
+  partition and one full wrap.
+- Design 04 §4.3 "Ring core and the `log_io` seam"; design 03 §3.14; ADR 0026;
+  `docs/progress/T18.md` with API/commands/gotchas for T19.
+
+Deviations:
+- The ring lives in `log_core.c` (design 03 already assigns it there) rather
+  than a new file; the IDF component and host library already build it.
+- `log_ring_format` is lazy: it selects the generation but leaves old sectors
+  for rotation to erase. This avoids a whole-partition erase at boot; T19's
+  `clear_pending` path may still erase them explicitly.
+- The recovery scan also stops on a sequence gap, not only bad CRC/sentinel, so
+  a valid-looking stale record past a torn write is never adopted.
+- Unknown-generation restore uses the greatest `first_seq` header. If NVS is
+  lost while unreclaimed old-generation sectors remain, it can pick stale data;
+  the normal path supplies the NVS generation (ADR 0026).
+
+Checks:
+- Host: `cmake -S firmware/test -B firmware/test/build -G Ninja`,
+  `cmake --build firmware/test/build`,
+  `ctest --test-dir firmware/test/build --output-on-failure` -> 10/10 passed
+  (new `sample-log-ring` runs the full 338,400-record fill in 0.40 s).
+- Firmware: `idf.py -B build
+  "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build`
+  -> complete; `sx4_bridge.bin` 0x3aa70 bytes.
+- Capacity assert matches **338,400** records in `log_core.h` and the test.
+
+Remaining work:
+- T19: implement the `esp_partition` `log_io` adapter, pass the NVS generation
+  to `log_ring_mount`, generate and persist a fresh generation when
+  `info.needs_format`, and measure real-flash recovery. The core scans
+  record-by-record, so a buffered adapter may be needed for the ~2 s budget.
+- T19: finish `clear_pending` by erasing old-generation sectors; decide what to
+  do if in-place header reconstruction fails read-back on NOR.
+- T21/T27: consume `log_ring_append`/`log_ring_read_seq`; T27 may add a backward
+  scan helper reusing the header walk.
+- No blockers.
