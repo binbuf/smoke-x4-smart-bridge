@@ -209,6 +209,7 @@ versioned struct and change notifications.
 | `device` | units, display_timeout_s, device_name; `billows_mode`/`billows_target_f10` are reserved and unwritten in the MVP |
 | `log` | generation, clear_pending, clock_anchor_s, clock_valid (the sequence is recovered from flash) |
 | `stats` | boot_count, last_reset_reason, packets_ok, packets_bad |
+| `meta` | config_version (layout metadata, kept across factory reset) |
 | BLE bonds | NimBLE's own NVS namespace (documented exception) |
 
 Rules:
@@ -223,6 +224,33 @@ Rules:
   boot path can finish the erase and ignore old-generation sectors.
 - Pairing data is independent of log data: forgetting phones does not unpair the
   Smoke X4; clearing the log does not unpair.
+
+Implementation (T15, ADR 0023):
+
+- The core is plain C11 over a byte-oriented key/value seam; the ESP-IDF
+  adapter is the only code that calls `nvs_open()`/`nvs_get_blob()`. Host tests
+  use a RAM backend.
+- ESP-IDF key names are limited to 15 characters, so three logical keys have
+  physical aliases: `display_timeout_s` → `disp_timeout_s`,
+  `last_reset_reason` → `last_reset`, `billows_target_f10` →
+  `billows_tgt_f10`. Values are little-endian blobs; strings have no NUL.
+- Version 0/absent is the unversioned layout. Migration keeps valid values,
+  scrubs wrong-sized ones, ensures `generation` exists, then writes version 1.
+  A newer version is refused without modifying anything.
+- Validation: frequency 902–928 MHz, probes 2 or 4, printable-ASCII device ID,
+  valid UTF-8 name of 1–15 bytes, timeout in {0, 30, 60, 120}, units 0/1, and a
+  valid clock must have a non-zero anchor.
+- `begin_log_clear()` writes the new generation **then** `clear_pending = 1`,
+  before the ring erase starts. `regenerate_generation()` is only for a wholly
+  unusable log; `set_generation()` only restores a generation recovered from a
+  sector header (T19).
+- `bridge_config_factory_reset_steps()` is the single list of reset work:
+  new generation, pending clear, every key, then the NimBLE bond clear.
+  `clear_bonds()` forgets phones only; `clear_pairing()` re-pairs the radio and
+  keeps bonds and the log.
+- `billows_mode`/`billows_target_f10` have no setter and are never read from
+  NVS; the getter returns the MVP constants 0/0.
+
 
 ## 3.8 Clock
 
