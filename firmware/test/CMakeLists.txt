@@ -71,6 +71,22 @@ target_compile_definitions(test_sx_radio_rx PRIVATE
 )
 add_test(NAME sx-radio-rx COMMAND test_sx_radio_rx)
 
+# sx_protocol is pure C: the parser compiled here is the same source the
+# firmware links, with no ESP-IDF includes (see the #ifdef ESP_PLATFORM init).
+add_library(sx4_sx_protocol STATIC
+    "${REPO_ROOT}/firmware/components/sx_protocol/sx_protocol.c"
+)
+target_include_directories(sx4_sx_protocol
+    PUBLIC "${REPO_ROOT}/firmware/components/sx_protocol/include"
+)
+
+add_executable(test_sx_protocol test_sx_protocol.c)
+target_link_libraries(test_sx_protocol PRIVATE sx4_sx_protocol sx4_test_support)
+target_compile_definitions(test_sx_protocol PRIVATE
+    SX4_FIXTURE_DIR="${SX4_LORA_FIXTURES}"
+)
+add_test(NAME sx-protocol COMMAND test_sx_protocol)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks

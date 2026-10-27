@@ -172,6 +172,38 @@ F10 = (C10 × 9) / 5 + 320
 `C10` is finer than `F10`, so the conversion does not lose resolution. The
 record carries a `source_celsius` flag for provenance only.
 
+### Parser contract (T14)
+
+`firmware/components/sx_protocol/` implements the wire rules above as plain
+C11. The public API is in `include/sx_protocol.h`; the structs (carried over
+from the legacy `smoke_x_types.h` shape) are in
+`include/sx_protocol_types.h`:
+
+- `sx_protocol_parse_sync()` decodes the 6-comma beacon. It does **not**
+  range-check the frequency; the pairing caller applies 902–928 MHz before
+  retuning or ACKing (design 02 section 2.7).
+- `sx_protocol_parse_state()` infers 2 probes from 16 commas (X2, defensive)
+  or 4 from 26 commas (X4). Any other comma count, a missing trailing comma,
+  an empty field, trailing garbage or a non-numeric field is rejected.
+- `paired_device_id` is the stored ID. A foreign ID returns
+  `SX_PROTOCOL_ERR_FOREIGN_DEVICE` before any other field is parsed and
+  increments the mismatch counter.
+- Probe temperatures are emitted as canonical `temp_f10`; `state == 3` emits
+  `SX_PROTOCOL_TEMP_DETACHED` (`INT16_MIN`) and never the frozen wire value.
+  The Celsius conversion is exactly `F10 = (C10 x 9) / 5 + 320`.
+- `alarm_high_deg` / `alarm_low_deg` stay in the packet's active unit; they
+  are setpoints, not canonical temperatures.
+- `new_alarm` is preserved from the trailing field. `billows_attached` is
+  preserved; probe 4 `max` is surfaced only as
+  `billows_target_deg` with `billows_target_valid == false` until M5
+  validates the max↔target relation.
+- No heap, no I/O, `strtok_r` over a fixed 128-byte stack copy. Output is
+  published only after the whole payload validates, so rejection is atomic.
+- Counters (`sx_protocol_counters_t`): valid state packets, parse
+  failures, CRC failures (radio hook `sx_protocol_note_crc_failure()`),
+  foreign device IDs, sync beacons, ACK attempts. Single writer today; the
+  parser task owns them, housekeeping reads them.
+
 ## 2.6 Billows fields
 
 The fan is attached to the Smoke X4's **channel 4** on an X4 (channel 2 on an
@@ -285,8 +317,10 @@ the legacy fixtures.
 The machine-readable corpus is `protocol/fixtures/lora/parser-vectors.tsv`; it
 carries one row per vector with category, expected outcome, device/units/
 attached/frequency expectations and provenance. The directory `README.md`
-records the capture provenance and the X2-defensive rule. Host suite:
-`firmware/test/test_lora_corpus.c`.
+records the capture provenance and the X2-defensive rule. Host suites:
+`firmware/test/test_lora_corpus.c` checks the corpus shape and metadata;
+`firmware/test/test_sx_protocol.c` runs every vector plus the real captures
+through the product parser (`sx-protocol` CTest).
 
 ## 2.10 Open protocol questions
 

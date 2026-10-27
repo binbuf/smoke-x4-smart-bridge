@@ -394,7 +394,7 @@ static void test_vector_corpus(void) {
     sx4_parser_vector_t vectors[MAX_VECTORS];
     size_t count = 0;
     CHECK_EQ_INT(sx4_vectors_read(path, vectors, MAX_VECTORS, &count), 0);
-    CHECK_EQ_UINT(count, 20);
+    CHECK_EQ_UINT(count, 21);
 
     int have_x4 = 0;
     int have_x2 = 0;

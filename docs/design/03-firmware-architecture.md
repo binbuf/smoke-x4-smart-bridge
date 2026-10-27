@@ -189,6 +189,9 @@ Rules:
   written.
 - Device ID mismatch is dropped and counted.
 - Detached probes become `TEMP_DETACHED` before the record is built.
+- Celsius packets are converted to canonical °F tenths before the record is
+  built; `source_celsius` is provenance only. Billows `max` remains a
+  candidate target until M5 validates the relation.
 - The log write is queued; if the queue is full, the sample is dropped and
   `dropped_samples` increments. At 30 s cadence this should never happen; if it
   does, it is visible.
@@ -324,7 +327,12 @@ declared against a 24 KiB budget) and re-checked by the host `task-budget` test.
 
 - `sx_protocol` is pure C and takes a payload string. The host corpus reader
   and `parser-vectors.tsv` live under `protocol/fixtures/lora/`; tests never
-  read `legacy/`.
+  read `legacy/`. The API is `include/sx_protocol.h` (types in
+  `include/sx_protocol_types.h`); `sx_protocol_parse_state()` infers 2/4 probes
+  from 16/26 commas, filters a foreign paired ID before parsing further, emits
+  canonical `temp_f10`, and publishes output only after the whole payload
+  validates. `firmware/test/test_sx_protocol.c` is the product-parser suite
+  (`sx-protocol` CTest) and replays every corpus vector and real capture.
 - `sample_log` core takes a `log_io` interface (`read`, `write`, `erase`) so a
   RAM-backed fake can simulate wrap, torn writes, and corruption. The seam is
   `firmware/components/sample_log/include/log_io.h`; the fake and failure
