@@ -36,6 +36,8 @@
 - **T34 — app: Live screen**: **Date:** 2026-10-27 · **Verification:** host/CI widget tests · **Result:** done; `app/lib/app/view_state.dart`: `LiveViewState` gained
 - **T35 — app: link procedures and time sync**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter test`, `flutter analyze`) · **Result:** done; `app/lib/data/ble/bridge_protocol.dart`
 - **T36 — app: recent History (V0)**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done; `app/lib/data/recent_history_store.dart` — `RecentHistoryStore` implements
+- **T37 — Bench: V0 residual physical gate**: **Date:** 2026-10-27 · **Verification:** real Pixel 11 Pro Fold + Heltec V3 +; Phone: Pixel 11 Pro Fold, Android 17 / API 37, wireless ADB
+- **T39 — ble_service: full sync cursor, gap, and generation**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/ble_sync.c`:
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -72,6 +74,8 @@
 - [T34](progress/T34.md) — **Date:** 2026-10-27 · **Verification:** host/CI widget tests · **Result:** done
 - [T35](progress/T35.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter test`, `flutter analyze`) · **Result:** done
 - [T36](progress/T36.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done
+- [T37](progress/T37.md) — **Date:** 2026-10-27 · **Verification:** real Pixel 11 Pro Fold + Heltec V3 +
+- [T39](progress/T39.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

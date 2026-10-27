@@ -94,7 +94,7 @@ Bridge, resumes after disconnect, draws gaps honestly, and never deletes data
 without an explicit user action. History, Summary, Cooks and the Cook view match
 the approved UI contract.
 
-- [ ] T39 — ble_service: full sync cursor, gap, and generation → [tasks/39-ble-full-sync-cursor.md](tasks/39-ble-full-sync-cursor.md)
+- [x] T39 — ble_service: full sync cursor, gap, and generation → [tasks/39-ble-full-sync-cursor.md](tasks/39-ble-full-sync-cursor.md)
 - [ ] T40 — app: local database and DAO → [tasks/40-app-local-database.md](tasks/40-app-local-database.md)
 - [ ] T41 — app: repository and two-phase sync → [tasks/41-app-repository-two-phase-sync.md](tasks/41-app-repository-two-phase-sync.md)
 - [ ] T43 — app: connection health, saved Bridge and launch auto-connect → [tasks/43-app-connection-health.md](tasks/43-app-connection-health.md)
@@ -181,11 +181,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T18:34:27Z · 37/66 done
+**Pipeline status** — updated 2026-10-27T18:43:00Z · 38/66 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39
 - Blocked: none
 - Failed: none
-- Remaining: T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T37 — complete for V0 · automatable residual run passed; physical-only cadence/power-cut/probe/OLED/stock-receiver checks deferred to T61/T62/T55/T67; T38 folded into T63
+- Remaining: T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T39 — done · Full forward/backward cursor, gap/generation snapshot, drain/empty terminators and host regression coverage landed; 21/21 ctest and firmware build pass, with END-generation omission documented as the wire-format deviation.
 <!-- /symphony:status -->
