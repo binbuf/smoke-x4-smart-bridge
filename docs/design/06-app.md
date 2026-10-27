@@ -158,17 +158,46 @@ Config/stats are read once the firmware serves them (M4); V0 needs only
 - **Securing**: subscribe to `live`, `result`, `sync_data`; read `info` and
   `live`. Read `config`/`stats` when the firmware serves them.
 - **Syncing**: first sync after pairing sets the clock and pulls the recent
-  24 h, then backfills. A reconnect with existing data sets the clock and pulls
-  **forward from the local max** immediately; it does not re-read 24 h. The UI
-  says `Syncing saved readings` for the recent pass and `Loading saved readings`
-  for background backfill; `Syncing` or `backfill` alone never reaches a product
-  screen.
+  window — **15 minutes in V0**, not the full 24 h. A reconnect with existing
+  data sets the clock when needed and pulls **forward from the local max**
+  immediately; it does not re-read 24 h. The UI says `Syncing saved readings`
+  for the recent pass and `Loading saved readings` for background backfill;
+  `Syncing` or `backfill` alone never reaches a product screen. The procedure
+  and its local-max seam live in `data/ble/bridge_link.dart`; T39–T41 replace
+  the no-op sync sink with the durable archive and background loading.
 - **Live**: append notifications; periodic forward sync every 60 s; health
   watchdog. A pull-to-refresh reads `live` and runs a forward sync.
 - **Reconnecting**: exponential backoff 1, 2, 4, 8, 15, 30 s. A user
   pull-to-refresh or app resume cuts the wait short.
 - **Failed**: after all six attempts show `Can’t reach the Bridge` with a Retry
   button and a `Forget this phone` escape. Never spin forever silently.
+
+### Link procedures (T35)
+
+- `app/lib/data/ble/bridge_link.dart` runs the fixed order: connect → read
+  `info` → request MTU 247 → bond when not secured → subscribe `live`, `result`,
+  `sync_data` → read `live` → `control(set_time)` → sync. It never imports a
+  plugin or a widget.
+- `BridgeController.ensureLink()` wires the procedure to the approved phase,
+  live, info, sync and reconnect copy. Setup calls
+  `completeFirstConnect(device)` after the OS bond; Live pull-to-refresh and
+  app resume reuse the same instance.
+- The control queue allocates a non-reused 0–255 `op_id`, matches the `result`
+  by op + op_id, and times out after 3 s. ATT `0x0F`/`0x05` (mapped to
+  `notBonded`) takes the bond path once; it is never retried in a loop. The
+  production controller never starts an OS bond here: only `SetupFlow.pair()`
+  does, after the approved passkey instruction. A reconnect that needs a bond
+  lands in the named unreachable/Forget state.
+- `set_time` sends the phone's UTC milliseconds and `tz_offset_min`. It always
+  runs on first connect. A reconnect re-sends when `live.clock_valid` is false
+  or the phone wall clock moved more than 2 s from the monotonic elapsed time
+  since the last successful set (see ADR 0042).
+- The health watchdog reads `live` after 110 s without a notification.
+  Fresh `age_s` → `LIVE`; quiet X4 → `STALE`; read failure → `RECONNECTING`.
+  Any GATT disconnect → `RECONNECTING` regardless of sample age.
+- Pull-to-refresh and app resume complete a backoff wait immediately. After the
+  six attempts the Live card shows the named unreachable state with `Retry` and
+  `Forget this phone`.
 - **No results**: after the 10 s scan, show `No Bridge found` with `Try again`,
   `Open Bluetooth settings`, and a hint to press PRG to wake the screen, or hold
   PRG if the Bridge is off.
@@ -707,7 +736,8 @@ Every failure names its cause and offers one next action.
 | No history in range | `No readings in this range` / “Probe 3 has no readings in this range. Try another range or show all probes.” | `Show all probes` |
 | Offline with cache | `Showing saved readings · last reading 20 min ago` | `Retry` |
 | Offline, no cache | `Bridge disconnected · nothing saved yet` | `Retry` |
-| Sync failed | `History sync failed` / “Live readings are still updating. Retry when the Bluetooth connection is stable.” | `Retry sync` |
+| Sync failed | `History sync failed` / "Live readings are still updating. Retry when the Bluetooth connection is stable." | `Retry sync` |
+| Cannot reach the Bridge | `Can’t reach the Bridge` / "The app tried six times. Recording continues on the Bridge. Move closer and try again, or forget this phone and set it up again." | `Retry` / `Forget this phone` |
 | Storage unavailable | `Not recording` / “Live readings are available, but the Bridge can’t save them. Check the Bridge’s storage.” | Bridge details |
 | Protocol major mismatch | `Update the app to use this Bridge` / “The Bridge hasn’t been changed.” | `Update app` (+ saved history / learn more) |
 

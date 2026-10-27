@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../data/ble/ble_client.dart';
+import '../data/ble/bridge_codecs.dart';
+import '../data/ble/bridge_link.dart';
+import '../data/ble/bridge_protocol.dart';
 import '../data/repository.dart';
 import '../domain/content.dart';
 import '../domain/models.dart';
@@ -47,6 +50,139 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Creates the link procedures once and wires them to this controller.
+  ///
+  /// Setup calls it after the bond; Live pull-to-refresh and app resume reuse
+  /// the same instance. Throws when no BLE client is configured.
+  BridgeLink ensureLink({
+    BridgeLinkSettings settings = const BridgeLinkSettings(),
+    BridgeSyncSink sink = const NullBridgeSyncSink(),
+    DateTime Function()? nowUtc,
+    Duration Function()? elapsed,
+    Future<void> Function(Duration duration)? wait,
+    BridgeLinkTimer Function(Duration duration, void Function() action)?
+    schedule,
+    Future<bool> Function()? bondPrompt,
+  }) {
+    final existing = link;
+    if (existing != null) return existing;
+    final client = bleClient;
+    if (client == null) {
+      throw StateError('BridgeController has no BleClient');
+    }
+    final created = BridgeLink(
+      client: client,
+      host: BridgeLinkHost(
+        onPhase: _onLinkPhase,
+        onLive: _onLinkLive,
+        onInfo: _onLinkInfo,
+        onSync: _onLinkSync,
+        onReconnect: _onLinkReconnect,
+        // The OS bond is started only by SetupFlow.pair(), after the approved
+        // "look at the Bridge screen" instruction. A reconnect that finds a
+        // stale bond therefore falls through to the named unreachable/Forget
+        // path instead of raising an unexplained system prompt.
+        onBondPrompt: bondPrompt ?? () async => false,
+      ),
+      settings: settings,
+      sink: sink,
+      localMaxSeq: () => localMaxSeq,
+      onLocalMaxSeq: (seq) {
+        localMaxSeq = seq;
+        notifyListeners();
+      },
+      nowUtc: nowUtc,
+      elapsed: elapsed,
+      wait: wait,
+      schedule: schedule,
+    )..attach();
+    link = created;
+    return created;
+  }
+
+  void _onLinkPhase(ConnectionPhase value) {
+    phase = value;
+    if (value == ConnectionPhase.syncing) {
+      syncState = SyncState.recent;
+      syncProgressPercent = 10;
+    } else if (value == ConnectionPhase.reconnecting) {
+      syncState = SyncState.idle;
+    }
+    notifyListeners();
+  }
+
+  void _onLinkLive(BridgeLiveUpdate update) {
+    final live = update.live;
+    liveReceivedAt = update.receivedAt;
+    smokeXAgeOverride = null;
+    liveProbeTemps = <double?>[
+      for (var index = 0; index < 4; index++) live.tempF(index),
+    ];
+    batteryPercent = live.batteryPct == bleBatteryUnknown
+        ? batteryPercent
+        : live.batteryPct;
+    rssi = live.rssiLora;
+    storageOk = live.storageOk;
+    smokeXStatus = live.smokePaired
+        ? (live.smokeLive ? SmokeXStatus.pairedLive : SmokeXStatus.pairedLost)
+        : SmokeXStatus.unpaired;
+    smokeXLiveHint = live.smokeLive;
+    smokeXChannel4SetKnown = live.billowsTargetF10 != 0;
+    if (live.billowsTargetF10 != 0) {
+      smokeXChannel4SetF = (live.billowsTargetF10 / 10).round();
+    }
+    if (live.billowsAttached) {
+      billowsAttachment = BillowsAttachment.attached;
+      billowsSeenThisSession = true;
+    }
+    notifyListeners();
+  }
+
+  void _onLinkInfo(BridgeInfo info) {
+    deviceId = info.deviceId;
+    firmware = info.firmware;
+    protocol = '${info.protoMajor}.${info.protoMinor}';
+    // `caps.billows_observe` gates the Live card before the first paint.
+    billowsObserveCap = info.billowsObserve;
+  }
+
+  void _onLinkSync(BridgeSyncProgress progress) {
+    syncState = progress.state;
+    syncProgressPercent = progress.percent;
+    if (progress.state == SyncState.complete && progress.storedRecords > 0) {
+      hasSavedData = true;
+      savedDataEmpty = false;
+    }
+    notifyListeners();
+  }
+
+  void _onLinkReconnect(int attempt, int total, Duration? nextDelay) {
+    reconnectAttempts = total;
+    if (attempt == 0) {
+      nextReconnectIn = Duration.zero;
+      return;
+    }
+    reconnectAttempt = attempt;
+    nextReconnectIn = nextDelay ?? Duration.zero;
+    notifyListeners();
+  }
+
+  /// Live pull-to-refresh. Cuts a reconnect wait short; otherwise reads `live`
+  /// and catches up forward.
+  Future<void> refreshLink() async {
+    final current = link;
+    if (current != null) {
+      await current.pullToRefresh();
+      return;
+    }
+    retryConnection();
+  }
+
+  /// App resume: health check + forward sync, or resume the reconnect loop.
+  Future<void> onAppResume() async {
+    await link?.onAppResume();
+  }
+
   ThemeMode _themeMode = ThemeMode.system;
 
   ThemeMode get themeMode => _themeMode;
@@ -85,6 +221,15 @@ class BridgeController extends ChangeNotifier {
   /// fills this from the phone's receipt time (T35); leaving it null keeps the
   /// prototype-derived age for the approved baseline.
   Duration? smokeXAgeOverride;
+
+  /// Phone receipt time of the newest `live` sample. When [smokeXAgeOverride]
+  /// is null this is the source of the displayed age, so a skewed bridge clock
+  /// cannot fake freshness (06 §6.3).
+  DateTime? liveReceivedAt;
+
+  /// Probe temperatures from the newest `live` sample, in °F. `null` keeps the
+  /// content-provided fixture values (review builds and pre-sync launches).
+  List<double?>? liveProbeTemps;
   bool smokeXChannel4SetKnown = true;
   int smokeXChannel4SetF = 225;
   bool billowsSeenThisSession = true;
@@ -127,6 +272,19 @@ class BridgeController extends ChangeNotifier {
   String? rememberedBridgeId;
   String? rememberedBridgeName;
   int? negotiatedMtu;
+
+  /// The newest sequence stored on this phone. T35 uses it as the forward-sync
+  /// cursor; T39–T41 replace it with the durable archive cursor.
+  int? localMaxSeq;
+
+  /// The production link procedures over [bleClient]. Setup creates it after a
+  /// bond; Live refresh/resume call into the same instance.
+  BridgeLink? link;
+
+  /// Real reconnect progress, so the approved copy names the actual attempt.
+  int reconnectAttempt = 2;
+  int reconnectAttempts = 6;
+  Duration nextReconnectIn = const Duration(seconds: 4);
 
   bool get isConnected =>
       phase == ConnectionPhase.live ||
@@ -181,7 +339,7 @@ class BridgeController extends ChangeNotifier {
     if (isConnected) return 'Bridge connected · $bridgeConnectedForLabel';
     switch (phase) {
       case ConnectionPhase.reconnecting:
-        return 'Reconnecting… attempt 2 of 6';
+        return 'Reconnecting… attempt $reconnectAttempt of $reconnectAttempts';
       case ConnectionPhase.blocked:
         return 'Blocked · $bridgeLinkDetail';
       case ConnectionPhase.setup:
@@ -225,6 +383,11 @@ class BridgeController extends ChangeNotifier {
   Duration? get smokeXLastPacketAge {
     final override = smokeXAgeOverride;
     if (override != null) return override;
+    final receivedAt = liveReceivedAt;
+    if (receivedAt != null) {
+      final age = DateTime.now().toUtc().difference(receivedAt);
+      return age.isNegative ? Duration.zero : age;
+    }
     if (!isConnected) {
       final bridgeAge = bridgeLastContactAge;
       if (bridgeAge == null) return null;
@@ -310,7 +473,7 @@ class BridgeController extends ChangeNotifier {
       case ConnectionPhase.syncing:
         return 'Connected for ${_shortDuration(bridgeConnectedFor)} · updated ${_shortDuration(bridgeLastContactAge!)} ago';
       case ConnectionPhase.reconnecting:
-        return 'Attempt 2 of 6 · next try in 4 sec';
+        return 'Attempt $reconnectAttempt of $reconnectAttempts · next try in ${_shortDuration(nextReconnectIn)}';
       case ConnectionPhase.failed:
       case ConnectionPhase.offline:
         return 'Last connected ${_proseDuration(bridgeLastContactAge!)} ago';
@@ -376,7 +539,7 @@ class BridgeController extends ChangeNotifier {
   }
 
   List<Probe> get probes {
-    final base = content.probeTemps;
+    final base = liveProbeTemps ?? content.probeTemps;
     final health = effectiveHealth;
     return List<Probe>.generate(4, (index) {
       final presence = probePresence;
@@ -541,9 +704,9 @@ class BridgeController extends ChangeNotifier {
       case ConnectionPhase.syncing:
         return syncState == SyncState.backfill
             ? 'Loading saved readings · ${slowLink ? 'slow connection' : 'in the background'}'
-            : 'Syncing the last 24 hours · $syncProgressPercent%';
+            : 'Syncing saved readings · last 15 minutes · $syncProgressPercent%';
       case ConnectionPhase.reconnecting:
-        return 'Attempt 2 of 6 · next try in 4 sec';
+        return 'Attempt $reconnectAttempt of $reconnectAttempts · next try in ${nextReconnectIn.inSeconds} sec';
       case ConnectionPhase.failed:
         return 'Tap to retry. Recording continues on the Bridge.';
       case ConnectionPhase.offline:
@@ -665,7 +828,7 @@ class BridgeController extends ChangeNotifier {
   );
 
   LiveViewState get liveView {
-    final temps = content.probeTemps;
+    final temps = liveProbeTemps ?? content.probeTemps;
     final health = effectiveHealth;
     final probeViews = <ProbeView>[];
     for (var index = 0; index < 4; index++) {
@@ -1032,6 +1195,8 @@ class BridgeController extends ChangeNotifier {
   void disconnect() {
     phase = ConnectionPhase.offline;
     offlineCache = true;
+    liveReceivedAt = null;
+    syncState = SyncState.idle;
     notifyListeners();
   }
 
@@ -1116,22 +1281,26 @@ class BridgeController extends ChangeNotifier {
   }
 
   void forgetPhone() {
+    link?.abandon();
     hasSavedBridge = false;
     hasSavedData = true;
     savedDataEmpty = false;
     phase = ConnectionPhase.setup;
     rememberedBridgeId = null;
     rememberedBridgeName = null;
+    localMaxSeq = null;
     notifyListeners();
   }
 
   void factoryReset() {
+    link?.abandon();
     hasSavedBridge = false;
     hasSavedData = true;
     savedDataEmpty = false;
     phase = ConnectionPhase.setup;
     rememberedBridgeId = null;
     rememberedBridgeName = null;
+    localMaxSeq = null;
     notifyListeners();
   }
 
@@ -1193,6 +1362,12 @@ class BridgeController extends ChangeNotifier {
     billowsAttachment = BillowsAttachment.attached;
     billowsObserveCap = true;
     smokeXAgeOverride = null;
+    liveReceivedAt = null;
+    liveProbeTemps = null;
+    localMaxSeq = null;
+    reconnectAttempt = 2;
+    reconnectAttempts = 6;
+    nextReconnectIn = const Duration(seconds: 4);
     smokeXChannel4SetKnown = true;
     smokeXChannel4SetF = 225;
     billowsSeenThisSession = true;
@@ -1223,6 +1398,7 @@ class BridgeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(link?.dispose() ?? Future<void>.value());
     unawaited(repository.close());
     unawaited(bleClient?.dispose() ?? Future<void>.value());
     super.dispose();
