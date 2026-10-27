@@ -1,16 +1,33 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
 import '../../app/formatters.dart';
+import '../../data/history/history_deletion.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 import 'settings_details.dart';
 
-class HistoryStorageScreen extends StatelessWidget {
+class HistoryStorageScreen extends StatefulWidget {
   const HistoryStorageScreen({super.key, required this.controller});
 
   final BridgeController controller;
+
+  @override
+  State<HistoryStorageScreen> createState() => _HistoryStorageScreenState();
+}
+
+class _HistoryStorageScreenState extends State<HistoryStorageScreen> {
+  BridgeController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen is a read. It never deletes anything.
+    unawaited(controller.refreshLocalHistorySummary());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,11 +65,6 @@ class HistoryStorageScreen extends StatelessWidget {
                                       .titleMedium,
                                 ),
                               ),
-                              Text(
-                                view.savedDataSize,
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(color: scheme.onSurfaceVariant),
-                              ),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -63,6 +75,10 @@ class HistoryStorageScreen extends StatelessWidget {
                           KeyValueRow(
                             label: 'Date range',
                             value: view.savedDataRange,
+                          ),
+                          KeyValueRow(
+                            label: 'Storage used',
+                            value: view.savedDataSize,
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -130,11 +146,11 @@ class HistoryStorageScreen extends StatelessWidget {
                           ),
                           KeyValueRow(
                             label: 'Oldest reading',
-                            value: 'Oct 17, 2026 at 8:14 AM',
+                            value: view.bridgeOldestReadingLabel,
                           ),
                           KeyValueRow(
                             label: 'Newest reading',
-                            value: 'Oct 25, 2026 at 6:30 PM',
+                            value: view.bridgeNewestReadingLabel,
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -185,16 +201,19 @@ class HistoryStorageScreen extends StatelessWidget {
   }
 
   Future<void> _showDeleteOptions(BuildContext context) async {
-    final view = controller.settingsView;
-    final count = view.phoneRecords;
-    final older30 = count > 12430 ? 12430 : count;
-    final older90 = count;
+    final plans = await Future.wait([
+      controller.planLocalDeletion(HistoryDeletionScope.olderThan30Days),
+      controller.planLocalDeletion(HistoryDeletionScope.olderThan90Days),
+      controller.planLocalDeletion(HistoryDeletionScope.all),
+    ]);
+    if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
         top: false,
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -212,38 +231,44 @@ class HistoryStorageScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _DeleteOption(
-                title: 'Older than 30 days',
-                subtitle:
-                    '${commaInt(older30)} readings · Sep 25 – Oct 24, 2026',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  deleteLocalData(context, controller, '30');
-                },
-              ),
-              _DeleteOption(
-                title: 'Older than 90 days',
-                subtitle:
-                    '${commaInt(older90)} readings · Jul 27 – Oct 24, 2026',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  deleteLocalData(context, controller, '90');
-                },
-              ),
-              _DeleteOption(
-                title: 'All history on this phone',
-                subtitle: '${commaInt(count)} readings · Sep 1 – Oct 24, 2026',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  deleteLocalData(context, controller, 'all');
-                },
-              ),
+              for (final plan in plans)
+                _DeleteOption(
+                  title: plan.scope.label,
+                  subtitle: _planSubtitle(plan),
+                  onTap: plan.isEmpty
+                      ? null
+                      : () {
+                          Navigator.of(sheetContext).pop();
+                          deleteLocalData(
+                            context,
+                            controller,
+                            plan.scope,
+                            plan: plan,
+                          );
+                        },
+                ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+String _planSubtitle(HistoryDeletionPlan plan) {
+  if (plan.isEmpty) {
+    return 'No readings in this range';
+  }
+  return '${commaInt(plan.count)} readings · ${_planRange(plan)}';
+}
+
+String _planRange(HistoryDeletionPlan plan) {
+  final override = plan.rangeLabelOverride;
+  if (override != null) return override;
+  final first = plan.firstReadingAt;
+  final last = plan.lastReadingAt;
+  if (first == null || last == null) return '—';
+  return dateRangeLabel(first, last);
 }
 
 class _DeleteOption extends StatelessWidget {
@@ -255,15 +280,22 @@ class _DeleteOption extends StatelessWidget {
 
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final enabled = onTap != null;
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      enabled: enabled,
       leading: Icon(Icons.delete_outline, color: scheme.error),
-      title: Text(title, style: TextStyle(color: scheme.error)),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: enabled ? scheme.error : scheme.onSurfaceVariant,
+        ),
+      ),
       subtitle: Text(subtitle),
       onTap: onTap,
     );

@@ -42,6 +42,7 @@
 - **T41 — app repository and two-phase sync**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done; `app/lib/data/sync/archive_sync.dart`
 - **T42 — app: full History chart, Summary and Cooks**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,; `app/lib/data/history/history_archive.dart`
 - **T43 — app: connection health, saved Bridge and launch auto-connect**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,; `app/lib/data/ble/ble_client.dart`
+- **T44 — app: data use and explicit deletion**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done; `app/lib/data/history/history_deletion.dart`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -84,6 +85,7 @@
 - [T41](progress/T41.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done
 - [T42](progress/T42.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,
 - [T43](progress/T43.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,
+- [T44](progress/T44.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

@@ -279,12 +279,7 @@ class HistoryBucketRow {
     return HistoryBucketRow(
       startMs: row['start_ms']! as int,
       recordedMs: row['end_ms']! as int,
-      tempsF: <double?>[
-        temp('p1'),
-        temp('p2'),
-        temp('p3'),
-        temp('p4'),
-      ],
+      tempsF: <double?>[temp('p1'), temp('p2'), temp('p3'), temp('p4')],
       estimated: ((row['estimated'] as int?) ?? 0) != 0,
     );
   }
@@ -602,10 +597,7 @@ class SqfliteSampleDao implements SampleDao {
 
   /// Inserts rows inside an existing transaction. Shared by [insertSamples] and
   /// [storeSyncBatch] so a batch and its cursors never use two write paths.
-  Future<int> _insertRows(
-    DatabaseExecutor txn,
-    List<StoredSample> rows,
-  ) async {
+  Future<int> _insertRows(DatabaseExecutor txn, List<StoredSample> rows) async {
     final before = Sqflite.firstIntValue(
       await txn.rawQuery('SELECT COUNT(*) FROM sample'),
     )!;
@@ -989,7 +981,7 @@ class SqfliteSampleDao implements SampleDao {
               where: 'rowid = ?',
               whereArgs: <Object?>[rowId],
             );
-            await txn.insert('gap', <String, Object?>{
+            final newRowId = await txn.insert('gap', <String, Object?>{
               'bridge_id': groupBridge,
               'generation': groupGeneration,
               'from_seq': maxSeq + 1,
@@ -998,7 +990,9 @@ class SqfliteSampleDao implements SampleDao {
               'detected_ms': gap['detected_ms'],
             }, conflictAlgorithm: ConflictAlgorithm.replace);
             gapsTrimmed++;
-            touchedRows.add(rowId);
+            touchedRows
+              ..add(rowId)
+              ..add(newRowId);
           } else if (leftRemains) {
             await txn.update(
               'gap',
@@ -1009,19 +1003,14 @@ class SqfliteSampleDao implements SampleDao {
             gapsTrimmed++;
             touchedRows.add(rowId);
           } else if (rightRemains) {
-            await txn.delete(
+            // Trim in place: replacing the row would make the new row visible to
+            // the detected-in-range sweep below and silently drop the kept tail.
+            await txn.update(
               'gap',
+              <String, Object?>{'from_seq': maxSeq + 1},
               where: 'rowid = ?',
               whereArgs: <Object?>[rowId],
             );
-            await txn.insert('gap', <String, Object?>{
-              'bridge_id': groupBridge,
-              'generation': groupGeneration,
-              'from_seq': maxSeq + 1,
-              'to_seq': toSeq,
-              'reason': gap['reason'],
-              'detected_ms': gap['detected_ms'],
-            });
             gapsTrimmed++;
             touchedRows.add(rowId);
           } else {

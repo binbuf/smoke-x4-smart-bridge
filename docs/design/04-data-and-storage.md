@@ -549,6 +549,21 @@ See ADR 0046.
 - Deleting a date range also deletes or trims `gap` rows that fall inside it, so
   a stale gap cannot outlive the samples it described.
 
+**Implementation note (T44).** `HistoryDeletionService`
+(`app/lib/data/history/history_deletion.dart`) builds a counted, half-open plan
+and deletes exactly that plan. The cutoff is `now - 30/90 days`; a reading
+exactly on the cutoff is kept. The phone copy spans every saved Bridge and
+generation. The confirmation names the actual first/last reading removed and the
+count. An empty plan never calls `deleteRange`. After a deletion the current
+generation's `cursor_before`/`cursor_after` are recomputed from its remaining
+rows; if that generation has none, both are cleared while old generations stay
+readable. History & storage labels storage as an estimate of 72 B per reading
+(the 04 §4.9 midpoint); it is observation only and never triggers deletion.
+Bridge figures (`records_stored`, `records_capacity`, `oldest_unix_s`,
+`newest_unix_s`, `generation`) come from the `stats` characteristic and are kept
+separate from phone counts. Bridge clear's command/state machine remains
+T49/T52.
+
 ## 4.9 Data volume
 
 | Scope | Records | Raw bytes | Approx. SQLite |

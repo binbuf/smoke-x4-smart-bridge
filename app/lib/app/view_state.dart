@@ -361,6 +361,8 @@ class SettingsViewState {
     required this.phoneRecords,
     required this.bridgeRecords,
     required this.bridgeCapacity,
+    required this.bridgeOldestReadingAt,
+    required this.bridgeNewestReadingAt,
     required this.phoneRecordsLabel,
     required this.bridgeRecordsLabel,
     required this.savedDataRange,
@@ -387,6 +389,8 @@ class SettingsViewState {
   final int phoneRecords;
   final int bridgeRecords;
   final int bridgeCapacity;
+  final DateTime? bridgeOldestReadingAt;
+  final DateTime? bridgeNewestReadingAt;
   final String phoneRecordsLabel;
   final String bridgeRecordsLabel;
   final String savedDataRange;
@@ -406,6 +410,14 @@ class SettingsViewState {
 
   String get bridgeFractionLabel =>
       '${(bridgeFraction * 100).toStringAsFixed(1)}%';
+
+  String get bridgeOldestReadingLabel => bridgeOldestReadingAt == null
+      ? '—'
+      : dateTimeLabel(bridgeOldestReadingAt!);
+
+  String get bridgeNewestReadingLabel => bridgeNewestReadingAt == null
+      ? '—'
+      : dateTimeLabel(bridgeNewestReadingAt!);
 
   bool get localHistoryEmpty => savedDataEmpty || phoneRecords == 0;
 }

@@ -18,6 +18,8 @@ const String bleSyncCtrlCharacteristicUuid =
     '7f9b0005-4c5b-4b0f-9a3d-1c2e3f405162';
 const String bleSyncDataCharacteristicUuid =
     '7f9b0006-4c5b-4b0f-9a3d-1c2e3f405162';
+const String bleStatsCharacteristicUuid =
+    '7f9b0008-4c5b-4b0f-9a3d-1c2e3f405162';
 
 const int bleProtocolMajor = 1;
 
@@ -253,6 +255,60 @@ class BridgeLive {
       batteryPct: view.getUint8(16),
       rssiLora: view.getInt8(17),
       ageS: view.getUint16(18, Endian.little),
+    );
+  }
+}
+
+/// `stats` (05 §5.10). Encrypted read; this slice carries the storage fields
+/// History & storage needs plus the generation boundary.
+class BridgeStats {
+  const BridgeStats({
+    required this.flags,
+    required this.recordsStored,
+    required this.recordsCapacity,
+    required this.minSeq,
+    required this.maxSeq,
+    required this.generation,
+    required this.oldestUnixS,
+    required this.newestUnixS,
+  });
+
+  final int flags;
+  final int recordsStored;
+  final int recordsCapacity;
+  final int minSeq;
+  final int maxSeq;
+  final int generation;
+
+  /// 0 when the Bridge has no clock or no readings.
+  final int oldestUnixS;
+
+  /// 0 when the Bridge has no clock or no readings.
+  final int newestUnixS;
+
+  static const int size = 60;
+
+  /// A cleared or never-used log has no readings even if the sequence sentinel
+  /// has not been normalised yet.
+  bool get hasReadings =>
+      recordsStored > 0 && minSeq != bleSeqNone && maxSeq != bleSeqNone;
+
+  bool get clockValid => (flags & liveFlagClockValid) != 0;
+
+  static BridgeStats decode(Uint8List bytes, [int offset = 0]) {
+    if (bytes.length - offset < size) {
+      throw RangeError('truncated stats');
+    }
+    final view = ByteData.sublistView(bytes, offset, offset + size);
+    return BridgeStats(
+      flags: view.getUint8(1),
+      recordsStored: view.getUint32(6, Endian.little),
+      recordsCapacity: view.getUint32(10, Endian.little),
+      minSeq: view.getUint32(14, Endian.little),
+      maxSeq: view.getUint32(18, Endian.little),
+      generation: view.getUint32(22, Endian.little),
+      oldestUnixS: view.getUint32(52, Endian.little),
+      newestUnixS: view.getUint32(56, Endian.little),
     );
   }
 }

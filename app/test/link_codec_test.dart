@@ -27,6 +27,10 @@ void main() {
       bleSyncDataCharacteristicUuid,
       gen.bleCharacteristicByName('sync_data').uuid,
     );
+    expect(
+      bleStatsCharacteristicUuid,
+      gen.bleCharacteristicByName('stats').uuid,
+    );
     expect(bleProtocolMajor, gen.protocolMajor);
     expect(bleSeqNone, gen.seqNone);
     expect(bleTempDetached, gen.tempDetached);
@@ -34,10 +38,7 @@ void main() {
   });
 
   test('set_time control encodes exactly like the generated codec', () {
-    final body = encodeSetTimeBody(
-      unixMs: 1761566400123,
-      tzOffsetMin: -420,
-    );
+    final body = encodeSetTimeBody(unixMs: 1761566400123, tzOffsetMin: -420);
     expect(body.length, gen.ControlSetTimeBody.size);
     final decodedBody = gen.ControlSetTimeBody.decode(body);
     expect(decodedBody.unixMs, 1761566400123);
@@ -106,6 +107,41 @@ void main() {
     expect(live.tempF(1), 165.2);
     expect(live.tempF(2), isNull);
     expect(live.tempF(3), isNull);
+  });
+
+  test('stats decodes the generated storage and generation fields', () {
+    final bytes = gen.Stats(
+      flags: gen.statsFlagClockValid | gen.statsFlagStorageOk,
+      recordsStored: 24810,
+      recordsCapacity: 338400,
+      minSeq: 100,
+      maxSeq: 24909,
+      generation: 0xA1B2C3D4,
+      oldestUnixS: 1761000000,
+      newestUnixS: 1762000000,
+    ).encode();
+
+    final stats = BridgeStats.decode(bytes);
+    expect(stats.hasReadings, isTrue);
+    expect(stats.clockValid, isTrue);
+    expect(stats.recordsStored, 24810);
+    expect(stats.recordsCapacity, 338400);
+    expect(stats.minSeq, 100);
+    expect(stats.maxSeq, 24909);
+    expect(stats.generation, 0xA1B2C3D4);
+    expect(stats.oldestUnixS, 1761000000);
+    expect(stats.newestUnixS, 1762000000);
+  });
+
+  test('an empty stats log has no readings', () {
+    final stats = BridgeStats.decode(
+      gen.Stats(
+        recordsStored: 0,
+        minSeq: gen.seqNone,
+        maxSeq: gen.seqNone,
+      ).encode(),
+    );
+    expect(stats.hasReadings, isFalse);
   });
 
   test('sync_ctrl round-trips through the generated codec', () {
@@ -181,9 +217,7 @@ void main() {
       // Split inside frames at odd offsets to exercise platform chunking.
       for (var offset = 0; offset < frame.length; offset += 7) {
         final end = (offset + 7).clamp(0, frame.length);
-        final result = assembler.add(
-          Uint8List.sublistView(frame, offset, end),
-        );
+        final result = assembler.add(Uint8List.sublistView(frame, offset, end));
         if (result != null) stream = result;
       }
     }

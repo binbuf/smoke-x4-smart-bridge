@@ -655,6 +655,13 @@ ABOUT
 - `History on this phone` is the local copy on this phone. `History on the Bridge`
   is the copy on the Bridge. The two copies are never merged even though they
   share one screen.
+- Phone readings/date range/storage come from the durable archive. Bridge
+  readings/capacity/percentage/oldest/newest come from the Bridge `stats` read;
+  a missing or offline Bridge shows `—`, never the phone's figures (T44).
+- The delete sheet loads all three counted plans before it opens. An empty plan
+  says `No readings in this range` and is disabled. Confirmation repeats the
+  exact count and first–last reading span. Nothing on this screen deletes
+  without that confirmation.
 - Destructive actions live in Bridge details, not a top-level `Actions` screen.
 - There is no `Device settings`, `Probe names & roles`, or `Actions` screen.
 
