@@ -6,6 +6,8 @@
 # component guard are set by sdkconfig.defaults and this file.
 cmake_minimum_required(VERSION 3.16)
 
+set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/vendor/esp-idf-sx126x/components")
+
 # Build only main and its transitive requirements. ESP-IDF would otherwise build
 # every component in the IDF tree, including Wi-Fi, HTTP and OTA, even though
 # nothing links them. This list is the image-content boundary; the post-build

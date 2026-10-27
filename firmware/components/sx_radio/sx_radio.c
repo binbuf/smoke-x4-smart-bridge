@@ -1,6 +1,7 @@
 #include "sx_radio.h"
 
 #include "esp_log.h"
+#include "ra01s.h"
 
 static const char *TAG = "sx4.radio";
 
