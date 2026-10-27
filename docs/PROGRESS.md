@@ -29,6 +29,7 @@
 - **T27 — ble_service: GATT server and `info`**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_info.h`, `ble_info.c` — pure C11
 - **T28 — ble_service: live notify**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_live.h`, `ble_live.c` — pure C11
 - **T29 — ble_service: control, result, and the clock**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_control.h`, `ble_control.c` —
+- **T30 — ble_service: security, passkey, and advertising**: **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/ble_service/include/ble_adv.h`, `ble_adv.c` — pure C11
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -58,6 +59,7 @@
 - [T27](progress/T27.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T28](progress/T28.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 - [T29](progress/T29.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
+- [T30](progress/T30.md) — **Date:** 2026-10-27 · **Verification:** host/CI + firmware compile · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/
