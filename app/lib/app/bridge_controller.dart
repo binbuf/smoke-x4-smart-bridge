@@ -112,6 +112,13 @@ class BridgeController extends ChangeNotifier {
   int batteryPercent = 87;
   int rssi = -71;
 
+  /// The BLE identity of the Bridge this phone last completed setup with.
+  /// Persistence lands with the archive tasks; setup uses it to prefer the
+  /// remembered advertisement by device ID, then by name.
+  String? rememberedBridgeId;
+  String? rememberedBridgeName;
+  int? negotiatedMtu;
+
   bool get isConnected =>
       phase == ConnectionPhase.live ||
       phase == ConnectionPhase.stale ||
@@ -692,11 +699,10 @@ class BridgeController extends ChangeNotifier {
     }
     final connected = temp != null;
     final muted =
-        !connected || health == ProbeHealth.stale || health == ProbeHealth.frozen;
-    final history = content.sparkline(
-      index,
-      hasData: probeHasHistory(index),
-    );
+        !connected ||
+        health == ProbeHealth.stale ||
+        health == ProbeHealth.frozen;
+    final history = content.sparkline(index, hasData: probeHasHistory(index));
     final values = history
         .where((point) => point.valueF != null)
         .map((point) => point.valueF!)
@@ -784,9 +790,7 @@ class BridgeController extends ChangeNotifier {
       customStart: historyCustomRange?.start,
       customEnd: historyCustomRange?.end,
     );
-    final probes = historyProbe == null
-        ? [1, 2, 3, 4]
-        : [historyProbe!];
+    final probes = historyProbe == null ? [1, 2, 3, 4] : [historyProbe!];
     final stats = probes
         .map((probe) => ProbeRangeStats.fromSeries(fixture.series[probe - 1]))
         .toList();
@@ -1073,11 +1077,34 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Starts the production setup route on a phone with no saved Bridge.
+  void beginSetup() {
+    hasSavedBridge = false;
+    phase = ConnectionPhase.setup;
+    tab = AppTab.live;
+    notifyListeners();
+  }
+
+  /// Records the Bridge the OS bond succeeded with, so the next scan prefers
+  /// it by device ID and then by name.
+  void rememberBridge({String? deviceId, String? deviceName, int? mtu}) {
+    if (deviceId != null && deviceId.trim().isNotEmpty) {
+      rememberedBridgeId = deviceId.trim();
+    }
+    if (deviceName != null && deviceName.trim().isNotEmpty) {
+      rememberedBridgeName = deviceName.trim();
+    }
+    negotiatedMtu = mtu;
+    notifyListeners();
+  }
+
   void forgetPhone() {
     hasSavedBridge = false;
     hasSavedData = true;
     savedDataEmpty = false;
     phase = ConnectionPhase.setup;
+    rememberedBridgeId = null;
+    rememberedBridgeName = null;
     notifyListeners();
   }
 
@@ -1086,6 +1113,8 @@ class BridgeController extends ChangeNotifier {
     hasSavedData = true;
     savedDataEmpty = false;
     phase = ConnectionPhase.setup;
+    rememberedBridgeId = null;
+    rememberedBridgeName = null;
     notifyListeners();
   }
 

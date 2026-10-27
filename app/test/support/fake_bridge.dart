@@ -18,6 +18,7 @@ class FakeBridge implements FakeGattServer {
     this.model = 'heltec3',
     this.firmware = '0.1.0',
     this.bondsFree = 3,
+    this.protoMajor = protocolMajor,
     this.batteryPct = 87,
     this.rssiLora = -71,
     this.ageS = 12,
@@ -51,6 +52,7 @@ class FakeBridge implements FakeGattServer {
   final String model;
   final String firmware;
   final int bondsFree;
+  final int protoMajor;
 
   int batteryPct;
   int rssiLora;
@@ -92,7 +94,7 @@ class FakeBridge implements FakeGattServer {
   List<SampleRec> get records => List<SampleRec>.unmodifiable(_records);
 
   Info get info => Info(
-    protoMajor: protocolMajor,
+    protoMajor: protoMajor,
     protoMinor: protocolMinor,
     caps:
         capsFlagBillowsObserve |

@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../app/bridge_controller.dart';
+import '../data/ble/ble_client.dart';
+import '../data/ble/bridge_codecs.dart';
 import '../features/device/device_preview_screen.dart';
 import '../features/settings/bridge_details.dart';
 import '../features/settings/settings_details.dart';
@@ -1014,8 +1018,70 @@ class _ScenarioLabScreenState extends State<ScenarioLabScreen> {
         controller: controller,
         initialStep: step,
         autoAdvance: false,
+        previewBridges: step == SetupStep.results ? _previewBridges() : null,
       ),
     );
+  }
+
+  /// Review-only result rows. The product flow always uses live scan results.
+  List<ScannedBridge> _previewBridges() {
+    Uint8List advertisement({required int tempF10, required int battery}) {
+      final data = Uint8List(11);
+      final view = ByteData.sublistView(data);
+      view.setUint16(0, 65535, Endian.little);
+      data[2] = 1;
+      view.setInt16(4, tempF10, Endian.little);
+      data[6] = battery;
+      return data;
+    }
+
+    BleDevice device({
+      required String id,
+      required String name,
+      required int rssi,
+      Uint8List? data,
+      bool contract = true,
+    }) {
+      return BleDevice(
+        id: id,
+        name: name,
+        rssi: rssi,
+        manufacturerData: data,
+        serviceUuids: contract
+            ? const <String>[bleContractServiceUuid]
+            : const <String>['7f9a0000-4c5b-4b0f-9a3d-1c2e3f405162'],
+      );
+    }
+
+    return <ScannedBridge>[
+      ScannedBridge(
+        device: device(
+          id: 'fake-A4F2',
+          name: 'SmokeX4-A4F2',
+          rssi: -60,
+          data: advertisement(tempF10: 2250, battery: 87),
+        ),
+        requiresNewerApp: false,
+      ),
+      ScannedBridge(
+        device: device(
+          id: 'fake-B91C',
+          name: 'SmokeX4-B91C',
+          rssi: -82,
+          data: advertisement(tempF10: 1800, battery: 64),
+        ),
+        requiresNewerApp: false,
+      ),
+      ScannedBridge(
+        device: device(
+          id: 'fake-legacy',
+          name: 'SmokeX4-LEGACY',
+          rssi: -74,
+          contract: false,
+        ),
+        requiresNewerApp: true,
+      ),
+    ];
   }
 
   void _openLive(

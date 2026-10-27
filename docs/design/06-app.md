@@ -735,6 +735,13 @@ platform exceptions to these named states.
   is matched by device ID then name and never replaced by the first result.
   `BleDiagnostics` records phone model, Android version, negotiated MTU and
   scan/connect/bond failures. See ADR 0039.
+- **Setup (T33)**: `features/setup/setup_flow.dart` is the setup state machine
+  over the BLE seam; `SetupScreen` owns only approved copy. `Find bridge` checks
+  the platform, the primer's `Continue` requests permission, and the passkey
+  block always precedes `bond()`. `info` is read before bonding so
+  `proto_major` and `bonds_free == 0` are handled without an OS prompt. The app
+  mounts setup while the controller has no saved Bridge and lands on Live after
+  first sync. See ADR 0040.
 
 ## 6.10 Testing
 
@@ -754,6 +761,12 @@ platform exceptions to these named states.
   `FlutterBluePlusException`/`PlatformException` objects and fake faults to
   prove every plugin failure maps to a named state, and pins the production
   service UUID/local-name constants to the generated contract.
+- **Setup (T33)**: `test/setup_flow_test.dart` drives the real screen with
+  `FakeBleClient` through primer, denied/blocked, Bluetooth off, unsupported,
+  scanning, no results, results ordering, protocol mismatch, passkey, pairing,
+  wrong code, prompt timeout, stale bond, full bond store, first sync and
+  orphaned history. `test/setup_codec_test.dart` pins the `info`/advertisement
+  decoder to the generated contract.
 - **Widget**: the full state inventory in
   [13 §13.4](13-ui-implementation-contract.md#134-complete-state-inventory) —
   Live healthy/aging/stale/frozen/detached/no-probes/offline-cache/no-cache,

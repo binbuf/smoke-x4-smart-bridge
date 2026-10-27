@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../data/ble/ble_client.dart';
+import '../data/ble/flutter_blue_plus_ble_client.dart';
 import '../data/db/app_database.dart';
 import '../data/repository.dart';
 import 'bridge_controller.dart';
@@ -23,7 +24,10 @@ Future<BridgeController> createBridgeController({
       SqliteBridgeRepository(
         await AppDatabase.open(factory: factory, databasePath: databasePath),
       );
-  final controller = BridgeController(repository: data, bleClient: bleClient);
+  final controller = BridgeController(
+    repository: data,
+    bleClient: bleClient ?? FlutterBluePlusBleClient(),
+  );
   await controller.initialize();
   return controller;
 }
@@ -32,5 +36,9 @@ Future<BridgeController> createBridgeController({
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   final controller = await createBridgeController();
+  // Bridge identity persistence lands with the archive tasks. Until then a
+  // launch has no saved Bridge, so start on the approved setup route instead
+  // of showing simulated Live data.
+  controller.beginSetup();
   runApp(SmokeBridgeApp(controller: controller));
 }
