@@ -148,3 +148,12 @@ All artifacts and logs are in `artifacts/bench/T09/` with SHA-256 sums.
 connected at ≈4.03 V. The legacy image, NVS and cooks are gone by design. T10
 must flash its own capture image; T11/T23 must use ADR 0020 and repeat the
 USB-detached physical press when a human is at the bench.
+
+**Owner follow-up (2026-10-26).** The board was unplugged from USB and PRG was
+held; it woke on the pack and the OLED lit. The panel shows the probe's 1 KiB
+test pattern, not corruption — the image writes that pattern once and never
+redraws it on wake. This is recorded as a partial USB-detached result (◐) in
+`docs/hardware-verified.md`: one real finger-press wake was observed, but the
+20/20 count, the serial trace and repeated unattended wakes are not done. Those
+rows, plus the three currents and the 24 h run, are now explicitly owned by
+T62.

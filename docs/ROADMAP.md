@@ -25,7 +25,7 @@ feature lands here, but every later task has a place to land.
 - [x] T06 — UI baseline and view-model seam → [tasks/06-ui-baseline-view-model-seam.md](tasks/06-ui-baseline-view-model-seam.md)
 - [x] T07 — BLE fake and app test seam → [tasks/07-ble-fake-app-test-seam.md](tasks/07-ble-fake-app-test-seam.md)
 - [x] T08 — CI → [tasks/08-ci.md](tasks/08-ci.md)
-- [~] T09 — Board identity, bench rig, and deep-sleep gate → [tasks/09-board-identity-bench-rig.md](tasks/09-board-identity-bench-rig.md) ⟵ blocked
+- [x] T09 — Board identity, bench rig, and deep-sleep gate → [tasks/09-board-identity-bench-rig.md](tasks/09-board-identity-bench-rig.md) ⟵ accepted
 - [ ] T10 — Baseline capture → [tasks/10-baseline-capture.md](tasks/10-baseline-capture.md)
 - [ ] T11 — Deep-sleep and power decision record → [tasks/11-deep-sleep-power-decision.md](tasks/11-deep-sleep-power-decision.md)
 
