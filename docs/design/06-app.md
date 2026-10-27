@@ -100,11 +100,13 @@ The prototype already contains the approved UI layer. In production:
 
 - keep `app/lib/features/`, `app/lib/widgets/` and `app/lib/theme/` as the visual
   contract;
-- move `app/lib/prototype/formatters.dart` into the production formatter layer
-  and make time/date output locale-aware;
-- replace `PrototypeController` with `BridgeController` and immutable
+- T05 moved the controller to `app/lib/app/bridge_controller.dart`, added
+  `app/lib/app/bootstrap.dart`, `data/repository.dart` and the `AppDatabase`
+  open path, and removed the Windows/web targets;
+- T06 moves `app/lib/prototype/formatters.dart` into the production formatter
+  layer, makes time/date output locale-aware, and introduces immutable
   `LiveViewState`, `HistoryViewState`, `SetupViewState`, `SettingsViewState` and
-  `BridgeDetailsViewState` objects;
+  `BridgeDetailsViewState` objects behind `BridgeController`;
 - keep `fixtures.dart`, `scenario_lab.dart` and simulation timers under
   debug/test only. They must not be reachable from a release build.
 

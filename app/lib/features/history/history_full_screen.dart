@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../prototype/fixtures.dart';
 import '../../prototype/formatters.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import 'history_chart_panel.dart';
 
 /// Dedicated full-screen chart. It never forces an orientation: portrait and
@@ -15,7 +15,7 @@ class HistoryFullScreenScreen extends StatelessWidget {
     this.gapOverride,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final bool historical;
   final bool? gapOverride;
 

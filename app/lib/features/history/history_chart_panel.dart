@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../prototype/fixtures.dart';
 import '../../prototype/formatters.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/probe_chart.dart';
 
@@ -21,7 +21,7 @@ class HistoryChartPanel extends StatefulWidget {
     this.historical = false,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final HistoryFixture fixture;
 
   /// Fills the available height instead of using the inline 300 px height.
@@ -42,7 +42,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel> {
   double _scaleStartFocalX = 0;
   DateTime? _cursorTime;
 
-  PrototypeController get controller => widget.controller;
+  BridgeController get controller => widget.controller;
 
   bool get _panned => _viewStart > 0.001 || _viewEnd < 0.999;
 

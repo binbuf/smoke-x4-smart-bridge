@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/connection_log.dart';
 import '../../widgets/prototype_app_bar.dart';
@@ -11,7 +11,7 @@ import 'settings_views.dart';
 class BridgeDetailsScreen extends StatelessWidget {
   const BridgeDetailsScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {

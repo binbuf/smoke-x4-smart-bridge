@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../prototype/formatters.dart';
-import '../prototype/prototype_controller.dart';
+import '../app/bridge_controller.dart';
 import '../theme/app_theme.dart';
 
 /// A single timeline for Bridge pairing, phone connections and Billows. Billows
@@ -15,7 +15,7 @@ class ConnectionLogList extends StatelessWidget {
     this.limit,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final bool billowsOnly;
   final int? limit;
 

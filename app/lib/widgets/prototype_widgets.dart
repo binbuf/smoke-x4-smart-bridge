@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../prototype/fixtures.dart';
-import '../prototype/prototype_controller.dart';
+import '../app/bridge_controller.dart';
 import '../theme/app_theme.dart';
 import 'probe_sparkline.dart';
 
@@ -32,7 +32,7 @@ class ContentWidth extends StatelessWidget {
 class ConnectionBanner extends StatelessWidget {
   const ConnectionBanner({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +228,7 @@ class ProbeCard extends StatelessWidget {
   });
 
   final Probe probe;
-  final PrototypeController controller;
+  final BridgeController controller;
   final Color accent;
   final List<ChartPoint> history;
   final VoidCallback onTap;

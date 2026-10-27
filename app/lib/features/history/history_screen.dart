@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../prototype/fixtures.dart';
 import '../../prototype/formatters.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -20,7 +20,7 @@ class HistoryScreen extends StatefulWidget {
     this.gapOverride,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final String title;
   final bool showPastCooks;
   final bool showFullscreenAction;
@@ -36,7 +36,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final GlobalKey<HistoryChartPanelState> _chartKey =
       GlobalKey<HistoryChartPanelState>();
 
-  PrototypeController get controller => widget.controller;
+  BridgeController get controller => widget.controller;
 
   bool get _hasActiveFilters =>
       controller.historyProbe != null ||
@@ -795,7 +795,7 @@ class PastCookScreen extends StatefulWidget {
     required this.cook,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final CookSession cook;
 
   @override
@@ -803,13 +803,13 @@ class PastCookScreen extends StatefulWidget {
 }
 
 class _PastCookScreenState extends State<PastCookScreen> {
-  late final PrototypeController _history;
+  late final BridgeController _history;
 
   @override
   void initState() {
     super.initState();
     final source = widget.controller;
-    _history = PrototypeController()
+    _history = BridgeController()
       ..units = source.units
       ..historyRange = HistoryRange.custom
       ..historyCustomRange = DateTimeRange(
@@ -1267,7 +1267,7 @@ class _SummaryRow extends StatelessWidget {
   });
 
   final ProbeRangeStats stat;
-  final PrototypeController controller;
+  final BridgeController controller;
   final bool selected;
   final VoidCallback onTap;
 

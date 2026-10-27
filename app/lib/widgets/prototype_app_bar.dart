@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../prototype/prototype_controller.dart';
+import '../app/bridge_controller.dart';
 
 /// Product app bar. The prototype theme switch and lab entry live in the
 /// scenario lab, not here.
 AppBar prototypeAppBar(
   BuildContext context,
-  PrototypeController controller,
+  BridgeController controller,
   String title, {
   List<Widget> actions = const [],
   bool highlightedTitle = true,
@@ -43,7 +43,7 @@ AppBar prototypeAppBar(
 class PrototypeThemeToggle extends StatelessWidget {
   const PrototypeThemeToggle({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {

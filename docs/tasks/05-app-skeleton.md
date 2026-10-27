@@ -55,4 +55,60 @@ prototype UI so the visual contract is preserved from day one.
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+### Landed
+
+- Production entrypoint `app/lib/main.dart` → `app/lib/app/bootstrap.dart`:
+  `WidgetsFlutterBinding`, SQLite open, repository creation, controller
+  initialisation, then `SmokeBridgeApp`.
+- `app/lib/app/bridge_controller.dart` is the single
+  `BridgeController extends ChangeNotifier`. The old
+  `prototype/prototype_controller.dart` was moved here and every widget, test
+  and tool import was retargeted.
+- Repository seam `app/lib/data/repository.dart` (`BridgeRepository`,
+  `SqliteBridgeRepository`, `EmptyBridgeRepository`, `BridgeSnapshot`).
+- DB open path `app/lib/data/db/app_database.dart` using `sqflite`, with
+  injectable factory/path and `openInMemory()` for host tests.
+- `app/lib/app/smoke_bridge_app.dart` mounts the approved Material 3 shell
+  unchanged: Live, History and Settings via `NavigationBar` + `IndexedStack`.
+- Android-only: removed tracked `app/web/` and `app/windows/`, pruned
+  `.metadata`, `analysis_options.yaml` and `app/README.md`.
+- Workflow: root `Makefile` targets `app-analyze`, `app-test`, `app-check`;
+  root README development checks updated.
+- Tests: `app/test/app_skeleton_test.dart` (5 tests) plus the existing suite
+  retargeted to the production entrypoint/controller.
+
+### Deviations and boundaries
+
+- T05 does not introduce immutable view states or remove fixture data from the
+  screens; that remains T06. The controller keeps the prototype-shaped fields
+  so the approved shell renders today.
+- `BridgeRepository` exposes only a startup snapshot (`readingCount`,
+  `lastReadingAt`); full archive queries and sync remain T41.
+- `AppDatabase` has no schema yet (`schemaVersion = 1` is an empty DB); T40 owns
+  tables, migrations and may bump the version.
+- No BLE, permission, network, OTA, cloud or multi-bridge code was added.
+
+### Checks run
+
+```text
+cd app && flutter analyze             -> No issues found
+cd app && flutter test                -> 31 tests passed
+cd app && flutter build apk --debug   -> Built app-debug.apk
+make app-check                        -> analyze clean, 31 tests passed
+```
+
+The production entrypoint guard test fails if `lib/main.dart`,
+`lib/app/bootstrap.dart`, `lib/app/smoke_bridge_app.dart` or
+`lib/app/bridge_controller.dart` gains an import containing `prototype/`.
+
+### Next task must know
+
+- T06 owns replacing controller field reads with view states and removing the
+  remaining `prototype/fixtures.dart` imports from the widget graph (Live
+  sparklines, History fixture builder).
+- T40 must add schema/migrations inside `AppDatabase`; repository queries can
+  then replace the count/max stub.
+- T07 can inject the BLE fake through bootstrap/controller without touching
+  `main.dart`.
+- CI (T08) should run `flutter pub get` then `make app-check`.

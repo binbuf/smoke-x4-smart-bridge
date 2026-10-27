@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../prototype/formatters.dart';
 import '../../prototype/lab_gate.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../prototype/scenario_lab.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -13,7 +13,7 @@ import 'settings_views.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +117,7 @@ class SettingsScreen extends StatelessWidget {
 class _BridgeStatusHeader extends StatelessWidget {
   const _BridgeStatusHeader({required this.controller, required this.onOpen});
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final VoidCallback onOpen;
 
   @override
@@ -241,7 +241,7 @@ class _BridgeStatusHeader extends StatelessWidget {
 class _UnitsTile extends StatelessWidget {
   const _UnitsTile({required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {

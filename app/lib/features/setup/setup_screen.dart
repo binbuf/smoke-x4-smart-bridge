@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../prototype/formatters.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -16,7 +16,7 @@ class SetupScreen extends StatefulWidget {
     this.autoAdvance = true,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final SetupStep initialStep;
 
   /// Product review uses a simulated 1.2 s scan and 1.6 s pairing. The
@@ -31,7 +31,7 @@ class _SetupScreenState extends State<SetupScreen> {
   late SetupStep _step;
   Timer? _autoTimer;
 
-  PrototypeController get controller => widget.controller;
+  BridgeController get controller => widget.controller;
 
   @override
   void initState() {
@@ -449,7 +449,7 @@ class _ScanResults extends StatelessWidget {
     required this.onSavedData,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final VoidCallback onSelect;
   final VoidCallback onProtocolMismatch;
   final VoidCallback onRescan;
@@ -813,7 +813,7 @@ class _BondStep extends StatelessWidget {
 class _FirstSyncPage extends StatelessWidget {
   const _FirstSyncPage({required this.controller, required this.onContinue});
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final VoidCallback onContinue;
 
   @override
@@ -946,7 +946,7 @@ class _SyncStep extends StatelessWidget {
 class _SavedDataStep extends StatelessWidget {
   const _SavedDataStep({required this.controller, required this.onBack});
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final VoidCallback onBack;
 
   @override

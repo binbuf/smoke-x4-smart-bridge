@@ -6,13 +6,13 @@ import 'package:smoke_bridge/features/setup/setup_screen.dart';
 import 'package:smoke_bridge/features/settings/bridge_details.dart';
 import 'package:smoke_bridge/features/settings/settings_details.dart';
 import 'package:smoke_bridge/features/shell/app_shell.dart';
-import 'package:smoke_bridge/main.dart';
-import 'package:smoke_bridge/prototype/prototype_controller.dart';
+import 'package:smoke_bridge/app/bridge_controller.dart';
+import 'package:smoke_bridge/app/smoke_bridge_app.dart';
 import 'package:smoke_bridge/prototype/scenario_lab.dart';
 import 'package:smoke_bridge/theme/app_theme.dart';
 import 'package:smoke_bridge/widgets/probe_sparkline.dart';
 
-Widget shell(PrototypeController controller) {
+Widget shell(BridgeController controller) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: AppTheme.dark(),
@@ -20,10 +20,7 @@ Widget shell(PrototypeController controller) {
   );
 }
 
-Future<void> pumpShell(
-  WidgetTester tester,
-  PrototypeController controller,
-) async {
+Future<void> pumpShell(WidgetTester tester, BridgeController controller) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3.0;
   addTearDown(tester.view.resetPhysicalSize);
@@ -34,7 +31,7 @@ Future<void> pumpShell(
 
 void main() {
   testWidgets('launches into Live with four numbered probes', (tester) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -52,7 +49,7 @@ void main() {
   testWidgets('healthy connection is quiet and the lab is in About', (
     tester,
   ) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -97,7 +94,7 @@ void main() {
   testWidgets('first-run setup advances without simulation buttons', (
     tester,
   ) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     tester.view.physicalSize = const Size(1170, 2532);
     tester.view.devicePixelRatio = 3.0;
@@ -133,7 +130,7 @@ void main() {
   });
 
   testWidgets('bottom navigation reaches History and Settings', (tester) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -156,7 +153,7 @@ void main() {
   });
 
   testWidgets('units apply immediately and reach History', (tester) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -182,7 +179,7 @@ void main() {
   });
 
   testWidgets('History layout fits a 320 px phone', (tester) async {
-    final controller = PrototypeController()..tab = AppTab.history;
+    final controller = BridgeController()..tab = AppTab.history;
     addTearDown(controller.dispose);
     tester.view.physicalSize = const Size(960, 2532);
     tester.view.devicePixelRatio = 3.0;
@@ -196,7 +193,7 @@ void main() {
   });
 
   testWidgets('Bridge name dialog saves without crashing', (tester) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -219,7 +216,7 @@ void main() {
   testWidgets('History filters and summary respond to a probe tile', (
     tester,
   ) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -232,7 +229,7 @@ void main() {
   });
 
   testWidgets('a detached probe is never shown as zero', (tester) async {
-    final controller = PrototypeController()
+    final controller = BridgeController()
       ..probePresence = ProbePresence.detachedP3;
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
@@ -243,7 +240,7 @@ void main() {
   });
 
   testWidgets('offline history stays usable and is labelled', (tester) async {
-    final controller = PrototypeController()
+    final controller = BridgeController()
       ..tab = AppTab.history
       ..phase = ConnectionPhase.offline
       ..offlineCache = true;
@@ -258,7 +255,7 @@ void main() {
   testWidgets('Live separates the BLE link from Smoke X4 telemetry', (
     tester,
   ) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -278,7 +275,7 @@ void main() {
   testWidgets('Live distinguishes stale X4 telemetry from a connected Bridge', (
     tester,
   ) async {
-    final controller = PrototypeController()
+    final controller = BridgeController()
       ..phase = ConnectionPhase.stale
       ..smokeXStatus = SmokeXStatus.pairedLive;
     addTearDown(controller.dispose);
@@ -302,7 +299,7 @@ void main() {
   });
 
   testWidgets('Live names a lost Smoke X4 signal', (tester) async {
-    final controller = PrototypeController()
+    final controller = BridgeController()
       ..smokeXStatus = SmokeXStatus.pairedLost;
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
@@ -313,7 +310,7 @@ void main() {
   testWidgets('Billows only appears when detected and loss is explained', (
     tester,
   ) async {
-    final controller = PrototypeController()
+    final controller = BridgeController()
       ..billowsAttachment = BillowsAttachment.unknown
       ..billowsSeenThisSession = false;
     addTearDown(controller.dispose);
@@ -351,7 +348,7 @@ void main() {
   testWidgets('offline Live greys the chain and hides the signal', (
     tester,
   ) async {
-    final controller = PrototypeController()
+    final controller = BridgeController()
       ..phase = ConnectionPhase.offline
       ..offlineCache = true;
     addTearDown(controller.dispose);
@@ -373,7 +370,7 @@ void main() {
   testWidgets('Summary shows latest, min and max without deltas', (
     tester,
   ) async {
-    final controller = PrototypeController()..tab = AppTab.history;
+    final controller = BridgeController()..tab = AppTab.history;
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -398,7 +395,7 @@ void main() {
   });
 
   testWidgets('Summary sorts since the detected cook started', (tester) async {
-    final controller = PrototypeController()..tab = AppTab.history;
+    final controller = BridgeController()..tab = AppTab.history;
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -416,7 +413,7 @@ void main() {
   testWidgets('full-screen chart is a separate view in either orientation', (
     tester,
   ) async {
-    final controller = PrototypeController()..tab = AppTab.history;
+    final controller = BridgeController()..tab = AppTab.history;
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -440,7 +437,7 @@ void main() {
   testWidgets(
     'Cooks opens a historical view without changing the current view',
     (tester) async {
-      final controller = PrototypeController()..tab = AppTab.history;
+      final controller = BridgeController()..tab = AppTab.history;
       addTearDown(controller.dispose);
       await pumpShell(tester, controller);
 
@@ -473,7 +470,7 @@ void main() {
   );
 
   testWidgets('custom range starts with all saved history', (tester) async {
-    final controller = PrototypeController()..tab = AppTab.history;
+    final controller = BridgeController()..tab = AppTab.history;
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -495,7 +492,7 @@ void main() {
   testWidgets('Bridge details keeps one sync and one repair path', (
     tester,
   ) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -514,7 +511,7 @@ void main() {
   });
 
   testWidgets('Billows loss is added to the connection log', (tester) async {
-    final controller = PrototypeController()
+    final controller = BridgeController()
       ..billowsAttachment = BillowsAttachment.detached
       ..billowsSeenThisSession = true;
     addTearDown(controller.dispose);
@@ -538,7 +535,7 @@ void main() {
   testWidgets('Billows settings is status-only and mirrors set temp', (
     tester,
   ) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -558,7 +555,7 @@ void main() {
   });
 
   testWidgets('experimental lab opens from the app-bar menu', (tester) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
@@ -572,7 +569,7 @@ void main() {
   });
 
   testWidgets('experimental lab still opens', (tester) async {
-    final controller = PrototypeController();
+    final controller = BridgeController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -585,8 +582,10 @@ void main() {
     expect(find.text('No devices required'), findsOneWidget);
   });
 
-  testWidgets('prototype entrypoint boots', (tester) async {
-    await tester.pumpWidget(const PrototypeApp());
+  testWidgets('production entrypoint boots into Live', (tester) async {
+    final controller = BridgeController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(SmokeBridgeApp(controller: controller));
     await tester.pumpAndSettle();
     expect(find.text('P1'), findsOneWidget);
   });

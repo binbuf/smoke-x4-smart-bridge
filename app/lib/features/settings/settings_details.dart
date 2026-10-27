@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../prototype/formatters.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/connection_log.dart';
 import '../../widgets/prototype_app_bar.dart';
@@ -21,7 +21,7 @@ enum DestructiveKind {
 class BillowsSettingsScreen extends StatelessWidget {
   const BillowsSettingsScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +151,7 @@ class BillowsSettingsScreen extends StatelessWidget {
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key, required this.controller, this.onOpenLab});
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final VoidCallback? onOpenLab;
 
   @override
@@ -286,7 +286,7 @@ class AboutScreen extends StatelessWidget {
 class RePairScreen extends StatelessWidget {
   const RePairScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +398,7 @@ class _NumberedStep extends StatelessWidget {
 class SavedDataScreen extends StatelessWidget {
   const SavedDataScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -508,7 +508,7 @@ class SavedDataScreen extends StatelessWidget {
 class PowerOffScreen extends StatelessWidget {
   const PowerOffScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -572,7 +572,7 @@ class ConfirmationPreviewScreen extends StatefulWidget {
     required this.kind,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final DestructiveKind kind;
 
   @override
@@ -792,7 +792,7 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
 
 Future<void> showForgetFlow(
   BuildContext context,
-  PrototypeController controller,
+  BridgeController controller,
 ) async {
   final confirmed = await showLossSheet(
     context,
@@ -822,7 +822,7 @@ Future<void> showForgetFlow(
 
 Future<void> clearBridgeHistory(
   BuildContext context,
-  PrototypeController controller,
+  BridgeController controller,
 ) async {
   final confirmed = await showLossSheet(
     context,
@@ -846,7 +846,7 @@ Future<void> clearBridgeHistory(
 
 Future<void> deleteLocalData(
   BuildContext context,
-  PrototypeController controller,
+  BridgeController controller,
   String scope,
 ) async {
   final count = switch (scope) {
@@ -884,10 +884,7 @@ Future<void> deleteLocalData(
   }
 }
 
-Future<void> powerOff(
-  BuildContext context,
-  PrototypeController controller,
-) async {
+Future<void> powerOff(BuildContext context, BridgeController controller) async {
   final confirmed = await showLossSheet(
     context,
     title: 'Power off the Bridge?',
@@ -911,7 +908,7 @@ Future<void> powerOff(
 
 Future<void> factoryReset(
   BuildContext context,
-  PrototypeController controller,
+  BridgeController controller,
 ) async {
   final confirmed = await showLossSheet(
     context,
