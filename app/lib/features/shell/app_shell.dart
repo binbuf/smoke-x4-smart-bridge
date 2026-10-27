@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../prototype/lab_gate.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../prototype/scenario_lab.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -12,7 +12,7 @@ import '../settings/settings_screen.dart';
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {

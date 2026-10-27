@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'prototype_controller.dart';
+import '../app/bridge_controller.dart';
 
 class ChartPoint {
   const ChartPoint(this.time, this.valueF);

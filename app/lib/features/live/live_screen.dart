@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../prototype/fixtures.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_widgets.dart';
 import '../settings/bridge_details.dart';
@@ -10,7 +10,7 @@ import '../settings/settings_details.dart';
 class LiveScreen extends StatelessWidget {
   const LiveScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -202,7 +202,7 @@ class LiveScreen extends StatelessWidget {
 class _ConnectionCard extends StatelessWidget {
   const _ConnectionCard({required this.controller, required this.onOpenBridge});
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final VoidCallback onOpenBridge;
 
   @override
@@ -453,7 +453,7 @@ class _ChainArrow extends StatelessWidget {
 class _SyncCard extends StatelessWidget {
   const _SyncCard({required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -508,7 +508,7 @@ class _SyncCard extends StatelessWidget {
 class _BillowsCard extends StatelessWidget {
   const _BillowsCard({required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {

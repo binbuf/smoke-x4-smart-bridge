@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../prototype/formatters.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -10,7 +10,7 @@ import 'settings_details.dart';
 class HistoryStorageScreen extends StatelessWidget {
   const HistoryStorageScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +273,7 @@ class _DeleteOption extends StatelessWidget {
 class AppearanceScreen extends StatelessWidget {
   const AppearanceScreen({super.key, required this.controller});
 
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +337,7 @@ class _ThemeOption extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final PrototypeController controller;
+  final BridgeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -357,7 +357,7 @@ class _ThemeOption extends StatelessWidget {
 
 Future<void> showBridgeTimeoutSheet(
   BuildContext context,
-  PrototypeController controller,
+  BridgeController controller,
 ) {
   return showModalBottomSheet<void>(
     context: context,
@@ -424,7 +424,7 @@ Future<void> showBridgeTimeoutSheet(
 
 Future<void> showBridgeNameDialog(
   BuildContext context,
-  PrototypeController controller,
+  BridgeController controller,
 ) async {
   var draft = controller.deviceName;
   final result = await showDialog<String>(

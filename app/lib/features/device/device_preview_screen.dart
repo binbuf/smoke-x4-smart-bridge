@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../prototype/formatters.dart';
-import '../../prototype/prototype_controller.dart';
+import '../../app/bridge_controller.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 
@@ -26,7 +26,7 @@ class DevicePreviewScreen extends StatefulWidget {
     this.initialOverlay = DeviceOverlay.none,
   });
 
-  final PrototypeController controller;
+  final BridgeController controller;
   final int initialPage;
   final DeviceOverlay initialOverlay;
 

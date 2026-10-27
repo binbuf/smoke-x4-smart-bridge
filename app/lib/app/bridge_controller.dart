@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../data/repository.dart';
 
 enum AppTab { live, history, settings }
 
@@ -99,10 +103,29 @@ class Probe {
   bool get connected => tempF != null;
 }
 
-/// UI-only state for the clickable prototype. It intentionally contains no BLE,
-/// database, permission, or sync code. Every value can be set by the scenario
-/// lab so the whole product can be reviewed on a desktop or emulator.
-class PrototypeController extends ChangeNotifier {
+/// The app's control seam.
+///
+/// Owns navigation, theme and the state the approved shell renders. Data access
+/// goes through [BridgeRepository]; widgets never open SQLite themselves. T06
+/// moves the screen-facing fields behind immutable view states, and T07 adds the
+/// BLE seam.
+class BridgeController extends ChangeNotifier {
+  BridgeController({this.repository = const EmptyBridgeRepository()});
+
+  final BridgeRepository repository;
+  bool _initialized = false;
+
+  /// Reads the cached summary once. Call from bootstrap after opening the DB.
+  Future<void> initialize() async {
+    if (_initialized) return;
+    final snapshot = await repository.loadSnapshot();
+    phoneRecords = snapshot.readingCount;
+    hasSavedData = snapshot.readingCount > 0;
+    savedDataEmpty = snapshot.readingCount == 0;
+    _initialized = true;
+    notifyListeners();
+  }
+
   ThemeMode _themeMode = ThemeMode.system;
 
   ThemeMode get themeMode => _themeMode;
@@ -899,5 +922,11 @@ class PrototypeController extends ChangeNotifier {
     phoneRecords = 128430;
     if (keepTheme) _themeMode = theme;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    unawaited(repository.close());
+    super.dispose();
   }
 }

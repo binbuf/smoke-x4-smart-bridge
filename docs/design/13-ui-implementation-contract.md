@@ -102,7 +102,7 @@ Retain the prototype's visual layer and move all state ownership behind it.
 | `app/lib/theme/` | Keep. It is the design-token source. |
 | `app/lib/widgets/` | Keep the shared cards, banners, status LED, signal meter, tiles, chart, sparkline, pills and loss sheet. Remove lab-only helpers from release. |
 | `app/lib/features/` | Keep the screens and composition. Rename imports from `prototype/` to view models/controller. |
-| `app/lib/prototype/prototype_controller.dart` | Replace with production state. The scenario switchboard and fixture getters must not ship. |
+| `app/lib/prototype/prototype_controller.dart` → `app/lib/app/bridge_controller.dart` | T05 moved the controller to the production seam. T06 replaces its screen-facing fields with view states. The scenario switchboard and fixture getters must not ship. |
 | `app/lib/prototype/fixtures.dart` | Test-only fixtures. Production data comes from SQLite/sync. |
 | `app/lib/prototype/scenario_lab.dart` | Debug/review only. Never reachable in a release build unless explicitly enabled. |
 | `app/lib/prototype/formatters.dart` | Move reusable formatting into a locale-aware production formatter; keep pure functions testable. |
@@ -405,7 +405,7 @@ are tracked in the task plan, not silently copied.
 | Probe delta uses `+3.8°F` rather than an arrow | Keep the sign; it is clearer and accessible | Accepted |
 | All strings are hard-coded | Centralize strings, use locale formatting, add a banned-term copy test | T54, T64 |
 | Fixtures, simulation timers and fake OS prompts | Remove from release; keep under test/debug only | T06, T64 |
-| Scenario lab uses the prototype controller | Keep as a debug-only adapter; no release import | T06, T64 |
+| Scenario lab uses the production `BridgeController` | Keep as a debug-only adapter; no release import | T06, T64 |
 | Screenshot set is a review artifact | Regenerate intentionally and make the production set a release gate | T54, T64 |
 | Appearance theme is a lab switch today | Persist it in Preferences and apply on launch | T51 |
 

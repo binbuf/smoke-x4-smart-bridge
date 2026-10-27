@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../prototype/fixtures.dart';
 import '../prototype/formatters.dart';
-import '../prototype/prototype_controller.dart';
+import '../app/bridge_controller.dart';
 
 Rect historyChartPlotRect(Size size) {
   return Rect.fromLTRB(

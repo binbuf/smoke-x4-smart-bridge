@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../prototype/fixtures.dart';
-import '../prototype/prototype_controller.dart';
+import '../app/bridge_controller.dart';
 
 /// A tiny, axis-free trend line for a single probe. The sparkline is scaled to
 /// its own min/max, so it communicates shape and direction rather than a

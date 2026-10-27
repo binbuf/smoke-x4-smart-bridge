@@ -1,4 +1,4 @@
-import 'prototype_controller.dart';
+import '../app/bridge_controller.dart';
 
 String commaInt(int value) {
   final text = value.abs().toString();
