@@ -265,6 +265,12 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 | Overwritten before sync | Gap label `Not synced`; permanent-loss explanation; never a straight line |
 | Empty filtered probe | No line, no zero; `—` values in Summary |
 
+T45 note: `No probes connected` carries the `Bridge details` action. A failed
+reconnect with saved rows keeps the `Showing saved readings` banner, not
+`Can’t reach the Bridge`; only an offline phone with no cache shows
+`Bridge disconnected · nothing saved yet`. The exhaustive copy/action matrix is
+asserted in `app/test/data_state_matrix_test.dart` (ADR 0050).
+
 ### Settings, Bridge details and confirmations
 
 | State | Required UI |

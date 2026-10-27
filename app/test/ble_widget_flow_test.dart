@@ -72,7 +72,7 @@ void main() {
       expect(session.controller.liveView.isOffline, isTrue);
       expect(
         find.textContaining('Showing saved readings', findRichText: true),
-        findsNothing,
+        findsOneWidget,
       );
       expect(find.textContaining('Sensor data received'), findsNothing);
       expect(

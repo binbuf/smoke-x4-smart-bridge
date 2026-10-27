@@ -793,6 +793,19 @@ Every failure names its cause and offers one next action.
 No raw exception, stack trace, or platform error string reaches the UI. Map
 platform exceptions to these named states.
 
+**T45 implementation note.** A failed reconnect that still has saved rows keeps
+the honest `Showing saved readings · last reading …` banner instead of
+`Can’t reach the Bridge` (T37). `Failed` only names the unreachable state when
+there is no cache. Live shows one cached-readings notice with `Retry`; the
+History banner shows `Showing saved readings` plus the last-reading line. The
+no-cache notice is `Bridge disconnected · nothing saved yet` and renders every
+probe as `—`. A filtered probe with no readings is the probe-specific in-range
+state (`No data`/`—` in Summary, `Show all probes`); a whole empty window keeps
+`Show all saved history`, because showing all probes cannot recover an empty
+range. `No probes connected` now offers `Bridge details`. The no-X4 state stays
+one amber X4-node warning and dialog, never a per-tile notice. The full matrix is
+covered by `app/test/data_state_matrix_test.dart`; see ADR 0050.
+
 ## 6.9 Android specifics
 
 - **Permissions**: Android 12+ `BLUETOOTH_SCAN` with `neverForLocation` and
