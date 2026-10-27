@@ -1,10 +1,10 @@
 # UI reference screenshots
 
 Generated from the real Flutter widget tree at 390 × 844 (3×), with both dark and
-light themes. They are review artifacts for the approved production UI contract
-in [`docs/design/13-ui-implementation-contract.md`](../../docs/design/13-ui-implementation-contract.md),
-not golden tests that block the current prototype suite. Production makes the
-reviewed set a release gate (`A4.5`, `V6.4`).
+light themes. They are the approved production UI contract in
+[`docs/design/13-ui-implementation-contract.md`](../../docs/design/13-ui-implementation-contract.md)
+and CI job 5 compares against them on every pull request, so an intentional
+visual change must be regenerated and reviewed with the code.
 
 | Image | Screen |
 |---|---|

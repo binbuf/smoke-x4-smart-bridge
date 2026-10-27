@@ -1,0 +1,195 @@
+# CI gate for the production tree. The six jobs are deliberately separate and
+# keep stable names so a red build says which layer regressed (design 10 §10.1):
+#
+#   1. protocol generate + drift check
+#   2. C host tests
+#   3. firmware build (ESP-IDF 6.0.2, esp32s3, no-OTA image guard)
+#   4. Flutter analyze/test, including the UI state matrix and layout tests
+#   5. UI screenshot/golden check against the approved baseline
+#   6. no-network/no-OTA dependency guard
+#
+# Every job runs on every pull request. `legacy/` is never built here.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protocol:
+    name: "1 · protocol generate + drift check"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install generator dependency
+        run: python -m pip install --quiet pyyaml
+
+      # Generate first, then diff. If the committed protocol/gen is stale (or a
+      # generated file was hand-edited) this fails, even though generation
+      # repaired the working tree.
+      - name: Regenerate and fail on drift
+        run: |
+          make protocol PYTHON=python3
+          git diff --exit-code -- protocol/gen
+
+      - name: Committed output is current
+        run: make protocol-check PYTHON=python3
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.7"
+
+      - name: Protocol codec vectors (C and Dart)
+        run: make protocol-test PYTHON=python3 CC=gcc DART=dart
+
+  host-tests:
+    name: "2 · C host tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S firmware/test -B firmware/test/build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build firmware/test/build
+
+      - name: Run ctest
+        run: ctest --test-dir firmware/test/build --output-on-failure
+
+  firmware-build:
+    name: "3 · firmware build"
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build heltec-v3 image
+        shell: bash
+        working-directory: firmware
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build \
+            "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" \
+            build
+
+      # The same guard runs post-link inside the build; run it again by hand so
+      # the CI log states the no-Wi-Fi/no-HTTP/no-OTA result explicitly.
+      - name: No-network/no-OTA image guard
+        shell: bash
+        working-directory: firmware
+        run: python tools/check_image.py --build-dir build --partitions partitions.csv
+
+      - name: Upload firmware image
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-esp32s3
+          path: |
+            firmware/build/*.bin
+            firmware/build/*.elf
+          if-no-files-found: error
+
+  app-tests:
+    name: "4 · Flutter analyze/test (UI state matrix + layout)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      # app_skeleton_test opens SQLite through sqflite_common_ffi on the host.
+      - name: Install host SQLite
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      # Named explicitly so the job fails if the seam/matrix or layout coverage
+      # disappears, even before the rest of the suite runs.
+      - name: UI state matrix and layout tests
+        run: >
+          flutter test
+          test/view_state_test.dart
+          test/ui_state_matrix_test.dart
+
+      - name: All Flutter unit and widget tests
+        run: flutter test
+
+  ui-goldens:
+    name: "5 · UI screenshot/golden check"
+    # The approved baseline (app/screenshots) was generated on Windows with the
+    # pinned Flutter engine. Keep the comparison on the same host platform so a
+    # red result means the UI changed, not that the rasterizer changed.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Compare against the approved baseline
+        run: flutter test tool/ui_screenshots_test.dart
+
+      - name: Upload golden diff images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-golden-failures
+          path: app/**/failures/**
+          if-no-files-found: ignore
+
+  dependency-guard:
+    name: "6 · no-network/no-OTA dependency guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install guard dependency
+        run: python -m pip install --quiet pyyaml
+
+      # Prove the guard's failure paths before running it on the real tree.
+      - name: Guard self-tests
+        run: python -m unittest discover -s tools/ci -p "test_*.py" -v
+
+      - name: Reject network/MQTT/OTA dependencies
+        run: python tools/ci/check_forbidden_deps.py

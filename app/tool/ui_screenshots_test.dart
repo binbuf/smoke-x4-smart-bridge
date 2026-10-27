@@ -25,10 +25,38 @@ Future<void> _loadFont(String family, String path) async {
   await loader.load();
 }
 
+/// Resolve the Flutter SDK so the golden test finds the same Roboto and
+/// MaterialIcons files on a developer machine and on CI.
+String _flutterRoot() {
+  final candidates = <String>[
+    ?Platform.environment['FLUTTER_ROOT'],
+    r'D:\flutter',
+    '/opt/flutter',
+  ];
+  for (final entry in (Platform.environment['PATH'] ?? '').split(
+    Platform.isWindows ? ';' : ':',
+  )) {
+    final dir = entry.trim();
+    if (dir.isEmpty) continue;
+    final flutter = File(
+      '$dir${Platform.pathSeparator}flutter${Platform.isWindows ? '.bat' : ''}',
+    );
+    if (flutter.existsSync()) {
+      candidates.add(Directory(dir).parent.path);
+    }
+  }
+  for (final root in candidates) {
+    final fonts = Directory('$root/bin/cache/artifacts/material_fonts');
+    if (fonts.existsSync()) return root;
+  }
+  throw StateError(
+    'Cannot find Flutter material fonts. Set FLUTTER_ROOT or put flutter on PATH.',
+  );
+}
+
 void main() {
   setUpAll(() async {
-    final root =
-        '${Platform.environment['FLUTTER_ROOT'] ?? r'D:\flutter'}/bin/cache/artifacts/material_fonts';
+    final root = '${_flutterRoot()}/bin/cache/artifacts/material_fonts';
     await _loadFont('Roboto', '$root/roboto-regular.ttf');
     await _loadFont('Roboto', '$root/roboto-bold.ttf');
     await _loadFont('MaterialIcons', '$root/materialicons-regular.otf');
