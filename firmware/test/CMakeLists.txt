@@ -177,6 +177,42 @@ target_link_libraries(test_bridge_state
 )
 add_test(NAME bridge-state COMMAND test_bridge_state)
 
+# sample_pipe's core is plain C11. It links the real parser and record codec;
+# the test fixture supplies the ring, pairing store and UI-dirty callbacks.
+add_library(sx4_sample_pipe STATIC
+    "${REPO_ROOT}/firmware/components/sample_pipe/sample_pipe.c"
+)
+target_include_directories(sx4_sample_pipe
+    PUBLIC "${REPO_ROOT}/firmware/components/sample_pipe/include"
+)
+target_link_libraries(sx4_sample_pipe
+    PUBLIC sx4_sample_log_core sx4_sx_protocol
+)
+target_include_directories(sx4_sample_pipe
+    PUBLIC
+        "${REPO_ROOT}/firmware/components/bridge_state/include"
+        "${REPO_ROOT}/firmware/components/sx_protocol/include"
+)
+
+add_executable(test_sample_pipe test_sample_pipe.c)
+target_link_libraries(test_sample_pipe PRIVATE sx4_sample_pipe sx4_test_support)
+target_compile_definitions(test_sample_pipe PRIVATE
+    SX4_FIXTURE_DIR="${SX4_LORA_FIXTURES}"
+)
+# The replay asserts that the sample path performs no heap allocation. GNU ld
+# and lld support --wrap; Apple's linker does not, so the assertion is compiled
+# out there (the firmware path still has no allocator call).
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND NOT APPLE)
+    target_link_options(test_sample_pipe PRIVATE
+        -Wl,--wrap=malloc
+        -Wl,--wrap=calloc
+        -Wl,--wrap=realloc
+        -Wl,--wrap=free
+    )
+    target_compile_definitions(test_sample_pipe PRIVATE SX4_ALLOC_WRAPPED=1)
+endif()
+add_test(NAME sample-pipe COMMAND test_sample_pipe)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks

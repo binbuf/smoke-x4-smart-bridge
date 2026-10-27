@@ -48,7 +48,7 @@ OLED/PRG/power path works. BLE may still be a skeleton.
 - [x] T18 — sample_log: ring geometry → [tasks/18-sample-log-ring-geometry.md](tasks/18-sample-log-ring-geometry.md)
 - [x] T19 — sample_log: flash adapter and boot recovery → [tasks/19-sample-log-flash-adapter.md](tasks/19-sample-log-flash-adapter.md)
 - [x] T20 — bridge_state: clock and live snapshot → [tasks/20-bridge-state-clock-snapshot.md](tasks/20-bridge-state-clock-snapshot.md)
-- [ ] T21 — sample_pipe: parser → log → UI → [tasks/21-sample-pipe-parser-log-ui.md](tasks/21-sample-pipe-parser-log-ui.md)
+- [x] T21 — sample_pipe: parser → log → UI → [tasks/21-sample-pipe-parser-log-ui.md](tasks/21-sample-pipe-parser-log-ui.md)
 - [ ] T22 — ui: pages, renderer, and display sleep → [tasks/22-ui-pages-renderer.md](tasks/22-ui-pages-renderer.md)
 - [ ] T23 — ui: PRG gestures and deep sleep → [tasks/23-ui-prg-gestures-sleep.md](tasks/23-ui-prg-gestures-sleep.md)
 - [ ] T24 — board: battery ADC and power stats → [tasks/24-board-battery-adc.md](tasks/24-board-battery-adc.md)
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T06:11:59Z · 20/67 done
+**Pipeline status** — updated 2026-10-27T06:17:49Z · 21/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21
 - Blocked: none
 - Failed: none
-- Remaining: T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T20 — done · bridge_state clock, 10-minute anchor persistence, estimated boot restore, live snapshot, record stamping and host tests are complete; 12/12 host tests pass and the firmware build succeeds.
+- Remaining: T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T21 — done · sample_pipe wired parser → stamped record → bounded log queue → snapshot → UI dirty, with replay/counter/drop/no-allocation tests; host 13/13 and firmware build pass, board check deferred to T37.
 <!-- /symphony:status -->

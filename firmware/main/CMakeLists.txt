@@ -9,6 +9,7 @@ idf_component_register(
         espcoredump
         nvs_flash
         sample_log
+        sample_pipe
         sx_protocol
         sx_radio
         ui

@@ -227,6 +227,35 @@ Rules:
 - Live notification is best-effort. A missed notification is recovered by sync;
   it is not a data-loss path.
 
+Implementation (T21): `firmware/components/sample_pipe/`.
+
+- `sample_pipe.c` is the pure core. It classifies a frame by comma count (2 =
+  ACK, ignored; 6 = sync beacon, counted; 16/26 = state), loads the persisted
+  pairing through a callback, and parses only a paired state frame. It builds
+  the 18-byte record and the `bridge_state_sample_t` together, stamps the
+  record, and calls `sample_log_record_validate()` before handing the pending
+  pair to the log queue. No partial record exists on any reject path.
+- `sample_pipe_esp.c` owns a static FreeRTOS queue of
+  `SAMPLE_PIPE_LOG_QUEUE_DEPTH` (8) pending samples, the `sample_pipe` task
+  (4096/5/core 0) and the `log_writer` task (4096/4/core 0). The sample task
+  drains `sx4_radio_rx_take()`; `enqueue_log` uses a zero-tick `xQueueSend`, so
+  a full queue is a counted drop, never a wait. The writer appends through
+  `sample_log_append()`, then calls `sample_pipe_complete()`.
+- The live snapshot is published at completion, when the ring sequence is
+  known: `bridge_state_update()` first, then `ui_mark_dirty()`. A failed append
+  still publishes live values but keeps the previous live sequence and
+  increments `log_write_failures`. A dropped sample publishes nothing, so FIFO
+  completions can never overwrite newer live values with older ones.
+- The learned probe count is persisted once through `bridge_config_set_pairing()`
+  when the first paired state frame's comma count differs from the stored value.
+  The pairing FSM normally does this too; the pipeline call is idempotent.
+- Counters: valid state packets, parse failures, foreign IDs, sync beacons and
+  drops are owned by `sample_pipe`; CRC/header failures and ACK attempts are
+  aggregated from `sx_protocol` (the radio CRC branch now calls
+  `sx_protocol_note_crc_failure()`). `last_packet_age_s` is computed on read.
+- `ui_mark_dirty()` / `ui_dirty_take()` are the cross-task dirty flag; T22 owns
+  rendering and display sleep.
+
 ## 3.7 Configuration
 
 `bridge_config` is the only component that opens NVS. It exposes a typed,

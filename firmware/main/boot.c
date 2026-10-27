@@ -16,6 +16,7 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "sample_log.h"
+#include "sample_pipe.h"
 #include "sx_protocol.h"
 #include "sx_radio.h"
 #include "ui.h"
@@ -59,6 +60,7 @@ void sx4_boot_run(void) {
     run_step("sample_log_init", sample_log_init);
     run_step("sx_protocol_init", sx_protocol_init);
     run_step("sx_radio_init", sx_radio_init);
+    run_step("sample_pipe_start", sample_pipe_start);
     run_step("sx_radio_start", sx_radio_start);
     run_step("ble_service_start", ble_service_start);
 
