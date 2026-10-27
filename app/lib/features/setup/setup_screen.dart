@@ -273,6 +273,17 @@ class _SetupScreenState extends State<SetupScreen> {
                 )
               : null,
         );
+      case SetupStep.connectionFailed:
+        return _SetupPage(
+          icon: Icons.bluetooth_disabled,
+          eyebrow: 'CONNECTION FAILED',
+          title: 'Couldn’t connect to the Bridge',
+          message: 'The Bridge was found but the Bluetooth connection didn’t finish. Keep it nearby and try again. It keeps recording while you do.',
+          primaryLabel: 'Try again',
+          onPrimary: _flow.retryConnection,
+          secondaryLabel: 'Find another Bridge',
+          onSecondary: _flow.findBridge,
+        );
       case SetupStep.results:
         return _ScanResults(
           view: view,
@@ -929,7 +940,9 @@ class _FirstSyncPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Your latest readings are ready. Older readings will load in the background.',
+                view.syncComplete
+                    ? 'Your latest readings are ready. Older readings will load in the background.'
+                    : 'Loading the latest readings from the Bridge. Keep it nearby.',
                 style: Theme.of(context).textTheme.bodyLarge
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
               ),
@@ -952,24 +965,41 @@ class _FirstSyncPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
                       const _SyncStep(label: 'Time set', done: true),
-                      const _SyncStep(
+                      _SyncStep(
                         label: 'Loading recent readings',
-                        active: true,
+                        done: view.syncComplete,
+                        active: !view.syncComplete,
                       ),
+                      // V0 loads the recent window only. This step becomes an
+                      // active background task on Live in T39-T41.
                       const _SyncStep(label: 'Loading older readings'),
-                      const _SyncStep(label: 'Live view ready'),
+                      _SyncStep(
+                        label: 'Live view ready',
+                        done: view.syncComplete,
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: onContinue,
-                  child: const Text('View live readings'),
+              // Stay here for the recent pass. Once it is done the user can
+              // enter Live; any older-history backfill continues there in the
+              // existing sync card and does not gate this button.
+              if (view.syncComplete)
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: onContinue,
+                    child: const Text('View live readings'),
+                  ),
+                )
+              else
+                Text(
+                  'Keep the Bridge nearby while it finishes.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
-              ),
             ],
           ),
         ),

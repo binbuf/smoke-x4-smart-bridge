@@ -13,8 +13,11 @@ const sx4_radio_params_t sx4_radio_params = {
     .bandwidth_index = 4,        /* 125 kHz */
     .coding_rate = 0x01,         /* SX126X_LORA_CR_4_5 */
     .preamble_symbols = 10,
-    .sync_word = 0x12,
+    .sync_word = 0x1424,
     .crc_on = true,
+    /* Heltec WiFi LoRa 32 V3 (SX1262 module): 3.3 V on DIO3. This is the
+     * value used by the T10 probe and the legacy image, both of which received
+     * real X4 traffic on this board. Do not lower it to 1.8 V. */
     .tcxo_voltage = 3.3f,
     .use_regulator_ldo = true,
     .frequency_min_hz = 902000000u,

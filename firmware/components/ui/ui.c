@@ -162,6 +162,8 @@ static void build_snapshot(ui_snapshot_t *snapshot) {
     }
     /* BLE link state and paired-phone count come from the service (T30). */
     snapshot->app_connected = ble_service_is_connected();
+    snapshot->ble_advertising = ble_service_is_advertising();
+    snapshot->ble_blink_on = ((now_ms() / 500u) & 1u) == 0u;
     snapshot->phones_paired = ble_service_bond_count();
     snapshot->phones_max = UI_PHONES_MAX;
     snapshot->storage_ok = sample_log_storage_ok();
@@ -376,6 +378,13 @@ static void ui_task(void *arg) {
                 now - s_last_time_render_ms >= 1000u) {
                 time_tick = true;
             }
+            /* The discovery "BT" indicator blinks at ~1 Hz on the idle page.
+             * The renderer only flushes when the framebuffer actually differs,
+             * so this costs no I2C traffic when advertising is off. */
+            if (page == UI_PAGE_PROBES &&
+                now - s_last_time_render_ms >= 500u) {
+                time_tick = true;
+            }
             if (dirty || time_tick || !s_have_frame) {
                 render_once(page);
                 s_last_time_render_ms = now;
@@ -555,6 +564,7 @@ void ui_set_overlay_mask(uint8_t mask) {
 }
 
 void ui_set_passkey(const char *digits) {
+    bool show = false;
     taskENTER_CRITICAL(&s_lock);
     if (digits == NULL) {
         s_passkey[0] = '\0';
@@ -567,6 +577,7 @@ void ui_set_passkey(const char *digits) {
         s_passkey[i] = '\0';
         if (i == 6u) {
             s_overlay_mask |= UI_OVERLAY_MASK_PASSKEY;
+            show = true;
         } else {
             s_passkey[0] = '\0';
             s_overlay_mask &= (uint8_t)~UI_OVERLAY_MASK_PASSKEY;
@@ -574,6 +585,11 @@ void ui_set_passkey(const char *digits) {
     }
     taskEXIT_CRITICAL(&s_lock);
     ui_mark_dirty();
+    if (show) {
+        /* Pairing can start long after the display timed out. A sleeping panel
+         * must not hide the six-digit code while Android is waiting for it. */
+        (void)ui_wake();
+    }
 }
 
 void ui_set_power_off(uint8_t countdown_s, bool visible) {

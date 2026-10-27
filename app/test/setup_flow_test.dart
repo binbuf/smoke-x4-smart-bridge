@@ -504,6 +504,26 @@ void main() {
     expect(find.text('Open Bluetooth settings'), findsOneWidget);
   });
 
+  testWidgets('a failed connect is retryable without a rescan', (
+    tester,
+  ) async {
+    final harness = _Harness();
+    harness.client.connectFailuresRemaining = 1;
+    addTearDown(harness.dispose);
+    await _pumpSetup(tester, harness);
+    await _findBridge(tester);
+    await _selectBridge(tester, 'SmokeX4-A4F2');
+
+    expect(find.text('Couldn’t connect to the Bridge'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
+    expect(find.text('Find another Bridge'), findsOneWidget);
+    expect(find.text('No Bridge found'), findsNothing);
+
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pair with the Bridge'), findsOneWidget);
+  });
+
   testWidgets('a stale bond offers forget and re-pair', (tester) async {
     final harness = _Harness(
       connectError: const BleException(BleFailure.staleBond),

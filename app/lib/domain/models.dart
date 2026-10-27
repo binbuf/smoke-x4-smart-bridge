@@ -62,6 +62,7 @@ enum SetupStep {
   unsupportedPhone,
   scanning,
   noResults,
+  connectionFailed,
   results,
   protocolMismatch,
   passkey,

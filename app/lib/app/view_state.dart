@@ -57,6 +57,7 @@ class LiveViewState {
   final List<ProbeView> probes;
   final ProbePresence probePresence;
   final Units units;
+
   /// `null` when the card must not render: Billows was never detected or the
   /// Bridge reports `caps.billows_observe = 0`.
   final BillowsView? billows;
@@ -176,14 +177,15 @@ class HistoryViewState {
 
   String get unitsLabel => unitLabel(units);
 
-  String get rangeChipLabel => range == HistoryRange.custom
-      ? 'Custom'
-      : historyChipLabel(range);
+  String get rangeChipLabel =>
+      range == HistoryRange.custom ? 'Custom' : historyChipLabel(range);
 
   String get probeLabel => probe == null ? 'All probes' : 'P$probe';
 
   bool get hasActiveFilters =>
-      probe != null || range != HistoryRange.twentyFourHours || customRange != null;
+      probe != null ||
+      range != HistoryRange.twentyFourHours ||
+      customRange != null;
 
   bool seriesHasValues(int index) => fixture.seriesHasValues(index);
 
@@ -193,8 +195,7 @@ class HistoryViewState {
 
   bool get noDataInRange => hasAnyHistory && !fixture.hasValues;
 
-  bool get noProbeData =>
-      probe != null && !fixture.seriesHasValues(probe! - 1);
+  bool get noProbeData => probe != null && !fixture.seriesHasValues(probe! - 1);
 
   int get probeCount => probe == null ? 4 : 1;
 
@@ -279,6 +280,7 @@ class SetupViewState {
     required this.savedDataRange,
     required this.savedDataSize,
     required this.syncProgressPercent,
+    required this.syncComplete,
   });
 
   final bool hasSavedData;
@@ -288,6 +290,10 @@ class SetupViewState {
   final String savedDataRange;
   final String savedDataSize;
   final int syncProgressPercent;
+
+  /// True once the first (recent) pass is complete. Older history may still
+  /// load in the background on Live; that does not gate the button.
+  final bool syncComplete;
 
   bool get hasSavedHistory => hasSavedData || !savedDataEmpty;
 

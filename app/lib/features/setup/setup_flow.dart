@@ -266,6 +266,7 @@ class SetupFlow extends ChangeNotifier {
     }
     connecting = true;
     notifyListeners();
+    var keepLink = false;
     try {
       await client.connect(row.device);
       final info = BridgeInfo.decode(
@@ -281,14 +282,25 @@ class SetupFlow extends ChangeNotifier {
         _setStep(SetupStep.bondStoreFull);
         return;
       }
+      keepLink = true;
       _setStep(SetupStep.passkey);
     } on FormatException {
       _setStep(SetupStep.protocolMismatch);
     } on BleException catch (error) {
       _applyFailure(error.appState);
     } catch (_) {
-      _setStep(SetupStep.noResults);
+      _setStep(SetupStep.connectionFailed);
     } finally {
+      // A failed select must not leave the Bridge's single connection slot
+      // occupied; that also stops its advertising/BT indicator.
+      if (!keepLink &&
+          client.connectionState != BleConnectionState.disconnected) {
+        try {
+          await client.disconnect();
+        } catch (_) {
+          // Closing a failed setup attempt is best-effort.
+        }
+      }
       connecting = false;
       if (!_disposed) notifyListeners();
     }
@@ -358,6 +370,7 @@ class SetupFlow extends ChangeNotifier {
         mtu: link.negotiatedMtu,
       );
     } on BridgeLinkException catch (error) {
+      await _disconnectQuietly();
       if (_disposed) return;
       switch (error.failure) {
         case BridgeLinkFailure.protocolMismatch:
@@ -375,15 +388,17 @@ class SetupFlow extends ChangeNotifier {
         case BridgeLinkFailure.syncFailed:
         case BridgeLinkFailure.syncGap:
         case BridgeLinkFailure.operationFailed:
-          _setStep(SetupStep.noResults);
+          _setStep(SetupStep.connectionFailed);
           break;
       }
       return;
     } on FormatException {
+      await _disconnectQuietly();
       _setStep(SetupStep.protocolMismatch);
       return;
     } catch (_) {
-      _setStep(SetupStep.noResults);
+      await _disconnectQuietly();
+      _setStep(SetupStep.connectionFailed);
       return;
     }
     if (_disposed) return;
@@ -449,8 +464,29 @@ class SetupFlow extends ChangeNotifier {
       case BleAppState.connectionFailed:
       case BleAppState.gattError:
       case BleAppState.timeout:
-        _setStep(SetupStep.noResults);
+        _setStep(SetupStep.connectionFailed);
         break;
+    }
+  }
+
+  Future<void> _disconnectQuietly() async {
+    final client = this.client;
+    if (client == null) return;
+    if (client.connectionState == BleConnectionState.disconnected) return;
+    try {
+      await client.disconnect();
+    } catch (_) {
+      // Best effort: failure recovery must not throw another setup error.
+    }
+  }
+
+  /// Retry the selected Bridge without making the user scan again.
+  Future<void> retryConnection() async {
+    final row = selected;
+    if (row != null) {
+      await select(row);
+    } else {
+      await findBridge();
     }
   }
 

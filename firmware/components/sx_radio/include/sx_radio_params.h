@@ -35,7 +35,11 @@ typedef struct {
     uint8_t bandwidth_index;    /* SX126x driver index 4 == 125 kHz */
     uint8_t coding_rate;        /* SX126X_LORA_CR_4_5 */
     uint16_t preamble_symbols;  /* 10 */
-    uint8_t sync_word;          /* 0x12 */
+    /* SX126x 16-bit LoRa sync word. The Smoke X's "0x12" private sync byte is
+     * programmed as 0x1424 on the SX126x (the SX127x/SX126x register mapping).
+     * Writing the bare byte 0x12 here leaves the radio deaf: it then looks for
+     * 0x0012 and never matches a real packet. */
+    uint16_t sync_word;         /* 0x1424 */
     bool crc_on;                /* CRC on */
     float tcxo_voltage;         /* Heltec V3 TCXO: 3.3 V via DIO3 */
     bool use_regulator_ldo;     /* TCXO 3.3 V LDO */

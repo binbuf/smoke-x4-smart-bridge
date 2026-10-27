@@ -45,6 +45,7 @@
 #include "host/ble_sm.h"
 #include "host/ble_store.h"
 #include "host/ble_uuid.h"
+#include "host/util/util.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "records.h"
@@ -111,13 +112,13 @@ static bool s_started;
 static bool s_synced;
 static bool s_connected;
 static bool s_result_subscribed;
-static struct ble_gap_event_listener s_gap_listener;
 static esp_timer_handle_t s_action_timer;
 static ble_control_action_t s_pending_action;
 
 /* T30 advertising/security state. */
 static bool s_adv_active;
-static bool s_adv_stopping; /* our own ble_gap_adv_stop(), not a timeout */
+static bool s_adv_stopping;    /* our own ble_gap_adv_stop(), not a timeout */
+static bool s_adv_restart_pending; /* deferred start/restart on a timer */
 static uint8_t s_own_addr_type;
 static uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static ble_adv_state_t s_adv_state;
@@ -270,16 +271,27 @@ static const struct ble_gatt_svc_def s_gatt_svcs[] = {
     },
 };
 
-static void format_device_id(char out[5]) {
-    uint8_t addr[6];
+/* NimBLE stores the identity address least-significant byte first; the OLED,
+ * Android display and the contract name use the printed MAC order. */
+static void copy_public_addr_display(uint8_t out[6]) {
+    uint8_t raw[6] = {0};
     int is_nrpa = 0;
 
-    if (ble_hs_id_copy_addr(BLE_ADDR_PUBLIC, addr, &is_nrpa) == 0) {
-        /* Same last-two-bytes convention as the SmokeX4-XXXX local name. */
-        snprintf(out, 5, "%02X%02X", addr[4], addr[5]);
+    if (ble_hs_id_copy_addr(BLE_ADDR_PUBLIC, raw, &is_nrpa) == 0) {
+        for (size_t i = 0; i < sizeof(raw); i++) {
+            out[i] = raw[sizeof(raw) - 1u - i];
+        }
     } else {
-        snprintf(out, 5, "0000");
+        memset(out, 0, sizeof(raw));
     }
+}
+
+static void format_device_id(char out[5]) {
+    uint8_t addr[6];
+
+    copy_public_addr_display(addr);
+    /* Same last-two-bytes convention as the SmokeX4-XXXX local name. */
+    snprintf(out, 5, "%02X%02X", addr[4], addr[5]);
 }
 
 static void build_info(uint8_t out[SX4_INFO_SIZE]) {
@@ -333,16 +345,13 @@ static void adv_build_data(uint8_t *adv, size_t adv_cap, size_t *adv_len,
     uint8_t mac[6] = {0};
     char name[BLE_ADV_NAME_MAX];
     ble_adv_status_t status;
-    int is_nrpa = 0;
 
     (void)adv_cap;
     (void)rsp_cap;
     *adv_len = 0;
     *rsp_len = 0;
 
-    if (ble_hs_id_copy_addr(BLE_ADDR_PUBLIC, mac, &is_nrpa) != 0) {
-        memset(mac, 0, sizeof(mac));
-    }
+    copy_public_addr_display(mac);
     if (ble_adv_format_name(name, mac) == 0) {
         memcpy(name, "SmokeX4-0000", sizeof("SmokeX4-0000"));
     }
@@ -361,7 +370,9 @@ static void adv_start_with(uint32_t interval_ms) {
     size_t rsp_len = 0;
     uint16_t units = ble_adv_interval_units(interval_ms);
 
+    s_adv_restart_pending = false;
     if (!s_synced || s_connected) {
+        s_adv_active = false;
         return;
     }
 
@@ -387,8 +398,12 @@ static void adv_start_with(uint32_t interval_ms) {
         .itvl_min = units,
         .itvl_max = units,
     };
+    /* NimBLE only routes connection-scoped events (PASSKEY_ACTION,
+     * PARING_COMPLETE, ENC_CHANGE, SUBSCRIBE) to the advertising callback. A
+     * global listener alone never receives PASSKEY_ACTION, which is why the
+     * phone could start pairing and then time out without ever seeing a code. */
     rc = ble_gap_adv_start(s_own_addr_type, NULL, BLE_HS_FOREVER, &params,
-                           NULL, NULL);
+                           ble_service_gap_event, NULL);
     if (rc == 0) {
         s_adv_active = true;
         ESP_LOGI(TAG, "advertising at %u ms (adv %u B, rsp %u B)",
@@ -408,6 +423,7 @@ static void adv_window_stop(void) {
 
 static void adv_restart_timer_cb(void *arg) {
     (void)arg;
+    s_adv_restart_pending = false;
     adv_start_with(s_pending_interval_ms);
 }
 
@@ -420,8 +436,10 @@ static void adv_schedule(uint32_t interval_ms) {
         return;
     }
     (void)esp_timer_stop(s_adv_restart_timer);
-    (void)esp_timer_start_once(s_adv_restart_timer,
-                               BLE_SERVICE_ADV_RESTART_DELAY_US);
+    if (esp_timer_start_once(s_adv_restart_timer,
+                             BLE_SERVICE_ADV_RESTART_DELAY_US) == ESP_OK) {
+        s_adv_restart_pending = true;
+    }
 }
 
 static void passkey_timer_cb(void *arg);
@@ -458,6 +476,8 @@ static void adv_apply_event(ble_adv_event_t event, bool direct) {
     case BLE_ADV_EVENT_CONNECTED:
     case BLE_ADV_EVENT_STOP:
         adv_window_stop();
+        s_adv_restart_pending = false;
+        s_adv_active = false;
         break;
     default:
         break;
@@ -551,8 +571,8 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
     uint8_t live[SX4_LIVE_SIZE];
     const uint8_t *data = NULL;
     size_t len = 0;
-    uint16_t mtu;
 
+    (void)conn_handle;
     switch (spec->slot) {
     case SX4_BLE_CHAR_INFO_SLOT:
         build_info(info);
@@ -588,22 +608,17 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
         return BLE_ATT_ERR_INVALID_OFFSET;
     }
 
-    /* Read Blob: NimBLE asks for the next offset while the value is longer
-     * than the negotiated ATT MTU. One response carries at most MTU-1 bytes. */
-    mtu = conn_handle == BLE_HS_CONN_HANDLE_NONE ? BLE_ATT_MTU_DFLT
-                                                 : ble_att_mtu(conn_handle);
-    if (mtu < BLE_ATT_MTU_DFLT) {
-        mtu = BLE_ATT_MTU_DFLT;
-    }
-    size_t chunk = len - ctxt->offset;
-    size_t max_chunk = (size_t)mtu - 1u;
-    if (chunk > max_chunk) {
-        chunk = max_chunk;
-    }
-    /* NimBLE slices a Read Blob from `offset` after the callback returns, so
-     * append the prefix up to the end of this MTU-1 window. */
-    size_t append_len = ctxt->offset + chunk;
-    if (os_mbuf_append(ctxt->om, data, append_len) != 0) {
+    /*
+     * NimBLE owns the ATT offset/MTU slicing:
+     *  - offset 0: the value goes into the response mbuf and the ATT layer
+     *    truncates it to MTU-1 before transmitting;
+     *  - offset N: NimBLE puts the callback output in a temporary mbuf and
+     *    copies value[N..] itself (see ble_gatts_val_access()).
+     * The callback must always append the complete value. Chunking here makes
+     * NimBLE compute `len(returned) - offset`, which goes negative on the
+     * second Read Blob and surfaces as GATT_INVALID_OFFSET (0x07).
+     */
+    if (os_mbuf_append(ctxt->om, data, (uint16_t)len) != 0) {
         return BLE_ATT_ERR_INSUFFICIENT_RES;
     }
     return 0;
@@ -1125,6 +1140,26 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
 
 bool ble_service_is_connected(void) { return s_connected; }
 
+bool ble_service_is_advertising(void) { return s_adv_active && !s_connected; }
+
+void ble_service_keep_advertising(void) {
+    if (!s_synced || s_connected || s_adv_stopping || s_adv_restart_pending) {
+        return;
+    }
+    if (s_adv_active && ble_gap_adv_active()) {
+        return;
+    }
+    s_adv_active = false;
+    if (s_adv_state.phase == BLE_ADV_PHASE_OFF) {
+        /* The disconnect/boot event was missed; reopen the fast window. */
+        adv_apply_event(BLE_ADV_EVENT_DISCONNECT, false);
+        return;
+    }
+    adv_start_with(s_adv_state.phase == BLE_ADV_PHASE_FAST
+                       ? BLE_ADV_FAST_INTERVAL_MS
+                       : BLE_ADV_SLOW_INTERVAL_MS);
+}
+
 uint8_t ble_service_bond_count(void) { return s_bond_count; }
 
 void ble_service_set_passkey_callback(ble_service_passkey_fn fn, void *ctx) {
@@ -1158,6 +1193,7 @@ static void on_reset(int reason) {
     s_sync_subscribed = false;
     s_sync_busy = false;
     s_adv_active = false;
+    s_adv_restart_pending = false;
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
     ble_adv_state_init(&s_adv_state);
     passkey_clear();
@@ -1165,14 +1201,31 @@ static void on_reset(int reason) {
 
 static void on_sync(void) {
     s_synced = true;
-    if (ble_gap_event_listener_register(&s_gap_listener, ble_service_gap_event,
-                                        NULL) != 0) {
-        ESP_LOGW(TAG, "GAP listener already registered");
-    }
+    /* The advertising callback owns every connection event. A second global
+     * listener would double-deliver connect/encrypt/subscribe events and still
+     * miss PASSKEY_ACTION. */
 
-    if (ble_hs_id_infer_auto(0, &s_own_addr_type) != 0) {
+    /* NimBLE examples call this before infer_auto. Without it the controller's
+     * static random address can win the infer (the random type is preferred)
+     * and advertising starts on an address the name/info suffix does not
+     * describe. The contract's identity is the public address. */
+    int addr_rc = ble_hs_util_ensure_addr(0);
+    if (addr_rc != 0) {
+        ESP_LOGW(TAG, "no usable identity address (%d)", addr_rc);
+    }
+    if (ble_hs_id_copy_addr(BLE_ADDR_PUBLIC, NULL, NULL) == 0) {
+        s_own_addr_type = BLE_OWN_ADDR_PUBLIC;
+    } else if (ble_hs_id_infer_auto(0, &s_own_addr_type) != 0) {
         s_own_addr_type = BLE_OWN_ADDR_PUBLIC;
         ESP_LOGW(TAG, "no identity address; advertising as public");
+    }
+    /* Keep the GAP-service name in step with the scan-response name. Android
+     * caches the GAP name after pairing and otherwise shows just "SmokeX4-". */
+    uint8_t name_mac[6] = {0};
+    char local_name[BLE_ADV_NAME_MAX];
+    copy_public_addr_display(name_mac);
+    if (ble_adv_format_name(local_name, name_mac) > 0) {
+        (void)ble_svc_gap_device_name_set(local_name);
     }
     refresh_bond_count();
     ble_adv_state_init(&s_adv_state);
@@ -1301,10 +1354,8 @@ esp_err_t ble_service_stop(void) {
     }
     ble_adv_state_init(&s_adv_state);
     s_adv_active = false;
+    s_adv_restart_pending = false;
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
-    if (s_synced) {
-        (void)ble_gap_event_listener_unregister(&s_gap_listener);
-    }
     if (nimble_port_stop() == 0) {
         (void)nimble_port_deinit();
     }

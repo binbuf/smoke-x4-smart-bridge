@@ -30,6 +30,20 @@ esp_err_t ble_service_stop(void);
 /* True while a central is connected (the MVP allows one). */
 bool ble_service_is_connected(void);
 
+/*
+ * True while the bridge is advertising and no central is connected. The OLED
+ * uses this to show the blinking "looking for a phone" indicator.
+ */
+bool ble_service_is_advertising(void);
+
+/*
+ * Safety net for discovery: if the host is synced, idle, and advertising has
+ * stopped for any reason, restart it at the current interval. Called by the
+ * periodic housekeeping task; it never runs while connected and never extends
+ * the fast-advertising window.
+ */
+void ble_service_keep_advertising(void);
+
 /* Number of phone bonds currently stored, 0..4 (cached, updated on sync/enc). */
 uint8_t ble_service_bond_count(void);
 
@@ -54,8 +68,9 @@ void ble_service_boost_advertising(void);
 void ble_service_cancel_pairing(void);
 
 /*
- * GAP event callback seam. T27 registers it with ble_gap_event_listener_register()
- * to track connect/disconnect; T30 also passes it to ble_gap_adv_start().
+ * GAP event callback seam. It is passed as the advertising callback to
+ * ble_gap_adv_start(); NimBLE routes PASSKEY_ACTION and PARING_COMPLETE only to
+ * that connection callback, not to ble_gap_event_listener_register().
  */
 struct ble_gap_event;
 int ble_service_gap_event(struct ble_gap_event *event, void *arg);

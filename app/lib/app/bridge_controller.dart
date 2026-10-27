@@ -565,7 +565,9 @@ class BridgeController extends ChangeNotifier {
 
   bool probeHasHistory(int index) {
     if (recentHistory.hasAnyReadings) {
-      return recentHistory.samples.any((sample) => sample.tempsF[index] != null);
+      return recentHistory.samples.any(
+        (sample) => sample.tempsF[index] != null,
+      );
     }
     if (!historyHasData) return false;
     return !historyOneProbe || index == 3;
@@ -1104,6 +1106,7 @@ class BridgeController extends ChangeNotifier {
     savedDataRange: savedDataRange,
     savedDataSize: savedDataSize,
     syncProgressPercent: syncProgressPercent,
+    syncComplete: syncState == SyncState.complete,
   );
 
   SettingsViewState get settingsView => SettingsViewState(
