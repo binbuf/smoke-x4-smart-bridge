@@ -52,7 +52,7 @@ OLED/PRG/power path works. BLE may still be a skeleton.
 - [x] T22 — ui: pages, renderer, and display sleep → [tasks/22-ui-pages-renderer.md](tasks/22-ui-pages-renderer.md)
 - [x] T23 — ui: PRG gestures and deep sleep → [tasks/23-ui-prg-gestures-sleep.md](tasks/23-ui-prg-gestures-sleep.md)
 - [x] T24 — board: battery ADC and power stats → [tasks/24-board-battery-adc.md](tasks/24-board-battery-adc.md)
-- [ ] T25 — Bench prep: pair, stock receiver, power cut → [tasks/25-bench-pair-power-cut.md](tasks/25-bench-pair-power-cut.md)
+- [x] T25 — Bench prep: pair, stock receiver, power cut → [tasks/25-bench-pair-power-cut.md](tasks/25-bench-pair-power-cut.md)
 - [ ] T26 — Bench prep: cadence and display → [tasks/26-bench-cadence-display.md](tasks/26-bench-cadence-display.md)
 
 **Exit gate:** a real X4 pairs; the stock receiver keeps updating; samples
@@ -169,11 +169,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T06:45:53Z · 24/67 done
+**Pipeline status** — updated 2026-10-27T06:50:40Z · 25/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25
 - Blocked: none
 - Failed: none
-- Remaining: T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T24 — done · Battery ADC/divider sampling, Li-ion curve with SOC_UNKNOWN, power stats, and housekeeping publication landed; host tests and firmware build pass, with DMM/current measurements deferred to T62.
+- Remaining: T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39, T40, T41, T42, T43, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T25 — done · T37 checklist, evidence manifest, ⏳ hardware rows, stored-record logging, and capture hardening landed; host tests 16/16 and firmware build pass; physical run remains at T37.
 <!-- /symphony:status -->
