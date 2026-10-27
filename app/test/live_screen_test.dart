@@ -180,11 +180,11 @@ void main() {
     );
 
     expect(find.byKey(const Key('live.smokeXUnpaired')), findsOneWidget);
-    expect(find.text('Pair the Smoke X4'), findsOneWidget);
-    expect(find.text('Show pairing steps'), findsOneWidget);
-    expect(find.textContaining('no Smoke X4 is paired yet'), findsOneWidget);
+    expect(find.text('No data from Smoke X4'), findsOneWidget);
+    expect(find.text('Pairing steps'), findsOneWidget);
+    expect(find.textContaining('isn’t receiving data'), findsOneWidget);
 
-    await tester.tap(find.text('Show pairing steps'));
+    await tester.tap(find.text('Pairing steps'));
     await tester.pumpAndSettle();
     expect(find.text('Put the Smoke X4 into SYNC mode.'), findsOneWidget);
     expect(find.textContaining('No reset is needed'), findsOneWidget);
@@ -234,7 +234,10 @@ void main() {
     );
     expect(inLink('status.x4Link', find.text('Last known')), findsOneWidget);
     expect(find.textContaining('Sensor data received'), findsNothing);
-    expect(find.textContaining('Showing saved readings'), findsNothing);
+    expect(
+      find.textContaining('Showing saved readings'),
+      findsOneWidget,
+    );
     expect(find.text('Fair'), findsNothing);
     expect(inProbe(1, find.text('225.0°F')), findsOneWidget);
     expect(find.text('Set temp (last known)'), findsOneWidget);

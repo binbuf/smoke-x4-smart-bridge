@@ -43,6 +43,7 @@
 - **T42 — app: full History chart, Summary and Cooks**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,; `app/lib/data/history/history_archive.dart`
 - **T43 — app: connection health, saved Bridge and launch auto-connect**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,; `app/lib/data/ble/ble_client.dart`
 - **T44 — app: data use and explicit deletion**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done; `app/lib/data/history/history_deletion.dart`
+- **T45 — app: History/data empty and error states**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,; `app/lib/app/bridge_controller.dart`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -86,6 +87,7 @@
 - [T42](progress/T42.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,
 - [T43](progress/T43.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,
 - [T44](progress/T44.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done
+- [T45](progress/T45.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

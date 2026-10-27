@@ -10,6 +10,8 @@ import 'history_chart_panel.dart';
 import 'history_full_screen.dart';
 import 'history_view_loader.dart';
 
+enum _HistoryEmptyKind { noHistory, noProbeData, noDataInRange }
+
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({
     super.key,
@@ -266,8 +268,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final fixture = view.fixture;
     final window = view.windowLabel(use24Hour: use24Hour);
     final noData = view.noData;
-    final noDataInRange = view.noDataInRange;
     final noProbeData = view.noProbeData;
+    final noDataInRange = view.noDataInRange;
+    // A filtered probe with no readings in this window gets the approved
+    // probe-specific copy and one `Show all probes` action, even when the whole
+    // window happens to be empty.
+    final emptyKind = noData
+        ? _HistoryEmptyKind.noHistory
+        : noProbeData
+        ? _HistoryEmptyKind.noProbeData
+        : noDataInRange
+        ? _HistoryEmptyKind.noDataInRange
+        : null;
     final probeMeta = view.probeMeta;
     final metaLead = noData
         ? 'No readings'
@@ -350,40 +362,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ],
         ),
         const SizedBox(height: 6),
-        if (noData || noDataInRange || noProbeData)
+        if (emptyKind != null)
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 300),
             child: EmptyState(
+              key: const Key('history.empty'),
               icon: Icons.show_chart,
-              title: noData
+              title: emptyKind == _HistoryEmptyKind.noHistory
                   ? 'No readings yet'
                   : 'No readings in this range',
-              message: noData
-                  ? 'The Bridge records whenever it’s on and paired with the Smoke X4.'
-                  : noDataInRange
-                  ? 'This range has no saved readings. Show all saved history to find the readings you expect.'
-                  : 'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
-              action: () {
-                if (noData) {
-                  controller.setTab(AppTab.live);
-                } else if (noDataInRange) {
-                  final entire = view.entireHistoryRange;
-                  if (entire.end.isAfter(entire.start)) {
-                    controller.setHistoryCustomRange(entire);
-                  } else {
-                    controller.setHistoryRange(HistoryRange.oneHour);
-                  }
-                  _resetViewport();
-                } else {
-                  controller.setHistoryProbe(null);
-                  _resetViewport();
-                }
+              message: switch (emptyKind) {
+                _HistoryEmptyKind.noHistory =>
+                  'The Bridge records whenever it’s on and paired with the Smoke X4.',
+                _HistoryEmptyKind.noProbeData =>
+                  'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
+                _HistoryEmptyKind.noDataInRange =>
+                  'This range has no saved readings. Show all saved history to find the readings you expect.',
               },
-              actionLabel: noData
-                  ? 'View Live'
-                  : noDataInRange
-                  ? 'Show all saved history'
-                  : 'Show all probes',
+              action: () => _emptyAction(emptyKind, view),
+              actionLabel: switch (emptyKind) {
+                _HistoryEmptyKind.noHistory => 'View Live',
+                _HistoryEmptyKind.noProbeData => 'Show all probes',
+                _HistoryEmptyKind.noDataInRange => 'Show all saved history',
+              },
             ),
           )
         else
@@ -400,6 +401,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
       child: chart,
     );
+  }
+
+  void _emptyAction(_HistoryEmptyKind kind, HistoryViewState view) {
+    switch (kind) {
+      case _HistoryEmptyKind.noHistory:
+        controller.setTab(AppTab.live);
+        break;
+      case _HistoryEmptyKind.noProbeData:
+        controller.setHistoryProbe(null);
+        _resetViewport();
+        break;
+      case _HistoryEmptyKind.noDataInRange:
+        final entire = view.entireHistoryRange;
+        if (entire.end.isAfter(entire.start)) {
+          controller.setHistoryCustomRange(entire);
+        } else {
+          controller.setHistoryRange(HistoryRange.oneHour);
+        }
+        _resetViewport();
+        break;
+    }
   }
 
   Widget _summaryCard(BuildContext context, HistoryViewState view) {

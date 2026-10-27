@@ -381,7 +381,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.textContaining('Showing saved readings'), findsNothing);
+    expect(find.textContaining('Showing saved readings'), findsOneWidget);
     expect(find.textContaining('Sensor data received'), findsNothing);
     expect(find.text('Not connected'), findsNothing);
     expect(find.text('Fair'), findsNothing);

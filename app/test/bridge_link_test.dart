@@ -293,6 +293,7 @@ void main() {
       await harness.link.connectAndSecure(harness.device);
 
       harness.client.connectFailuresRemaining = 6;
+      harness.controller.offlineCache = false;
       await harness.client.disconnect();
       await _waitFor(() => harness.controller.phase == ConnectionPhase.failed);
 
@@ -438,6 +439,7 @@ void main() {
     addTearDown(harness.dispose);
     harness.controller
       ..phase = ConnectionPhase.failed
+      ..offlineCache = false
       ..hasSavedBridge = true;
 
     tester.view.physicalSize = const Size(1170, 2532);

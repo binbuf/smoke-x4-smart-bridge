@@ -72,4 +72,49 @@ Make every History and data failure honest and actionable: no readings, no readi
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+Landed the full History/data state matrix and closed the T37 banner bug.
+
+**Implemented**
+- `BridgeController.connectionTitle/Subtitle`: failed + cached rows now say
+  `Showing saved readings` / `Last reading …`; `Can’t reach the Bridge` is only
+  the no-cache failure. Offline with no cache says
+  `Bridge disconnected · nothing saved yet`.
+- Live: one `live.savedReadings` notice (`Showing saved readings · last reading
+  …`, `Retry`) for offline/failed with cache; no-cache notice with approved
+  copy and no probe values; `No probes connected` now offers `Bridge details`;
+  an unpaired X4 uses the approved `No data from Smoke X4` copy and
+  `Pairing steps`; stable keys for sync/storage/no-probe/cache notices.
+- History: empty precedence is no-history → filtered-probe-no-data → empty
+  range. A filtered probe gets the approved `Probe N…` copy, `Show all probes`,
+  no chart line, and Summary `No data`/`—`. Added `history.empty` key.
+- `app/test/data_state_matrix_test.dart` (14) covers every data row in 06 §6.8
+  and the relevant 13 §13.4 states, including a DAO failure with no raw
+  exception text, protocol mismatch (Setup page), and no fake zeros in the
+  no-cache state.
+
+**Deviation**
+- For a whole range with no saved readings the action stays T42's
+  `Show all saved history`, not 06's `Show all probes`; `Show all probes`
+  cannot recover an empty range. The 06 row is asserted for the filtered-probe
+  case. Documented in ADR 0050.
+- Protocol mismatch remains the Setup-owned page (T33); T45 verifies it instead
+  of duplicating it on Live. Launch-time mismatch on a saved Bridge is a
+  follow-up for T50/T51.
+
+**Checks**
+```powershell
+cd app
+flutter analyze                                   # No issues found
+flutter test test\data_state_matrix_test.dart --timeout 120s  # 14/14
+flutter test --timeout 120s                       # 223/223, All tests passed
+```
+
+**Docs changed:** `docs/design/06-app.md` (§6.8 note),
+`docs/design/13-ui-implementation-contract.md` (§13.4 History note),
+`docs/design/adr/0050-history-data-state-matrix.md`,
+`docs/progress/T45.md`.
+
+**Remaining:** none for T45. T54 owns the full copy/a11y/320 dp gate; T55 the
+phone check; T50/T51 the launch-time mismatch surface.
+

@@ -1348,11 +1348,15 @@ class BridgeController extends ChangeNotifier {
       case ConnectionPhase.reconnecting:
         return 'Reconnecting…';
       case ConnectionPhase.failed:
-        return 'Can’t reach the Bridge';
-      case ConnectionPhase.offline:
+        // A failed reconnect that still has saved readings keeps the honest
+        // "saved readings" banner (T37): the chart is real cache, not live data.
         return offlineCache
             ? 'Showing saved readings'
             : 'Can’t reach the Bridge';
+      case ConnectionPhase.offline:
+        return offlineCache
+            ? 'Showing saved readings'
+            : 'Bridge disconnected · nothing saved yet';
       case ConnectionPhase.blocked:
         switch (blockReason) {
           case BlockReason.bluetoothOff:
@@ -1392,11 +1396,13 @@ class BridgeController extends ChangeNotifier {
       case ConnectionPhase.reconnecting:
         return 'Attempt $reconnectAttempt of $reconnectAttempts · next try in ${nextReconnectIn.inSeconds} sec';
       case ConnectionPhase.failed:
-        return 'Tap to retry. Recording continues on the Bridge.';
+        return offlineCache
+            ? 'Last reading ${_lastConnectedLabel()}'
+            : 'Tap to retry. Recording continues on the Bridge.';
       case ConnectionPhase.offline:
         return offlineCache
             ? 'Last reading ${_lastConnectedLabel()}'
-            : 'Nothing has been saved on this phone yet';
+            : 'Nothing has been saved on this phone yet. Connect to the Bridge to see live values.';
       case ConnectionPhase.blocked:
         switch (blockReason) {
           case BlockReason.bluetoothOff:

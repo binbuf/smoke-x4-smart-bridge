@@ -39,7 +39,27 @@ class LiveScreen extends StatelessWidget {
                       ),
                       onShowSmokeXHelp: () => _showSmokeXHelp(context),
                     ),
-                    if (view.phase == ConnectionPhase.failed) ...[
+                    if ((view.phase == ConnectionPhase.offline ||
+                            view.phase == ConnectionPhase.failed) &&
+                        view.showSavedReadings &&
+                        !view.lookingForBridge) ...[
+                      const SizedBox(height: 10),
+                      InlineNotice(
+                        key: const Key('live.savedReadings'),
+                        icon: Icons.history,
+                        color: StatusColors.stale(context),
+                        title: view.telemetryStatusLabel,
+                        message:
+                            'These are saved readings, not live values. Retry when the Bridge is back in range.',
+                        action: TextButton(
+                          key: const Key('live.savedReadings.retry'),
+                          onPressed: controller.retryConnection,
+                          child: const Text('Retry'),
+                        ),
+                      ),
+                    ],
+                    if (view.phase == ConnectionPhase.failed &&
+                        !view.showSavedReadings) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         key: const Key('live.unreachable'),
@@ -120,9 +140,11 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         key: const Key('live.noCache'),
                         icon: Icons.cloud_off_outlined,
-                        title: 'Nothing saved yet',
-                        message: 'This phone has no saved readings. Connect to your Bridge to see live values.',
+                        title: 'Bridge disconnected · nothing saved yet',
+                        message:
+                            'This phone has no saved readings. Connect to your Bridge to see live values.',
                         action: TextButton(
+                          key: const Key('live.noCache.retry'),
                           onPressed: controller.retryConnection,
                           child: const Text('Retry'),
                         ),
@@ -136,11 +158,12 @@ class LiveScreen extends StatelessWidget {
                         key: const Key('live.smokeXUnpaired'),
                         icon: Icons.sensors_off_outlined,
                         color: StatusColors.aging(context),
-                        title: 'Pair the Smoke X4',
-                        message: 'The Bridge is connected, but no Smoke X4 is paired yet. Put the Smoke X4 in SYNC mode, then hold its button until it beeps.',
+                        title: 'No data from Smoke X4',
+                        message:
+                            'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
                         action: TextButton(
                           onPressed: () => _showSmokeXHelp(context),
-                          child: const Text('Show pairing steps'),
+                          child: const Text('Pairing steps'),
                         ),
                       ),
                     ],
@@ -152,6 +175,7 @@ class LiveScreen extends StatelessWidget {
                     if (view.syncState == SyncState.error) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
+                        key: const Key('live.syncFailed'),
                         icon: Icons.error_outline,
                         color: Theme.of(context).colorScheme.error,
                         title: 'History sync failed',
@@ -165,6 +189,7 @@ class LiveScreen extends StatelessWidget {
                     if (!view.storageOk) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
+                        key: const Key('live.storageUnavailable'),
                         icon: Icons.sd_card_alert_outlined,
                         color: Theme.of(context).colorScheme.error,
                         title: 'Not recording',
@@ -180,13 +205,25 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (view.probePresence == ProbePresence.none) ...[
+                    if (view.probePresence == ProbePresence.none &&
+                        !(view.isOffline && !view.showSavedReadings)) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
+                        key: const Key('live.noProbes'),
                         icon: Icons.graphic_eq,
                         title: 'No probes connected',
                         message:
                             'Plug a probe into the Smoke X4 to see a reading.',
+                        action: TextButton(
+                          key: const Key('live.noProbes.bridgeDetails'),
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  BridgeDetailsScreen(controller: controller),
+                            ),
+                          ),
+                          child: const Text('Bridge details'),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 18),
