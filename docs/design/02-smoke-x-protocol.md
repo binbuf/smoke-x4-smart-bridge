@@ -186,14 +186,14 @@ X2). What is known and what is not:
   target. If `max` is the target, the ±25 alarms are not represented in the
   packet. **[?]**
 
-B5.0 must passively capture `max` and `min` at 225, 250, and 275 °F and derive
+T56 must passively capture `max` and `min` at 225, 250, and 275 °F and derive
 the relation before the app displays a target. A single known setpoint separates
 `max = target` from `max = target + 25`; a second setpoint confirms the mapping.
 Do not change a setpoint during a live cook just to capture — use the M5 bench
 sitting. The air probe can be at room temperature; no cook is required.
 
 The attached flag is sufficient to display "Billows detected". The target is
-shown only after B5.0 validates it; otherwise the UI shows `—`. There is no
+shown only after T56 validates it; otherwise the UI shows `—`. There is no
 control path: ThermoWorks documents that a Smoke X4 receiver cannot change set
 points or the Billows, so the listener cannot either. See [08 — Billows](08-billows.md)
 and [`../billows-decision.md`](../billows-decision.md).

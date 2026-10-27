@@ -3,7 +3,7 @@
 **Status:** decided — **Option C, observation only** · **Decision date:** 2026-10-26
 
 This record closes [08 §8.3](design/08-billows.md#83-why-set-target-is-not-an-mvp-feature)
-and [B5.0](tasks/M5-billows.md). The MVP does not implement "set target" and does
+and [T56](tasks/56-billows-observation-evidence.md). The MVP does not implement "set target" and does
 not transmit to a Billows or to the Smoke X4 outside the pairing ACK.
 
 ## Evidence
@@ -41,7 +41,7 @@ command if one is ever discovered) are hardware/post-MVP work, not MVP firmware.
   one is unsafe and unsupported.
 - **Target derivation:** the observed target remains a **decode question**, not a
   control question. The candidate is Channel 4's `max`/`min` field in fan mode.
-  B5.0 captures 225/250/275 °F passively and records whether the target is
+  T56 captures 225/250/275 °F passively and records whether the target is
   `max`, `max − 25`, the midpoint, or another relation. Until that is confirmed,
   the firmware returns `billows_target_f10 = 0` and the UI shows `—`; it never
   guesses.
@@ -58,7 +58,7 @@ command if one is ever discovered) are hardware/post-MVP work, not MVP firmware.
   Smoke X4. Set the target on the Smoke X4."
 - **Post-MVP:** a passive RF survey may look for additional Billows/base
   telemetry (duty, status, or a target field) to display. It is receive-only and
-  cannot transmit. See [B5.2](tasks/M5-billows.md#b52-post-mvp-passive-rf-survey-for-additional-billows-data).
+  cannot transmit. See [T68](tasks/68-post-mvp-passive-rf-survey.md).
 
 ## Sign-off
 

@@ -1047,15 +1047,15 @@ requirements in [13](13-ui-implementation-contract.md).
 | [06](06-app.md) | Live/History/Settings/Setup/error sections refreshed; units, sparklines, filters, Summary, Cooks, prototype-chrome rule and the production UI contract added. |
 | [07](07-display-and-controls.md) | P1–P4 only; OLED labels and overlays aligned with the app preview. |
 | [README](README.md) | Decisions D16–D21 recorded. |
-| `M0` T0.5/T0.5a | Shell tabs are Live / History / Settings; the prototype becomes the production UI baseline. |
-| `M3` A3.3 | History ranges/filters/crosshair/zoom/Summary/Cooks/Cook view/gap reasons. |
-| `M3` A3.6 | Empty states per range/probe; no aggregate preview. |
-| `M4` A4.5 | Full UI state matrix, goldens, accessibility and copy lint. |
-| `M4` A4.1 | Settings root (Bridge / History & storage / Preferences / About). |
-| `M4` A4.2 | Units inline; Bridge settings split; immediate per-field save; Appearance. |
-| `M4` A4.4 | Units, time and theme end-to-end. |
-| `M2` A2.5/V0 | Mount the full History UI with recent data; full sync/decimation lands in M3. |
-| `M6` V6.4 | Remove debug-only UI; verify no lab entry in release; UI parity/a11y/copy gate. |
+| `M0` T05/T06 | Shell tabs are Live / History / Settings; the prototype becomes the production UI baseline. |
+| `M3` T42 | History ranges/filters/crosshair/zoom/Summary/Cooks/Cook view/gap reasons. |
+| `M3` T45 | Empty states per range/probe; no aggregate preview. |
+| `M4` T54 | Full UI state matrix, goldens, accessibility and copy lint. |
+| `M4` T50 | Settings root (Bridge / History & storage / Preferences / About). |
+| `M4` T51 | Units inline; Bridge settings split; immediate per-field save; Appearance. |
+| `M4` T53 | Units, time and theme end-to-end. |
+| `M2` T36/V0 | Mount the full History UI with recent data; full sync/decimation lands in M3. |
+| `M6` T64 | Remove debug-only UI; verify no lab entry in release; UI parity/a11y/copy gate. |
 | `app/screenshots/README.md` | `history_*` names and the final state set. |
 
 Decisions recorded in the design README:

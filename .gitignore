@@ -1,10 +1,18 @@
-# Local reference tree — not part of the new build
+# Local reference tree - not part of the new build
 legacy/
 
 # Docs: keep the design/task set, ignore scratch files
 docs/*
 !docs/Start.md
+!docs/ROADMAP.md
+!docs/PROGRESS.md
 !docs/design/
 !docs/tasks/
+!docs/progress/
+!docs/logs/
 !docs/hardware-verified.md
 !docs/billows-decision.md
+
+# symphony harness (local tool, not tracked)
+.symphony/
+.stop
