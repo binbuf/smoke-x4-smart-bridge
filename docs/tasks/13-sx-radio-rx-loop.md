@@ -8,9 +8,15 @@
 - [03 §3.3](../design/03-firmware-architecture.md) — the `radio_rx` task's stack, priority, core, and polling model.
 - [01 §1.2](../design/01-hardware.md) — SX1262 pins on the Heltec V3.
 - `firmware/components/sx_radio/` — driver wrapper, parameter block, and radio task.
+- `firmware/vendor/esp-idf-sx126x/` — T12-vendored `ra01s` driver; only `sx_radio` may include it.
+- `protocol/fixtures/lora/x4-t10-25min.loralog` — real X4 capture for the
+  host-injected seam test (sync, ACKs, 41 state frames, detach/reattach,
+  °F/°C). T14 owns the parser that consumes it.
 - `firmware/main/tasks.h` — the single task table that declares stack/priority/core.
 - **Verification:** H/B. **Board:** no for the host seam; yes for B.
 - Depends on T12.
+- The board currently runs the T10 capture probe. The board check cannot run
+  until the product image is flashed over it.
 
 ## Scope
 - [ ] Implement the `radio_rx` task with the declared budget from [03 §3.3](../design/03-firmware-architecture.md): 4096-byte stack, priority 6, core 1.
