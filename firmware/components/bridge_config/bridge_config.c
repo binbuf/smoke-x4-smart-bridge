@@ -45,6 +45,9 @@ _Static_assert(KEY_LEN(BRIDGE_CONFIG_KEY_CLEAR_PENDING) <=
 _Static_assert(KEY_LEN(BRIDGE_CONFIG_KEY_CLOCK_ANCHOR) <=
                    BRIDGE_CONFIG_NVS_NAME_MAX,
                "clock_anchor_s key too long for NVS");
+_Static_assert(KEY_LEN(BRIDGE_CONFIG_KEY_CLOCK_UPTIME) <=
+                   BRIDGE_CONFIG_NVS_NAME_MAX,
+               "clock_uptime_s key too long for NVS");
 _Static_assert(KEY_LEN(BRIDGE_CONFIG_KEY_CLOCK_VALID) <=
                    BRIDGE_CONFIG_NVS_NAME_MAX,
                "clock_valid key too long for NVS");
@@ -424,6 +427,7 @@ static bridge_config_result_t migrate_v0_to_v1(void) {
         {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_GENERATION, 4},
         {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLEAR_PENDING, 1},
         {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_ANCHOR, 8},
+        {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_UPTIME, 8},
         {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_VALID, 1},
         {BRIDGE_CONFIG_NS_STATS, BRIDGE_CONFIG_KEY_BOOT_COUNT, 4},
         {BRIDGE_CONFIG_NS_STATS, BRIDGE_CONFIG_KEY_LAST_RESET, 1},
@@ -606,6 +610,16 @@ static bridge_config_result_t load_log_and_clock(void) {
         anchor = 0;
     }
 
+    uint64_t uptime = 0;
+    rc = load_u64(BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_UPTIME,
+                  &uptime);
+    if (rc == BRIDGE_CONFIG_ERR_IO) {
+        return rc;
+    }
+    if (rc != BRIDGE_CONFIG_OK) {
+        uptime = 0;
+    }
+
     uint8_t clock_valid = 0;
     rc = load_u8(BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_VALID,
                  &clock_valid);
@@ -613,6 +627,7 @@ static bridge_config_result_t load_log_and_clock(void) {
         return rc;
     }
     s_state.log.clock_anchor_s = anchor;
+    s_state.log.clock_uptime_s = uptime;
     s_state.log.clock_valid =
         (rc == BRIDGE_CONFIG_OK && clock_valid != 0u && anchor != 0u);
     return BRIDGE_CONFIG_OK;
@@ -1083,27 +1098,66 @@ bridge_config_result_t bridge_config_clock_get(uint64_t *anchor_s,
 }
 
 bridge_config_result_t bridge_config_clock_set(uint64_t anchor_s, bool valid) {
-    if (valid && anchor_s == 0) {
+    bridge_config_clock_t clock = {
+        .anchor_s = anchor_s,
+        .uptime_s = 0,
+        .valid = valid,
+    };
+    return bridge_config_clock_set_full(&clock);
+}
+
+bridge_config_result_t bridge_config_clock_get_full(
+    bridge_config_clock_t *out) {
+    if (out == NULL) {
+        return BRIDGE_CONFIG_ERR_INVALID;
+    }
+    if (!s_state.ready) {
+        return BRIDGE_CONFIG_ERR_STATE;
+    }
+    out->anchor_s = s_state.log.clock_anchor_s;
+    out->uptime_s = s_state.log.clock_uptime_s;
+    out->valid = s_state.log.clock_valid;
+    return BRIDGE_CONFIG_OK;
+}
+
+bridge_config_result_t bridge_config_clock_set_full(
+    const bridge_config_clock_t *clock) {
+    if (clock == NULL) {
+        return BRIDGE_CONFIG_ERR_INVALID;
+    }
+    if (clock->valid && clock->anchor_s == 0) {
         return BRIDGE_CONFIG_ERR_INVALID; /* 0 is "unknown", not a valid time */
     }
     if (!s_state.ready) {
         return BRIDGE_CONFIG_ERR_STATE;
     }
-    uint64_t old_anchor = s_state.log.clock_anchor_s;
+    const uint64_t old_anchor = s_state.log.clock_anchor_s;
+    const uint64_t old_uptime = s_state.log.clock_uptime_s;
+
     bridge_config_result_t rc = store_u64(
-        BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_ANCHOR, anchor_s);
+        BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_ANCHOR, clock->anchor_s);
     if (rc != BRIDGE_CONFIG_OK) {
         return rc;
     }
-    rc = store_bool(BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_VALID,
-                    valid);
+    rc = store_u64(BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_UPTIME,
+                   clock->uptime_s);
     if (rc != BRIDGE_CONFIG_OK) {
         (void)store_u64(BRIDGE_CONFIG_NS_LOG,
                         BRIDGE_CONFIG_KEY_CLOCK_ANCHOR, old_anchor);
         return rc;
     }
-    s_state.log.clock_anchor_s = anchor_s;
-    s_state.log.clock_valid = valid;
+    rc = store_bool(BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_VALID,
+                    clock->valid);
+    if (rc != BRIDGE_CONFIG_OK) {
+        (void)store_u64(BRIDGE_CONFIG_NS_LOG,
+                        BRIDGE_CONFIG_KEY_CLOCK_ANCHOR, old_anchor);
+        (void)store_u64(BRIDGE_CONFIG_NS_LOG,
+                        BRIDGE_CONFIG_KEY_CLOCK_UPTIME, old_uptime);
+        return rc;
+    }
+    s_state.log.clock_anchor_s = clock->anchor_s;
+    s_state.log.clock_uptime_s = clock->uptime_s;
+    s_state.log.clock_valid = clock->valid;
     return BRIDGE_CONFIG_OK;
 }
 
@@ -1215,6 +1269,8 @@ static const bridge_config_reset_step_t k_reset_steps[] = {
      BRIDGE_CONFIG_RESET_ERASE},
     {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_ANCHOR,
      BRIDGE_CONFIG_RESET_ERASE},
+    {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_UPTIME,
+     BRIDGE_CONFIG_RESET_ERASE},
     {BRIDGE_CONFIG_NS_LOG, BRIDGE_CONFIG_KEY_CLOCK_VALID,
      BRIDGE_CONFIG_RESET_ERASE},
     /* The documented foreign namespace is cleared only through our wrapper. */
@@ -1238,6 +1294,7 @@ bridge_config_result_t bridge_config_factory_reset(void) {
     reset_device(&s_state.device);
     reset_stats(&s_state.stats);
     s_state.log.clock_anchor_s = 0;
+    s_state.log.clock_uptime_s = 0;
     s_state.log.clock_valid = false;
 
     for (size_t i = 0;

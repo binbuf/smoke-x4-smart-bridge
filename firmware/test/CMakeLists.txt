@@ -159,6 +159,24 @@ target_link_libraries(test_bridge_config
 )
 add_test(NAME bridge-config COMMAND test_bridge_config)
 
+# bridge_state's clock/snapshot core is plain C11. It persists the anchor
+# through bridge_config and takes time from an injected monotonic source.
+add_library(sx4_bridge_state STATIC
+    "${REPO_ROOT}/firmware/components/bridge_state/bridge_state.c"
+)
+target_include_directories(sx4_bridge_state
+    PUBLIC "${REPO_ROOT}/firmware/components/bridge_state/include"
+)
+target_link_libraries(sx4_bridge_state
+    PUBLIC sx4_bridge_config sx4_protocol_gen
+)
+
+add_executable(test_bridge_state test_bridge_state.c)
+target_link_libraries(test_bridge_state
+    PRIVATE sx4_bridge_state sx4_test_support
+)
+add_test(NAME bridge-state COMMAND test_bridge_state)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks

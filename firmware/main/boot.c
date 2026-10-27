@@ -11,6 +11,7 @@
 #include "ble_service.h"
 #include "board.h"
 #include "bridge_config.h"
+#include "bridge_state.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -52,6 +53,7 @@ void sx4_boot_run(void) {
     ESP_LOGI(TAG, "nvs: ok");
 
     run_step("bridge_config_init", bridge_config_init);
+    run_step("bridge_state_init", bridge_state_init);
     run_step("board_power_init", board_power_init);
     run_step("ui_init", ui_init);
     run_step("sample_log_init", sample_log_init);

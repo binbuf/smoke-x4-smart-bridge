@@ -56,6 +56,7 @@ extern "C" {
 #define BRIDGE_CONFIG_KEY_GENERATION "generation"
 #define BRIDGE_CONFIG_KEY_CLEAR_PENDING "clear_pending"
 #define BRIDGE_CONFIG_KEY_CLOCK_ANCHOR "clock_anchor_s"
+#define BRIDGE_CONFIG_KEY_CLOCK_UPTIME "clock_uptime_s"
 #define BRIDGE_CONFIG_KEY_CLOCK_VALID "clock_valid"
 #define BRIDGE_CONFIG_KEY_BOOT_COUNT "boot_count"
 #define BRIDGE_CONFIG_KEY_LAST_RESET "last_reset"
@@ -135,6 +136,10 @@ typedef struct {
     uint32_t generation;
     bool clear_pending;
     uint64_t clock_anchor_s;
+    /* Uptime (seconds) at which clock_anchor_s was captured. 0 = unknown.
+     * Persisted with the anchor so a monotonic source that survives deep sleep
+     * can advance the estimated clock after a wake (T20). */
+    uint64_t clock_uptime_s;
     bool clock_valid;
 } bridge_config_log_t;
 
@@ -200,6 +205,18 @@ bridge_config_result_t bridge_config_finish_log_clear(void);
 /* Clock anchor (log namespace). A valid clock must have a non-zero anchor. */
 bridge_config_result_t bridge_config_clock_get(uint64_t *anchor_s, bool *valid);
 bridge_config_result_t bridge_config_clock_set(uint64_t anchor_s, bool valid);
+
+/* The full {unix_s, uptime_s} anchor pair (T20). uptime_s records the device
+ * uptime when anchor_s was captured; pass 0 when unknown. clock_get() above
+ * reports anchor/valid only; clock_set() above stores uptime_s = 0. */
+typedef struct {
+    uint64_t anchor_s; /* Unix seconds; 0 = unknown */
+    uint64_t uptime_s; /* device uptime at capture; 0 = unknown */
+    bool valid;
+} bridge_config_clock_t;
+bridge_config_result_t bridge_config_clock_get_full(bridge_config_clock_t *out);
+bridge_config_result_t bridge_config_clock_set_full(
+    const bridge_config_clock_t *clock);
 
 /* Boot counters. */
 bridge_config_result_t bridge_config_stats_get(bridge_config_stats_t *out);

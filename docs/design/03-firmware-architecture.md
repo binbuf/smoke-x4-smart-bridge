@@ -92,6 +92,7 @@ post-MVP optimization.
 app_main
   1  nvs_flash_init()                          fatal on failure
   2  bridge_config_init()                      load config/pairing/counters
+     bridge_state_init()                       restore clock anchor + snapshot
   3  board_power_init()                        Vext, battery ADC, rails
   4  ui_init()                                 splash + version
   5  sample_log_init()                         mount raw partition, recover ring
@@ -206,6 +207,11 @@ Rules:
 
 - The parser rejects malformed input; counters increment; no partial record is
   written.
+- T20 provides the pipeline's state boundary: `bridge_state_stamp_record()`
+  applies the clock to the record (unknown time writes `unix_s = 0`), then
+  `bridge_state_update()` publishes the live snapshot. The snapshot carries no
+  pointer to mutable state; readers get a consistent copy and compute `age_s` at
+  read time.
 - Device ID mismatch is dropped and counted.
 - Pairing owns sync/state acceptance: the radio task passes each frame to the
   pairing FSM first (T16), which may retune and ACK a sync beacon, learn the
@@ -289,6 +295,32 @@ delta exceeds 2 s. Records written while the clock is unknown carry `unix_s = 0`
 and `clock_valid = 0`; the app can still place them relative to `seq`.
 
 Persist the clock anchor every 10 minutes to NVS. Do not write NVS per sample.
+
+Implementation (T20, ADR 0028):
+
+- `bridge_state` is a plain-C core over an injected monotonic millisecond source
+  and `bridge_config`; `bridge_state_esp.c` installs `esp_timer_get_time()`.
+  `bridge_state_core_init()` loads the anchor after `bridge_config_init`.
+- `bridge_config` stores the anchor as `{clock_anchor_s, clock_uptime_s,
+  clock_valid}`; `clock_uptime_s` is an additive u64 key (0 = unknown). The
+  typed `bridge_config_clock_get_full()`/`set_full()` carry the pair; the older
+  getter/setter keep their two-field contract.
+- A restored anchor is `estimated = true`. Elapsed time is added only when the
+  uptime source survived the sleep (`now >= stored uptime`) or the platform
+  passes a known sleep interval; a power cycle with a reset timer restores the
+  anchor unchanged rather than inventing an interval.
+- `bridge_state_set_time()` is the T29 seam. It refuses a time earlier than the
+  current clock (`ERR_TIME`) and clears `estimated`. It has no BLE dependency.
+- `bridge_state_tick()` writes at most once per ten minutes and retries a failed
+  write after 60 s; the first app set writes immediately. `bridge_state_update()`
+  never writes NVS.
+- `bridge_state_stamp_record()` writes `unix_s = 0` and clears the clock-valid
+  bit while unknown, and clamps to the previous record timestamp so a correction
+  can never move sample time backwards.
+- `bridge_state_snapshot()` copies the live values under a sequence lock and
+  computes `age_s`, the 90 s `SMOKE_LIVE` bit and the clock-valid bit at read
+  time. Temperature, sequence, billows target, battery and RSSI are stored by
+  `bridge_state_update()` / the device setters.
 
 ## 3.9 BLE service
 
