@@ -20,6 +20,17 @@ scarce resource; do not use it to discover typos.
 
 ### Firmware
 
+The suite lives in `firmware/test` and is a plain CMake project with `ctest` as
+the entry point; it links pure-C sources only. Fixtures are committed under
+`protocol/fixtures/lora/` with provenance, and `parser-vectors.tsv` is the
+machine-readable vector corpus. Run it with:
+
+```bash
+cmake -S firmware/test -B firmware/test/build -G Ninja
+cmake --build firmware/test/build
+ctest --test-dir firmware/test/build --output-on-failure
+```
+
 - Parser: all vectors in [02 §2.9](02-smoke-x-protocol.md), malformed input,
   foreign device ID, detached probe, Celsius, Billows attached.
 - Record: encode/decode round-trip, CRC failure, sentinel validation, flags.

@@ -1,0 +1,43 @@
+# Smoke X parser vectors - machine-readable validation corpus.
+#
+# Format: 11 tab-separated columns, no escaping.
+#   name       stable vector identifier
+#   category   x4 | x2-defensive | malformed | foreign-id | detached |
+#              celsius | billows | out-of-range
+#   kind       sync | state
+#   probes     - for sync, otherwise 2 (X2) or 4 (X4)
+#   expect     ok | reject | ok-out-of-band
+#              ok-out-of-band means a parser may decode the sync, but the
+#              caller must reject the frequency before retuning or ACKing.
+#   device_id  expected parsed ID, or - when not asserted
+#   units      F | C | - (wire value 1 is F; anything else is C)
+#   attached   bit string for probes, LSB = probe 1, or -
+#   frequency  expected sync frequency in Hz, or -
+#   provenance capture:<fixture> | legacy-reference-corpus |
+#              design-02 | synthetic-adversarial
+#   payload    the exact ASCII air payload, including the trailing comma
+#
+# X2-era rows are defensive only: they do not define product behaviour.
+# Real X4 rows are transcribed from protocol/fixtures/lora/*.loralog.
+# The parser/caller split for out-of-band sync is design 02 sections 2.3/2.7.
+# name	category	kind	probes	expect	device_id	units	attached	frequency	provenance	payload
+x4-baseline	x4	state	4	ok	LMXC[\	F	1111	-	capture:x4-events-10min	LMXC[\,30,1,1,0,811,0,160,32,0,801,0,160,32,0,807,0,160,32,0,807,0,160,32,0,0,
+x4-alarm-edge	x4	state	4	ok	LMXC[\	F	1111	-	capture:x4-events-10min	LMXC[\,30,1,2,0,1052,1,105,32,0,822,0,160,32,0,829,0,160,32,0,835,0,160,32,0,1,
+x4-sync	x4	sync	-	ok	LMXC[\	-	-	918500000	capture:x4-events-10min	000000,LMXC[\,160,50,191,54,
+x4-detached-frozen	detached	state	4	ok	LMXC[\	F	1110	-	capture:x4-events-10min	LMXC[\,30,1,1,0,1054,0,160,32,0,797,0,160,32,0,790,0,160,32,3,809,0,160,32,0,0,
+x4-celsius	celsius	state	4	ok	LMXC[\	C	1111	-	capture:x4-events-10min	LMXC[\,30,0,1,0,381,1,37,8,0,285,0,71,0,0,288,0,71,0,0,273,0,71,0,0,0,
+x2-real-state	x2-defensive	state	2	ok	|abCDe	F	11	-	legacy-reference-corpus	|abCDe,30,1,1,0,848,1,125,32,0,849,0,260,195,0,0,
+x2-sync-reference	x2-defensive	sync	-	ok	|abCDe	-	-	910500000	legacy-reference-corpus	020001,|abCDe,160,32,69,54,
+x2-detached-zeroed	x2-defensive	state	2	ok	|abCDe	F	10	-	legacy-reference-corpus	|abCDe,30,1,0,0,848,0,125,32,3,0,0,0,0,0,0,
+foreign-id-state	foreign-id	state	4	ok	OTHRID	F	1111	-	synthetic-adversarial	OTHRID,30,1,1,0,700,0,160,32,0,700,0,160,32,0,700,0,160,32,0,700,0,160,32,0,0,
+foreign-id-sync	foreign-id	sync	-	ok	OTHRID	-	-	918500000	synthetic-adversarial	000000,OTHRID,160,50,191,54,
+billows-attached	billows	state	4	ok	LMXC[\	F	1111	-	design-02-2.6	LMXC[\,30,1,1,0,811,0,160,32,0,801,0,160,32,0,807,0,160,32,0,807,0,160,32,1,0,
+malformed-state-nonnumeric	malformed	state	4	reject	-	-	-	-	synthetic-adversarial	LMXC[\,30,1,1,0,8x8,0,160,32,0,801,0,160,32,0,807,0,160,32,0,807,0,160,32,0,0,
+malformed-state-empty-field	malformed	state	4	reject	-	-	-	-	synthetic-adversarial	LMXC[\,30,1,999,0,,0,160,32,0,801,0,160,32,0,807,0,160,32,0,807,0,160,32,0,0,
+malformed-state-truncated	malformed	state	2	reject	-	-	-	-	synthetic-adversarial	|abCDe,30,1,0,0,848,0,125,
+malformed-state-extra-field	malformed	state	2	reject	-	-	-	-	synthetic-adversarial	|abCDe,30,1,0,0,848,0,125,32,3,0,0,0,0,0,0,7,
+malformed-sync-bad-byte	malformed	sync	-	reject	-	-	-	-	synthetic-adversarial	020001,|abCDe,160,32,69,zz,
+malformed-sync-missing-byte	malformed	sync	-	reject	-	-	-	-	synthetic-adversarial	020001,|abCDe,160,32,,54,999,
+malformed-oversized	malformed	state	4	reject	-	-	-	-	synthetic-adversarial	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+malformed-unknown-comma-count	malformed	state	4	reject	-	-	-	-	synthetic-adversarial	LMXC[\,30,1,0,0,700,0,200,100,0,0,
+out-of-range-sync	out-of-range	sync	-	ok-out-of-band	|abCDe	-	-	950000000	synthetic-adversarial	020001,|abCDe,128,217,159,56,

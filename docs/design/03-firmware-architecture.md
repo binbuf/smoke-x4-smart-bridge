@@ -294,7 +294,8 @@ ESP-IDF 6.0.x, target `esp32s3`, NimBLE, no Wi-Fi, no HTTP server, no OTA.
 # host tests: no ESP-IDF required
 cmake -S firmware/test -B firmware/test/build -G Ninja
 cmake --build firmware/test/build
-ctest --test-dir firmware/test/build
+ctest --test-dir firmware/test/build --output-on-failure
+# or: make host-test
 
 # firmware
 idf.py -B build -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
@@ -307,9 +308,13 @@ update it.
 
 ## 3.14 Test seams
 
-- `sx_protocol` is pure C and takes a payload string.
+- `sx_protocol` is pure C and takes a payload string. The host corpus reader
+  and `parser-vectors.tsv` live under `protocol/fixtures/lora/`; tests never
+  read `legacy/`.
 - `sample_log` core takes a `log_io` interface (`read`, `write`, `erase`) so a
-  RAM-backed fake can simulate wrap, torn writes, and corruption.
+  RAM-backed fake can simulate wrap, torn writes, and corruption. The seam is
+  `firmware/components/sample_log/include/log_io.h`; the fake and failure
+  injection are in `firmware/test/support/ram_log_io.*`.
 - `bridge_state` takes a clock function.
 - `ble_service` payload encoders are pure functions; the NimBLE callbacks are
   thin.

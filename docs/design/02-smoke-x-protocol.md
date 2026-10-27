@@ -282,6 +282,12 @@ Store captures under `protocol/fixtures/lora/` in the new tree and commit the
 raw log plus a short report (time, radio settings, what changed). Do not edit
 the legacy fixtures.
 
+The machine-readable corpus is `protocol/fixtures/lora/parser-vectors.tsv`; it
+carries one row per vector with category, expected outcome, device/units/
+attached/frequency expectations and provenance. The directory `README.md`
+records the capture provenance and the X2-defensive rule. Host suite:
+`firmware/test/test_lora_corpus.c`.
+
 ## 2.10 Open protocol questions
 
 | # | Question | How it closes | Impact |
