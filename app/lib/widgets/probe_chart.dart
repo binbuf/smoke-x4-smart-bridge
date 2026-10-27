@@ -206,43 +206,41 @@ class _HistoryChartPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
 
-      final path = Path();
+      final runs = historySeriesSegments(series);
       final offsets = <Offset>[];
-      var active = false;
-      var hasGap = false;
+      final hasGap = runs.length > 1;
       Offset? lastOffset;
-      for (final point in series.points) {
-        if (point.valueF == null) {
-          active = false;
-          hasGap = true;
-          continue;
+      for (final run in runs) {
+        final visible = <Offset>[];
+        for (final point in run) {
+          if (point.time.isBefore(viewStartTime) ||
+              point.time.isAfter(viewEndTime)) {
+            continue;
+          }
+          final x =
+              chart.left +
+              point.time.difference(viewStartTime).inMilliseconds /
+                  spanMs *
+                  chart.width;
+          final y =
+              chart.bottom -
+              (_display(point.valueF!) - minValue) /
+                  (maxValue - minValue) *
+                  chart.height;
+          visible.add(Offset(x, y));
         }
-        if (point.time.isBefore(viewStartTime) ||
-            point.time.isAfter(viewEndTime)) {
-          continue;
-        }
-        final x =
-            chart.left +
-            point.time.difference(viewStartTime).inMilliseconds /
-                spanMs *
-                chart.width;
-        final y =
-            chart.bottom -
-            (_display(point.valueF!) - minValue) /
-                (maxValue - minValue) *
-                chart.height;
-        final offset = Offset(x, y);
-        offsets.add(offset);
-        if (!active) {
-          path.moveTo(offset.dx, offset.dy);
-          active = true;
-        } else {
+        if (visible.isEmpty) continue;
+        final path = Path()..moveTo(visible.first.dx, visible.first.dy);
+        for (final offset in visible.skip(1)) {
           path.lineTo(offset.dx, offset.dy);
         }
-        lastOffset = offset;
+        offsets.addAll(visible);
+        lastOffset = visible.last;
+        canvas.save();
+        canvas.clipRect(chart);
+        canvas.drawPath(path, paint);
+        canvas.restore();
       }
-      canvas.save();
-      canvas.clipRect(chart);
       if (visibleProbe != null && offsets.length > 1 && !hasGap) {
         final fillPath = Path()
           ..moveTo(offsets.first.dx, chart.bottom)
@@ -259,10 +257,11 @@ class _HistoryChartPainter extends CustomPainter {
             Offset(0, chart.bottom),
             [color.withValues(alpha: 0.20), color.withValues(alpha: 0.0)],
           );
+        canvas.save();
+        canvas.clipRect(chart);
         canvas.drawPath(fillPath, fill);
+        canvas.restore();
       }
-      canvas.drawPath(path, paint);
-      canvas.restore();
       if (lastOffset != null) {
         final dot = Paint()..color = color;
         canvas.drawCircle(lastOffset, 3.2, dot);

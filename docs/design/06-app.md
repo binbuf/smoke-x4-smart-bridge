@@ -568,6 +568,14 @@ app-bar title is `Cook`.
 - `gap` already has `reason`; render the reason, not a hard-coded marker.
 - Estimated time is shown next to the chart when `time_estimated` is set.
 
+Implementation note (T36): V0 mounts this shell against `RecentHistoryStore`,
+which consumes the link's `BridgeSyncBatch` and holds only the recent (15 min)
+readings in memory. The requested range is the real chart window; wider
+selections show the same recent readings, and a range with no readings shows
+`No readings in this range`. `historySeriesSegments` applies the >90 s rule for
+the painter and the tests. The durable archive replaces the store in T39–T41
+without changing the screen (ADR 0043).
+
 ## 6.7 Settings
 
 ### Root

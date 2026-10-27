@@ -120,6 +120,39 @@ class ChartSeries {
 
 enum HistoryGapReason { noSignal, bridgeOff, bridgeRotated }
 
+/// Design rule 06 §6.6: a line never crosses an interval longer than this
+/// between adjacent readings. The chart and the recent-history store share it.
+const Duration historyGapThreshold = Duration(seconds: 90);
+
+/// Splits a series into drawable runs. A `null` value always breaks the line;
+/// so does an adjacent-sample delta greater than [maxDelta] (90 s by default).
+/// Nothing is invented to bridge either kind of gap.
+List<List<ChartPoint>> historySeriesSegments(
+  ChartSeries series, {
+  Duration maxDelta = historyGapThreshold,
+}) {
+  final runs = <List<ChartPoint>>[];
+  List<ChartPoint>? current;
+  DateTime? previousTime;
+  for (final point in series.points) {
+    if (point.valueF == null) {
+      current = null;
+      previousTime = null;
+      continue;
+    }
+    final delta = previousTime == null
+        ? Duration.zero
+        : point.time.difference(previousTime);
+    if (current == null || delta.isNegative || delta > maxDelta) {
+      current = <ChartPoint>[];
+      runs.add(current);
+    }
+    current.add(point);
+    previousTime = point.time;
+  }
+  return runs;
+}
+
 /// The data shape a History view renders. Production fills it from SQLite/sync;
 /// review builds fill it from the debug fixture adapter.
 class HistoryFixture {

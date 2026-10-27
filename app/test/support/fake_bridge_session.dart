@@ -33,7 +33,9 @@ class FakeBridgeSession {
       repository: repository,
       content: _content,
       bleClient: client,
-    )..phase = ConnectionPhase.setup;
+    )
+      ..phase = ConnectionPhase.setup
+      ..historyHasData = true;
     _connectionSubscription = client.connectionStates.listen(_onConnection);
     _liveSubscription = client
         .notifications(proto.bleCharacteristicByName('live').uuid)

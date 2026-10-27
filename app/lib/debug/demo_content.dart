@@ -71,5 +71,5 @@ BridgeController demoBridgeController({
   return BridgeController(
     repository: repository,
     content: const DemoBridgeContent(),
-  );
+  )..historyHasData = true;
 }

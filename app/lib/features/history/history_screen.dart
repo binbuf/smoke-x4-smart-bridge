@@ -270,6 +270,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final fixture = view.fixture;
     final window = view.windowLabel(use24Hour: use24Hour);
     final noData = view.noData;
+    final noDataInRange = view.noDataInRange;
     final noProbeData = view.noProbeData;
     final probeMeta = view.probeMeta;
     final metaLead = noData
@@ -353,24 +354,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ],
         ),
         const SizedBox(height: 6),
-        if (noData || noProbeData)
+        if (noData || noDataInRange || noProbeData)
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 300),
             child: EmptyState(
               icon: Icons.show_chart,
-              title: noData ? 'No readings yet' : 'No readings in this range',
+              title: noData
+                  ? 'No readings yet'
+                  : 'No readings in this range',
               message: noData
                   ? 'The Bridge records whenever it’s on and paired with the Smoke X4.'
+                  : noDataInRange
+                  ? 'This range has no saved readings yet. The latest 15 minutes sync automatically; older readings belong to a later update.'
                   : 'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
               action: () {
                 if (noData) {
                   controller.setTab(AppTab.live);
+                } else if (noDataInRange) {
+                  controller
+                    ..setHistoryProbe(null)
+                    ..setHistoryRange(HistoryRange.oneHour);
+                  _resetViewport();
                 } else {
                   controller.setHistoryProbe(null);
                   _resetViewport();
                 }
               },
-              actionLabel: noData ? 'View Live' : 'Show all probes',
+              actionLabel: noData
+                  ? 'View Live'
+                  : noDataInRange
+                  ? 'Show recent readings'
+                  : 'Show all probes',
             ),
           )
         else

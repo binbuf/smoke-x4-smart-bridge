@@ -73,8 +73,8 @@ end-to-end build.
 - [x] T32 — app: BLE client and scan → [tasks/32-app-ble-client-scan.md](tasks/32-app-ble-client-scan.md)
 - [x] T33 — app: setup and passkey flow → [tasks/33-app-setup-passkey-flow.md](tasks/33-app-setup-passkey-flow.md)
 - [x] T34 — app: Live screen → [tasks/34-app-live-screen.md](tasks/34-app-live-screen.md)
-- [~] T35 — app: link procedures and time sync → [tasks/35-app-link-procedures-time-sync.md](tasks/35-app-link-procedures-time-sync.md) ⟵ failed
-- [ ] T36 — app: recent History (V0) → [tasks/36-app-recent-history-v0.md](tasks/36-app-recent-history-v0.md)
+- [x] T35 — app: link procedures and time sync → [tasks/35-app-link-procedures-time-sync.md](tasks/35-app-link-procedures-time-sync.md) ⟵ accepted
+- [~] T36 — app: recent History (V0) → [tasks/36-app-recent-history-v0.md](tasks/36-app-recent-history-v0.md) ⟵ running
 - [ ] T37 — Bench: V0 end-to-end → [tasks/37-bench-v0-end-to-end.md](tasks/37-bench-v0-end-to-end.md)
 - [ ] T38 — Field observation: first normal cook on V0 → [tasks/38-field-observation-first-cook.md](tasks/38-field-observation-first-cook.md)
 

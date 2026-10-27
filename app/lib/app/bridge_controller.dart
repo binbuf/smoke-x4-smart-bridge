@@ -6,6 +6,7 @@ import '../data/ble/ble_client.dart';
 import '../data/ble/bridge_codecs.dart';
 import '../data/ble/bridge_link.dart';
 import '../data/ble/bridge_protocol.dart';
+import '../data/recent_history_store.dart';
 import '../data/repository.dart';
 import '../domain/content.dart';
 import '../domain/models.dart';
@@ -34,6 +35,13 @@ class BridgeController extends ChangeNotifier {
   final BridgeRepository repository;
   final BridgeContent content;
 
+  /// V0 History's data: the batches the current link session syncs. The
+  /// durable archive replaces this store in T39–T41.
+  late final RecentHistoryStore recentHistory = RecentHistoryStore(
+    onChanged: notifyListeners,
+    now: () => content.now,
+  );
+
   /// The BLE seam. Production bootstrap passes the platform-backed client
   /// (M2); tests pass the scripted fake. `null` means no link is configured.
   final BleClient? bleClient;
@@ -56,7 +64,7 @@ class BridgeController extends ChangeNotifier {
   /// the same instance. Throws when no BLE client is configured.
   BridgeLink ensureLink({
     BridgeLinkSettings settings = const BridgeLinkSettings(),
-    BridgeSyncSink sink = const NullBridgeSyncSink(),
+    BridgeSyncSink? sink,
     DateTime Function()? nowUtc,
     Duration Function()? elapsed,
     Future<void> Function(Duration duration)? wait,
@@ -85,7 +93,7 @@ class BridgeController extends ChangeNotifier {
         onBondPrompt: bondPrompt ?? () async => false,
       ),
       settings: settings,
-      sink: sink,
+      sink: sink ?? recentHistory,
       localMaxSeq: () => localMaxSeq,
       onLocalMaxSeq: (seq) {
         localMaxSeq = seq;
@@ -238,7 +246,7 @@ class BridgeController extends ChangeNotifier {
   int? historyProbe;
   DateTimeRange? historyCustomRange;
   HistorySort historySort = HistorySort.probe;
-  bool historyHasData = true;
+  bool historyHasData = false;
   bool historyOneProbe = false;
   bool historyEstimated = false;
   bool historyMissingFromBridge = false;
@@ -556,6 +564,9 @@ class BridgeController extends ChangeNotifier {
   }
 
   bool probeHasHistory(int index) {
+    if (recentHistory.hasAnyReadings) {
+      return recentHistory.samples.any((sample) => sample.tempsF[index] != null);
+    }
     if (!historyHasData) return false;
     return !historyOneProbe || index == 3;
   }
@@ -563,6 +574,10 @@ class BridgeController extends ChangeNotifier {
   /// Everything the phone has recorded. Custom ranges start here and can then
   /// be narrowed to any minute.
   DateTimeRange get entireHistoryRange {
+    final recent = recentHistory.range;
+    if (recent != null) {
+      return DateTimeRange(start: recent.$1, end: recent.$2);
+    }
     final window = content.historyWindow;
     return DateTimeRange(start: window.start, end: window.end);
   }
@@ -960,21 +975,38 @@ class BridgeController extends ChangeNotifier {
   }
 
   HistoryViewState historyViewFor({bool hasGap = true}) {
-    final fixture = content.history(
-      historyRange,
-      empty: !historyHasData,
-      oneProbe: historyOneProbe,
-      estimated: historyEstimated,
-      missingFromBridge: historyMissingFromBridge,
-      hasGap: hasGap,
-      customStart: historyCustomRange?.start,
-      customEnd: historyCustomRange?.end,
-    );
+    final useRecentHistory = recentHistory.hasRecords;
+    final noCache = isOffline && !offlineCache;
+    final HistoryFixture fixture;
+    final bool hasAnyHistory;
+    if (useRecentHistory) {
+      fixture = recentHistory.fixture(
+        range: historyRange,
+        customStart: historyCustomRange?.start,
+        customEnd: historyCustomRange?.end,
+        empty: noCache,
+        estimated: historyEstimated,
+        missingFromBridge: historyMissingFromBridge,
+      );
+      hasAnyHistory = !noCache && recentHistory.hasAnyReadings;
+    } else {
+      fixture = content.history(
+        historyRange,
+        empty: noCache || !historyHasData,
+        oneProbe: historyOneProbe,
+        estimated: historyEstimated,
+        missingFromBridge: historyMissingFromBridge,
+        hasGap: hasGap,
+        customStart: historyCustomRange?.start,
+        customEnd: historyCustomRange?.end,
+      );
+      hasAnyHistory = !noCache && historyHasData;
+    }
     final probes = historyProbe == null ? [1, 2, 3, 4] : [historyProbe!];
     final stats = probes
         .map((probe) => ProbeRangeStats.fromSeries(fixture.series[probe - 1]))
         .toList();
-    final cooks = content.cooks();
+    final cooks = hasAnyHistory ? content.cooks() : const <CookSession>[];
     final activeCook = _currentCook(cooks);
     final cookReference = activeCook ?? (cooks.isEmpty ? null : cooks.first);
     _sortStats(stats, activeCook, cookReference);
@@ -992,7 +1024,7 @@ class BridgeController extends ChangeNotifier {
       estimated: historyEstimated,
       missingFromBridge: historyMissingFromBridge,
       offline: isOffline,
-      hasAnyHistory: historyHasData,
+      hasAnyHistory: hasAnyHistory,
       oneProbe: historyOneProbe,
       units: units,
       lastSyncedLabel: lastSyncedLabel,
