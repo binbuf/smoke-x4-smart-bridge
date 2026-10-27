@@ -5,31 +5,36 @@
  * the callbacks thin: the `info` bytes come from the pure encoder in
  * ble_info.c, and the slot table in ble_gatt_spec.c mirrors the contract.
  *
- * Advertising is deliberately NOT started here. T30 owns the advertising PDU,
- * scan response, intervals, passkey/bonding policy and restart-on-disconnect.
- * This task registers the service, serves the open `info` read and exposes the
- * GAP event callback that T30 will hand to ble_gap_adv_start().
+ * Advertising and the security policy came with T30: the PDU/scan response are
+ * built by the pure helpers in ble_adv.c, the passkey lifetime and bond limit
+ * live in ble_security.c, and this file owns the NimBLE glue.
  */
 #include "ble_service.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ble_control.h"
+#include "ble_adv.h"
 #include "ble_gatt_spec.h"
 #include "ble_info.h"
 #include "ble_live.h"
+#include "ble_security.h"
 #include "ble_tx.h"
 #include "bridge_config.h"
 #include "bridge_state.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "host/ble_att.h"
 #include "host/ble_gap.h"
 #include "host/ble_gatt.h"
 #include "host/ble_hs.h"
+#include "host/ble_hs_id.h"
+#include "host/ble_sm.h"
 #include "host/ble_store.h"
 #include "host/ble_uuid.h"
 #include "nimble/nimble_port.h"
@@ -100,6 +105,56 @@ static bool s_result_subscribed;
 static struct ble_gap_event_listener s_gap_listener;
 static esp_timer_handle_t s_action_timer;
 static ble_control_action_t s_pending_action;
+
+/* T30 advertising/security state. */
+static bool s_adv_active;
+static bool s_adv_stopping; /* our own ble_gap_adv_stop(), not a timeout */
+static uint8_t s_own_addr_type;
+static uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+static ble_adv_state_t s_adv_state;
+static ble_security_passkey_t s_passkey;
+static uint8_t s_bond_count;
+static uint32_t s_pending_interval_ms;
+static esp_timer_handle_t s_adv_window_timer;
+static esp_timer_handle_t s_adv_restart_timer;
+static esp_timer_handle_t s_passkey_timer;
+static ble_service_passkey_fn s_passkey_cb;
+static void *s_passkey_ctx;
+
+#define BLE_SERVICE_PASSKEY_TERM_REASON 0x05u /* Authentication Failure */
+#define BLE_SERVICE_ADV_RESTART_DELAY_US 10000u
+
+static uint32_t now_ms(void) {
+    return (uint32_t)(esp_timer_get_time() / 1000);
+}
+
+static void passkey_show(const char *digits) {
+    if (s_passkey_cb != NULL) {
+        s_passkey_cb(digits, s_passkey_ctx);
+    }
+}
+
+static void refresh_bond_count(void) {
+    int used = 0;
+    if (ble_store_util_count(BLE_STORE_OBJ_TYPE_PEER_SEC, &used) != 0 ||
+        used < 0) {
+        used = 0;
+    }
+    if (used > (int)BLE_SEC_MAX_BONDS) {
+        used = (int)BLE_SEC_MAX_BONDS;
+    }
+    s_bond_count = (uint8_t)used;
+}
+
+static bool ensure_timer(esp_timer_handle_t *handle, const char *name,
+                         esp_timer_cb_t cb) {
+    if (*handle != NULL) {
+        return true;
+    }
+    const esp_timer_create_args_t args = {.callback = cb, .name = name};
+    return esp_timer_create(&args, handle) == ESP_OK;
+}
+
 
 static int ble_service_access(uint16_t conn_handle, uint16_t attr_handle,
                               struct ble_gatt_access_ctxt *ctxt, void *arg);
@@ -230,9 +285,224 @@ static void build_info(uint8_t out[SX4_INFO_SIZE]) {
     (void)ble_info_encode(&view, out, SX4_INFO_SIZE);
 }
 
+/* ---- advertising and pairing (T30) ------------------------------------- */
+
+static void adv_status_now(ble_adv_status_t *status) {
+    bridge_state_live_t live;
+
+    memset(status, 0, sizeof(*status));
+    status->battery_pct = BRIDGE_STATE_SOC_UNKNOWN;
+    if (bridge_state_snapshot(&live) != BRIDGE_STATE_OK) {
+        return;
+    }
+    status->flags = live.flags;
+    /* P4 is the fixed Billows/pit channel (design 05 5.2). */
+    status->pit_temp_f10 = live.temp_f10[3];
+    status->battery_pct = live.battery_pct;
+    status->billows_target_f10 =
+        live.billows_target_valid ? live.billows_target_f10 : 0;
+    status->age_s = live.age_s;
+}
+
+static void adv_build_data(uint8_t *adv, size_t adv_cap, size_t *adv_len,
+                           uint8_t *rsp, size_t rsp_cap, size_t *rsp_len) {
+    uint8_t mac[6] = {0};
+    char name[BLE_ADV_NAME_MAX];
+    ble_adv_status_t status;
+    int is_nrpa = 0;
+
+    (void)adv_cap;
+    (void)rsp_cap;
+    *adv_len = 0;
+    *rsp_len = 0;
+
+    if (ble_hs_id_copy_addr(BLE_ADDR_PUBLIC, mac, &is_nrpa) != 0) {
+        memset(mac, 0, sizeof(mac));
+    }
+    if (ble_adv_format_name(name, mac) == 0) {
+        memcpy(name, "SmokeX4-0000", sizeof("SmokeX4-0000"));
+    }
+    adv_status_now(&status);
+    *adv_len = ble_adv_build_pdu(adv, BLE_ADV_PDU_SIZE);
+    *rsp_len = ble_adv_build_scan_rsp(name, &status, rsp,
+                                      BLE_ADV_SCAN_RSP_SIZE);
+}
+
+/* Start/restart advertising with the given interval. Must run outside a GAP
+ * callback and must not be called while connected. */
+static void adv_start_with(uint32_t interval_ms) {
+    uint8_t adv[BLE_ADV_PDU_SIZE];
+    uint8_t rsp[BLE_ADV_SCAN_RSP_SIZE];
+    size_t adv_len = 0;
+    size_t rsp_len = 0;
+    uint16_t units = ble_adv_interval_units(interval_ms);
+
+    if (!s_synced || s_connected) {
+        return;
+    }
+
+    if (ble_gap_adv_active()) {
+        s_adv_stopping = true;
+        (void)ble_gap_adv_stop();
+        s_adv_stopping = false;
+    }
+
+    adv_build_data(adv, sizeof(adv), &adv_len, rsp, sizeof(rsp), &rsp_len);
+    int rc = ble_gap_adv_set_data(adv, (int)adv_len);
+    if (rc != 0) {
+        ESP_LOGW(TAG, "adv data rejected (%d)", rc);
+    }
+    rc = ble_gap_adv_rsp_set_data(rsp, (int)rsp_len);
+    if (rc != 0) {
+        ESP_LOGW(TAG, "scan response rejected (%d)", rc);
+    }
+
+    const struct ble_gap_adv_params params = {
+        .conn_mode = BLE_GAP_CONN_MODE_UND,
+        .disc_mode = BLE_GAP_DISC_MODE_GEN,
+        .itvl_min = units,
+        .itvl_max = units,
+    };
+    rc = ble_gap_adv_start(s_own_addr_type, NULL, BLE_HS_FOREVER, &params,
+                           NULL, NULL);
+    if (rc == 0) {
+        s_adv_active = true;
+        ESP_LOGI(TAG, "advertising at %u ms (adv %u B, rsp %u B)",
+                 (unsigned)interval_ms, (unsigned)adv_len,
+                 (unsigned)rsp_len);
+    } else {
+        s_adv_active = false;
+        ESP_LOGW(TAG, "advertising start failed (%d)", rc);
+    }
+}
+
+static void adv_window_stop(void) {
+    if (s_adv_window_timer != NULL) {
+        (void)esp_timer_stop(s_adv_window_timer);
+    }
+}
+
+static void adv_restart_timer_cb(void *arg) {
+    (void)arg;
+    adv_start_with(s_pending_interval_ms);
+}
+
+static void adv_schedule(uint32_t interval_ms) {
+    s_pending_interval_ms = interval_ms;
+    if (!ensure_timer(&s_adv_restart_timer, "ble_adv_restart",
+                      adv_restart_timer_cb)) {
+        /* A failed timer allocation still leaves advertising stopped; retry
+         * synchronously from a non-GAP context is not possible here. */
+        return;
+    }
+    (void)esp_timer_stop(s_adv_restart_timer);
+    (void)esp_timer_start_once(s_adv_restart_timer,
+                               BLE_SERVICE_ADV_RESTART_DELAY_US);
+}
+
+static void passkey_timer_cb(void *arg);
+
+static void adv_window_timer_cb(void *arg) {
+    (void)arg;
+    ble_adv_action_t action = ble_adv_state_tick(&s_adv_state, now_ms());
+    if (action.advertise) {
+        adv_schedule(action.interval_ms);
+    }
+}
+
+static void adv_window_arm_real(void) {
+    if (!ensure_timer(&s_adv_window_timer, "ble_fast_adv",
+                      adv_window_timer_cb)) {
+        return;
+    }
+    (void)esp_timer_stop(s_adv_window_timer);
+    (void)esp_timer_start_once(s_adv_window_timer,
+                               (uint64_t)BLE_ADV_FAST_WINDOW_MS * 1000u);
+}
+
+/* Shared by the boot/sync path (direct) and GAP callbacks (deferred). */
+static void adv_apply_event(ble_adv_event_t event, bool direct) {
+    ble_adv_action_t action =
+        ble_adv_state_event(&s_adv_state, event, now_ms());
+
+    switch (event) {
+    case BLE_ADV_EVENT_BOOT:
+    case BLE_ADV_EVENT_DISCONNECT:
+    case BLE_ADV_EVENT_CONNECT_FAILED:
+        adv_window_arm_real();
+        break;
+    case BLE_ADV_EVENT_CONNECTED:
+    case BLE_ADV_EVENT_STOP:
+        adv_window_stop();
+        break;
+    default:
+        break;
+    }
+
+    if (!action.advertise) {
+        return;
+    }
+    if (direct) {
+        adv_start_with(action.interval_ms);
+    } else {
+        adv_schedule(action.interval_ms);
+    }
+}
+
+static void passkey_clear(void) {
+    if (s_passkey_timer != NULL) {
+        (void)esp_timer_stop(s_passkey_timer);
+    }
+    ble_security_passkey_cancel(&s_passkey);
+    passkey_show(NULL);
+}
+
+static void passkey_timer_cb(void *arg) {
+    (void)arg;
+    if (!ble_security_passkey_tick(&s_passkey, now_ms())) {
+        return;
+    }
+    ESP_LOGW(TAG, "passkey expired after 60 s");
+    passkey_show(NULL);
+    if (s_connected && s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+        (void)ble_gap_terminate(s_conn_handle,
+                                BLE_SERVICE_PASSKEY_TERM_REASON);
+    }
+}
+
+static void start_passkey(uint16_t conn_handle) {
+    struct ble_sm_io io = {0};
+    uint32_t random = esp_random();
+
+    if (!ble_security_passkey_start(&s_passkey, random, now_ms())) {
+        ESP_LOGE(TAG, "could not generate a passkey");
+        (void)ble_gap_terminate(conn_handle, BLE_SERVICE_PASSKEY_TERM_REASON);
+        return;
+    }
+
+    io.action = BLE_SM_IOACT_DISP;
+    io.passkey = (uint32_t)strtoul(s_passkey.digits, NULL, 10);
+    if (ble_sm_inject_io(conn_handle, &io) != 0) {
+        ESP_LOGE(TAG, "passkey injection failed");
+        passkey_clear();
+        (void)ble_gap_terminate(conn_handle, BLE_SERVICE_PASSKEY_TERM_REASON);
+        return;
+    }
+
+    if (ensure_timer(&s_passkey_timer, "ble_passkey", passkey_timer_cb)) {
+        (void)esp_timer_stop(s_passkey_timer);
+        (void)esp_timer_start_once(s_passkey_timer,
+                                   (uint64_t)BLE_SEC_PASSKEY_TIMEOUT_MS *
+                                       1000u);
+    }
+    passkey_show(s_passkey.digits);
+    ESP_LOGI(TAG, "passkey displayed for conn %u", conn_handle);
+}
+
+/* ---- GATT access ------------------------------------------------------- */
+
 static int check_access_security(uint16_t conn_handle,
-                                 const ble_gatt_spec_t *spec) {
-    struct ble_gap_conn_desc desc;
+                                 const ble_gatt_spec_t *spec) {    struct ble_gap_conn_desc desc;
 
     if (spec->security == SX4_BLE_SEC_OPEN ||
         conn_handle == BLE_HS_CONN_HANDLE_NONE) {
@@ -471,23 +741,95 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
     case BLE_GAP_EVENT_CONNECT:
         if (event->connect.status == 0) {
             s_connected = true;
+            s_conn_handle = event->connect.conn_handle;
             s_result_subscribed = false;
             ble_tx_on_connect(event->connect.conn_handle);
+            adv_apply_event(BLE_ADV_EVENT_CONNECTED, false);
+            bridge_state_set_sync_active(false);
             ESP_LOGI(TAG, "central connected (handle %u)",
                      event->connect.conn_handle);
         } else {
             s_connected = false;
+            s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+            passkey_clear();
             ESP_LOGW(TAG, "connection failed (%d)", event->connect.status);
+            adv_apply_event(BLE_ADV_EVENT_CONNECT_FAILED, false);
         }
         break;
     case BLE_GAP_EVENT_DISCONNECT:
         s_connected = false;
+        s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
         s_result_subscribed = false;
         ble_tx_on_disconnect();
+        passkey_clear();
+        /* A history transfer cannot outlive the link. */
+        bridge_state_set_sync_active(false);
         ESP_LOGI(TAG, "central disconnected (reason 0x%02x)",
                  event->disconnect.reason);
-        /* T30 owns restarting advertising from here. */
+        adv_apply_event(BLE_ADV_EVENT_DISCONNECT, false);
         break;
+    case BLE_GAP_EVENT_ADV_COMPLETE:
+        /* Our own stop (interval change) is silent. A real controller timeout
+         * restarts at the current interval without extending the fast window. */
+        if (!s_adv_stopping && !s_connected) {
+            s_adv_active = false;
+            ESP_LOGW(TAG, "advertising complete (reason %d); restarting",
+                     event->adv_complete.reason);
+            adv_apply_event(BLE_ADV_EVENT_TIMEOUT, false);
+        }
+        break;
+    case BLE_GAP_EVENT_PASSKEY_ACTION:
+        if (event->passkey.params.action == BLE_SM_IOACT_DISP) {
+            start_passkey(event->passkey.conn_handle);
+        } else {
+            /* DisplayOnly never accepts numeric comparison or peer input; a
+             * phone that cannot do passkey entry is refused rather than
+             * silently downgraded to Just Works. */
+            ESP_LOGE(TAG, "unsupported pairing action %u; refusing",
+                     event->passkey.params.action);
+            (void)ble_gap_terminate(event->passkey.conn_handle,
+                                    BLE_SERVICE_PASSKEY_TERM_REASON);
+        }
+        break;
+    case BLE_GAP_EVENT_ENC_CHANGE: {
+        struct ble_gap_conn_desc desc;
+        passkey_clear();
+        refresh_bond_count();
+        if (event->enc_change.status == 0 &&
+            ble_gap_conn_find(event->enc_change.conn_handle, &desc) == 0) {
+            if (!desc.sec_state.authenticated) {
+                /* Defence in depth: sm_mitm=1 should already make this
+                 * impossible. Never leave a Just Works link usable. */
+                ESP_LOGE(TAG, "link encrypted without authentication; "
+                              "terminating");
+                (void)ble_gap_terminate(event->enc_change.conn_handle,
+                                        BLE_SERVICE_PASSKEY_TERM_REASON);
+            } else {
+                ESP_LOGI(TAG, "link secured (authenticated, %u bond(s))",
+                         (unsigned)s_bond_count);
+            }
+        }
+        break;
+    }
+    case BLE_GAP_EVENT_PARING_COMPLETE:
+        passkey_clear();
+        refresh_bond_count();
+        ESP_LOGI(TAG, "pairing complete (status %d, %u bond(s))",
+                 event->pairing_complete.status, (unsigned)s_bond_count);
+        break;
+    case BLE_GAP_EVENT_REPEAT_PAIRING: {
+        struct ble_gap_conn_desc desc;
+        uint16_t conn = event->repeat_pairing.conn_handle;
+        if (ble_gap_conn_find(conn, &desc) == 0) {
+            /* A phone that lost its keys may replace its own bond. This is not
+             * an eviction: only the peer asking again is removed. */
+            (void)ble_store_util_delete_peer(&desc.peer_id_addr);
+            refresh_bond_count();
+            ESP_LOGI(TAG, "repeat pairing: replaced this phone's bond");
+            return BLE_GAP_REPEAT_PAIRING_RETRY;
+        }
+        return BLE_GAP_REPEAT_PAIRING_IGNORE;
+    }
     case BLE_GAP_EVENT_SUBSCRIBE:
         /* The encrypted CCCD was enforced by the characteristic flags before
          * this event. A live subscription primes the queue with the current
@@ -506,11 +848,40 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
 
 bool ble_service_is_connected(void) { return s_connected; }
 
+uint8_t ble_service_bond_count(void) { return s_bond_count; }
+
+void ble_service_set_passkey_callback(ble_service_passkey_fn fn, void *ctx) {
+    s_passkey_cb = fn;
+    s_passkey_ctx = ctx;
+}
+
+void ble_service_boost_advertising(void) {
+    if (!s_synced || s_connected) {
+        return;
+    }
+    adv_apply_event(BLE_ADV_EVENT_BOOT, false);
+}
+
+void ble_service_cancel_pairing(void) {    if (!ble_security_passkey_active(&s_passkey)) {
+        return;
+    }
+    ESP_LOGI(TAG, "pairing cancelled by tap");
+    passkey_clear();
+    if (s_connected && s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+        (void)ble_gap_terminate(s_conn_handle,
+                                BLE_SERVICE_PASSKEY_TERM_REASON);
+    }
+}
+
 static void on_reset(int reason) {
     ESP_LOGW(TAG, "host reset (%d)", reason);
     s_synced = false;
     s_connected = false;
     s_result_subscribed = false;
+    s_adv_active = false;
+    s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    ble_adv_state_init(&s_adv_state);
+    passkey_clear();
 }
 
 static void on_sync(void) {
@@ -519,7 +890,18 @@ static void on_sync(void) {
                                         NULL) != 0) {
         ESP_LOGW(TAG, "GAP listener already registered");
     }
-    ESP_LOGI(TAG, "host synced; service ready (advertising is T30)");
+
+    if (ble_hs_id_infer_auto(0, &s_own_addr_type) != 0) {
+        s_own_addr_type = BLE_OWN_ADDR_PUBLIC;
+        ESP_LOGW(TAG, "no identity address; advertising as public");
+    }
+    refresh_bond_count();
+    ble_adv_state_init(&s_adv_state);
+    /* Boot with free slots: advertise immediately. A full bond store still
+     * advertises so a phone can read `info` and explain `bonds_free == 0`. */
+    adv_apply_event(BLE_ADV_EVENT_BOOT, true);
+    ESP_LOGI(TAG, "host synced; %u/%u bond slot(s) used",
+             (unsigned)s_bond_count, (unsigned)BLE_SEC_MAX_BONDS);
 }
 
 static void host_task(void *param) {
@@ -544,7 +926,28 @@ esp_err_t ble_service_start(void) {
 
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.sync_cb = on_sync;
-    /* Default device name only; T30 owns the advertising name. */
+
+    /* Design 05 5.11: LE Secure Connections, Passkey Entry, DisplayOnly.
+     * sm_mitm + sm_sc_only refuse a Just Works / legacy downgrade. The store
+     * callback stays NULL on purpose: a full store aborts the new bond instead
+     * of NimBLE's default evict-oldest policy. */
+    ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_DISP_ONLY;
+    ble_hs_cfg.sm_bonding = 1;
+    ble_hs_cfg.sm_mitm = 1;
+    ble_hs_cfg.sm_sc = 1;
+    ble_hs_cfg.sm_sc_only = 1;
+    ble_hs_cfg.sm_our_key_dist =
+        BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.sm_their_key_dist =
+        BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.store_status_cb = NULL;
+
+    ble_security_passkey_init(&s_passkey);
+    ble_adv_state_init(&s_adv_state);
+    s_bond_count = 0;
+
+    /* Device name is only a GAP-service fallback; the scan response carries
+     * the real SmokeX4-XXXX name set by adv_build_data(). */
     ble_svc_gap_init();
     (void)ble_svc_gap_device_name_set(SX4_BLE_LOCAL_NAME_PREFIX);
     ble_svc_gatt_init();
@@ -585,6 +988,24 @@ esp_err_t ble_service_stop(void) {
         (void)esp_timer_delete(s_action_timer);
         s_action_timer = NULL;
     }
+    if (s_adv_window_timer != NULL) {
+        (void)esp_timer_stop(s_adv_window_timer);
+        (void)esp_timer_delete(s_adv_window_timer);
+        s_adv_window_timer = NULL;
+    }
+    if (s_adv_restart_timer != NULL) {
+        (void)esp_timer_stop(s_adv_restart_timer);
+        (void)esp_timer_delete(s_adv_restart_timer);
+        s_adv_restart_timer = NULL;
+    }
+    passkey_clear();
+    if (s_passkey_timer != NULL) {
+        (void)esp_timer_delete(s_passkey_timer);
+        s_passkey_timer = NULL;
+    }
+    ble_adv_state_init(&s_adv_state);
+    s_adv_active = false;
+    s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
     if (s_synced) {
         (void)ble_gap_event_listener_unregister(&s_gap_listener);
     }

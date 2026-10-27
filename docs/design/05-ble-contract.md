@@ -77,6 +77,48 @@ public release. The app must not require manufacturer data.
 The scan response is optional decoration. The app must work if it is absent or
 malformed.
 
+### Implementation rules (T30)
+
+- `ble_adv.c` builds both AD structures from fixed bytes: advertising is
+  `Flags (LE general discoverable | BR/EDR unsupported) + complete 128-bit
+  service UUID` = 21 B; the scan response is the complete local name (12 chars)
+  followed by the manufacturer block (company ID + 9 B) = 27 B. Both fit one
+  legacy advertising PDU.
+- The local name suffix is the last two bytes of the identity (public) BLE
+  address, uppercase hex. `ble_hs_id_infer_auto()` chooses the advertising
+  address type; the same helper feeds `info.device_id`.
+- The status blob is rebuilt before every advertising start, so a disconnect or
+  the 60 s interval change refreshes `flags`, P4 temperature, battery, Billows
+  target and age. `billows_target_f10` is 0 when the observed target is not
+  valid. The reserved byte is always 0.
+- `ble_adv_state_event()`/`ble_adv_state_tick()` own the interval policy:
+  boot/disconnect/failed connect open a fresh 250 ms window of 60 s; a
+  controller advertising timeout restarts at the current interval without
+  extending it; crossing the deadline restarts at 1,000 ms. Connecting or
+  stopping turns advertising off.
+- `ble_service.c` defers start/restart to a 10 ms one-shot timer so a
+  `ble_gap_adv_start()` is never issued from inside a GAP callback. Its own
+  `ble_gap_adv_stop()` is flagged so the resulting `ADV_COMPLETE` is not treated
+  as a timeout.
+- On disconnect the bridge clears `live.flags.sync_active` because a history
+  transfer cannot outlive the link.
+
+### Implementation rules (T30 security)
+
+- `ble_hs_cfg` is `DisplayOnly`, `sm_bonding`, `sm_mitm`, `sm_sc` and
+  `sm_sc_only`. A phone that cannot do passkey entry is refused instead of
+  falling back to Just Works; a non-`DISP` `PASSKEY_ACTION` terminates the link.
+- On `BLE_GAP_EVENT_PASSKEY_ACTION` / `DISP`, the bridge generates a fresh
+  six-digit code with `esp_random()`, injects it with `ble_sm_inject_io()` and
+  shows it through the UI callback. `ble_security.c` expires it after 60 s or
+  when bonding/disconnect ends; expiry and a tap both terminate the link.
+- `store_status_cb` stays NULL: NimBLE aborts the new bond on a full store
+  instead of evicting the oldest peer. `CONFIG_BT_NIMBLE_MAX_BONDS=4`. A repeat
+  pairing removes only the peer asking again, never another phone.
+- `ble_service_bond_count()` is refreshed on host sync, encryption change,
+  pairing complete and repeat pairing; the UI shows it as `phones_paired` and
+  `info.bonds_free` is computed from the store on every read.
+
 ### 5.2.1 MTU and notification reassembly
 
 The app requests ATT MTU **247**, but every fixed payload is designed to work at
