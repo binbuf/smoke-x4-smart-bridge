@@ -14,6 +14,7 @@
 - **T09 — Board identity, bench rig, deep-sleep gate**: **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3, ESP32-S3FN8, 8 MB,; Board identity confirmed without a human: ESP32-S3 rev v0.2, 8 MB GD flash,
 - **T13 — sx_radio: RX loop and parameters**: **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3 · COM5 · IDF 6.0.2; `firmware/components/sx_radio/sx_radio.c` — real SX1262 bring-up and the
 - **T14 - sx_protocol: parser port and canonical conversion**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/sx_protocol/include/sx_protocol_types.h` - the
+- **T15 — bridge_config: typed NVS store**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/bridge_config/include/bridge_config.h` — the typed API:
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -28,6 +29,7 @@
 - [T09](progress/T09.md) — **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3, ESP32-S3FN8, 8 MB,
 - [T13](progress/T13.md) — **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3 · COM5 · IDF 6.0.2
 - [T14](progress/T14.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
+- [T15](progress/T15.md) — **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

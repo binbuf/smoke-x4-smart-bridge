@@ -87,6 +87,21 @@ target_compile_definitions(test_sx_protocol PRIVATE
 )
 add_test(NAME sx-protocol COMMAND test_sx_protocol)
 
+# bridge_config's core is plain C11 over a byte-oriented KV seam; the host
+# test supplies a RAM backend, the firmware links the NVS adapter.
+add_library(sx4_bridge_config STATIC
+    "${REPO_ROOT}/firmware/components/bridge_config/bridge_config.c"
+)
+target_include_directories(sx4_bridge_config
+    PUBLIC "${REPO_ROOT}/firmware/components/bridge_config/include"
+)
+
+add_executable(test_bridge_config test_bridge_config.c)
+target_link_libraries(test_bridge_config
+    PRIVATE sx4_bridge_config sx4_test_support
+)
+add_test(NAME bridge-config COMMAND test_bridge_config)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks
