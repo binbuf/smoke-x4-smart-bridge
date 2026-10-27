@@ -11,6 +11,15 @@ abstract interface class BleClient {
   /// The result is a named [BleAppState], never a plugin exception.
   Future<BlePlatformStatus> platformStatus();
 
+  /// Adapter state changes while the app is running.
+  ///
+  /// The app is on Live when the user turns phone Bluetooth off; without this
+  /// stream the GATT link can look `Connected` until the next watchdog read.
+  /// Emits only the states that affect the link: [BleAppState.ready],
+  /// [BleAppState.bluetoothOff], [BleAppState.permissionBlocked],
+  /// [BleAppState.permissionNeeded] and [BleAppState.unsupportedPhone].
+  Stream<BleAppState> get platformStates;
+
   /// Requests the permissions needed for this Android version and returns the
   /// resulting state. Android 12+ uses `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT`;
   /// Android 11 and below uses location.

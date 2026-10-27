@@ -64,9 +64,58 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
+                    if (view.lookingForBridge) ...[
+                      const SizedBox(height: 10),
+                      InlineNotice(
+                        key: const Key('live.lookingForBridge'),
+                        icon: Icons.bluetooth_searching,
+                        title: 'Looking for the Bridge…',
+                        message: view.showSavedReadings
+                            ? 'Showing saved readings. Turn the Bridge on and keep it nearby.'
+                            : 'Turn the Bridge on and keep it nearby. Nothing is saved on this phone yet.',
+                        action: view.launchScanning
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : TextButton(
+                                key: const Key('live.lookingForBridge.connect'),
+                                onPressed: controller.connectSavedBridge,
+                                child: const Text('Connect'),
+                              ),
+                      ),
+                    ],
+                    if (view.phase == ConnectionPhase.blocked) ...[
+                      const SizedBox(height: 10),
+                      InlineNotice(
+                        key: const Key('live.blocked'),
+                        icon: Icons.bluetooth_disabled,
+                        color: Theme.of(context).colorScheme.error,
+                        title: view.connectionTitle,
+                        message: view.connectionSubtitle,
+                        action: TextButton(
+                          key: const Key('live.blocked.settings'),
+                          onPressed: () => _showBluetoothSettingsHelp(
+                            context,
+                            view.connectionTitle,
+                          ),
+                          child: Text(
+                            view.phase == ConnectionPhase.blocked &&
+                                    view.connectionTitle == 'Bluetooth is off'
+                                ? 'Open Bluetooth settings'
+                                : 'Open app settings',
+                          ),
+                        ),
+                      ),
+                    ],
                     if (view.isOffline &&
                         !view.showSavedReadings &&
-                        view.phase != ConnectionPhase.failed) ...[
+                        !view.lookingForBridge &&
+                        view.phase != ConnectionPhase.failed &&
+                        view.phase != ConnectionPhase.blocked) ...[
                       const SizedBox(height: 10),
                       InlineNotice(
                         key: const Key('live.noCache'),
@@ -198,6 +247,27 @@ class LiveScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _showBluetoothSettingsHelp(BuildContext context, String title) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.settings_bluetooth),
+        title: Text(title),
+        content: Text(
+          title == 'Bluetooth is off'
+              ? 'Turn Bluetooth on in Android settings, then come back. The Bridge keeps recording while you do.'
+              : 'Allow Nearby devices for this app in Android settings, then come back.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
     );
   }
 

@@ -29,6 +29,7 @@ class FakeBleClient implements BleClient {
     this.connectFailuresRemaining = 0,
     this.permission = BlePermissionState.granted,
     this.permissionOnRequest,
+    this.initialBondState = BleBondState.none,
     this.bluetoothOn = true,
     this.supported = true,
     this.androidSdk = 34,
@@ -49,6 +50,7 @@ class FakeBleClient implements BleClient {
              androidVersion: 'Android 14 (SDK 34)',
              negotiatedMtu: bleMtuDefault,
            ) {
+    _bondState = initialBondState;
     server.setMtu(bleMtuDefault);
   }
 
@@ -80,11 +82,15 @@ class FakeBleClient implements BleClient {
   /// Every client call in order, for procedure-order assertions in tests.
   final List<String> operations = <String>[];
 
-  final bool bluetoothOn;
+  bool bluetoothOn;
   final bool supported;
   final int androidSdk;
   BlePermissionState permission;
   final BlePermissionState? permissionOnRequest;
+
+  /// OS bond state at construction, so a relaunch test starts with the bond the
+  /// previous session stored.
+  final BleBondState initialBondState;
 
   /// Scripted platform faults. A non-null value is thrown by the matching
   /// operation, which lets tests prove the named-state mapping.
@@ -104,6 +110,8 @@ class FakeBleClient implements BleClient {
       StreamController<BleConnectionState>.broadcast();
   final StreamController<BleBondState> _bondController =
       StreamController<BleBondState>.broadcast();
+  final StreamController<BleAppState> _platformController =
+      StreamController<BleAppState>.broadcast();
   final Map<String, StreamController<Uint8List>> _notificationControllers =
       <String, StreamController<Uint8List>>{};
   final Map<String, StreamSubscription<Uint8List>> _serverSubscriptions =
@@ -128,6 +136,37 @@ class FakeBleClient implements BleClient {
           : BlePermissionKind.location,
       androidSdk: androidSdk,
     );
+  }
+
+  @override
+  Stream<BleAppState> get platformStates => _platformController.stream;
+
+  /// Scripts the phone adapter going off or coming back on at runtime.
+  ///
+  /// Turning it off also drops the GATT link, like Android does. Turning it on
+  /// leaves the scripted advertisements unchanged so the same Bridge can be
+  /// rediscovered or reconnected.
+  Future<void> setBluetoothOn(bool value) async {
+    if (value == bluetoothOn) return;
+    bluetoothOn = value;
+    if (!value) {
+      await _dropConnection();
+      _platformController.add(BleAppState.bluetoothOff);
+    } else {
+      _platformController.add(BleAppState.ready);
+    }
+  }
+
+  Future<void> _dropConnection() async {
+    if (_connectionState == BleConnectionState.disconnected) return;
+    _setConnection(BleConnectionState.disconnecting);
+    for (final subscription in _serverSubscriptions.values) {
+      await subscription.cancel();
+    }
+    _serverSubscriptions.clear();
+    _connectedDevice = null;
+    _negotiatedMtu = null;
+    _setConnection(BleConnectionState.disconnected);
   }
 
   @override
@@ -534,5 +573,6 @@ class FakeBleClient implements BleClient {
     _notificationControllers.clear();
     await _connectionController.close();
     await _bondController.close();
+    await _platformController.close();
   }
 }

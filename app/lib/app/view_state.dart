@@ -38,6 +38,8 @@ class LiveViewState {
     required this.billowsLostThisSession,
     required this.showSavedReadings,
     required this.lastSyncedLabel,
+    this.lookingForBridge = false,
+    this.launchScanning = false,
   });
 
   final ConnectionPhase phase;
@@ -85,6 +87,13 @@ class LiveViewState {
   /// "nothing saved yet": probe values must render empty, never as current.
   final bool showSavedReadings;
   final String lastSyncedLabel;
+
+  /// A saved Bridge exists but is not connected; Live keeps the archive visible
+  /// and offers a manual Connect instead of reopening Setup.
+  final bool lookingForBridge;
+
+  /// The bounded launch scan is running.
+  final bool launchScanning;
 
   String get unitSuffix => unitLabel(units);
 

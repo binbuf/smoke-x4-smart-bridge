@@ -813,6 +813,20 @@ platform exceptions to these named states.
   `proto_major` and `bonds_free == 0` are handled without an OS prompt. The app
   mounts setup while the controller has no saved Bridge and lands on Live after
   first sync. See ADR 0040.
+- **Launch and connection health (T43)**: `bootstrap` calls
+  `BridgeController.prepareLaunch()` before the first frame and then
+  `connectSavedBridge()` without blocking the UI. A saved `bridge` row keeps the
+  shell on Live: the controller loads the newest archived sample for last-known
+  values, scans the foreground for 10 s by BLE identity then advertised name,
+  and connects with the stored bond (no passkey prompt). A missing Bridge stays
+  on Live with `Looking for the Bridge…`, the archive and a manual `Connect`.
+  The saved row is the only identity store: `bridge.id` is the BLE address,
+  `bridge.name` the advertised name and `last_seen_ms` is touched on every
+  healthy transition. Forget/factory reset delete that row and leave
+  `sample`/`gap` orphaned. `BleClient.platformStates` feeds both the launch and
+  the live link, so turning phone Bluetooth off leaves `Connected`, enters the
+  named BLOCKED state and clears the live receipt values; turning it on resumes
+  the bounded reconnect budget. See ADR 0047.
 
 ## 6.10 Testing
 

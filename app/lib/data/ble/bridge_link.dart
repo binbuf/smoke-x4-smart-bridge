@@ -26,6 +26,7 @@ class BridgeLinkHost {
     this.onReconnect,
     this.onRssi,
     this.onBondPrompt,
+    this.onBlocked,
   });
 
   final void Function(ConnectionPhase phase) onPhase;
@@ -42,6 +43,10 @@ class BridgeLinkHost {
   /// Shows the "look at the Bridge screen" instruction and starts the OS bond
   /// when the user agrees. Returning false cancels the procedure.
   final Future<bool> Function()? onBondPrompt;
+
+  /// The phone adapter or permission is not usable right now. The UI shows the
+  /// named BLOCKED state and its system action instead of a connected link.
+  final void Function(BlockReason reason)? onBlocked;
 }
 
 /// Sync progress as the UI vocabulary expects it: the recent pass says
@@ -245,6 +250,7 @@ class BridgeLink implements SyncTransport {
   int _bondAttempts = 0;
   int _reconnectAttempt = 0;
   bool _reconnecting = false;
+  bool _blocked = false;
   Duration? _nextReconnectIn;
   Completer<void>? _wake;
   BridgeLinkTimer? _watchdog;
@@ -253,6 +259,7 @@ class BridgeLink implements SyncTransport {
   bool _periodicSyncBusy = false;
 
   StreamSubscription<BleConnectionState>? _connectionSubscription;
+  StreamSubscription<BleAppState>? _platformSubscription;
   StreamSubscription<Uint8List>? _liveSubscription;
   StreamSubscription<Uint8List>? _resultSubscription;
   StreamSubscription<Uint8List>? _syncSubscription;
@@ -295,6 +302,7 @@ class BridgeLink implements SyncTransport {
     _connectionSubscription ??= client.connectionStates.listen(
       _onConnectionState,
     );
+    _platformSubscription ??= client.platformStates.listen(_onPlatformState);
   }
 
   /// The first connect after setup finished bonding. The GATT link is already
@@ -394,10 +402,13 @@ class BridgeLink implements SyncTransport {
     if (durable != null) {
       // One path decides recent-first, backfill and forward catch-up from the
       // durable cursors; reconnect never re-reads a completed recent window.
+      // The saved identity is the BLE address (`bridge.id`), so a later launch
+      // can scan for it directly; the advertised name is the fallback. The
+      // protocol `info.device_id` is only a display identity.
       await durable.connectSync(
         transport: this,
-        bridgeId: bridgeInfo.deviceId,
-        bridgeName: _info?.deviceId ?? bridgeInfo.deviceId,
+        bridgeId: _device?.id ?? bridgeInfo.deviceId,
+        bridgeName: _device?.name ?? bridgeInfo.deviceId,
       );
       _lastSyncCursor = durable.cursorAfter;
       if (_lastSyncCursor != null) onLocalMaxSeq?.call(_lastSyncCursor!);
@@ -986,15 +997,73 @@ class BridgeLink implements SyncTransport {
   // ---------------------------------------------------------------------------
 
   void _onConnectionState(BleConnectionState state) {
-    if (_disposed) return;
+    if (_disposed || _blocked) return;
     if (state != BleConnectionState.disconnected) return;
     if (!_sessionActive) return;
     if (_reconnecting || _phase == ConnectionPhase.failed) return;
     _beginReconnect();
   }
 
+  void _onPlatformState(BleAppState state) {
+    if (_disposed) return;
+    switch (state) {
+      case BleAppState.ready:
+        _onAdapterReady();
+      case BleAppState.bluetoothOff:
+        _enterBlocked(BlockReason.bluetoothOff);
+      case BleAppState.permissionNeeded:
+        _enterBlocked(BlockReason.permissionDenied);
+      case BleAppState.permissionBlocked:
+        _enterBlocked(BlockReason.permissionBlocked);
+      case BleAppState.unsupportedPhone:
+        _enterBlocked(BlockReason.unsupportedPhone);
+      case BleAppState.noResults:
+      case BleAppState.pairingFailed:
+      case BleAppState.promptTimeout:
+      case BleAppState.staleBond:
+      case BleAppState.phoneListFull:
+      case BleAppState.connectionFailed:
+      case BleAppState.gattError:
+      case BleAppState.timeout:
+        break;
+    }
+  }
+
+  /// The adapter came back. Resume the bounded reconnect budget; the user can
+  /// also cut the wait short with Retry/pull-to-refresh.
+  void _onAdapterReady() {
+    if (!_blocked) return;
+    _blocked = false;
+    if (_device != null && _sessionActive) {
+      _beginReconnect();
+    }
+  }
+
+  void _enterBlocked(BlockReason reason) {
+    if (_disposed) return;
+    if (_blocked && _phase == ConnectionPhase.blocked) return;
+    _blocked = true;
+    _reconnecting = false;
+    _secure = false;
+    _watchdog?.cancel();
+    _watchdog = null;
+    _periodicSync?.cancel();
+    _periodicSync = null;
+    _syncTimeoutTimer?.cancel();
+    _syncTimeoutTimer = null;
+    final wake = _wake;
+    if (wake != null && !wake.isCompleted) wake.complete();
+    _failPendingControls(
+      const BridgeLinkException(BridgeLinkFailure.notConnected),
+    );
+    _cleanupSubscriptions();
+    host.onBlocked?.call(reason);
+    _setPhase(ConnectionPhase.blocked);
+  }
+
   void _beginReconnect() {
-    if (_disposed || _reconnecting) return;
+    if (_disposed || _reconnecting || _blocked) return;
+    _blocked = false;
     _reconnecting = true;
     _secure = false;
     _cleanupSubscriptions();
@@ -1108,7 +1177,7 @@ class BridgeLink implements SyncTransport {
 
   /// Pull-to-refresh or app resume cuts a reconnect wait short and retries.
   Future<void> retryNow() async {
-    if (_disposed) return;
+    if (_disposed || _blocked) return;
     if (_reconnecting) {
       final wake = _wake;
       if (wake != null && !wake.isCompleted) wake.complete();
@@ -1217,6 +1286,7 @@ class BridgeLink implements SyncTransport {
   void abandon() {
     _sessionActive = false;
     _reconnecting = false;
+    _blocked = false;
     _secure = false;
     _watchdog?.cancel();
     _watchdog = null;
@@ -1238,6 +1308,8 @@ class BridgeLink implements SyncTransport {
     abandon();
     unawaited(_connectionSubscription?.cancel());
     _connectionSubscription = null;
+    unawaited(_platformSubscription?.cancel());
+    _platformSubscription = null;
   }
 }
 

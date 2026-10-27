@@ -513,8 +513,11 @@ void main() {
       await link.connectAndSecure(bridge.advertisement());
 
       expect(controller.phase, ConnectionPhase.live);
-      expect(await dao.countSamples(bridgeId: bridge.deviceId), 3);
-      final saved = await dao.bridgeById(bridge.deviceId);
+      // The saved identity is the BLE address, so a later launch can scan for
+      // it directly; the advertised name is the fallback.
+      final device = bridge.advertisement();
+      expect(await dao.countSamples(bridgeId: device.id), 3);
+      final saved = await dao.bridgeById(device.id);
       expect(saved, isNotNull);
       expect(saved!.cursorAfter, 102);
       expect(saved.cursorBefore, 100);
