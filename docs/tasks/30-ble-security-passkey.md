@@ -12,19 +12,19 @@ A phone bonds with the bridge using LE Secure Connections and the six-digit code
 - Depends on T27 and T22.
 
 ## Scope
-- [ ] Configure LE Secure Connections with Passkey Entry, using `DisplayOnly` IO capability; generate a fresh six-digit code when bonding starts.
-- [ ] Persist bonds in NimBLE's NVS store; cap at **4** phones, allow **one active connection**, and do not evict. Report remaining slots as `info.bonds_free`.
-- [ ] Enforce the characteristic security levels: `info` open; `live`, `stats`, `sync_ctrl`, `sync_data` encrypted; `control`, `config` encrypted + authenticated. CCCD writes require the same level as their characteristic.
-- [ ] Implement the scan-response status blob: 9 B after the 2-byte company ID, with `ver`, `flags`, `pit_temp_f10`, `battery_pct`, `billows_target_f10`, `age_s`, reserved.
-- [ ] Set the advertising PDU to Flags + 128-bit service UUID (21 of 31 bytes), and the scan response to the complete local name + manufacturer-specific status blob.
-- [ ] Use local name `SmokeX4-XXXX`, where `XXXX` is the last two bytes of the BLE MAC in uppercase hex.
-- [ ] Advertise at **250 ms for 60 s** after boot/button/disconnect, then at **1,000 ms**.
-- [ ] Start advertising at boot when not connected, on disconnect, after a failed connect, and on advertising timeout; stop on connection.
-- [ ] Restart advertising after disconnect.
-- [ ] Display the six-digit passkey on the OLED overlay: `PAIR WITH PHONE`, the code, `enter this code on your phone`; the code expires when bonding ends or after 60 s, and a tap cancels the attempt.
-- [ ] Keep the `live` flag `sync_active`/connection-related flags coherent with the advertising/connected state where they overlap.
-- [ ] Add host tests for the scan-response blob and the advertising/security state transitions.
-- [ ] No Just Works fallback: if the phone cannot do passkey entry, the app says so rather than silently downgrading.
+- [x] Configure LE Secure Connections with Passkey Entry, using `DisplayOnly` IO capability; generate a fresh six-digit code when bonding starts.
+- [x] Persist bonds in NimBLE's NVS store; cap at **4** phones, allow **one active connection**, and do not evict. Report remaining slots as `info.bonds_free`.
+- [x] Enforce the characteristic security levels: `info` open; `live`, `stats`, `sync_ctrl`, `sync_data` encrypted; `control`, `config` encrypted + authenticated. CCCD writes require the same level as their characteristic.
+- [x] Implement the scan-response status blob: 9 B after the 2-byte company ID, with `ver`, `flags`, `pit_temp_f10`, `battery_pct`, `billows_target_f10`, `age_s`, reserved.
+- [x] Set the advertising PDU to Flags + 128-bit service UUID (21 of 31 bytes), and the scan response to the complete local name + manufacturer-specific status blob.
+- [x] Use local name `SmokeX4-XXXX`, where `XXXX` is the last two bytes of the BLE MAC in uppercase hex.
+- [x] Advertise at **250 ms for 60 s** after boot/button/disconnect, then at **1,000 ms**.
+- [x] Start advertising at boot when not connected, on disconnect, after a failed connect, and on advertising timeout; stop on connection.
+- [x] Restart advertising after disconnect.
+- [x] Display the six-digit passkey on the OLED overlay: `PAIR WITH PHONE`, the code, `enter this code on your phone`; the code expires when bonding ends or after 60 s, and a tap cancels the attempt.
+- [x] Keep the `live` flag `sync_active`/connection-related flags coherent with the advertising/connected state where they overlap.
+- [x] Add host tests for the scan-response blob and the advertising/security state transitions.
+- [x] No Just Works fallback: if the phone cannot do passkey entry, the app says so rather than silently downgrading.
 
 ## Out of scope
 - The app's setup/passkey screens and OS-dialog handoff → T33.
@@ -60,8 +60,45 @@ A phone bonds with the bridge using LE Secure Connections and the six-digit code
 - [x] `info` is readable without a bond; `live` is not readable or subscribable without encryption. Host-tested; real central at T37.
 - [x] Advertising is visible at boot, stops on connection, and restarts after disconnect; the 250 ms → 1,000 ms change is observed. Host/host-timer tested; real scanner at T37.
 - [x] A fifth phone is refused at the bond limit rather than evicting an existing bond. Host-tested; real phones at T37.
-- [ ] Host tests cover the scan-response blob and the advertising/security state transitions.
-- [ ] Hand-off below filled in
+- [x] Host tests cover the scan-response blob and the advertising/security state transitions.
+- [x] Hand-off below filled in
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+**Status: done.** Advertising, passkey/bonding policy and the T30 host gate
+landed. Real-phone checks remain deferred to T37 by the task's Done-when.
+
+### Changes
+
+- New pure-C cores: `ble_adv.[ch]` (PDU, scan response/status blob, name,
+  250→1,000 ms state machine) and `ble_security.[ch]` (4-bond cap, six-digit
+  passkey lifetime). Host suite `ble-adv` pins the bytes and transitions.
+- `ble_service.c`: DisplayOnly/SC-only/MITM bonding, `esp_random()` passkey
+  injected with `ble_sm_inject_io()`, 60 s expiry, tap cancel, no store
+  eviction (`store_status_cb = NULL`), deferred advertising start/restart on
+  boot/disconnect/failed connect/timeout, stop on connect, bond-count cache.
+- `boot.c` wires the passkey display callback to `ui_set_passkey()`; `ui.c`
+  shows the real connection/bond state and cancels pairing on a passkey tap.
+- Docs: design 05 §5.2 implementation rules; ADR 0037; progress T30.
+
+### Verification
+
+- `ctest --test-dir firmware/test/build --output-on-failure` → 20/20 pass
+  (new `ble-adv`).
+- `idf.py -B build ... build` → complete; image guard ok; `sx4_bridge.bin`
+  `0x903d0`, 72% free.
+
+### Deviations
+
+- The overlay is reached through a callback seam to avoid a `ble_service` ↔
+  `ui` component cycle.
+- Passkey expiry and a tap terminate the link so the phone sees a failed bond.
+- `sm_sc_only` is set in addition to `sm_sc`/`sm_mitm` to refuse legacy
+  downgrades.
+- The status blob refreshes at each advertising start, not per sample.
+
+### Remaining work (T37, board/phone)
+
+Bond with the OLED code; wrong code fails; reboot keeps the bond with no
+prompt; `info` open and `live` encrypted; advertising visible at boot, gone on
+connect, back on disconnect; observe 250→1,000 ms; fifth phone refused. Also T33
+must show the "look at the Bridge screen" instruction before the OS prompt.

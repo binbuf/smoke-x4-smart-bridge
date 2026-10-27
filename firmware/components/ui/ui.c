@@ -160,10 +160,10 @@ static void build_snapshot(ui_snapshot_t *snapshot) {
         snapshot->billows_target_valid = live.billows_target_valid;
         snapshot->billows_target_f10 = live.billows_target_f10;
     }
-    /* BLE link state and paired-phone count arrive with T27; until then the
-     * page correctly shows advertising and 0/4 rather than inventing a link. */
-    snapshot->app_connected = false;
-    snapshot->phones_paired = 0;
+    /* BLE link state and paired-phone count come from the service (T30). */
+    snapshot->app_connected = ble_service_is_connected();
+    snapshot->phones_paired = ble_service_bond_count();
+    snapshot->phones_max = UI_PHONES_MAX;
     snapshot->storage_ok = sample_log_storage_ok();
 
     bridge_config_pairing_t pairing;
@@ -244,7 +244,12 @@ static void handle_tap(void) {
     mask = s_overlay_mask;
     taskEXIT_CRITICAL(&s_lock);
 
-    if ((mask & (UI_OVERLAY_MASK_PASSKEY | UI_OVERLAY_MASK_CLEARING_LOG |
+    if ((mask & UI_OVERLAY_MASK_PASSKEY) != 0) {
+        /* A tap cancels the pairing attempt; the phone sees a failed bond. */
+        ble_service_cancel_pairing();
+        return;
+    }
+    if ((mask & (UI_OVERLAY_MASK_CLEARING_LOG |
                  UI_OVERLAY_MASK_RESETTING | UI_OVERLAY_MASK_POWER_OFF |
                  UI_OVERLAY_MASK_OFF | UI_OVERLAY_MASK_BOOT)) != 0) {
         return;
@@ -253,6 +258,7 @@ static void handle_tap(void) {
         ui_dismiss_storage_failure();
         return;
     }
+    ble_service_boost_advertising();
     (void)ui_page_next();
 }
 

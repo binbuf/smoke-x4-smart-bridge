@@ -91,6 +91,12 @@ static void run_step(const char *name, esp_err_t (*step)(void)) {
     }
 }
 
+/* T30 seam: the BLE service owns the passkey lifetime, the UI owns the OLED. */
+static void show_passkey(const char *digits, void *ctx) {
+    (void)ctx;
+    ui_set_passkey(digits);
+}
+
 void sx4_boot_run(void) {
     ESP_LOGI(TAG, "boot: starting");
 
@@ -112,6 +118,7 @@ void sx4_boot_run(void) {
     run_step("sample_pipe_start", sample_pipe_start);
     run_step("ble_tx_start", ble_tx_start);
     run_step("sx_radio_start", sx_radio_start);
+    ble_service_set_passkey_callback(show_passkey, NULL);
     run_step("ble_service_start", ble_service_start);
 
     /* Housekeeping owns battery sampling and the clock-persistence cadence;

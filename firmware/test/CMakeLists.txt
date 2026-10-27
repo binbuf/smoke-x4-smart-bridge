@@ -280,6 +280,21 @@ add_executable(test_ble_control test_ble_control.c)
 target_link_libraries(test_ble_control PRIVATE sx4_ble_control sx4_test_support)
 add_test(NAME ble-control COMMAND test_ble_control)
 
+# Advertising AD structures, the 250 ms -> 1,000 ms state machine, the bond
+# limit and the passkey lifetime are pure C11 (T30). NimBLE is not linked; the
+# byte vectors and the state transitions are the host gate.
+add_library(sx4_ble_adv STATIC
+    "${REPO_ROOT}/firmware/components/ble_service/ble_adv.c"
+    "${REPO_ROOT}/firmware/components/ble_service/ble_security.c"
+)
+target_include_directories(sx4_ble_adv
+    PUBLIC "${REPO_ROOT}/firmware/components/ble_service/include"
+)
+
+add_executable(test_ble_adv test_ble_adv.c)
+target_link_libraries(test_ble_adv PRIVATE sx4_ble_adv sx4_test_support)
+add_test(NAME ble-adv COMMAND test_ble_adv)
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks
