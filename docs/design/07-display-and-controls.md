@@ -42,10 +42,12 @@ resets to page 1 on boot. The passkey and power-off overlays pre-empt the page.
   status strip if the panel is too tight; do not mix both in one render.
 - Detached: `---`, never `0.0`.
 - If a probe is invalid (not detached, but no usable reading): `ERR`.
-- Bottom strip: App dot (filled when connected, hollow when advertising), Smoke
-  X4 dot (filled when a packet arrived in the last 90 s), battery percent or
-  `—`, and a `!` if storage is unavailable. `App` is the user-facing word for
-  the BLE link; `BLE` stays in diagnostics only.
+- Bottom strip: App dot (filled when connected, hollow when advertising), a
+  small `BT` that blinks at ~1 Hz while advertising and no phone is connected,
+  Smoke X4 dot (filled when a packet arrived in the last 90 s), battery percent
+  or `—`, and a `!` if storage is unavailable. The panel still sleeps on its
+  normal timeout; the indicator is visible only while the OLED is awake. `App`
+  is the user-facing word for the BLE link; `BLE` stays in diagnostics only.
 
 The large numeric face is reserved for a future single-probe hero view. On the
 four-probe page, 5×7 is clearer than four 12×24 numbers.

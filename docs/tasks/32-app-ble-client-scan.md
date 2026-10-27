@@ -10,6 +10,12 @@ The app has a real `BleClient` on `flutter_blue_plus` that handles permissions, 
 - Design: [06](../design/06-app.md).
 - Verify tier: **H**. Board: **no**.
 - Depends on T07 (BLE fake and app test seam) and T30.
+- **Post-T36 amendment:** Android discovery proved unreliable with a platform
+  service-UUID filter and with remembering only the first report. The client now
+  scans unfiltered, filters in Dart, merges advertisement + scan-response
+  reports, and retries a first connect once after GATT 133. The remembered
+  bridge still wins by device ID then name; never connect to an arbitrary first
+  result.
 
 ## Scope
 - [x] Define the `BleClient` interface used by the app: permission/Bluetooth-state query, scan start/stop, connect/disconnect, bond/removeBond, MTU request, read, write, subscribe/unsubscribe.

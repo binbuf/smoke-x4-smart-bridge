@@ -6,12 +6,17 @@ Ship the approved Settings root: one Bridge status header that opens Bridge deta
 ## Context (read first)
 - [06 §6.7](../design/06-app.md) — approved Settings root, save model and offline behaviour.
 - [13 §13.4](../design/13-ui-implementation-contract.md#settings-bridge-details-and-confirmations) — required Settings, Bridge details and confirmation states.
-- [13 §13.8](../design/13-ui-implementation-contract.md#138-evidence-and-test-keys) — Settings test keys: `settings.bridge.status`, `settings.history.logs`, `settings.units`, `settings.appearance`.
+- [13 §13.8](../design/13-ui-implementation-contract.md#138-evidence-and-test-keys) — Settings test keys: `settings.bridge.status`, `settings.history.logs`, `settings.units`, `settings.tempChangeWindow`, `settings.appearance`.
 - [12 §12.2](../design/12-copy-and-label-review.md) — root sections and `History on this phone` naming.
 - `app/lib/features/settings/settings_screen.dart` — current Settings root to port, not redesign.
 - `app/lib/features/settings/settings_views.dart` — current Settings sub-views.
 - **Verify:** H · **Board:** no
 - Depends on T33 and T40.
+- **Post-T36 status:** the approved root order, single Bridge header, single
+  `History & storage` row, Preferences and About already render in
+  `settings_screen.dart`, and the stable keys exist. Remaining: the global
+  offline banner, persistence behind T40/T53, and the connected/offline/read-only
+  widget matrix. Do not rebuild the root.
 
 ## Scope
 - [ ] Implement the approved Settings root in this order: `Bridge`, `History & storage`, `Preferences`, `About`.
@@ -19,7 +24,7 @@ Ship the approved Settings root: one Bridge status header that opens Bridge deta
 - [ ] Remove any separate `Bridge details` button, second Bridge group and duplicate navigation row.
 - [ ] The Bridge status header is status only: LED and `Connected`, battery, signal meter with an `Excellent / Good / Fair / Weak` label, and `Updated`. Tapping it opens Bridge details.
 - [ ] Make `History & storage` one destination row; do not duplicate the phone and Bridge storage rows on the root.
-- [ ] `Preferences`: `Temperature units` with segmented `°F` / `°C`, applied immediately; `Appearance` with `System / Light / Dark`, local only.
+- [ ] `Preferences`: `Temperature units` with segmented `°F` / `°C`, applied immediately; `Live change window` with `1 / 5 / 10 / 15 / 30 / 60 min` (default 5), local only; `Appearance` with `System / Light / Dark`, local only.
 - [ ] Add `About` / `About this app`.
 - [ ] Disable offline-only controls with a short inline reason; keep local delete and forget available.
 - [ ] Show one global offline banner, not a `Connect to edit` notice on every subscreen.
@@ -39,13 +44,17 @@ Ship the approved Settings root: one Bridge status header that opens Bridge deta
 - Save-all bars — removed by design, no task re-adds them.
 
 ## Design notes
-- Approved root shape (06 §6.7): a single `BRIDGE` card with `Backyard Bridge`, `Bridge A4F2`, `● Connected`, `Battery 87%`, `Signal ▂▄▆▁ Fair`, `Updated 4s ago`; then `HISTORY & STORAGE` with one `Storage 128,430 on this phone · 24,810 on the Bridge` row; then `PREFERENCES` with `Temperature units [°F][°C]` and `Appearance System`; then `ABOUT` with `About this app App 0.1.0 · Firmware 0.1.0`.
+- Approved root shape (06 §6.7): a single `BRIDGE` card with `Backyard Bridge`, `Bridge A4F2`, `● Connected`, `Battery 87%`, `Signal ▂▄▆▁ Fair`, `Updated 4s ago`; then `HISTORY & STORAGE` with one `Storage 128,430 on this phone · 24,810 on the Bridge` row; then `PREFERENCES` with `Temperature units [°F][°C]`, `Live change window 5 min` and `Appearance System`; then `ABOUT` with `About this app App 0.1.0 · Firmware 0.1.0`.
 - The Bridge status header must not repeat `Connected for 2h 14m`; the LED and label already carry that meaning. `Connected for` belongs in collapsed `Technical details`.
-- Save model (06 §6.7): units immediate (local change plus queued bridge write if offline); Appearance immediate and local only; timeout and Bridge name require a connection; destructive actions live in Bridge details.
+- Save model (06 §6.7): units immediate (local change plus queued bridge write if offline); `Live change window` immediate and local only; Appearance immediate and local only; timeout and Bridge name require a connection; destructive actions live in Bridge details.
 - Remove bottom `Save changes` bars. A preference never needs a second tap, and there is no global success banner.
 - Offline: timeout, Bridge name and Smoke X4 pairing are disabled with reasons; phone delete and forget remain available. The root still shows last-connected context and `Bridge disconnected`.
 - Use `readings`, not `records`, in user copy. `History on this phone` stays when the Bridge is reset.
-- Test keys must survive: `settings.bridge.status`, `settings.history.logs`, `settings.units`, `settings.appearance`.
+- `Live change window` is a local display preference, not a Bridge config field.
+  It sets the signed change period on the Live probe tiles (default `5 min`) and
+  has no effect on stored samples or the OLED. T53 persists it with units and
+  theme; T54 covers its copy and key.
+- Test keys must survive: `settings.bridge.status`, `settings.history.logs`, `settings.units`, `settings.tempChangeWindow`, `settings.appearance`.
 - Keep `Settings` as the app-bar title; do not add a second `Settings` heading inside the page.
 - Design: [06 §6.7](../design/06-app.md), [13 §13.4](../design/13-ui-implementation-contract.md#settings-bridge-details-and-confirmations).
 

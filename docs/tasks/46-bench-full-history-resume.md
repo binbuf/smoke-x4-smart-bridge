@@ -12,12 +12,20 @@ Prove the complete history path on the real Bridge and target phone: full-ring s
 ## Scope
 - [ ] Record at least 2 h of data on the real Bridge. Use the seeded 338,400-record host fixture for full-ring timing, or an accelerated test partition if the bench build supports one.
 - [ ] Sync, close the app, reopen, and confirm no duplicates and the full History view.
+- [ ] Cold-launch with the saved Bridge in range: confirm no setup screen,
+      no passkey prompt, and automatic Live + History.
+- [ ] Cold-launch with the saved Bridge out of range: confirm last-known Live,
+      `Looking for the Bridge…` and a manual Connect after 10 s.
 - [ ] Disconnect mid-sync, reconnect, and confirm resume.
 - [ ] Let the Bridge record while the phone is away for 30+ minutes, then reconnect and confirm catch-up.
+- [ ] Confirm the quiet 30 s forward sync keeps History current without
+      duplicating rows and without showing the sync card.
 - [ ] Delete older than 30 days on a seeded database and confirm only the intended range is removed.
 - [ ] Force a Bridge clear/factory reset and confirm the app keeps old data and starts a new segment.
 - [ ] Walk the History states in 13 §13.4: ranges, custom range, filters, gaps, estimated, overwritten, empty, offline cache, Cooks, and the Cook view.
 - [ ] Check 320 dp, dark/light, and screen-reader output on the target phone.
+- [ ] Re-check the post-T36 connection chain, X4 warning dialog and Live
+      change window at 320 dp.
 - [ ] Record the negotiated MTU and the timing for 24 h sync and full-ring sync.
 - [ ] Commit the History bench report and screenshots.
 
@@ -42,6 +50,8 @@ Prove the complete history path on the real Bridge and target phone: full-ring s
 
 ## Done when
 - [ ] The history report and screenshots are committed.
+- [ ] A cold launch with the saved Bridge reaches Live without Setup, and an
+      absent Bridge leaves the user on last-known Live with a manual Connect.
 - [ ] Timing for 24 h and full-ring sync is recorded, with the negotiated MTU noted.
 - [ ] The History UI matches the approved contract in both themes.
 - [ ] Hand-off below filled in.

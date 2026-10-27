@@ -19,6 +19,10 @@ Create the on-phone SQLite archive with the `bridge`, `sample`, and `gap` tables
 - [ ] Implement deletion by date, returning the number of readings and gaps affected.
 - [ ] Add an in-memory database for tests.
 - [ ] Keep `unix_s` nullable and map an unknown device clock to `NULL` with `time_estimated = 1`.
+- [ ] Add the bridge-identity queries T43 needs: upsert/last-used by
+      `last_seen_ms`, read the saved bridge on launch, and clear it on forget or
+      factory reset. The `bridge` row is the saved connection; do not add a
+      second preferences store for the same identity.
 
 ## Out of scope
 - Repository, sync orchestration, and cursor management — owned by T41.
@@ -74,11 +78,20 @@ CREATE TABLE gap (
 - Deletion by date must also delete or trim `gap` rows that fall inside the deleted range, so a stale gap cannot outlive the samples it described.
 - Use the app's chosen `sqflite`/`sqlite3` package from [06 §6.2](../design/06-app.md); keep the DAO behind an interface so the in-memory test database implements the same contract.
 - A 20–30 MB database for a full 338,400-record ring is acceptable; do not load full tables into memory.
+- `bridge.id` is the BLE address/identity used by the saved connection;
+  `bridge.name` is the last observed `SmokeX4-XXXX`/user-facing name and
+  `last_seen_ms` orders the saved-bridge lookup. T43 loads this row on launch and
+  starts the preferred scan; forgetting the phone or a factory reset deletes it
+  only after the UI confirms, while `sample`/`gap` rows stay readable as the
+  orphaned `History on this phone`.
 
 ## Done when
 - [ ] 10,000 records insert/query/delete in tests.
 - [ ] Duplicate `seq` insertion is idempotent.
-- [ ] A relaunch reads the same data from the same database file.
+- [ ] A relaunch reads the same data from the same database file and returns the
+      saved Bridge identity for T43.
+- [ ] Forgetting the Bridge removes the `bridge` row but leaves `sample`/`gap`
+      rows readable as orphaned history.
 - [ ] `flutter test` passes for the DAO suite.
 - [ ] `flutter analyze` passes.
 - [ ] Hand-off below filled in.

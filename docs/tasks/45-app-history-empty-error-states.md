@@ -8,6 +8,11 @@ Make every History and data failure honest and actionable: no readings, no readi
 - Verification: **H** (host/CI) · Board required: **no**
 - Depends on T42 and T43.
 - Copy is fixed by [12 §12.2](../design/12-copy-and-label-review.md); the History state inventory is [13 §13.4 — History](../design/13-ui-implementation-contract.md#history).
+- **Post-T36 status:** no-history, no-history-in-range, offline-with-cache,
+  offline-without-cache, no-X4, sync-failed and storage-failure states are
+  already rendered and covered by `widget_test.dart`/`live_screen_test.dart`.
+  T45 owns the exhaustive matrix, the remaining no-probe/protocol-mismatch
+  states and the copy audit; do not rebuild the existing states.
 
 ## Scope
 - [ ] Implement and test the no-history state.
@@ -44,7 +49,7 @@ Make every History and data failure honest and actionable: no readings, no readi
 | No probes | `No probes connected` / “Plug a probe into the Smoke X4 to see a reading.” | Bridge details |
 | Offline with cache | `Showing saved readings · last reading 20 min ago` | `Retry` |
 | Offline, no cache | `Bridge disconnected · nothing saved yet` | `Retry` |
-| No X4 data | `No data from Smoke X4` / “The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.” | `Troubleshoot` |
+| No X4 data | `No data from Smoke X4` / “The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.” | `Pairing steps` (X4 warning dialog) |
 | Sync failed | `History sync failed` / “Live readings are still updating. Retry when the Bluetooth connection is stable.” | `Retry sync` |
 | Storage unavailable | `Not recording` / “Live readings are available, but the Bridge can’t save them. Check the Bridge’s storage.” | Bridge details |
 | Protocol major mismatch | `Update the app to use this Bridge` / “The Bridge hasn’t been changed.” | `Update app` (+ saved history / learn more) |

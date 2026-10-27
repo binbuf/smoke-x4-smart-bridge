@@ -165,7 +165,7 @@ Config/stats are read once the firmware serves them (M4); V0 needs only
   `Syncing` or `backfill` alone never reaches a product screen. The procedure
   and its local-max seam live in `data/ble/bridge_link.dart`; T39–T41 replace
   the no-op sync sink with the durable archive and background loading.
-- **Live**: append notifications; periodic forward sync every 60 s; health
+- **Live**: append notifications; quiet periodic forward sync every 30 s; health
   watchdog. A pull-to-refresh reads `live` and runs a forward sync.
 - **Reconnecting**: exponential backoff 1, 2, 4, 8, 15, 30 s. A user
   pull-to-refresh or app resume cuts the wait short.
@@ -326,26 +326,27 @@ The screen is also reachable from `Setup → View history on this phone` and fro
 ┌────────────────────────────────────────────┐
 │ Live                                       │
 ├────────────────────────────────────────────┤
-│   [phone]      →      [bt]      →    [x4]  │
-│     App               Bridge        Smoke X4│
+│   [phone]  ▂▄▆▁  →  [bt]  ▂▄▆▁  →   [x4]  │
+│     App    2h 14m   Bridge   12s    Smoke X4│
 │                                            │
-│ ⏱ Bridge connected · 2h 14m  ▂▄▆▁ Fair   > │
 │ ⌁ Receiving readings · updated 12s ago      │
 ├────────────────────────────────────────────┤
 │ Probes                                     │
 │ ┌──────────────────┐ ┌──────────────────┐  │
 │ │ ● P1           > │ │ ● P2           > │  │
 │ │ 165.2°F          │ │ 164.0°F          │  │
+│ │ Min 164.8 Max 166.1│ │ Min 162.9 Max 165.4│ │
 │ │ ╭──────╮         │ │ ╭──────╮         │  │
 │ │ ╰──────╯         │ │ ╰──────╯         │  │
-│ │ 1h · +3.8°F      │ │ 1h · -1.4°F      │  │
+│ │ 5m · +0.4°F      │ │ 5m · -1.4°F      │  │
 │ └──────────────────┘ └──────────────────┘  │
 │ ┌──────────────────┐ ┌──────────────────┐  │
 │ │ ● P3           > │ │ ● P4           > │  │
 │ │ —                │ │ 225.0°F          │  │
-│ │ No history yet   │ │ ╭──────╮         │  │
-│ │ Not connected    │ │ ╰──────╯         │  │
-│ │                  │ │ 1h · +7.3°F      │  │
+│ │ No history yet   │ │ Min 223.1 Max 227.4│ │
+│ │ Not connected    │ │ ╭──────╮         │  │
+│ │                  │ │ ╰──────╯         │  │
+│ │                  │ │ 5m · +7.3°F      │  │
 │ └──────────────────┘ └──────────────────┘  │
 ├────────────────────────────────────────────┤
 │ Billows                                    │
@@ -361,15 +362,21 @@ Rules:
   whole chain as simple icons with labels underneath: **App → Bridge → Smoke
   X4**. Tapping anywhere on the card opens Bridge details, where the manual
   `Sync now` action lives.
+- Each radio link carries its own signal meter and connected duration:
+  **phone→Bridge** uses the BLE RSSI and **Bridge→Smoke X4** uses the LoRa RSSI.
+  Put the bars between the nodes and the duration on the node label baseline
+  (`2h 14m`, `12s`, `Reconnecting`, `Offline`). Do not show one shared signal
+  meter for two different radios. The phone→Bridge meter comes from the live
+  connection read, not from the X4 packet.
 - The chain uses colour as a secondary cue, not the only state. Do not rely on
-  grey/green/amber/red alone. Add one compact status block below the chain
-  instead of a second text line under every node: `Bridge connected · 2h 14m`
-  with the cell-style signal meter, then `Receiving readings · updated 12s ago`
-  only when a valid X4 state packet arrived within 90 s. For 90 s–10 min use
-  `No readings for 4 min`; after 10 min use `Smoke X4 signal lost · 10 min ago`.
-  Offline the first row is `Bridge disconnected · last connected 2h ago` and the
-  signal meter is hidden. When showing cache, add `Showing saved readings · last
-  reading 20 min ago`.
+  grey/green/amber/red alone. The X4 node carries one amber warning icon when
+  the Bridge is connected but the X4 is quiet; tapping it opens the SYNC-mode
+  dialog. Do not add a second inline `No data from Smoke X4` notice. When the X4
+  is healthy, `Receiving readings · updated 12s ago` is the only telemetry line.
+  For 90 s–10 min use `No readings for 4 min`; after 10 min use `Smoke X4 signal
+  lost · 10 min ago`. Offline the card is `Bridge disconnected · last connected
+  2h ago`, both signal meters are hidden and the chain is dimmed. When showing
+  cache, add `Showing saved readings · last reading 20 min ago`.
 - On the Bridge, recording is independent of the phone. The app may say
   `Recording` only when connected and `storage_ok`; when disconnected it says
   “The Bridge keeps recording while it’s on” as reassurance, not as a live
@@ -383,7 +390,9 @@ Rules:
 - There is no `Sync now` action on the Live card. The product is designed so
   manual sync is rarely needed; pull-to-refresh remains the recovery gesture.
 - There is no small connection chip in the app bar. Healthy status lives in the
-  card; a problem state changes the relevant LED and adds one inline notice.
+  card; a problem state changes the relevant LED and adds one notice. The X4
+  warning is the one exception: it lives on the X4 node as an amber icon and
+  opens a dialog, so the healthy card stays compact.
 - Four tiles in probe order, always four. A detached probe is **“—” + “Not
   connected”**, never 0 °F and never omitted. A tile with no sparkline history
   says `No history yet`; the tile height does not change.
@@ -393,15 +402,21 @@ Rules:
   probe into the Smoke X4 to see a reading.” Keep the four tiles.
 - Each tile shows a **relative last-hour sparkline** when that probe has history.
   The sparkline is scaled to its own min/max; it communicates shape, not a
-  cross-probe comparison. The footer reads `1h · +3.8°F` (one hour plus the
-  signed change); do not put an unrelated `1h` and delta at opposite edges.
+  cross-probe comparison.
+- Above the sparkline show the current range as `Min 225.0°F · Max 231.2°F`
+  when the probe has values. The footer reads `<window> · +0.4°F`, where the
+  window is the **Live change window** preference (`1`, `5`, `10`, `15`, `30` or
+  `60 min`; default `5 min`). The change is signed and computed from the newest
+  and oldest stored readings inside that window. Do not put an unrelated window
+  and delta at opposite edges, and do not show `0°F` for a detached probe.
 - Tapping a tile opens **History** with that probe selected and the 1 h range.
 - Healthy tiles are quiet: no repeated “Live · updated 4s ago”. A delayed probe
   shows `Updated 62s ago`; a stale probe shows `No readings for 4 min`; a frozen
   probe shows `No readings for 12 min`; a detached probe shows `Not connected`.
-- When the Bridge is connected but the Smoke X4 is quiet, show one `No data from
-  Smoke X4` notice with a `Troubleshoot` action that opens the SYNC-mode steps.
-  Do not repeat the notice on every tile.
+- When the Bridge is connected but the Smoke X4 is quiet, show one amber warning
+  icon on the X4 node. Tapping it opens a dialog with `No data from Smoke X4` (or
+  `Smoke X4 signal lost`), the SYNC-mode steps and `Pairing steps`. Do not add a
+  second inline notice and do not repeat the warning on every tile.
 - Offline with cache: dim values and keep one Bridge status surface. Do not
   repeat a no-reading line four times.
 - Offline without cache: show `Bridge disconnected · nothing saved yet` and do
@@ -597,6 +612,7 @@ HISTORY & STORAGE
 
 PREFERENCES
   Temperature units                    [°F][°C]
+  Live change window                   5 min >
   Appearance                           System >
 
 ABOUT
@@ -621,6 +637,9 @@ ABOUT
   phone and History on the Bridge side by side with separate deletion rules. The
   Settings root does not duplicate those two rows.
 - Preferences follow History & storage. Units apply immediately; no save-all bar.
+  `Live change window` is a local display preference (`1 / 5 / 10 / 15 / 30 /
+  60 min`, default 5) that sets the signed change period on the Live probe
+  tiles. It does not affect stored samples, the History chart or the OLED.
 - `History on this phone` is the local copy on this phone. `History on the Bridge`
   is the copy on the Bridge. The two copies are never merged even though they
   share one screen.
@@ -632,6 +651,7 @@ ABOUT
 | Control | Behaviour |
 |---|---|
 | Temperature units | Immediate; local change + queued bridge write if offline |
+| Live change window | Immediate; local only; persisted across relaunch |
 | Appearance | Immediate; local only |
 | Bridge screen timeout | Immediate; requires connection, disabled with reason offline |
 | Bridge name | Edit dialog; apply on Done; inline `Saving…` / `Saved` / `Couldn’t save` |
@@ -707,6 +727,7 @@ separate and says history on this phone is kept. Use **readings**, not
 | Control | Offline |
 |---|---|
 | Temperature units | Local change; bridge write queued |
+| Live change window | Available (local only) |
 | Appearance | Available |
 | Bridge screen timeout | Disabled with `Connect to change this` |
 | Smoke X4 pairing | Disabled with reason |
@@ -731,6 +752,7 @@ Every failure names its cause and offers one next action.
 | Permission primer | “Allow Bluetooth to find your Bridge.” Android 12+ Nearby devices; Android 7–11 location; only needed to find the Bridge. | `Continue` / `Not now` |
 | Scanning | `Looking for your Bridge…` | `Cancel` |
 | No results | `No Bridge found` / “Make sure it’s on and within about 10 meters (30 feet). If it’s off, hold PRG for 1.5 seconds to turn it on.” | `Try again` / `Open Bluetooth settings` |
+| Connect failed | `Couldn’t connect to the Bridge` / “The Bridge was found but the Bluetooth connection didn’t finish. Keep it nearby and try again. It keeps recording while you do.” | `Try again` (no rescan) / `Find another Bridge` |
 | Bluetooth off | `Bluetooth is off` / “Turn Bluetooth on so the app can find your Bridge. The Bridge keeps recording while you do.” | `Open Bluetooth settings` / `Check again` |
 | Permission denied | `Bluetooth permission needed` / “The app needs Nearby devices permission to scan for the Bridge.” | `Grant permission` / `Open app settings` |
 | Permission permanently denied | `Bluetooth permission is blocked` / “Enable Nearby devices permission in Android settings, then come back.” | `Open app settings` |
@@ -738,7 +760,7 @@ Every failure names its cause and offers one next action.
 | Prompt timeout | `No prompt appeared` / “Open your notifications and look for the Android pairing request, then try again.” | `Try again` / `Open Bluetooth settings` |
 | Pairing out of date | `This phone’s pairing is out of date` | `Forget and re-pair` |
 | Phone list full | `This Bridge already has 4 phones paired` / USB reset if no paired phone is available | `Try again` |
-| Connected, no Smoke X4 | `No data from Smoke X4` / “The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.” | `Troubleshoot` |
+| Connected, no Smoke X4 | `No data from Smoke X4` / “The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.” | `Pairing steps` (X4 warning dialog) |
 | No probe data | `No probes connected` / “Plug a probe into the Smoke X4 to see a reading.” | Bridge details |
 | No history | `No readings yet` / “The Bridge records whenever it’s on and paired with the Smoke X4.” | `View Live` |
 | No history in range | `No readings in this range` / “Probe 3 has no readings in this range. Try another range or show all probes.” | `Show all probes` |
@@ -773,8 +795,11 @@ platform exceptions to these named states.
   only plugin import. `flutter_blue_plus` is pinned to 1.35.12 (BSD-3); 2.x adds
   a commercial licence gate. `BlePlatformStatus` resolves unsupported phone,
   Bluetooth off, permission needed and permission blocked before scanning.
-  Scan filters the new service UUID and stops after 10 s; the remembered bridge
-  is matched by device ID then name and never replaced by the first result.
+  Scan runs unfiltered, filters the new service UUID in Dart, merges split
+  advertisement/scan-response reports, and stops after 10 s; the remembered
+  bridge is matched by device ID then name and never replaced by the first
+  result. A first connect after scan is retried once because Android commonly
+  reports GATT status 133.
   `BleDiagnostics` records phone model, Android version, negotiated MTU and
   scan/connect/bond failures. See ADR 0039.
 - **Setup (T33)**: `features/setup/setup_flow.dart` is the setup state machine

@@ -138,14 +138,14 @@ The formal T37 pairing/unpair, cadence and gap rows above are still open.
 
 | Check | Result | Evidence |
 |---|---|---|
-| Passkey bond; wrong code rejected | ⏳ | |
-| Bond survives reboot; reconnect has no prompt | ⏳ | |
-| Negotiated MTU | ⏳ | |
-| Live notifications at sample cadence | ⏳ | |
-| Full sync and resume after disconnect | ⏳ | |
-| Settings: units, probes, display timeout | ⏳ | |
-| Forget this phone, factory reset, power off | ⏳ | |
-| App: fresh install → live; relaunch → history | ⏳ | |
+| Passkey bond; wrong code rejected | ◐ 2026-10-27 — first bond with the OLED passkey and a stored-bond reconnect with no new prompt passed; wrong-code rejection is still open (T37). | `T37/lora-rx-ble-sync-after-fix.log`, [above](#lora-receive-root-cause-and-re-check-2026-10-27) |
+| Bond survives reboot; reconnect has no prompt | ◐ 2026-10-27 — the paired record survived a bridge reboot, and a stored-bond reconnect with no new prompt also passed; the combined reboot-then-reconnect and forced-drop checks remain T37. | [above](#lora-receive-root-cause-and-re-check-2026-10-27) |
+| Negotiated MTU | ⏳ T37 — record the actual value; MTU 23 is slow but valid. | — |
+| Live notifications at sample cadence | ◐ 2026-10-27 — Live showed four values and `updated 22s ago`; the 30-minute cadence walk remains T37. | [above](#lora-receive-root-cause-and-re-check-2026-10-27) |
+| Full sync and resume after disconnect | ◐ 2026-10-27 — a 195-byte recent sync completed; full-history resume is T46. | `T37/lora-rx-ble-sync-after-fix.log` |
+| Settings: units, probes, display timeout | ⏳ M4 (T47–T55) | — |
+| Forget this phone, factory reset, power off | ⏳ T48/T49/T52/T55 | — |
+| App: fresh install → live; relaunch → history | ◐ 2026-10-27 — fresh install reached Live; cold-launch auto-connect is T43 and the phone proof is T46. | [above](#lora-receive-root-cause-and-re-check-2026-10-27) |
 
 ## Billows
 

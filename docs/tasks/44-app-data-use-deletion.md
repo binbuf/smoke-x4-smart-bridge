@@ -8,6 +8,11 @@ Build the approved History & storage screen so users can see exactly what is on 
 - Verification: **H/P** (host/CI plus phone) · Board required: **no / phone**
 - Depends on T40 and T41.
 - Copy is fixed by [12 §12.2 — Settings, setup and confirmations](../design/12-copy-and-label-review.md#settings-setup-and-confirmations); the state inventory is [13 §13.4 — Settings, Bridge details and confirmations](../design/13-ui-implementation-contract.md#settings-bridge-details-and-confirmations).
+- **Post-T36 status:** the `History & storage` shell, the two-copy sections,
+  the delete/clear sheets and the `readings` copy already exist in
+  `settings_views.dart`/`settings_details.dart`. They are driven by controller
+  fields and simulated counts. T44 wires them to the T40/T41 DAO and proves the
+  boundaries; do not redesign the screen.
 
 ## Scope
 - [ ] Implement the `History & storage` screen with a `History on this phone` section: readings, date range, and storage used.

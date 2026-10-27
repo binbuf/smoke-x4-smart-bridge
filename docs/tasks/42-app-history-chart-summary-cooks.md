@@ -8,6 +8,10 @@ Turn the History shell into the approved full archive: every range and custom ra
 - Verification: **H/P** (host/CI plus phone) · Board required: **no / phone**
 - Depends on T41.
 - Copy is fixed by [12 §12.2 — History](../design/12-copy-and-label-review.md#history); read the UI contract before changing any approved screen.
+- **Post-T36 status:** the approved History shell is already mounted on
+  `RecentHistoryStore` for the current session's recent window; T42 swaps the
+  data source to the durable DAO/repository and fills the full chart,
+  Summary and Cooks. Do not rebuild the shell or reintroduce fixture series.
 
 ## Scope
 - [ ] Complete the default History screen: `24 hours`, `All probes`, four series, Summary, and Cooks.

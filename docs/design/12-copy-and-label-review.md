@@ -22,7 +22,7 @@ different things. Never collapse them into one “Connected/Offline” label.
 
 | State | Use | Do not use |
 |---|---|---|
-| BLE link up | `Bridge connected · 2h 14m` | `Connected` alone |
+| BLE link up | `Bridge connected` (Live: duration under the link; Settings: `Connected`) | `Connected` alone |
 | BLE link down | `Bridge disconnected · last connected 2h ago` | `Offline` alone |
 | X4 fresh, ≤90 s | `Receiving readings · updated 12s ago` | `Connected` |
 | X4 stale, 90 s–10 min | `No readings for 4 min` | `Receiving` |
@@ -73,13 +73,19 @@ optional for a high-confidence MVP.
 
 ### Live
 
-- Chain: `App` → `Bridge` → `Smoke X4`. The node row is visual; the status block
-  carries the words. No second label under every node.
-- Healthy: `Bridge connected · 2h 14m`; `Receiving readings · updated 12s ago`.
+- Chain: `App` → `Bridge` → `Smoke X4`. The node row is visual; the link meters
+  carry the two radios. Durations sit on the node label baseline (`2h 14m`,
+  `12s`, `Reconnecting`, `Offline`); do not add a second status line that repeats
+  `Bridge connected · 2h 14m`.
+- Healthy: `Receiving readings · updated 12s ago`; the X4 node is quiet.
 - Tile exceptions only: `Updated 62s ago`, `No readings for 4 min`,
   `No readings for 12 min`, `Not connected`, `No history yet`.
-- Tile footer: `1h · +3.8°F` or `1h · -1.4°F`. One hour and the signed change;
-  not an unrelated `1h` and delta at opposite edges.
+- Tile footer: `<window> · +0.4°F` or `<window> · -1.4°F`, where the window is
+  the `Live change window` preference (`5 min` by default). One window and the
+  signed change; not an unrelated window and delta at opposite edges.
+- Lost X4: the X4 node shows an amber warning; tapping it opens `No data from
+  Smoke X4` / `Smoke X4 signal lost` with the SYNC-mode steps. Do not repeat an
+  inline notice below the chain.
 - Detached: `—` + `Not connected`; never `0°F`.
 - Cached: `Showing saved readings · last reading 20 min ago`; values dimmed; one
   Bridge status surface, not four repeated no-reading lines.
@@ -90,7 +96,8 @@ optional for a high-confidence MVP.
   when the Bluetooth connection is stable.”; `Retry sync`.
 - Storage failure: `Not recording`; “Live readings are available, but the Bridge
   can’t save them. Check the Bridge’s storage.”
-- No X4 data: `No data from Smoke X4`; SYNC-mode instruction; `Troubleshoot`.
+- No X4 data: `No data from Smoke X4`; SYNC-mode instruction in the X4 warning
+  dialog; `Pairing steps`.
 - No probes: `No probes connected`; “Plug a probe into the Smoke X4 to see a
   reading.”
 - Billows: `Billows`; `Set temp`; `Last detected`; age (`12s ago`); caption
@@ -224,8 +231,11 @@ point at the owner.
 
 These are deliberate, not oversights:
 
-- `1h · +3.8°F` uses a sign rather than `↑3.8°F`. The sign is clearer, survives
-  font fallback and reads correctly to a screen reader.
+- `<window> · +0.4°F` uses a sign rather than `↑0.4°F`. The sign is clearer,
+  survives font fallback and reads correctly to a screen reader.
+- The tile change window is user-selectable (default `5 min`) rather than fixed
+  at one hour. The sparkline stays the last hour; the footer names the change
+  window so the two periods are not confused.
 - Live has a small section heading `Probes`; the app-bar title is still only
   `Live`. The heading is a content label, not a duplicate screen title.
 - The range trigger uses words (`24 hours`) while the internal enum/test key uses

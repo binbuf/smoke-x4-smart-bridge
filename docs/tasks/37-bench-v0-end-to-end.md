@@ -18,17 +18,41 @@ The V0 build is exercised end to end on a factory-fresh install and a real board
 - [05 §5.12](../design/05-ble-contract.md) — first-connect and reconnect procedures.
 - Design: [10 §10.3 B2/B3](../design/10-test-and-release.md).
 - Verify tier: **P/B**. Board: **yes**.
-- Depends on T30, T31, T35, and T36.
+- Depends on T30, T31, T35, and T36. The post-T36 sync-word/BLE/UI fixes are
+  already in the tree and are part of this gate.
+
+## Already verified on hardware (2026-10-27)
+These are **partial evidence**, not a pass for the whole task. Keep the
+remaining checks below open.
+
+- [x] Advertising, public identity name `SmokeX4-8276`, and `info.device_id`
+  agree; scan finds the Bridge.
+- [x] First bond with the OLED passkey; the OLED wakes to show the code.
+- [x] Four real X4 frames at ~30 s cadence are stored and synced.
+- [x] `set_time` returns `result ok`; a 195-byte recent sync completes.
+- [x] Live shows P1 79.4 °F, P2 78.9 °F, P3 79.5 °F, P4 79.3 °F with
+  `updated 22s ago` and −35 dBm LoRa signal.
+- [x] A stored bond reconnects without a new passkey prompt.
+- **Open:** the new Live connection chain, probe range/change line and X4
+  warning dialog render correctly on the real phone. They are built and
+  widget-tested; the phone walk is still open (step 9/16).
+
+Evidence: [`hardware-verified.md`](../hardware-verified.md#lora-receive-root-cause-and-re-check-2026-10-27),
+[`T37/lora-rx-after-syncword-fix.log`](../../artifacts/bench/T37/lora-rx-after-syncword-fix.log),
+[`T37/lora-rx-ble-sync-after-fix.log`](../../artifacts/bench/T37/lora-rx-ble-sync-after-fix.log).
 
 ## Scope
 On a factory-fresh install and a real board:
 
-- [ ] 1. Power on; confirm advertising and the OLED page.
-- [ ] 2. Scan, pair with the OLED code, reach Live.
-- [ ] 3. See four live temperatures update at ~30 s; probe tiles show sparklines and the approved footer (`1h · +3.8°F`, signed).
+- [x] 1. Power on; confirm advertising and the OLED page.
+- [x] 2. Scan, pair with the OLED code, reach Live.
+- [ ] 3. See four live temperatures update at ~30 s; probe tiles show
+      sparklines, the Min/Max range line, and the signed change over the
+      selected **Live change window** (default `5m · +0.4°F`). The old fixed
+      `1h · +3.8°F` footer is superseded by [06 §6.5](../design/06-app.md).
 - [ ] 4. See the last 15 minutes in the full History shell.
-- [ ] 5. Disconnect by walking away; confirm the stale/reconnect states and the offline-cache label.
-- [ ] 6. Stop the Smoke X4 (or move it out of range); confirm the Bridge stays connected, Live says `No readings` / `Smoke X4 signal lost`, and the app does not show fake live data.
+- [ ] 5. Disconnect by walking away; confirm the stale/reconnect states and the offline-cache label. A cold app relaunch is T43/T46, not this gate.
+- [ ] 6. Stop the Smoke X4 (or move it out of range); confirm the Bridge stays connected, the X4 node shows one amber warning, tapping it opens the pairing dialog, Live says `No readings` / `Smoke X4 signal lost`, and the app does not show fake live data.
 - [ ] 7. Power-cycle the bridge; confirm auto-reconnect and history.
 - [ ] 8. Confirm the stock receiver still works.
 - [ ] 9. Walk the setup and Live states in [13 §13.4](../design/13-ui-implementation-contract.md#134-complete-state-inventory) on the phone; no prototype chrome is visible.
@@ -38,12 +62,14 @@ On a factory-fresh install and a real board:
       earlier records survive and the log resumes.
 - [ ] 12. Detach and reattach one probe; confirm `---`/`—` and the sentinel;
       flip °F/°C and confirm canonical °F storage.
-- [ ] 13. Walk all OLED pages through the case window, including display
-      sleep/wake and PRG power off/on with the hold countdown and early-release
-      cancel.
+- [ ] 13. Walk all OLED pages through the case window, including the blinking
+      `BT` discovery indicator, display sleep/wake, passkey wake, and PRG power
+      off/on with the hold countdown and early-release cancel.
 - [ ] 14. Confirm the battery reading is plausible and unknown renders as `—`.
-- [ ] 15. Bond a real phone with the OLED passkey, reject a wrong code, confirm
-      the bond survives reboot, and record the negotiated MTU.
+- [ ] 15. Reject a wrong passkey, confirm the bond survives reboot with no new
+      prompt, and record the negotiated MTU.
+- [ ] 16. Confirm the quiet 30 s forward sync keeps History current and never
+      duplicates the newest sequence after a live notification.
 - [ ] Record the phone model, Android version, negotiated MTU, timings, and any failure.
 - [ ] Commit the V0 evidence (logs, screenshots, and the recorded measurements) in the named evidence location.
 - [ ] Confirm no `Sync now` on Live, no fixture/last-session values shown as current, and no BLE/GATT/MTU language on product screens.
@@ -51,6 +77,8 @@ On a factory-fresh install and a real board:
 
 ## Out of scope
 - Full 24 h / full-ring history and resume → T46 (T46) and T61 (T61).
+- Cold-launch saved-Bridge auto-connect and archive-backed offline cache → T43;
+  the phone proof is T46.
 - Billows observation on a real unit → T56–T60 (M5); this gate does not depend on it, and Billows stays hidden while `caps.billows_observe = 0`.
 - Settings, actions, and the full UI/a11y/copy gate → T55 (T55).
 - The first real cook → T38; the release field cook → T63 (T63).
@@ -63,11 +91,14 @@ On a factory-fresh install and a real board:
 - At MTU 23 sync works but is slow; record the negotiated MTU rather than assuming 247. A low MTU is not a failure by itself.
 - "Stale" means the bridge is still connected but the X4 is quiet (90 s–10 min); after 10 min it is `Smoke X4 signal lost`. Do not conflate BLE disconnection with X4 silence.
 - The offline-cache state must show `Showing saved readings · last reading 20 min ago` (with the actual age) and must not present cache as live.
+- The post-T36 connection card shows one signal meter per radio link: phone→Bridge (BLE RSSI) and Bridge→X4 (LoRa RSSI). The old single `Bridge connected · 2h 14m` line is superseded; durations sit under each link.
+- The X4 warning is a single amber icon on the X4 node, not an inline notice. Tapping it opens the SYNC-mode pairing dialog; the healthy screen stays quiet.
+- A cold launch still enters Setup until T43. Do not count that as a T37 failure; record the manual-setup friction as field evidence for T38/T43.
 - No prototype chrome: no scenario lab, simulation timer, fixture badge, or fake OS prompt on any product screen.
 - A failure is acceptable for the gate only when it has a named follow-up task; do not silently waive a step.
 
 ## Done when
-- [ ] All nine steps pass, or every failure has a named follow-up task.
+- [ ] Every remaining step passes, or every failure has a named follow-up task.
 - [ ] Phone model, Android version, MTU, timings, and failures are recorded.
 - [ ] V0 evidence is committed.
 - [ ] Hand-off below filled in

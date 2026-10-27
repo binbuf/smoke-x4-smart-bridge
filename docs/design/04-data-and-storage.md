@@ -379,8 +379,9 @@ resume on top of this same stream; ADR 0038 records the seam.
 ### Ongoing sync
 
 - Every `live` notification is appended immediately by `seq`.
-- Every 60 s while connected, request forward from the local maximum `seq` to
-  catch any missed notification.
+- Every 30 s while connected, request forward from the local maximum `seq` to
+  catch any missed notification. The pass is quiet: it updates the cursor and
+  `lastSyncedAt` but does not show the sync card.
 - On reconnect, do the same before enabling live display.
 
 ## 4.6 Gaps and rotation
