@@ -253,6 +253,11 @@ The board has no battery-backed clock.
 - The firmware persists the last known UTC in NVS every 10 minutes. On boot it
   restores that anchor plus elapsed uptime and marks it **estimated** until the
   app sets it.
+- Implementation (T20, ADR 0028): the persisted pair is
+  `{clock_anchor_s, clock_uptime_s}`. Elapsed time is added only when the uptime
+  source survived the sleep or the platform reports a known interval; a reset
+  timer after a power cycle restores the anchor unchanged. `clock_valid` is true
+  for both exact and estimated time and `estimated` distinguishes them.
 - Records written before the first phone connection may have no wall time. The
   app places them relative to their `seq` and the sync time, labels the History view's
   time axis "estimated", and never invents a precise date.
