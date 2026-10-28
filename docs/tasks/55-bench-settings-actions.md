@@ -10,7 +10,7 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 - [05 §5.12](../design/05-ble-contract.md) — forget/factory-reset/power-off consequences.
 - [12 §12.2](../design/12-copy-and-label-review.md) — exact destructive copy and `History on this phone` naming.
 - **Verify:** P (phone + board) · **Board:** yes
-- Depends on T52, T53, T54 and T49.
+- Depends on T46a, T49, T52, T53 and T54.
 
 ## Scope
 - [ ] Change every Bridge/Preferences setting; verify read-back, persistence and the OLED. Check units, Appearance, Bridge name and screen timeout copy.
@@ -25,6 +25,7 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 - [ ] Kill the app mid-action; verify no half-state on the bridge.
 - [ ] Fill all 4 pairing slots (or host-test the cap); confirm the 5th pairing is refused with the named state and a paired phone can still forget one.
 - [ ] Walk Settings/Bridge details in 13 §13.4 connected and offline; no duplicate rows, no save-all bar, no `Device log` copy, no lab entry in release.
+- [ ] Re-check the T46a History/connection fixes on the real phone: offline probe semantics, sparkline backfill, saved-ID header, blocked sync card, `Not synced` gap label, range-scoped Cooks/loss banner, and Bridge-reboot recovery.
 
 ## Out of scope
 - 24 h soak, field cook and release hardening → M6 (T61–T68).
