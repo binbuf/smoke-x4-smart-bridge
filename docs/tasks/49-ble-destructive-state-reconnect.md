@@ -1,3 +1,6 @@
+---
+verify: powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/verify_host.ps1
+---
 # T49 — ble_service: destructive-action state and reconnect
 
 ## Goal
@@ -50,10 +53,11 @@ Make the BLE link behave correctly after forget, factory reset and power off: an
 - Deep sleep is the power-off outcome; waking requires holding PRG for 1.5 s (07 §7.4 / T23). Do not add a second wake path.
 - BLE link state and Smoke X4 link state are separate (03 §3.5.2); a phone disconnect must not be reported as an X4 loss.
 - Design: [05 §5.12](../design/05-ble-contract.md), [05 §5.2](../design/05-ble-contract.md), [03 §3.5.1](../design/03-firmware-architecture.md), [03 §3.5.2](../design/03-firmware-architecture.md).
+- **Bench safety for this slice:** the phone-side destructive client is T52 and the shared bench board must not be factory-reset, forgotten or powered off unattended. Implement and host-test the state machine, build the image and record its hash; defer the destructive board walk to T55 with an NVS/samples backup and a re-pair plan.
 
 ## Done when
 - [ ] A host state test covers each path, including a power cut with `clear_pending` set, and asserts the resulting advertising/sleep/reboot state.
-- [ ] The board re-advertises after forget and after a normal disconnect, reboots after factory reset, and sleeps after power off.
+- [ ] The destructive board walk (forget re-advertise, factory reboot, power-off sleep) is **deferred to T55** per the bench-safety note; this task proves each state transition in host tests and builds the T49 image with its hash recorded.
 - [ ] No path leaves the radio advertising while connected or silent while it should be advertising.
 - [ ] `ctest --test-dir firmware/test/build` passes.
 - [ ] Hand-off below filled in.
