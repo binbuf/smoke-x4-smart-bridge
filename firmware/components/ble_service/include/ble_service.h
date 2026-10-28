@@ -8,6 +8,7 @@
 #define SX4_BLE_SERVICE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "esp_err.h"
 
@@ -54,6 +55,18 @@ uint8_t ble_service_bond_count(void);
  */
 typedef void (*ble_service_passkey_fn)(const char *digits, void *ctx);
 void ble_service_set_passkey_callback(ble_service_passkey_fn fn, void *ctx);
+
+/*
+ * Config-applied seam (T47). Called after an accepted 80-byte config write has
+ * been persisted, with the new units and display timeout. boot.c wires it to
+ * the UI so the OLED changes without a reboot; ble_service cannot call ui
+ * directly because ui already depends on ble_service.
+ */
+typedef void (*ble_service_config_applied_fn)(uint8_t units,
+                                              uint16_t display_timeout_s,
+                                              void *ctx);
+void ble_service_set_config_applied_callback(
+    ble_service_config_applied_fn fn, void *ctx);
 
 /*
  * Re-open the 250 ms advertising window after user/button activity. No-op

@@ -91,6 +91,7 @@ typedef struct {
     /* Probes page. */
     uint8_t attached_mask; /* bit 0..3 */
     int16_t temp_f10[4];   /* canonical Fahrenheit tenths, or a sentinel */
+    uint8_t units;         /* 0 = show °C, 1 = show °F (config.units) */
     bool app_connected;    /* false = advertising */
     bool ble_advertising;  /* idle and looking for a phone */
     bool ble_blink_on;     /* caller toggles ~2 Hz for the discovery icon */

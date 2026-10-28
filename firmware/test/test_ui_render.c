@@ -211,6 +211,15 @@ static void test_probes_page(void) {
     CHECK_CONTAINS(joined, "87%");
     CHECK_NOT_CONTAINS(joined, "0%");
 
+    /* config.units = 0 converts the canonical Fahrenheit tenths for display
+     * only; stored/sample values stay Fahrenheit. 225.0 F = 107.2 C. */
+    s.units = 0;
+    ui_render_page(&fb, UI_PAGE_PROBES, &s);
+    extract_rows(&fb, rows);
+    CHECK_CONTAINS(rows[0], "74.0\xC2\xB0" "C");
+    CHECK_CONTAINS(rows[1], "107.2\xC2\xB0" "C");
+    s.units = 1;
+
     /* Detached is ---, never 0.0. */
     s.attached_mask = 0x0Eu; /* P1 detached */
     s.temp_f10[0] = INT16_MIN;

@@ -126,6 +126,10 @@ static void sample_pipe_task(void *argument) {
             (void)sample_pipe_process(&s_pipe, packet.payload, packet.length,
                                       packet.rssi, packet.snr);
         }
+        if (did_work) {
+            /* One live snapshot source for the UI and the BLE stats read. */
+            bridge_state_set_dropped_samples(s_pipe.counters.dropped_samples);
+        }
         if (!did_work) {
             /* One FreeRTOS tick, not pdMS_TO_TICKS(5): the default 100 Hz tick
              * rounds 5 ms to zero and the task would spin, starving IDLE0. */

@@ -116,4 +116,31 @@ Implement the 80-byte `config` characteristic end to end, so a phone can read an
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** `config` (0007) is a full 80-byte Read/Write handled by pure
+`ble_config.c`: exact-length parse, `ver = 1`, units 0/1, timeout 0/30/60/120,
+1–15-byte UTF-8 NUL-terminated name, reserved target/bytes ignored, nonzero
+`billows_mode` refused as `unsupported`. A write is validated before anything
+changes, persisted in one `bridge_config_set_device()`, then applied at runtime:
+the UI snapshot reads units from NVS and boot.c's config-applied handler calls
+`ui_set_display_timeout()` + `ui_mark_dirty()`. `stats` (0008) is a fresh
+60-byte read-only snapshot from one sample-log extent plus live bridge_state,
+battery, heap and sample-pipe drop values; empty log uses `0xFFFFFFFF` min/max
+and 0 times. Both reads return the whole payload and rely on NimBLE's
+`MTU−1` Read Blob slicing.
+
+**Deviation.** A GATT write has no result notification, so config refusals are
+ATT application errors `0x80 | status`: `0x81` invalid, `0x82` unsupported,
+`0x87` storage (recorded in ADR 0051 and 05 §5.9). The real-phone/OLED bench
+checks are deferred to T51/T55, as this task's design note explicitly allows
+once the firmware/host half is green.
+
+**Checks.** `make host-test` → 23/23 CTest passed, including new `ble-config`,
+`ble-stats` and the °C render assertion. (Add `C:\msys64\ucrt64\bin` to PATH on
+this machine or cc1.exe fails to start.) No ESP-IDF build was run in this
+session; the host gate is the task's objective trigger.
+
+**Next.** T51 maps 0x81/0x82/0x87 to the Settings copy and adds the app editor;
+T55 does the real-phone config/stats bench checks. T48/T49 still own the
+destructive control actions and the clear-generation boundary.
+

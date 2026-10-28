@@ -400,3 +400,9 @@ void bridge_state_set_battery(uint16_t millivolts, uint8_t percent) {
     s_state.live.battery_pct = percent;
     state_write_end();
 }
+
+void bridge_state_set_dropped_samples(uint32_t count) {
+    state_write_begin();
+    s_state.live.dropped_samples = count;
+    state_write_end();
+}
