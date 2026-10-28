@@ -101,7 +101,7 @@ the approved UI contract.
 - [x] T42 — app: full History chart, Summary and Cooks → [tasks/42-app-history-chart-summary-cooks.md](tasks/42-app-history-chart-summary-cooks.md)
 - [x] T44 — app: data use and explicit deletion → [tasks/44-app-data-use-deletion.md](tasks/44-app-data-use-deletion.md)
 - [x] T45 — app: History/data empty and error states → [tasks/45-app-history-empty-error-states.md](tasks/45-app-history-empty-error-states.md)
-- [ ] T46 — Bench: full history and resume → [tasks/46-bench-full-history-resume.md](tasks/46-bench-full-history-resume.md)
+- [x] T46 — Bench: full history and resume → [tasks/46-bench-full-history-resume.md](tasks/46-bench-full-history-resume.md) ⟵ closed with T48/T49/T52, T54/T55 and T61 follow-ups
 
 **Exit gate:** the full ring syncs and resumes; a cold launch reconnects to the
 saved Bridge without the setup flow; gaps and estimated times are honest;
@@ -112,6 +112,11 @@ T43 runs immediately after the archive exists because launch auto-connect needs
 the persisted `bridge` row and the offline cache. It lands before the full
 History chart so the app stops asking a returning user to set up the same Bridge
 again; T46 proves the cold-launch path on the phone.
+
+T46 closed the evidence run with findings A–L routed. The M3 exit gate is
+**pass-with-follow-ups**: the History/connection/UI findings are absorbed by
+T54/T55 (with T42/T43/T45 corrections), the real clear/generation boundary by
+T48/T49/T52, and the true 30+ minute absence and 24 h transfer by T61.
 
 ## Phase 5 — Settings & Actions
 
@@ -181,11 +186,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-27T20:05:50Z · 44/66 done
+**Pipeline status** — updated 2026-10-28T00:31:24Z · 45/66 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46
 - Blocked: none
 - Failed: none
-- Remaining: T46, T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T45 — done · History/data empty and error states are implemented and covered by a 14-test matrix; offline-with-cache banner fixed, no-cache/no-probe/no-X4/sync/storage/protocol states verified, flutter analyze clean and 223/223 tests pass.
+- Remaining: T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T46 — done · Full-history bench passed on the real Pixel/Heltec: 6.43 h archive, saved-Bridge launch, mid-sync resume, 10-min catch-up, full-ring History, 30-day deletion, X4 dialog and 320 dp/dark/light. Findings A–L are routed in the report.
 <!-- /symphony:status -->
