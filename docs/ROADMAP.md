@@ -125,7 +125,7 @@ phone, and forget/factory-reset/power-off work on the real bridge. Destructive
 actions explain their cost before sending. Accessibility, copy and layout gates
 pass.
 
-- [~] T47 — ble_service: config read/write and stats read → [tasks/47-ble-config-read-write.md](tasks/47-ble-config-read-write.md) ⟵ failed
+- [x] T47 — ble_service: config read/write and stats read → [tasks/47-ble-config-read-write.md](tasks/47-ble-config-read-write.md)
 - [ ] T48 — ble_service: control actions → [tasks/48-ble-control-actions.md](tasks/48-ble-control-actions.md)
 - [ ] T49 — ble_service: destructive-action state and reconnect → [tasks/49-ble-destructive-state-reconnect.md](tasks/49-ble-destructive-state-reconnect.md)
 - [ ] T50 — app: Settings shell → [tasks/50-app-settings-shell.md](tasks/50-app-settings-shell.md)
@@ -187,11 +187,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-28T01:00:21Z · 45/67 done
+**Pipeline status** — updated 2026-10-28T01:02:34Z · 46/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46, T47
 - Blocked: none
-- Failed: T47
+- Failed: none
 - Remaining: T48, T49, T50, T51, T52, T53, T46a, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T47 — failed · verify failed (exit 2): make host-test — cmake -S firmware/test -B firmware/test/build -G Ninja -- The C compiler identification is unknown -- Detecting C compiler ABI info -- Detecting C compiler ABI info - failed -- Check for working C compiler: C:/msys64/ucrt64/bin/cc.exe -- C…
+- Last finished: T47 — done · T47 firmware/host work is green — verify_host.ps1 passes 23/23 including ble-config and ble-stats; attempt 3 added no code, only hand-off/progress notes; phone/OLED bench checks remain deferred to T51/T55.
 <!-- /symphony:status -->
