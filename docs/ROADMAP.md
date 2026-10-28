@@ -132,7 +132,7 @@ pass.
 - [x] T51 — app: bridge settings → [tasks/51-app-bridge-settings.md](tasks/51-app-bridge-settings.md)
 - [x] T52 — app: destructive actions → [tasks/52-app-destructive-actions.md](tasks/52-app-destructive-actions.md) ⟵ closed with the T55 destructive board walk
 - [x] T53 — app: units and time end-to-end → [tasks/53-app-units-time-end-to-end.md](tasks/53-app-units-time-end-to-end.md)
-- [~] T46a — app: fix T46 History and connection findings → [tasks/46a-fix-history-connection-findings.md](tasks/46a-fix-history-connection-findings.md) ⟵ running
+- [~] T46a — app: fix T46 History and connection findings → [tasks/46a-fix-history-connection-findings.md](tasks/46a-fix-history-connection-findings.md) ⟵ blocked
 - [ ] T54 — app: UI state matrix, accessibility and copy gate → [tasks/54-app-ui-state-matrix-a11y-copy.md](tasks/54-app-ui-state-matrix-a11y-copy.md)
 - [ ] T55 — Bench: all settings and actions → [tasks/55-bench-settings-actions.md](tasks/55-bench-settings-actions.md)
 
@@ -187,11 +187,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-28T06:07:38Z · 52/67 done
+**Pipeline status** — updated 2026-10-28T06:58:05Z · 52/67 done
 
 - Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53
-- Blocked: none
+- Blocked: T46a
 - Failed: none
-- Remaining: T46a, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T53 — done · Units/locale/theme/change-window now use one conversion and formatting layer with launch persistence and same-frame repaints; host tests, analyze and verify_host pass, with the real-phone bench walk deferred to T55/T46.
+- Remaining: T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T46a — blocked · All eight fixes, regression tests, docs and host checks are green (289 tests); only the real-phone after-evidence remains, blocked because the Pixel is security-locked and its PIN is unavailable.
 <!-- /symphony:status -->
