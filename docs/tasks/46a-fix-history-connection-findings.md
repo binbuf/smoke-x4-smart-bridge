@@ -127,6 +127,14 @@ Remaining work for this task is exactly that physical pass plus committing the
 before/after images under `artifacts/bench/T46/fix-*` (or the T55 folder). All
 code, tests, docs and host checks are complete.
 
+### Acceptance (2026-10-28)
+
+Accepted by a human with the physical pass explicitly re-assigned. The Pixel was
+still PIN-locked (`deviceLocked=1`, keyguard not dismissible via `adb`), so no
+after-evidence could be captured here. `symphony accept T46a` records the host
+work as done; T55 must run A–D, F–H and J on the unlocked phone against the T46
+states and commit the images under `artifacts/bench/T46/fix-*`.
+
 ### Docs
 
 - `docs/design/adr/0058-history-gap-placement-and-reboot-recovery.md` (new)
