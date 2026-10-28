@@ -158,6 +158,11 @@ central is connected. Advertising is active in `ON_IDLE`; it stops in
 
 A sync request from an unsecured link is refused, not queued.
 
+T49 adds the destructive teardown order (05 §5.12): the result notification is
+sent first, the ≈250 ms action timer then removes the bond/reboots/sleeps, and a
+link drop before the timer does not cancel the action. Advertising restarts only
+after a forget (or a normal disconnect) and never during an owed reboot/sleep.
+
 ### 3.5.3 Smoke X link state
 
 `UNPAIRED → SYNC_RECEIVED → CONFIRMED (PAIRED) → LOST → PAIRED`
