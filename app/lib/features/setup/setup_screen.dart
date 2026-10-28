@@ -160,12 +160,28 @@ class _SetupScreenState extends State<SetupScreen> {
               ? 'View history on this phone'
               : null,
           onSecondary: view.hasSavedData ? _flow.showSavedData : null,
-          child: view.hasSavedData
-              ? InlineNotice(
-                  icon: Icons.folder_open_outlined,
-                  title: 'History on this phone',
-                  message:
-                      '${view.phoneRecordsLabel} readings · ${view.savedDataRange}',
+          child: view.hasSavedData || view.destructiveNotice != null
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (view.hasSavedData)
+                      InlineNotice(
+                        icon: Icons.folder_open_outlined,
+                        title: 'History on this phone',
+                        message: view.historyOrphaned
+                            ? '${view.phoneRecordsLabel} readings · ${view.savedDataRange} · from your previous Bridge.'
+                            : '${view.phoneRecordsLabel} readings · ${view.savedDataRange}',
+                      ),
+                    if (view.destructiveNotice != null) ...[
+                      if (view.hasSavedData) const SizedBox(height: 10),
+                      InlineNotice(
+                        key: const Key('setup.destructiveNotice'),
+                        icon: Icons.info_outline,
+                        title: 'Pairing not confirmed',
+                        message: view.destructiveNotice!,
+                      ),
+                    ],
+                  ],
                 )
               : null,
         );

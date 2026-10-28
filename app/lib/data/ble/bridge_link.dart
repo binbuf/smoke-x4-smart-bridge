@@ -183,6 +183,26 @@ class BridgeLinkException implements Exception {
   }
 }
 
+/// One control attempt, including whether the write reached the Bridge.
+class BridgeControlAttempt {
+  const BridgeControlAttempt({
+    required this.written,
+    this.result,
+    this.error,
+  });
+
+  /// True when the GATT control write returned before the result/error.
+  final bool written;
+
+  final BridgeResult? result;
+  final Object? error;
+
+  bool get timedOut =>
+      error is BridgeLinkException &&
+      (error! as BridgeLinkException).failure ==
+          BridgeLinkFailure.controlTimeout;
+}
+
 /// The app-side GATT procedure sequence (05 §5.12, 06 §6.3).
 ///
 /// connect → read `info` → MTU 247 → bond when needed → subscribe → read
@@ -737,8 +757,32 @@ class BridgeLink implements SyncTransport {
     BridgeControlOp op, [
     List<int> body = const <int>[],
   ]) async {
+    final attempt = await attemptControl(op, body);
+    final result = attempt.result;
+    if (result != null) return result;
+    final error = attempt.error;
+    if (error is BridgeLinkException) throw error;
+    throw BridgeLinkException(
+      BridgeLinkFailure.operationFailed,
+      error?.toString() ?? '',
+    );
+  }
+
+  /// One control write with delivery information.
+  ///
+  /// Destructive ops need to distinguish "the Bridge refused" from "the link
+  /// dropped before the write". [BridgeControlAttempt.written] is true only
+  /// after the GATT write returned, so a following disconnect can be treated as
+  /// the expected outcome of a request the Bridge received (05 §5.12).
+  Future<BridgeControlAttempt> attemptControl(
+    BridgeControlOp op, [
+    List<int> body = const <int>[],
+  ]) async {
     if (!_secure && !client.bondState.isBonded) {
-      throw const BridgeLinkException(BridgeLinkFailure.notSecured);
+      return const BridgeControlAttempt(
+        written: false,
+        error: BridgeLinkException(BridgeLinkFailure.notSecured),
+      );
     }
     final opId = _allocateOpId();
     final pending = _PendingControl(op: op, opId: opId);
@@ -759,15 +803,22 @@ class BridgeLink implements SyncTransport {
       );
     } on BleException catch (error) {
       _completeControl(opId, error: error);
-      if (_isBondRequired(error)) {
-        throw const BridgeLinkException(BridgeLinkFailure.bondRequired);
-      }
-      throw BridgeLinkException(
-        BridgeLinkFailure.operationFailed,
-        error.message,
+      return BridgeControlAttempt(
+        written: false,
+        error: _isBondRequired(error)
+            ? const BridgeLinkException(BridgeLinkFailure.bondRequired)
+            : BridgeLinkException(
+                BridgeLinkFailure.operationFailed,
+                error.message,
+              ),
       );
     }
-    return pending.completer.future;
+    try {
+      final result = await pending.completer.future;
+      return BridgeControlAttempt(written: true, result: result);
+    } catch (error) {
+      return BridgeControlAttempt(written: true, error: error);
+    }
   }
 
   int _allocateOpId() {

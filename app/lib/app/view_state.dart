@@ -323,6 +323,8 @@ class SetupViewState {
     required this.savedDataSize,
     required this.syncProgressPercent,
     required this.syncComplete,
+    this.historyOrphaned = false,
+    this.destructiveNotice,
   });
 
   final bool hasSavedData;
@@ -332,6 +334,14 @@ class SetupViewState {
   final String savedDataRange;
   final String savedDataSize;
   final int syncProgressPercent;
+
+  /// True when the readings on this phone came from a Bridge that was forgotten
+  /// or factory-reset. Setup labels the entry as the old Bridge's history.
+  final bool historyOrphaned;
+
+  /// A best-effort destructive action could not be confirmed (currently the
+  /// forget that may leave the pairing on the Bridge).
+  final String? destructiveNotice;
 
   /// True once the first (recent) pass is complete. Older history may still
   /// load in the background on Live; that does not gate the button.
