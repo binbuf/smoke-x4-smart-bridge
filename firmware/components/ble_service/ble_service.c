@@ -24,15 +24,19 @@
 
 #include "ble_control.h"
 #include "ble_adv.h"
+#include "ble_config.h"
 #include "ble_gatt_spec.h"
 #include "ble_info.h"
 #include "ble_live.h"
 #include "ble_security.h"
+#include "ble_stats.h"
 #include "ble_sync.h"
 #include "ble_tx.h"
+#include "board_battery.h"
 #include "bridge_config.h"
 #include "bridge_state.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -95,9 +99,9 @@ static const ble_uuid128_t s_stats_uuid = BLE_UUID128_INIT(
     0x62, 0x51, 0x40, 0x3f, 0x2e, 0x1c, 0x3d, 0x9a, 0x0f, 0x4b, 0x5b, 0x4c,
     0x08, 0x00, 0x9b, 0x7f);
 
-/* V0 placeholder values. T47/T51 replace config/stats with real snapshots. */
-static const uint8_t s_config_value[SX4_CONFIG_SIZE] = {1};
-static const uint8_t s_stats_value[SX4_STATS_SIZE] = {1};
+/* T47 config-applied seam (boot.c wires it to the UI). */
+static ble_service_config_applied_fn s_config_applied_cb;
+static void *s_config_applied_ctx;
 
 static uint16_t s_info_handle;
 static uint16_t s_live_handle;
@@ -319,6 +323,103 @@ static void build_info(uint8_t out[SX4_INFO_SIZE]) {
         .bonds_free = ble_info_bonds_free((uint8_t)used_bonds),
     };
     (void)ble_info_encode(&view, out, SX4_INFO_SIZE);
+}
+
+/* ---- config / stats snapshots (T47) ------------------------------------ */
+
+static void build_config(uint8_t out[SX4_CONFIG_SIZE]) {
+    bridge_config_device_t device = {
+        .units = BRIDGE_CONFIG_DEFAULT_UNITS,
+        .display_timeout_s = BRIDGE_CONFIG_DEFAULT_TIMEOUT,
+        .device_name = BRIDGE_CONFIG_DEFAULT_DEVICE_NAME,
+    };
+    ble_config_view_t view;
+
+    (void)bridge_config_get_device(&device);
+    memset(&view, 0, sizeof(view));
+    view.units = device.units;
+    view.display_timeout_s = device.display_timeout_s;
+    memcpy(view.device_name, device.device_name, sizeof(view.device_name) - 1u);
+    if (ble_config_encode(&view, out, SX4_CONFIG_SIZE) != SX4_CONFIG_SIZE) {
+        memset(out, 0, SX4_CONFIG_SIZE);
+        out[0] = 1; /* never leave a previous config readable on failure */
+    }
+}
+
+static uint32_t record_unix_s(uint32_t seq) {
+    sx4_sample_rec_t rec;
+    if (sample_log_read_seq(seq, &rec) != ESP_OK) {
+        return 0;
+    }
+    return rec.unix_s;
+}
+
+static void build_stats(uint8_t out[SX4_STATS_SIZE]) {
+    ble_stats_view_t view;
+    bridge_state_live_t live;
+    log_ring_info_t info;
+    bridge_config_stats_t counters;
+    board_battery_stats_t battery;
+    bool have_live = bridge_state_snapshot(&live) == BRIDGE_STATE_OK;
+
+    memset(&view, 0, sizeof(view));
+    if (have_live) {
+        view.flags = ble_stats_build_flags(
+            (live.flags & SX4_LIVE_FLAG_SMOKE_PAIRED) != 0,
+            (live.flags & SX4_LIVE_FLAG_SMOKE_LIVE) != 0,
+            ble_service_is_advertising(), s_connected,
+            (live.flags & SX4_LIVE_FLAG_CLOCK_VALID) != 0,
+            (live.flags & SX4_LIVE_FLAG_STORAGE_OK) != 0,
+            (live.flags & SX4_LIVE_FLAG_BILLOWS_ATTACHED) != 0);
+        view.uptime_s = live.uptime_s;
+        view.battery_mv = live.battery_mv;
+        view.battery_pct = live.battery_pct;
+        view.lora_rssi = live.rssi_lora;
+        view.lora_snr = live.snr_lora;
+        view.dropped_samples = live.dropped_samples > UINT16_MAX
+                                   ? UINT16_MAX
+                                   : (uint16_t)live.dropped_samples;
+    } else {
+        view.flags = ble_stats_build_flags(false, false,
+                                           ble_service_is_advertising(),
+                                           s_connected, false, false, false);
+        view.battery_pct = BOARD_BATTERY_SOC_UNKNOWN;
+    }
+
+    /* One extent snapshot supplies count, min/max and generation. */
+    view.records_capacity = BLE_STATS_CAPACITY;
+    view.min_seq = BLE_STATS_SEQ_NONE;
+    view.max_seq = BLE_STATS_SEQ_NONE;
+    if (sample_log_get_info(&info)) {
+        view.records_capacity =
+            info.sector_count * SAMPLE_LOG_RECORDS_PER_SECTOR;
+        /* The generation survives an empty/cleared log; the app uses it for
+         * the segment boundary even when there are no records yet. */
+        view.generation = info.generation;
+        if (info.count > 0u) {
+            view.records_stored = info.count;
+            view.min_seq = info.min_seq;
+            view.max_seq = info.max_seq;
+            view.oldest_unix_s = record_unix_s(info.min_seq);
+            view.newest_unix_s = record_unix_s(info.max_seq);
+        }
+    }
+
+    if (bridge_config_stats_get(&counters) == BRIDGE_CONFIG_OK) {
+        view.packets_ok = counters.packets_ok;
+        view.packets_bad = counters.packets_bad;
+    }
+    battery = board_battery_stats_get();
+    view.battery_mv = battery.millivolts;
+    view.battery_pct = battery.percent;
+
+    view.heap_free = (uint32_t)esp_get_free_heap_size();
+    view.heap_min = (uint32_t)esp_get_minimum_free_heap_size();
+
+    if (ble_stats_encode(&view, out, SX4_STATS_SIZE) != SX4_STATS_SIZE) {
+        memset(out, 0, SX4_STATS_SIZE);
+        out[0] = 1;
+    }
 }
 
 /* ---- advertising and pairing (T30) ------------------------------------- */
@@ -569,6 +670,8 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
                       const ble_gatt_spec_t *spec) {
     uint8_t info[SX4_INFO_SIZE];
     uint8_t live[SX4_LIVE_SIZE];
+    uint8_t config[SX4_CONFIG_SIZE];
+    uint8_t stats[SX4_STATS_SIZE];
     const uint8_t *data = NULL;
     size_t len = 0;
 
@@ -593,12 +696,14 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
         len = sizeof(live);
         break;
     case SX4_BLE_CHAR_CONFIG_SLOT:
-        data = s_config_value;
-        len = sizeof(s_config_value);
+        build_config(config);
+        data = config;
+        len = sizeof(config);
         break;
     case SX4_BLE_CHAR_STATS_SLOT:
-        data = s_stats_value;
-        len = sizeof(s_stats_value);
+        build_stats(stats);
+        data = stats;
+        len = sizeof(stats);
         break;
     default:
         return BLE_ATT_ERR_UNLIKELY;
@@ -968,34 +1073,67 @@ static int write_sync_ctrl(uint16_t conn_handle,
     return 0;
 }
 
-static int write_value(uint16_t conn_handle,
-                       struct ble_gatt_access_ctxt *ctxt,
-                       const ble_gatt_spec_t *spec) {
+/* T47: one full 80-byte config struct. Queued (Prepare/Execute) writes are
+ * reassembled by NimBLE before this callback, so a partial body is a length
+ * error rather than a merge. */
+static int write_config(struct ble_gatt_access_ctxt *ctxt) {
     uint8_t scratch[SX4_CONFIG_SIZE];
     uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
     uint16_t written = 0;
 
+    if (len != SX4_CONFIG_SIZE) {
+        return BLE_CONFIG_ATT_INVALID;
+    }
+    if (ble_hs_mbuf_to_flat(ctxt->om, scratch, sizeof(scratch), &written) !=
+        0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    ble_config_view_t view;
+    ble_config_status_t status = ble_config_parse(scratch, len, &view);
+    if (status == BLE_CONFIG_UNSUPPORTED) {
+        ESP_LOGW(TAG, "config write refused: billows control unsupported");
+        return BLE_CONFIG_ATT_UNSUPPORTED;
+    }
+    if (status != BLE_CONFIG_OK) {
+        ESP_LOGW(TAG, "config write refused: invalid body");
+        return BLE_CONFIG_ATT_INVALID;
+    }
+
+    bridge_config_device_t device;
+    memset(&device, 0, sizeof(device));
+    device.units = view.units;
+    device.display_timeout_s = view.display_timeout_s;
+    memcpy(device.device_name, view.device_name, sizeof(device.device_name));
+    if (bridge_config_set_device(&device) != BRIDGE_CONFIG_OK) {
+        ESP_LOGW(TAG, "config write failed to persist");
+        return BLE_CONFIG_ATT_STORAGE;
+    }
+
+    ESP_LOGI(TAG, "config applied: units %u, timeout %u s, name %s",
+             (unsigned)view.units, (unsigned)view.display_timeout_s,
+             view.device_name);
+    ble_service_config_applied_fn cb = s_config_applied_cb;
+    if (cb != NULL) {
+        cb(view.units, view.display_timeout_s, s_config_applied_ctx);
+    }
+    return 0;
+}
+
+static int write_value(uint16_t conn_handle,
+                       struct ble_gatt_access_ctxt *ctxt,
+                       const ble_gatt_spec_t *spec) {
     if (spec->slot == SX4_BLE_CHAR_CONTROL_SLOT) {
         return write_control(conn_handle, ctxt);
     }
     if (spec->slot == SX4_BLE_CHAR_SYNC_CTRL_SLOT) {
         return write_sync_ctrl(conn_handle, ctxt);
     }
-
-    /*
-     * T47 (config) replaces this no-op handler. Draining the mbuf here keeps
-     * the GATT attribute write legal.
-     */
-    if (len > sizeof(scratch)) {
-        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    if (spec->slot == SX4_BLE_CHAR_CONFIG_SLOT) {
+        return write_config(ctxt);
     }
-    if (ble_hs_mbuf_to_flat(ctxt->om, scratch, sizeof(scratch), &written) !=
-        0) {
-        return BLE_ATT_ERR_UNLIKELY;
-    }
-    ESP_LOGD(TAG, "write slot %04x (%u B) staged for a later task", spec->slot,
-             (unsigned)len);
-    return 0;
+    /* `stats` is read-only; NimBLE rejects a write by its flags. */
+    return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
 }
 
 static int ble_service_access(uint16_t conn_handle, uint16_t attr_handle,
@@ -1172,6 +1310,12 @@ uint8_t ble_service_bond_count(void) { return s_bond_count; }
 void ble_service_set_passkey_callback(ble_service_passkey_fn fn, void *ctx) {
     s_passkey_cb = fn;
     s_passkey_ctx = ctx;
+}
+
+void ble_service_set_config_applied_callback(
+    ble_service_config_applied_fn fn, void *ctx) {
+    s_config_applied_cb = fn;
+    s_config_applied_ctx = ctx;
 }
 
 void ble_service_boost_advertising(void) {

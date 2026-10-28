@@ -176,6 +176,7 @@ static void build_snapshot(ui_snapshot_t *snapshot) {
     if (bridge_config_get_device(&device) == BRIDGE_CONFIG_OK) {
         memcpy(snapshot->name, device.device_name, sizeof(snapshot->name));
         snapshot->name[sizeof(snapshot->name) - 1u] = '\0';
+        snapshot->units = device.units;
     }
 
     log_ring_info_t info;

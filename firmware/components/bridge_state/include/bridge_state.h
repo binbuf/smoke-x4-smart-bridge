@@ -78,6 +78,7 @@ typedef struct {
     uint8_t battery_pct;       /* 255 = unknown */
     int8_t rssi_lora;
     int8_t snr_lora;
+    uint32_t dropped_samples; /* sample_pipe queue drops since boot */
 } bridge_state_live_t;
 
 /* One validated state packet from sample_pipe (T21). */
@@ -145,6 +146,13 @@ void bridge_state_set_billows_output(bool output);
 
 /* Battery (T24): mV plus percent, or BRIDGE_STATE_SOC_UNKNOWN for unknown. */
 void bridge_state_set_battery(uint16_t millivolts, uint8_t percent);
+
+/*
+ * Sample-pipe queue drops since boot (T47 stats). The sample task publishes its
+ * counter after each packet; the value is part of the same live snapshot the
+ * UI and BLE read, so `stats.dropped_samples` needs no second source.
+ */
+void bridge_state_set_dropped_samples(uint32_t count);
 
 /*
  * Optional observer for the live snapshot (T28). The callback runs after every

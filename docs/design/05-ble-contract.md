@@ -440,6 +440,26 @@ name/role bytes reserved, so the packet size does not churn before M0.
 
 A partial write is not supported; read-modify-write is the app's job.
 
+### Implementation rules (T47)
+
+- `ble_config.c` owns the pure validator/encoder; the GATT callback copies the
+  reassembled mbuf, calls `ble_config_parse()`, then persists the accepted view
+  with one `bridge_config_set_device()` call. NimBLE reassembles queued
+  Prepare/Execute writes before the callback, so a body that is not exactly
+  80 B is refused rather than merged.
+- A write has no result notification. Refusals are ATT application errors
+  `0x80 | status` from 05 §5.6: `0x81` (`invalid`) for a wrong length/version,
+  bad UTF-8 or unterminated/empty name, bad units or bad timeout; `0x82`
+  (`unsupported`) for any nonzero `billows_mode`; `0x87` (`storage`) if NVS
+  rejects the write. A refused write changes nothing.
+- `device_name` follows the NVS rules: 1–15 UTF-8 bytes, no NUL or control
+  bytes, NUL within the 16-byte field. `billows_target_f10` and reserved bytes
+  23–79 are ignored on write and always 0 on read.
+- Read builds the 80 B payload from `bridge_config` on every call (Read Blob at
+  MTU 23). An accepted write calls the boot-installed config-applied seam; the
+  OLED reads `units` from the next snapshot and `ui_set_display_timeout()`
+  applies the new timeout immediately, so no reboot is needed.
+
 ## 5.10 `0008 stats` — Read, encrypted
 
 Fixed 60 B.
@@ -480,6 +500,24 @@ Fixed 60 B.
 | 5 | `storage_ok` |
 | 6 | `billows_attached` |
 | 7 | `billows_control` (reserved; always 0 in the MVP) |
+
+### Implementation rules (T47)
+
+- `ble_stats.c` is the pure encoder; `ble_service.c` gathers one fresh view per
+  read and never caches. The extent fields (`records_stored`, `min_seq`,
+  `max_seq`, `generation`) come from one `sample_log_get_info()` snapshot;
+  `oldest_unix_s`/`newest_unix_s` are the stored times of that snapshot's
+  min/max records. An empty log writes `0xFFFFFFFF` for both seqs and 0 for
+  both times.
+- `flags` maps the live snapshot: paired/live/clock/storage/Billows bits come
+  from `bridge_state`, advertising/connected from the BLE service. Bit 7 is
+  masked off on every encode.
+- Battery is `board_battery_stats_get()` (255 when unknown), RSSI/SNR are the
+  last valid packet, heap is `esp_get_free_heap_size()` /
+  `esp_get_minimum_free_heap_size()`, and `dropped_samples` is the sample-pipe
+  counter published into the same live snapshot. Reserved bytes stay 0.
+- Both `config` and `stats` keep the full payload in the callback; NimBLE owns
+  the `MTU−1` Read Blob slicing. No callback chunks the value itself.
 
 ## 5.11 Security
 

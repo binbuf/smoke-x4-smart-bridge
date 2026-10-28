@@ -316,7 +316,8 @@ void ui_fb_passkey(ui_framebuffer_t *fb, int y, const char *digits) {
 
 /* ---- formatting helpers ------------------------------------------------- */
 
-static void format_temp(int16_t temp_f10, char *out, size_t out_size) {
+static void format_temp(int16_t temp_f10, uint8_t units, char *out,
+                        size_t out_size) {
     if (temp_f10 == INT16_MIN) {
         snprintf(out, out_size, "---");
         return;
@@ -326,20 +327,28 @@ static void format_temp(int16_t temp_f10, char *out, size_t out_size) {
         return;
     }
     int32_t value = temp_f10;
+    char unit = 'F';
+    if (units == 0u) {
+        /* Stored values are always Fahrenheit tenths; the OLED may show °C.
+         * Round half away from zero. */
+        int32_t scaled = (value - 320) * 5;
+        value = scaled >= 0 ? (scaled + 4) / 9 : (scaled - 4) / 9;
+        unit = 'C';
+    }
     const char *sign = value < 0 ? "-" : "";
     uint32_t abs_value = (uint32_t)(value < 0 ? -value : value);
-    snprintf(out, out_size, "%s%lu.%lu%sF", sign,
+    snprintf(out, out_size, "%s%lu.%lu%s%c", sign,
              (unsigned long)(abs_value / 10u), (unsigned long)(abs_value % 10u),
-             s_degree);
+             s_degree, unit);
 }
 
-static void format_probe(uint8_t attached, int16_t temp_f10, char *out,
-                         size_t out_size) {
+static void format_probe(uint8_t attached, int16_t temp_f10, uint8_t units,
+                         char *out, size_t out_size) {
     if (!attached) {
         snprintf(out, out_size, "---");
         return;
     }
-    format_temp(temp_f10, out, out_size);
+    format_temp(temp_f10, units, out, out_size);
 }
 
 static void format_count(uint32_t count, char *out, size_t out_size) {
@@ -406,7 +415,8 @@ static void render_probes(ui_framebuffer_t *fb,
     for (unsigned i = 0; i < 4u; i++) {
         char label[3] = {'P', (char)('1' + i), '\0'};
         format_probe((snapshot->attached_mask >> i) & 1u,
-                     snapshot->temp_f10[i], value, sizeof(value));
+                     snapshot->temp_f10[i], snapshot->units, value,
+                     sizeof(value));
         ui_fb_row_lr(fb, (uint8_t)i, label, value);
     }
 
@@ -486,14 +496,15 @@ static void render_billows(ui_framebuffer_t *fb,
                  snapshot->billows_detected ? "DETECTED" : "NOT DETECTED");
 
     if (snapshot->billows_target_valid) {
-        format_temp(snapshot->billows_target_f10, value, sizeof(value));
+        format_temp(snapshot->billows_target_f10, snapshot->units, value,
+                    sizeof(value));
     } else {
         snprintf(value, sizeof(value), "%s", s_em_dash);
     }
     ui_fb_row_lr(fb, 1, "SET", value);
 
     format_probe((snapshot->attached_mask >> 3) & 1u, snapshot->temp_f10[3],
-                 value, sizeof(value));
+                 snapshot->units, value, sizeof(value));
     ui_fb_row_lr(fb, 2, "P4", value);
 
     ui_fb_text_row(fb, 5, "Set on the Smoke X4");
@@ -685,6 +696,7 @@ void ui_snapshot_init(ui_snapshot_t *snapshot) {
         snapshot->temp_f10[i] = INT16_MIN;
     }
     snapshot->battery_pct = UI_BATTERY_UNKNOWN;
+    snapshot->units = 1u; /* Fahrenheit until config says otherwise */
     snapshot->phones_max = UI_PHONES_MAX;
     snapshot->log_days_left_x10 = UI_DAYS_UNKNOWN;
     snapshot->storage_ok = true;

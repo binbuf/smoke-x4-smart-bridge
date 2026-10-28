@@ -97,6 +97,16 @@ static void show_passkey(const char *digits, void *ctx) {
     ui_set_passkey(digits);
 }
 
+/* T47 seam: an accepted config write changes the OLED without a reboot. The
+ * next UI snapshot reads units/name from bridge_config; the display timeout is
+ * pushed straight into the sleep state machine. */
+static void apply_config(uint8_t units, uint16_t display_timeout_s, void *ctx) {
+    (void)units; /* read from bridge_config by the next snapshot */
+    (void)ctx;
+    ui_set_display_timeout(display_timeout_s);
+    ui_mark_dirty();
+}
+
 void sx4_boot_run(void) {
     ESP_LOGI(TAG, "boot: starting");
 
@@ -119,6 +129,7 @@ void sx4_boot_run(void) {
     run_step("ble_tx_start", ble_tx_start);
     run_step("sx_radio_start", sx_radio_start);
     ble_service_set_passkey_callback(show_passkey, NULL);
+    ble_service_set_config_applied_callback(apply_config, NULL);
     run_step("ble_service_start", ble_service_start);
 
     /* Housekeeping owns battery sampling and the clock-persistence cadence;
