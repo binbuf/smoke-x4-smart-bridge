@@ -316,12 +316,14 @@ sx_protocol_result_t sx_protocol_parse_state(const char *payload,
         return SX_PROTOCOL_ERR_FORMAT;
     }
 
-    /* The fan target is only a candidate: probe 4's max is overloaded as a
-     * high alarm setpoint, and the relation is not validated until M5. */
+    /* T56 confirmed the relation on a real X4+Billows: probe 4's `max` equals
+     * the set temp on the base at 225/250/275 °F and `min` stays 0. The target
+     * is only meaningful while the Billows is attached; after detach the X4
+     * falls back to the non-fan max/min defaults, so do not expose those. */
     if (parsed.billows_attached && num_probes == 4) {
         parsed.billows_target_deg = parsed.probes[3].alarm_high_deg;
         parsed.billows_target_units = parsed.units;
-        parsed.billows_target_valid = false; /* M5 supplies the relation */
+        parsed.billows_target_valid = true;
     }
 
     *out = parsed;

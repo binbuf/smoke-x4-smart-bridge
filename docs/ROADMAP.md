@@ -148,7 +148,7 @@ the target set on the Smoke X4. `caps.billows_control = 0`; there is no setpoint
 setter and no Billows TX path.
 
 - [x] T56 — Billows observation evidence (passive) → [tasks/56-billows-observation-evidence.md](tasks/56-billows-observation-evidence.md)
-- [ ] T57 — Firmware and app: Billows observation → [tasks/57-billows-observation.md](tasks/57-billows-observation.md)
+- [x] T57 — Firmware and app: Billows observation → [tasks/57-billows-observation.md](tasks/57-billows-observation.md)
 - [ ] T59 — Bench: Billows observation → [tasks/59-bench-billows-observation.md](tasks/59-bench-billows-observation.md)
 
 T58 (the separate app task) was folded into T57: the Live card, Settings screen

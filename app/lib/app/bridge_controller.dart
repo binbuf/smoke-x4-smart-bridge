@@ -195,6 +195,8 @@ class BridgeController extends ChangeNotifier {
     _smokeXConnectedSince = null;
     billowsAttachment = BillowsAttachment.unknown;
     billowsSeenThisSession = false;
+    billowsLastDetectedAt = null;
+    billowsLostAt = null;
     notifyListeners();
   }
 
@@ -694,6 +696,8 @@ class BridgeController extends ChangeNotifier {
           // A new link session has not observed Billows yet.
           billowsAttachment = BillowsAttachment.unknown;
           billowsSeenThisSession = false;
+          billowsLastDetectedAt = null;
+          billowsLostAt = null;
         }
         break;
       case ConnectionPhase.reconnecting:
@@ -748,10 +752,18 @@ class BridgeController extends ChangeNotifier {
     }
     // The live flag is authoritative in both directions. Only a real attached
     // reading makes the Billows card appear; a stale previous session must not.
+    final wasDetected = billowsDetected;
     billowsAttachment = live.billowsAttached
         ? BillowsAttachment.attached
         : BillowsAttachment.detached;
-    if (live.billowsAttached) billowsSeenThisSession = true;
+    if (live.billowsAttached) {
+      billowsSeenThisSession = true;
+      billowsLastDetectedAt = update.receivedAt;
+      billowsLostAt = null;
+    } else if (wasDetected) {
+      // Keep the last attached time; this is the age shown for the lost state.
+      billowsLostAt = update.receivedAt;
+    }
     // Make the graph move as the readings arrive instead of waiting for the
     // next history sync.
     recentHistory.recordLive(
@@ -1035,6 +1047,14 @@ class BridgeController extends ChangeNotifier {
   bool smokeXChannel4SetKnown = true;
   int smokeXChannel4SetF = 225;
   bool billowsSeenThisSession = true;
+
+  /// Phone receipt time of the newest state packet that reported Billows
+  /// attached. Null in fixture/review builds; production fills it from `live`.
+  DateTime? billowsLastDetectedAt;
+
+  /// Phone receipt time of the packet that first reported Billows detached, so
+  /// the lost notice and connection log age from a real event, not a guess.
+  DateTime? billowsLostAt;
 
   HistoryRange historyRange = HistoryRange.twentyFourHours;
   int? historyProbe;
@@ -1526,9 +1546,9 @@ class BridgeController extends ChangeNotifier {
           detail: billowsDetected
               ? 'The Smoke X4 reports Billows detected'
               : 'Detected earlier this session · not detected now',
-          time: billowsDetected
-              ? now.subtract(const Duration(seconds: 12))
-              : now.subtract(const Duration(minutes: 12)),
+          time:
+              billowsLastDetectedAt ??
+              now.subtract(const Duration(seconds: 12)),
           kind: ConnectionEventKind.billowsConnected,
         ),
       );
@@ -1538,7 +1558,7 @@ class BridgeController extends ChangeNotifier {
         ConnectionEvent(
           title: 'Billows lost',
           detail: 'Was paired through the Smoke X4 · check fan power',
-          time: now.subtract(const Duration(minutes: 12)),
+          time: billowsLostAt ?? now.subtract(const Duration(minutes: 12)),
           kind: ConnectionEventKind.billowsLost,
         ),
       );
@@ -1715,6 +1735,13 @@ class BridgeController extends ChangeNotifier {
   }
 
   String get billowsLastDetectedLabel {
+    final detectedAt = billowsLastDetectedAt;
+    if (detectedAt != null) {
+      final age = content.now.difference(detectedAt);
+      return _ageLabel(age.isNegative ? Duration.zero : age);
+    }
+    // Fixture/review builds have no live timestamps; the approved baseline
+    // still renders a relative age rather than a bare `Detected`.
     if (billowsDetected) {
       final age = smokeXLastPacketAge ?? bridgeLastContactAge;
       if (age != null) return _ageLabel(age);
@@ -2562,6 +2589,8 @@ class BridgeController extends ChangeNotifier {
     // visible after the Bridge reports a genuinely attached unit.
     billowsAttachment = BillowsAttachment.unknown;
     billowsSeenThisSession = false;
+    billowsLastDetectedAt = null;
+    billowsLostAt = null;
     notifyListeners();
   }
 
@@ -2910,6 +2939,8 @@ class BridgeController extends ChangeNotifier {
     smokeXChannel4SetKnown = true;
     smokeXChannel4SetF = 225;
     billowsSeenThisSession = true;
+    billowsLastDetectedAt = null;
+    billowsLostAt = null;
     bleRssi = -58;
     _bridgeConnectedSince = DateTime.now().subtract(
       const Duration(hours: 2, minutes: 14),

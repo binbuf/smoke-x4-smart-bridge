@@ -437,8 +437,9 @@ Rules:
 - Billows appears **automatically when detected**. There is no off switch, no
   mode switch, no target setter, and no second “Connected” pill. `Detected` comes
   only from the `billows_attached` field in a recent valid X4 packet; never claim
-  the fan is running. The target is the Smoke X4 channel 4 set temp; when it has
-  not been validated it shows `-`. The Live card shows `Billows`, `Set temp`,
+  the fan is running. The target is the Smoke X4 channel 4 set temp (probe 4
+  `max`, validated by T56); when `billows_target_f10` is `0` it shows `—`. The
+  Live card shows `Billows`, `Set temp`,
   `Last detected`, and the caption `Set on the Smoke X4.` When
   `caps.billows_observe = 0` the card and every Billows notice are absent; Live
   models that as a null `billows` view state (ADR 0041). The `Last detected`

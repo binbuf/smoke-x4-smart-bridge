@@ -17,24 +17,24 @@ The firmware decodes Billows attachment and, only when T56 validated the relatio
 
 ## Scope
 ### Firmware
-- [ ] Decode `billows_attached` into `live.flags`.
-- [ ] Decode the candidate target; return `billows_target_f10 = 0` until T56 confirms the relation.
-- [ ] Set `caps.billows_observe = 1` and `caps.billows_control = 0`.
-- [ ] Keep `billows_output` reserved and always 0.
-- [ ] Keep `config.billows_mode` and `config.billows_target_f10` reserved and unwritten.
-- [ ] Answer `set_billows_target` with `unsupported`.
-- [ ] Keep the only LoRa TX path the pairing ACK.
+- [x] Decode `billows_attached` into `live.flags`.
+- [x] Decode the target; T56 confirmed `max` = the base set temp, so return probe 4 `max` while attached and `billows_target_f10 = 0` when detached/unknown.
+- [x] Set `caps.billows_observe = 1` and `caps.billows_control = 0`.
+- [x] Keep `billows_output` reserved and always 0.
+- [x] Keep `config.billows_mode` and `config.billows_target_f10` reserved and unwritten.
+- [x] Answer `set_billows_target` with `unsupported`.
+- [x] Keep the only LoRa TX path the pairing ACK.
 
 ### App
-- [ ] Add a Live Billows card only when **detected**, with no `Connected` pill and no `Read-only` label.
-- [ ] Show `Set temp` when `billows_target_f10 != 0`, otherwise `—`.
-- [ ] Show `Last detected` with an age (`12s ago`), not a bare `Detected`.
-- [ ] Show the source line `Set on the Smoke X4.`
-- [ ] Render the offline `Last observed state`, `Set temp (last known)` and a last-detected age.
-- [ ] Show one `Billows not detected` notice with `View connection log` if it was detected earlier this session and is now missing.
-- [ ] In Settings → Bridge → Billows, show status/last-seen only, with the focused connection log.
-- [ ] Provide no mode switch, no target editor, no Set target action, no fan-speed claim.
-- [ ] Provide no control UI even if a future firmware sets a control bit this build does not implement.
+- [x] Add a Live Billows card only when **detected**, with no `Connected` pill and no `Read-only` label.
+- [x] Show `Set temp` when `billows_target_f10 != 0`, otherwise `—`.
+- [x] Show `Last detected` with an age (`12s ago`), not a bare `Detected`.
+- [x] Show the source line `Set on the Smoke X4.`
+- [x] Render the offline `Last observed state`, `Set temp (last known)` and a last-detected age.
+- [x] Show one `Billows not detected` notice with `View connection log` if it was detected earlier this session and is now missing.
+- [x] In Settings → Bridge → Billows, show status/last-seen only, with the focused connection log.
+- [x] Provide no mode switch, no target editor, no Set target action, no fan-speed claim.
+- [x] Provide no control UI even if a future firmware sets a control bit this build does not implement.
 
 ## Out of scope
 - Any Billows control path, target write, or Billows transmit — outside MVP; no task owns it, and T68 is receive-only.
@@ -60,14 +60,47 @@ The firmware decodes Billows attachment and, only when T56 validated the relatio
 - No path in this build may send `set_billows_target`, regardless of advertised caps.
 
 ## Done when
-- [ ] Host tests cover the attached flag, unknown/known target encoding, and an unsupported `set_billows_target`.
-- [ ] The TX invariant test proves no Billows transmit path exists.
-- [ ] `caps.billows_observe = 1` and `caps.billows_control = 0` are observable in the host tests.
-- [ ] Fake and real states render correctly with the approved copy.
-- [ ] No UI path can send `set_billows_target`.
-- [ ] The card is absent when Billows has never been detected.
-- [ ] Widget tests cover detected, unknown target, known target, offline, and lost-this-session states.
-- [ ] Hand-off below filled in.
+- [x] Host tests cover the attached flag, unknown/known target encoding, and an unsupported `set_billows_target`.
+- [x] The TX invariant test proves no Billows transmit path exists.
+- [x] `caps.billows_observe = 1` and `caps.billows_control = 0` are observable in the host tests.
+- [x] Fake and real states render correctly with the approved copy.
+- [x] No UI path can send `set_billows_target`.
+- [x] The card is absent when Billows has never been detected.
+- [x] Widget tests cover detected, unknown target, known target, offline, and lost-this-session states.
+- [x] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** The firmware parser now exposes probe 4 `max` as
+`billows_target_deg` with `billows_target_valid = true` while
+`billows_attached` is set (T56 relation: `max` = base set temp; `min` = 0).
+`sample_pipe` converts the target to canonical °F tenths (including °C
+packets), `bridge_state`/`ble_live` keep `0` for an unknown target, and
+`caps.billows_control` remains 0. The existing single-TX-call-site test still
+proves the pairing ACK is the only `LoRaSend` path.
+
+The app now tracks the real last-detection and loss times from `live` instead
+of the hardcoded 12-minute age, so `Last detected` and the connection log age
+from the actual event. Settings → Bridge → Billows shows the offline
+`Last observed state`, `Set temp (last known)` and the Billows-filtered
+connection log. There is still no mode switch, target editor, Set target action,
+fan-speed claim or control UI.
+
+**Tests.** `firmware/test/test_sx_protocol.c` replays the T56 capture and
+asserts `max` = 225/250/275 only while attached, with `min=0` and the detached
+160/32 fields never becoming a target. `firmware/test/test_sample_pipe.c` covers
+known target, detached/unknown target and °C conversion.
+`app/test/billows_observation_test.dart` covers known target, unknown target,
+offline last-known, lost-this-session age and the no-`set_billows_target` path.
+The existing widget tests still cover the absent card and the single loss
+notice.
+
+**Deviations.** The app's fixture/default controller still seeds a 225 °F
+Billows for the review shell, but real sessions clear it on launch/connect and
+the card only renders from `live` data. The Billows-filtered log is shown inline
+on the Billows screen; the full Bridge timeline remains in Bridge details.
+
+**For T59.** Run the real bench matrix on the release image: attach/detach,
+225/250/275 °F on the base, °F/°C flip, the app/OLED read-only target and the
+absence of any Billows TX. T57 is host-verified only; the physical panel and
+real-phone walk belong to T59.

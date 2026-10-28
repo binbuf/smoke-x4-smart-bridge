@@ -35,6 +35,16 @@ static const char kSyncPayload[] = "000000,LMXC[\\,160,50,191,54,";
 static const char kStatePayload[] =
     "LMXC[\\,30,1,1,0,826,0,99,47,0,823,0,160,32,0,827,0,160,32,0,825,1,160,"
     "32,0,0,";
+/* T56 real frames: probe 4 max == the base target while attached. */
+static const char kBillows250Payload[] =
+    "LMXC[\\,30,1,2,0,820,0,99,47,0,820,0,160,32,0,820,0,160,32,0,817,1,250,"
+    "0,1,0,";
+static const char kBillowsDetachedPayload[] =
+    "LMXC[\\,30,1,2,0,822,0,99,47,0,819,0,160,32,0,821,0,160,32,0,816,1,160,"
+    "32,0,0,";
+static const char kBillowsCelsiusTargetPayload[] =
+    "LMXC[\\,30,0,1,0,820,0,99,47,0,820,0,160,32,0,820,0,160,32,0,817,1,121,"
+    "0,1,0,";
 
 /* -------- allocation guard ------------------------------------------------- */
 
@@ -340,6 +350,43 @@ static void test_replay_t10_capture(void) {
     CHECK_EQ_UINT(counters.last_packet_age_s, 5u);
 }
 
+/* -------- Billows target gate (T57/T56) ------------------------------------ */
+
+static void test_billows_target_gate(void) {
+    fixture_t *f = &g_fixture;
+    fixture_init_pipe(f);
+    f->pairing.num_probes = 4u;
+
+    /* Attached at 250 °F: probe 4 max becomes the live target. */
+    CHECK_EQ_INT(feed_text(f, kBillows250Payload, -40, 10),
+                 SAMPLE_PIPE_RECORD_QUEUED);
+    fixture_drain(f);
+    sx4_sample_rec_t rec;
+    read_record(f, 0, &rec);
+    CHECK(sx4_sample_rec_flags_billows_attached(rec.flags));
+    CHECK(f->last_snapshot.billows_attached);
+    CHECK(f->last_snapshot.billows_target_valid);
+    CHECK_EQ_INT(f->last_snapshot.billows_target_f10, 2500);
+
+    /* Detached: the X4's 160/32 non-fan defaults must not become a target. */
+    CHECK_EQ_INT(feed_text(f, kBillowsDetachedPayload, -40, 10),
+                 SAMPLE_PIPE_RECORD_QUEUED);
+    fixture_drain(f);
+    read_record(f, 1, &rec);
+    CHECK(!sx4_sample_rec_flags_billows_attached(rec.flags));
+    CHECK(!f->last_snapshot.billows_attached);
+    CHECK(!f->last_snapshot.billows_target_valid);
+    CHECK_EQ_INT(f->last_snapshot.billows_target_f10, 0);
+
+    /* °C packet: the whole-degree target converts to canonical F tenths. */
+    CHECK_EQ_INT(feed_text(f, kBillowsCelsiusTargetPayload, -40, 10),
+                 SAMPLE_PIPE_RECORD_QUEUED);
+    fixture_drain(f);
+    CHECK(f->last_snapshot.billows_attached);
+    CHECK(f->last_snapshot.billows_target_valid);
+    CHECK_EQ_INT(f->last_snapshot.billows_target_f10, 2498);
+}
+
 /* -------- packet counters -------------------------------------------------- */
 
 static void test_packet_counters(void) {
@@ -457,6 +504,7 @@ static void test_snapshot_precedes_dirty_on_append_failure(void) {
 
 int main(void) {
     test_replay_t10_capture();
+    test_billows_target_gate();
     test_packet_counters();
     test_full_queue_drops_without_blocking();
     test_snapshot_precedes_dirty_on_append_failure();
