@@ -6,9 +6,9 @@ This record closes the control-path question in
 [08 §8.3](design/08-billows.md#83-why-set-target-is-not-an-mvp-feature). The MVP
 does not implement "set target" and does not transmit to a Billows or to the
 Smoke X4 outside the pairing ACK.
-[T56](tasks/56-billows-observation-evidence.md) remains open: it is the passive
-capture that validates the target **relation**, which is a decode question, not
-a control decision.
+[T56](tasks/56-billows-observation-evidence.md) completed on 2026-10-28: the
+passive capture validates the target **relation** (a decode question, not a
+control decision) as probe 4 `max` = the base target.
 
 ## Evidence
 
@@ -28,6 +28,28 @@ listener; without a command path it cannot set a Smoke X4 setpoint over LoRa.
 The remaining control options (an inline 12 V fan controller, or a future RF
 command if one is ever discovered) are hardware/post-MVP work, not MVP firmware.
 
+## T56 target-relation result (2026-10-28)
+
+Passive capture with a real Billows attached to a real X4, air probe at room
+temperature, no cook, receive only. Probe 4's `max`/`min` were read at three base
+targets, changed on the Smoke X4 base between captures:
+
+| Base target | Probe 4 `max` | Probe 4 `min` | `billows_attached` |
+|---|---:|---:|---:|
+| 225 °F | 225 | 0 | 1 |
+| 250 °F | 250 | 0 | 1 |
+| 275 °F | 275 | 0 | 1 |
+| detached | 160 (default) | 32 (default) | 0 |
+
+**Confirmed relation: the target is probe 4 `max`.** `max` followed the base
+setpoint exactly at all three targets; it is not `max − 25` and not the midpoint.
+`min` stayed `0` in fan mode, so it does not carry `target − 25` either. After
+detach the flag cleared and probe 4 returned to its non-fan defaults, so the
+target must only be read while `billows_attached` is set.
+
+Evidence: `protocol/fixtures/lora/x4-billows-225-250-275.loralog` and its
+`.report.md`; row recorded in [`hardware-verified.md`](hardware-verified.md).
+
 ## Options
 
 | Option | Description | Cost | Risk | Decision |
@@ -44,11 +66,12 @@ command if one is ever discovered) are hardware/post-MVP work, not MVP firmware.
   broadcast as the receiver. There is no command path to emulate, and inventing
   one is unsafe and unsupported.
 - **Target derivation:** the observed target remains a **decode question**, not a
-  control question. The candidate is Channel 4's `max`/`min` field in fan mode.
-  T56 captures 225/250/275 °F passively and records whether the target is
-  `max`, `max − 25`, the midpoint, or another relation. Until that is confirmed,
-  the firmware returns `billows_target_f10 = 0` and the UI shows `—`; it never
-  guesses.
+  control question. T56 confirmed the relation: Channel 4's `max` is the target
+  and `min` is `0` in fan mode (225/250/275 °F captured; see
+  [T56 result](#t56-target-relation-result-2026-10-28)). The firmware may
+  therefore expose `max` as `billows_target_f10` **only while
+  `billows_attached` is set**; when detached, or when the value is absent, it
+  returns `0` and the UI shows `—`. It never guesses.
 - **What changes in the app/OLED:** Billows is a read-only card/page shown when a
   Billows is detected. It shows attached/not attached and a validated target when
   available. Copy says "Set on the Smoke X4." There is no mode switch, target

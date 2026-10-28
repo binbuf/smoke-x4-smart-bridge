@@ -499,6 +499,7 @@ static void check_real_captures(void) {
     check_capture("x4-passive-session.loralog", 0);
     check_capture("first-x4-contact.loralog", 0);
     check_capture("x4-t10-25min.loralog", 0);
+    check_capture("x4-billows-225-250-275.loralog", 0);
     check_capture("malformed.loralog", 1);
 }
 
