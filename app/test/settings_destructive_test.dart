@@ -102,7 +102,9 @@ void main() {
       final controller = _ScriptedController()
         ..phase = ConnectionPhase.live
         ..bridgeRecords = 24810
-        ..bridgeCapacity = 338400;
+        ..bridgeCapacity = 338400
+        ..bridgeOldestReadingAt = DateTime(2026, 7, 2, 8)
+        ..bridgeNewestReadingAt = DateTime(2026, 10, 27, 8);
       addTearDown(controller.dispose);
       await _pumpHistory(tester, controller);
 
@@ -115,6 +117,7 @@ void main() {
         find.text('24,810 readings in history on the Bridge'),
         findsOneWidget,
       );
+      expect(find.textContaining('Date range:'), findsOneWidget);
       expect(find.text('History on this phone is kept'), findsOneWidget);
       expect(controller.pendingAction, isNull);
     });

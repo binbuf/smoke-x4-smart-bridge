@@ -83,11 +83,12 @@ confirmed` notice after an unconfirmed forget. The approved 12 §12.2 copy is
 unchanged, and no `current cook` copy appears in any sheet.
 
 **Tests.** `app/test/settings_destructive_test.dart` (17) covers the exact copy
-and no-send-on-open for each sheet, the neutral sending state, success only on
-`ok`, refusal and timeout, the expected-disconnect branches for factory reset
-and forget (online and offline), the `Bridge is off` screen, and Setup return
-with orphaned history. Four scripted-bridge tests assert the wire ops and bond
-removal. `flutter analyze` clean, `flutter test` 262/262, host verify 25/25.
+(including the clear count and date range) and no-send-on-open for each sheet,
+the neutral sending state, success only on `ok`, refusal and timeout, the
+expected-disconnect branches for factory reset and forget (online and offline),
+the `Bridge is off` screen, and Setup return with orphaned history. Four
+scripted-bridge tests assert the wire ops and bond removal. `flutter analyze`
+clean, `flutter test` 262/262, host verify 25/25.
 
 **Deviated / deferred.** The destructive board walk is deferred to T55 with an
 NVS/samples backup and a re-pair plan, matching T48/T49; no destructive op was

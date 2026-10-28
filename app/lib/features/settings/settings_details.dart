@@ -853,6 +853,9 @@ Future<void> clearBridgeHistory(
     intro: 'The Bridge erases its saved readings. This can’t be undone.',
     bullets: [
       '${view.bridgeRecordsLabel} readings in history on the Bridge',
+      if (view.bridgeOldestReadingAt != null &&
+          view.bridgeNewestReadingAt != null)
+        'Date range: ${absoluteRangeLabel(view.bridgeOldestReadingAt!, view.bridgeNewestReadingAt!)}',
       'The Bridge keeps its pairings and settings',
       'History on this phone is kept',
     ],
