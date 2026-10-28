@@ -325,8 +325,8 @@ class HistoryViewState {
     final reference = cookReference;
     if (reference == null) return 'No cook detected in this history.';
     final elapsed = durationShort(now.difference(reference.start));
-    if (activeCook != null) return 'Cook started $elapsed ago · in progress';
-    return 'Last cook started $elapsed ago';
+    if (activeCook != null) return 'Cooking for $elapsed · in progress';
+    return 'Last cook began $elapsed ago';
   }
 }
 

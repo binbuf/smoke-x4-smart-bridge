@@ -80,7 +80,7 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '128×64 SSD1306 · simulated at 3×. One button, four pages, seven states.',
+                  '128×64 SSD1306 · shown at 3×. One button, four pages, seven states.',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: scheme.onSurfaceVariant),
                 ),

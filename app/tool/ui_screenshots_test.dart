@@ -13,6 +13,7 @@ import 'package:smoke_bridge/features/settings/settings_views.dart';
 import 'package:smoke_bridge/features/setup/setup_screen.dart';
 import 'package:smoke_bridge/features/shell/app_shell.dart';
 import 'package:smoke_bridge/debug/fixtures.dart';
+import 'package:smoke_bridge/domain/models.dart';
 import 'package:smoke_bridge/app/bridge_controller.dart';
 import 'package:smoke_bridge/debug/demo_content.dart';
 import 'package:smoke_bridge/debug/scenario_lab.dart';
@@ -160,6 +161,42 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('live stale dark', (tester) async {
+    final controller = demoBridgeController()
+      ..phase = ConnectionPhase.stale
+      ..smokeXAgeOverride = const Duration(minutes: 4);
+    await shot(tester, 'live_stale_dark', AppShell(controller: controller));
+    controller.dispose();
+  });
+
+  testWidgets('live offline without cache dark', (tester) async {
+    final controller = demoBridgeController()
+      ..phase = ConnectionPhase.offline
+      ..offlineCache = false;
+    await shot(
+      tester,
+      'live_offline_nocache_dark',
+      AppShell(controller: controller),
+    );
+    controller.dispose();
+  });
+
+  testWidgets('live X4 warning dark', (tester) async {
+    final controller = demoBridgeController()
+      ..smokeXStatus = SmokeXStatus.pairedLive
+      ..smokeXAgeOverride = const Duration(minutes: 4);
+    await shot(
+      tester,
+      'live_x4_warning_dark',
+      AppShell(controller: controller),
+      interact: (tester) async {
+        await tester.tap(find.byKey(const Key('live.smokeXWarning')));
+        await tester.pumpAndSettle();
+      },
+    );
+    controller.dispose();
+  });
+
   testWidgets('history dark', (tester) async {
     final controller = demoBridgeController()
       ..tab = AppTab.history
@@ -231,6 +268,17 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('cook light', (tester) async {
+    final controller = demoBridgeController();
+    await shot(
+      tester,
+      'past_cook_light',
+      PastCookScreen(controller: controller, cook: buildCookSessions().first),
+      brightness: Brightness.light,
+    );
+    controller.dispose();
+  });
+
   testWidgets('history probe filter dark', (tester) async {
     final controller = demoBridgeController()
       ..tab = AppTab.history
@@ -290,12 +338,34 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('bridge details light', (tester) async {
+    final controller = demoBridgeController();
+    await shot(
+      tester,
+      'bridge_details_light',
+      BridgeDetailsScreen(controller: controller),
+      brightness: Brightness.light,
+    );
+    controller.dispose();
+  });
+
   testWidgets('history storage dark', (tester) async {
     final controller = demoBridgeController();
     await shot(
       tester,
       'history_storage_dark',
       HistoryStorageScreen(controller: controller),
+    );
+    controller.dispose();
+  });
+
+  testWidgets('history storage light', (tester) async {
+    final controller = demoBridgeController();
+    await shot(
+      tester,
+      'history_storage_light',
+      HistoryStorageScreen(controller: controller),
+      brightness: Brightness.light,
     );
     controller.dispose();
   });
@@ -310,12 +380,34 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('appearance light', (tester) async {
+    final controller = demoBridgeController();
+    await shot(
+      tester,
+      'appearance_light',
+      AppearanceScreen(controller: controller),
+      brightness: Brightness.light,
+    );
+    controller.dispose();
+  });
+
   testWidgets('setup dark', (tester) async {
     final controller = demoBridgeController();
     await shot(
       tester,
       'setup_dark',
       SetupScreen(controller: controller, autoAdvance: false),
+    );
+    controller.dispose();
+  });
+
+  testWidgets('setup light', (tester) async {
+    final controller = demoBridgeController();
+    await shot(
+      tester,
+      'setup_light',
+      SetupScreen(controller: controller, autoAdvance: false),
+      brightness: Brightness.light,
     );
     controller.dispose();
   });
@@ -402,6 +494,20 @@ void main() {
         controller: controller,
         kind: DestructiveKind.factoryReset,
       ),
+    );
+    controller.dispose();
+  });
+
+  testWidgets('power off confirmation light', (tester) async {
+    final controller = demoBridgeController();
+    await shot(
+      tester,
+      'confirm_power_off_light',
+      ConfirmationPreviewScreen(
+        controller: controller,
+        kind: DestructiveKind.powerOff,
+      ),
+      brightness: Brightness.light,
     );
     controller.dispose();
   });

@@ -214,7 +214,7 @@ HistoryFixture buildHistoryFixture(
 List<ChartPoint> buildSparklinePoints(
   int probe, {
   bool hasData = true,
-  int count = 44,
+  int count = 60,
 }) {
   if (!hasData) return const [];
   final now = fixtureNow;

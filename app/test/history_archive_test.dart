@@ -543,7 +543,7 @@ void main() {
       final cookSort = await controller.loadHistoryView();
       expect(cookSort.cookReference, isNotNull);
       expect(cookSort.stats, hasLength(4));
-      expect(cookSort.cookSortDetail, contains('Cook started'));
+      expect(cookSort.cookSortDetail, contains('Cooking for'));
     },
   );
 

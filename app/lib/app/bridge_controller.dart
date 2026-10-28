@@ -1524,8 +1524,8 @@ class BridgeController extends ChangeNotifier {
         ConnectionEvent(
           title: 'Billows detected',
           detail: billowsDetected
-              ? 'The Smoke X4 reports Billows attached'
-              : 'Attached earlier this session · not detected now',
+              ? 'The Smoke X4 reports Billows detected'
+              : 'Detected earlier this session · not detected now',
           time: billowsDetected
               ? now.subtract(const Duration(seconds: 12))
               : now.subtract(const Duration(minutes: 12)),

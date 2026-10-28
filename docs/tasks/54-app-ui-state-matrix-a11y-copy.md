@@ -86,4 +86,73 @@ Turn the prototype review into a production gate: every reachable UI state has a
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Status:** done for the host/app evidence; physical-phone walk stays T55.
+
+### What landed
+- `app/test/ui_state_matrix_test.dart` now covers every 13 §13.4 state reachable
+  without hardware (all 19 Setup steps; healthy/aging/stale/lost/syncing/
+  backfill/sync-failed/reconnecting/failed/blocked/offline/no-probe/detached/
+  no-sparkline/storage-failure/Billows/X4-warning Live states; History default,
+  custom, filter, help, cooks, empty, all-saved and offline; Cook view;
+  full-screen chart; Settings/Bridge details/history & storage/appearance/about/
+  Billows/re-pair/saved history/bridge-off and all destructive confirmations).
+  Every row renders at 320 dp and 390 dp in dark and light with no overflow.
+  The 13 §13.8 stable keys are asserted.
+- `app/test/live_post_t36_test.dart` covers the post-T36 Live chain: separate
+  BLE/LoRa meters with semantics and durations, probe Min/Max, a signed change
+  for 1/5/10/15/30/60 min, and the amber X4 warning dialog.
+- `app/test/accessibility_test.dart` gates WCAG AA contrast, 48 dp targets,
+  screen-reader semantics (connection card, radio links, probe tiles, chart
+  summary, filters, Summary rows, destructive actions), reduced motion and
+  label-plus-icon status.
+- `app/test/copy_lint_test.dart` implements the 12 §12.6 banned-term scan over
+  product string literals, case-insensitive, interpolation-aware, with only the
+  Technical details `MTU`/`RSSI` labels and the approved “The Bridge records…”
+  sentence allow-listed. It includes a deliberately injected banned-term case.
+- Screenshots: all 38 goldens regenerated from production widgets at 390 × 844,
+  nine new shots including the X4 warning dialog and light variants.
+  `screenshots/manifest.json` + `screenshot_manifest_test.dart` make any changed
+  or added PNG fail until reviewed and the manifest regenerated; a one-byte
+  mutation test proves the hash catches a change.
+- Product fixes made to pass the gates: shared `app/lib/app/strings.dart` copy
+  catalogue used by Live/History/Settings; `AppMotion` reduced-motion policy
+  used by Setup; darker light-theme primary/error/status/probe colours for
+  4.5:1; 48 dp filter menus, chart help/full-screen, `Now` and range buttons;
+  scrollable chart help and a 320 dp-safe custom-range row; banned copy fixed
+  (Billows “attached”, “Cook started”, OLED “simulated”); sparkline spacing is
+  now one minute so every change window has a signed delta.
+
+### Commands / results
+```powershell
+cd app
+flutter analyze                              # No issues found
+flutter test --timeout 180s                  # 373 tests, all passed
+flutter test tool/ui_screenshots_test.dart   # 38 shots matched
+dart run tool/screenshot_manifest.dart       # 38 manifest entries
+cd ..
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/verify_host.ps1
+# 25/25 CTest passed, exit 0
+```
+
+### Deviations
+- The screenshot diff is gated by a committed hash manifest in `flutter test`
+  rather than by adding the golden generator to `app-test`; the reviewed update
+  sequence is update-goldens → manifest → visual diff (ADR 0059). This keeps
+  the normal suite fast and still refuses an unreviewed pixel change.
+- `AppStrings` centralises the shared T54 surfaces; a few one-off screen strings
+  remain inline and are listed as a T64 follow-up.
+- Light theme tokens changed for WCAG AA, so the light goldens intentionally
+  differ in hue/darkness.
+
+### Changed docs
+- `docs/design/13-ui-implementation-contract.md` §13.8 — concrete gate files.
+- `docs/design/12-copy-and-label-review.md` §12.6 — gate location/allow-list.
+- `docs/design/adr/0059-ui-evidence-gates.md` — new decision record.
+- `docs/progress/T54.md` — reusable commands, gotchas and follow-ups.
+
+### Remaining work / next
+- **T55:** physical 320 dp phone walk and real-Bridge before/after screenshots;
+  host tests cannot replace the device pass.
+- **T64:** add the golden/manifest command to release CI and prove the lab gate
+  in a release build; finish migrating one-off strings to `AppStrings`.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
 import '../../app/formatters.dart';
+import '../../app/strings.dart';
 import '../../app/view_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_app_bar.dart';
@@ -339,15 +340,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
             IconButton(
+              key: const Key('history.chart.help'),
               tooltip: 'How to read this chart',
-              visualDensity: VisualDensity.compact,
               onPressed: () => _showChartHelp(context),
               icon: const Icon(Icons.help_outline, size: 19),
             ),
             if (widget.showFullscreenAction)
               IconButton(
+                key: const Key('history.chart.fullscreen'),
                 tooltip: 'Full-screen chart',
-                visualDensity: VisualDensity.compact,
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => HistoryFullScreenScreen(
@@ -369,11 +370,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               key: const Key('history.empty'),
               icon: Icons.show_chart,
               title: emptyKind == _HistoryEmptyKind.noHistory
-                  ? 'No readings yet'
-                  : 'No readings in this range',
+                  ? AppStrings.noReadingsYet
+                  : AppStrings.noReadingsInRange,
               message: switch (emptyKind) {
                 _HistoryEmptyKind.noHistory =>
-                  'The Bridge records whenever it’s on and paired with the Smoke X4.',
+                  AppStrings.bridgeRecordsAlways,
                 _HistoryEmptyKind.noProbeData =>
                   'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
                 _HistoryEmptyKind.noDataInRange =>
@@ -381,9 +382,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               },
               action: () => _emptyAction(emptyKind, view),
               actionLabel: switch (emptyKind) {
-                _HistoryEmptyKind.noHistory => 'View Live',
-                _HistoryEmptyKind.noProbeData => 'Show all probes',
-                _HistoryEmptyKind.noDataInRange => 'Show all saved history',
+                _HistoryEmptyKind.noHistory => AppStrings.viewLive,
+                _HistoryEmptyKind.noProbeData => AppStrings.showAllProbes,
+                _HistoryEmptyKind.noDataInRange => AppStrings.showAllSavedHistory,
               },
             ),
           )
@@ -434,7 +435,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Summary',
+                  AppStrings.summary,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -473,10 +474,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     enabled: view.cookReference != null,
                     child: Row(
                       children: [
-                        const Expanded(child: Text('Since cook start')),
+                        const Expanded(child: Text(AppStrings.sinceCookStart)),
                         if (view.cookReference == null)
                           Text(
-                            'No cook detected yet',
+                            AppStrings.noCookDetected,
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
                                   color: Theme.of(
@@ -676,42 +677,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Reading the chart',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 12),
-            const _HelpRow(
-              icon: Icons.touch_app_outlined,
-              text: 'Tap the chart to inspect the nearest reading.',
-            ),
-            const _HelpRow(
-              icon: Icons.open_with,
-              text: 'Drag to pan. Pinch or scroll to zoom. Double-tap to fit the full range.',
-            ),
-            const _HelpRow(
-              icon: Icons.local_fire_department_outlined,
-              text: 'Use Cooks to jump to a recorded cook, or choose Custom range to set exact dates and times.',
-            ),
-            const _HelpRow(
-              icon: Icons.linear_scale,
-              text: 'A gap means no reading was recorded. The chart doesn’t connect across it.',
-            ),
-            const _HelpRow(
-              icon: Icons.straighten,
-              text: 'All probes share one scale. Choose one probe to see more detail.',
-            ),
-            const _HelpRow(
-              icon: Icons.schedule,
-              text: 'Times estimated means the Bridge’s clock wasn’t set when these readings were recorded, so the times are approximate.',
-            ),
-          ],
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Reading the chart',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 12),
+              const _HelpRow(
+                icon: Icons.touch_app_outlined,
+                text: 'Tap the chart to inspect the nearest reading.',
+              ),
+              const _HelpRow(
+                icon: Icons.open_with,
+                text:
+                    'Drag to pan. Pinch or scroll to zoom. Double-tap to fit the full range.',
+              ),
+              const _HelpRow(
+                icon: Icons.local_fire_department_outlined,
+                text:
+                    'Use Cooks to jump to a recorded cook, or choose Custom range to set exact dates and times.',
+              ),
+              const _HelpRow(
+                icon: Icons.linear_scale,
+                text:
+                    'A gap means no reading was recorded. The chart doesn’t connect across it.',
+              ),
+              const _HelpRow(
+                icon: Icons.straighten,
+                text:
+                    'All probes share one scale. Choose one probe to see more detail.',
+              ),
+              const _HelpRow(
+                icon: Icons.schedule,
+                text:
+                    'Times estimated means the Bridge’s clock wasn’t set when these readings were recorded, so the times are approximate.',
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -826,7 +836,7 @@ class _FilterMenuButton<T> extends StatelessWidget {
       onSelected: onSelected,
       itemBuilder: (context) => items,
       child: Container(
-        height: 44,
+        height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 11),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
@@ -1164,7 +1174,7 @@ class _RangeField extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 48,
+          width: 40,
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -1178,7 +1188,8 @@ class _RangeField extends StatelessWidget {
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               alignment: Alignment.centerLeft,
-              visualDensity: VisualDensity.compact,
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
             onPressed: onPickDate,
             icon: const Icon(Icons.calendar_month_outlined, size: 17),
@@ -1191,7 +1202,10 @@ class _RangeField extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         OutlinedButton(
-          style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+          ),
           onPressed: onPickTime,
           child: Text(clockLabel(value, use24Hour: use24Hour)),
         ),
@@ -1213,14 +1227,22 @@ class _SummaryHeader extends StatelessWidget {
     return Row(
       children: [
         SizedBox(width: 64, child: Text('Probe', style: style)),
-        Expanded(child: Text('Latest', style: style)),
+        Expanded(child: Text(AppStrings.latest, style: style)),
         SizedBox(
           width: 54,
-          child: Text('Min', style: style, textAlign: TextAlign.right),
+          child: Text(
+            AppStrings.minimum,
+            style: style,
+            textAlign: TextAlign.right,
+          ),
         ),
         SizedBox(
           width: 54,
-          child: Text('Max', style: style, textAlign: TextAlign.right),
+          child: Text(
+            AppStrings.maximum,
+            style: style,
+            textAlign: TextAlign.right,
+          ),
         ),
         const SizedBox(width: 20),
       ],

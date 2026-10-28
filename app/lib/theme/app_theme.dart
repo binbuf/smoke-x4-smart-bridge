@@ -18,6 +18,11 @@ class AppTheme {
           brightness: brightness,
           dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
         ).copyWith(
+          // The seeded ember is too light for body-size text on a light
+          // surface (2.8:1). This darker ember keeps the same hue and clears
+          // WCAG AA on every light surface used by cards and sheets.
+          primary: isDark ? null : const Color(0xFF963B16),
+          error: isDark ? null : const Color(0xFFA81818),
           surface: isDark ? const Color(0xFF151311) : const Color(0xFFFBF8F4),
           surfaceContainerLowest: isDark
               ? const Color(0xFF100E0C)
@@ -228,10 +233,10 @@ class ProbeColors {
             Color(0xFFC08AF0),
           ]
         : const [
-            Color(0xFF9B5B0C),
-            Color(0xFF267354),
-            Color(0xFF3F62A8),
-            Color(0xFF7B4AA8),
+            Color(0xFF7A4708),
+            Color(0xFF1F6047),
+            Color(0xFF34518C),
+            Color(0xFF653B8C),
           ];
   }
 
@@ -248,13 +253,13 @@ class StatusColors {
       Theme.of(context).brightness == Brightness.dark;
 
   static Color live(BuildContext context) =>
-      _dark(context) ? const Color(0xFF4CC38A) : const Color(0xFF2E7D52);
+      _dark(context) ? const Color(0xFF4CC38A) : const Color(0xFF245F40);
 
   static Color aging(BuildContext context) =>
-      _dark(context) ? const Color(0xFFE9A83E) : const Color(0xFF8A5A12);
+      _dark(context) ? const Color(0xFFE9A83E) : const Color(0xFF7A4F10);
 
   static Color stale(BuildContext context) =>
-      _dark(context) ? const Color(0xFFB8ADA2) : const Color(0xFF6E655C);
+      _dark(context) ? const Color(0xFFB8ADA2) : const Color(0xFF5F574F);
 
   static Color frozen(BuildContext context) =>
       Theme.of(context).colorScheme.error;
