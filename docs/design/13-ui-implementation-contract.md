@@ -461,6 +461,21 @@ Required evidence before a UI task is done:
    filters, Summary rows and destructive actions.
 6. Screenshot/golden changes reviewed intentionally, not accepted blindly.
 
+T54 implements these as gates that run in `flutter test`:
+
+- `app/test/ui_state_matrix_test.dart` — the 13 §13.4 state matrix at 320 and
+  390 dp in both themes, with the stable keys above.
+- `app/test/live_post_t36_test.dart` — separate BLE/LoRa meters and durations,
+  the amber X4 dialog, probe Min/Max and a signed change for every change
+  window.
+- `app/test/accessibility_test.dart` — WCAG AA contrast, 48 dp targets,
+  semantics, reduced motion and non-colour status.
+- `app/test/copy_lint_test.dart` — the 12 §12.6 banned-term scan over product
+  string literals.
+- `app/test/screenshot_manifest_test.dart` — the reviewed 390 × 844 set is
+  explicit; a changed or added PNG fails until
+  `dart run tool/screenshot_manifest.dart` is run after review.
+
 ---
 
 ## 13.9 Task map

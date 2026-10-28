@@ -317,6 +317,12 @@ MTU, RSSI, GATT, characteristic, backfill, ring, sector, generation
 `Cooks` is allowed; `cook sessions` is not. `Technical details` may contain
 `MTU`/`RSSI`; the main status card may not.
 
+T54 lands the gate as `app/test/copy_lint_test.dart`: it scans string literals in
+`lib/features`, `lib/widgets` and the shared controller/view-state/strings files,
+ignores comments and interpolations, and runs in the normal `flutter test` job.
+The only allow-lists are `MTU`/`RSSI` inside `bridge_details.dart` and the
+approved verb sentence “The Bridge records whenever…”.
+
 ---
 
 ## 12.7 Verified facts kept from the technical review

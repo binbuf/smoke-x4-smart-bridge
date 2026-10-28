@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
+import '../../app/strings.dart';
 import '../../app/view_state.dart';
 import '../../app/lab_gate.dart';
 import '../../debug/scenario_lab.dart';
@@ -58,7 +59,7 @@ class SettingsScreen extends StatelessWidget {
                     children: const [],
                   ),
                   SettingsGroup(
-                    title: 'History & storage',
+                    title: AppStrings.historyAndStorage,
                     children: [
                       SettingsTile(
                         key: const Key('settings.history.logs'),
@@ -74,13 +75,13 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                   SettingsGroup(
-                    title: 'Preferences',
+                    title: AppStrings.preferences,
                     children: [
                       _UnitsTile(view: view, controller: controller),
                       SettingsTile(
                         key: const Key('settings.tempChangeWindow'),
                         icon: Icons.timelapse_outlined,
-                        title: 'Live change window',
+                        title: AppStrings.liveChangeWindow,
                         subtitle: view.tempChangeWindowLabel,
                         onTap: () =>
                             _showChangeWindowSheet(context, controller),
@@ -88,7 +89,7 @@ class SettingsScreen extends StatelessWidget {
                       SettingsTile(
                         key: const Key('settings.appearance'),
                         icon: Icons.palette_outlined,
-                        title: 'Appearance',
+                        title: AppStrings.appearance,
                         subtitle: view.themeModeLabel,
                         onTap: () => _push(
                           context,
@@ -98,7 +99,7 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                   SettingsGroup(
-                    title: 'About',
+                    title: AppStrings.about,
                     children: [
                       SettingsTile(
                         icon: Icons.info_outline,

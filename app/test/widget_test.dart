@@ -426,7 +426,7 @@ void main() {
 
     expect(controller.historySort, HistorySort.sinceCookStart);
     expect(find.text('Since cook start'), findsOneWidget);
-    expect(find.textContaining('Cook started 9h 20m ago'), findsOneWidget);
+    expect(find.textContaining('Cooking for 9h 20m'), findsOneWidget);
     expect(find.text('In progress'), findsOneWidget);
   });
 

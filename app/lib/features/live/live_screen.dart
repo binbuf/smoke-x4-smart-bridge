@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
+import '../../app/strings.dart';
 import '../../app/view_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/prototype_widgets.dart';
@@ -49,7 +50,7 @@ class LiveScreen extends StatelessWidget {
                         icon: Icons.history,
                         color: StatusColors.stale(context),
                         title: view.telemetryStatusLabel,
-                        message: 'These are saved readings, not live values. Retry when the Bridge is back in range.',
+                        message: AppStrings.savedReadingsDetail,
                         action: TextButton(
                           key: const Key('live.savedReadings.retry'),
                           onPressed: controller.retryConnection,
@@ -64,8 +65,8 @@ class LiveScreen extends StatelessWidget {
                         key: const Key('live.unreachable'),
                         icon: Icons.link_off,
                         color: Theme.of(context).colorScheme.error,
-                        title: 'Can’t reach the Bridge',
-                        message: 'The app tried six times. Recording continues on the Bridge. Move closer and try again, or forget this phone and set it up again.',
+                        title: AppStrings.canNotReachBridge,
+                        message: AppStrings.recordingContinues,
                         action: Wrap(
                           spacing: 4,
                           children: [
@@ -139,8 +140,8 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         key: const Key('live.noCache'),
                         icon: Icons.cloud_off_outlined,
-                        title: 'Bridge disconnected · nothing saved yet',
-                        message: 'This phone has no saved readings. Connect to your Bridge to see live values.',
+                        title: AppStrings.offlineNothingSaved,
+                        message: AppStrings.offlineNothingSavedDetail,
                         action: TextButton(
                           key: const Key('live.noCache.retry'),
                           onPressed: controller.retryConnection,
@@ -156,11 +157,11 @@ class LiveScreen extends StatelessWidget {
                         key: const Key('live.smokeXUnpaired'),
                         icon: Icons.sensors_off_outlined,
                         color: StatusColors.aging(context),
-                        title: 'No data from Smoke X4',
-                        message: 'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
+                        title: AppStrings.noDataFromSmokeX4,
+                        message: AppStrings.noDataX4Detail,
                         action: TextButton(
                           onPressed: () => _showSmokeXHelp(context),
-                          child: const Text('Pairing steps'),
+                          child: const Text(AppStrings.pairingSteps),
                         ),
                       ),
                     ],
@@ -176,8 +177,9 @@ class LiveScreen extends StatelessWidget {
                         key: const Key('live.syncFailed'),
                         icon: Icons.error_outline,
                         color: Theme.of(context).colorScheme.error,
-                        title: 'History sync failed',
-                        message: 'Live readings are still updating. Retry when the Bluetooth connection is stable.',
+                        title: AppStrings.historySyncFailed,
+                        message:
+                            'Live readings are still updating. Retry when the Bluetooth connection is stable.',
                         action: TextButton(
                           onPressed: controller.refreshLink,
                           child: const Text('Retry sync'),
@@ -190,8 +192,8 @@ class LiveScreen extends StatelessWidget {
                         key: const Key('live.storageUnavailable'),
                         icon: Icons.sd_card_alert_outlined,
                         color: Theme.of(context).colorScheme.error,
-                        title: 'Not recording',
-                        message: 'Live readings are available, but the Bridge can’t save them. Check the Bridge’s storage.',
+                        title: AppStrings.notRecording,
+                        message: AppStrings.storageUnavailableDetail,
                         action: TextButton(
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -199,7 +201,7 @@ class LiveScreen extends StatelessWidget {
                                   BridgeDetailsScreen(controller: controller),
                             ),
                           ),
-                          child: const Text('Bridge details'),
+                          child: const Text(AppStrings.bridgeDetails),
                         ),
                       ),
                     ],
@@ -209,9 +211,8 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         key: const Key('live.noProbes'),
                         icon: Icons.graphic_eq,
-                        title: 'No probes connected',
-                        message:
-                            'Plug a probe into the Smoke X4 to see a reading.',
+                        title: AppStrings.noProbesConnected,
+                        message: AppStrings.plugInProbe,
                         action: TextButton(
                           key: const Key('live.noProbes.bridgeDetails'),
                           onPressed: () => Navigator.of(context).push(
@@ -220,13 +221,13 @@ class LiveScreen extends StatelessWidget {
                                   BridgeDetailsScreen(controller: controller),
                             ),
                           ),
-                          child: const Text('Bridge details'),
+                          child: const Text(AppStrings.bridgeDetails),
                         ),
                       ),
                     ],
                     const SizedBox(height: 18),
                     Text(
-                      'Probes',
+                      AppStrings.probes,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
@@ -261,7 +262,7 @@ class LiveScreen extends StatelessWidget {
                       InlineNotice(
                         icon: Icons.air,
                         color: StatusColors.aging(context),
-                        title: 'Billows not detected',
+                        title: AppStrings.billowsNotDetected,
                         message: 'Billows was detected earlier this session. Make sure the fan is powered on and in range of the Smoke X4.',
                         action: TextButton(
                           onPressed: () => Navigator.of(context).push(
@@ -546,13 +547,13 @@ class _ConnectionCard extends StatelessWidget {
       builder: (dialogContext) => AlertDialog(
         icon: Icon(
           Icons.warning_amber_rounded,
-          color: Theme.of(dialogContext).colorScheme.error,
+          color: StatusColors.aging(dialogContext),
         ),
-        title: Text(lost ? 'Smoke X4 signal lost' : 'No data from Smoke X4'),
+        title: Text(
+          lost ? AppStrings.smokeX4SignalLost : AppStrings.noDataFromSmokeX4,
+        ),
         content: Text(
-          lost
-              ? 'The Bridge is connected but hasn’t received data from the Smoke X4 for a while. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.'
-              : 'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
+          lost ? AppStrings.smokeX4LostDetail : AppStrings.noDataX4Detail,
         ),
         actions: [
           TextButton(
@@ -560,11 +561,11 @@ class _ConnectionCard extends StatelessWidget {
               Navigator.of(dialogContext).pop();
               onShowSmokeXHelp();
             },
-            child: const Text('Pairing steps'),
+            child: const Text(AppStrings.pairingSteps),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Got it'),
+            child: const Text(AppStrings.gotIt),
           ),
         ],
       ),
@@ -805,14 +806,14 @@ class _SyncCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   backfill
-                      ? 'Loading saved readings'
-                      : 'Syncing saved readings',
+                      ? AppStrings.syncBackfillTitle
+                      : AppStrings.syncRecentTitle,
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
               if (view.slowLink)
                 Text(
-                  'Slow connection',
+                  AppStrings.slowConnection,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: StatusColors.aging(context),
                     fontWeight: FontWeight.w700,
@@ -829,8 +830,8 @@ class _SyncCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             backfill
-                ? 'Your latest readings are ready. Older readings continue in the background.'
-                : 'Newest readings load first.',
+                ? AppStrings.syncBackfillDetail
+                : AppStrings.syncRecentDetail,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),
@@ -868,7 +869,7 @@ class _BillowsCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Billows',
+                  AppStrings.billows,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -885,7 +886,7 @@ class _BillowsCard extends StatelessWidget {
               ),
               Expanded(
                 child: _Metric(
-                  label: 'Last detected',
+                  label: AppStrings.lastDetected,
                   value: view.lastDetectedLabel,
                 ),
               ),
@@ -893,7 +894,7 @@ class _BillowsCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Set on the Smoke X4.',
+            AppStrings.setOnSmokeX4,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),

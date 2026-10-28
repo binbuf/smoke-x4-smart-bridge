@@ -1,0 +1,192 @@
+{
+  "appearance_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "ea29a1d4"
+  },
+  "appearance_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "f3b6e72b"
+  },
+  "billows_settings_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "bd0e39bd"
+  },
+  "bridge_details_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "0f643a00"
+  },
+  "bridge_details_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "9d9e4884"
+  },
+  "confirm_factory_reset_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "b2ce2904"
+  },
+  "confirm_power_off_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "5a162673"
+  },
+  "device_log_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "f5260df2"
+  },
+  "history_all_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "6c1146c8"
+  },
+  "history_cooks_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "1c3aac57"
+  },
+  "history_custom_range_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "1b0f0ffa"
+  },
+  "history_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "47d61dc9"
+  },
+  "history_empty_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "927d32dd"
+  },
+  "history_filter_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "0b528128"
+  },
+  "history_fullscreen_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "10328443"
+  },
+  "history_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "5d078dbe"
+  },
+  "history_probe_empty_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "e99b3745"
+  },
+  "history_storage_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "72961650"
+  },
+  "history_storage_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "9ace4594"
+  },
+  "live_billows_detected.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "e42bb56f"
+  },
+  "live_billows_lost.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "13ac1910"
+  },
+  "live_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "a8fd09a9"
+  },
+  "live_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "04b55b15"
+  },
+  "live_offline_cache.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "8bdc7df4"
+  },
+  "live_offline_nocache_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "e7c7a54e"
+  },
+  "live_stale_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "b225265f"
+  },
+  "live_x4_warning_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "b8041bc5"
+  },
+  "oled_page_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "59791c6d"
+  },
+  "oled_passkey_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "4ff7648e"
+  },
+  "passkey_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "16d4a96f"
+  },
+  "past_cook_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "16ded7c4"
+  },
+  "past_cook_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "52d126ee"
+  },
+  "re_pair_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "8ce71b36"
+  },
+  "scenario_lab_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "9961db45"
+  },
+  "settings_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "0126a4ad"
+  },
+  "settings_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "337e2d1c"
+  },
+  "setup_dark.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "a33a0261"
+  },
+  "setup_light.png": {
+    "width": 390,
+    "height": 844,
+    "fnv1a": "25c48025"
+  }
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
+import '../../app/motion.dart';
 import '../../app/formatters.dart';
 import '../../app/view_state.dart';
 import '../../data/ble/bridge_codecs.dart';
@@ -131,7 +132,7 @@ class _SetupScreenState extends State<SetupScreen> {
               appBar: prototypeAppBar(context, controller, 'Set up'),
               body: SafeArea(
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
+                  duration: AppMotion.duration(context),
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
                   child: KeyedSubtree(
