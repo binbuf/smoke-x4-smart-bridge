@@ -46,6 +46,7 @@ _(6 earlier sections omitted)_
 - **T49 — ble_service: destructive-action state and reconnect**: **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done; `firmware/components/ble_service/ble_destructive.c` + `include/ble_destructive.h`
 - **T50 — app: Settings shell**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,; `app/lib/features/settings/settings_screen.dart`
 - **T51 — app: bridge settings**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,; **Real 80-byte config (ADR 0055)**
+- **T52 - app: destructive actions**: **Date:** 2026-10-27 · **Verification:** host (`flutter 
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -96,6 +97,7 @@ _(6 earlier sections omitted)_
 - [T49](progress/T49.md) — **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done
 - [T50](progress/T50.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,
 - [T51](progress/T51.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,
+- [T52](progress/T52.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`,
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

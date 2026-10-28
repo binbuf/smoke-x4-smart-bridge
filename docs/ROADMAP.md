@@ -131,7 +131,7 @@ pass.
 - [x] T50 — app: Settings shell → [tasks/50-app-settings-shell.md](tasks/50-app-settings-shell.md)
 - [x] T51 — app: bridge settings → [tasks/51-app-bridge-settings.md](tasks/51-app-bridge-settings.md)
 - [x] T52 — app: destructive actions → [tasks/52-app-destructive-actions.md](tasks/52-app-destructive-actions.md) ⟵ closed with the T55 destructive board walk
-- [ ] T53 — app: units and time end-to-end → [tasks/53-app-units-time-end-to-end.md](tasks/53-app-units-time-end-to-end.md)
+- [~] T53 — app: units and time end-to-end → [tasks/53-app-units-time-end-to-end.md](tasks/53-app-units-time-end-to-end.md) ⟵ failed
 - [ ] T46a — app: fix T46 History and connection findings → [tasks/46a-fix-history-connection-findings.md](tasks/46a-fix-history-connection-findings.md)
 - [ ] T54 — app: UI state matrix, accessibility and copy gate → [tasks/54-app-ui-state-matrix-a11y-copy.md](tasks/54-app-ui-state-matrix-a11y-copy.md)
 - [ ] T55 — Bench: all settings and actions → [tasks/55-bench-settings-actions.md](tasks/55-bench-settings-actions.md)
