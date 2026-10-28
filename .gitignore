@@ -59,6 +59,3 @@ docs/*
 
 # added by symphony (ephemeral/secret files)
 .vscode/
-
-# added by symphony (ephemeral/secret files)
-*.log

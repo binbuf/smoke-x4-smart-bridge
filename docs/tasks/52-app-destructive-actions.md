@@ -69,4 +69,35 @@ Ship the approved destructive flows with exact cost-before-send copy: Forget thi
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** The four actions now send real control ops and report success only
+from the device. `BridgeLink.attemptControl()` records whether the write reached
+the Bridge, so `factory_reset`/`forget_phone`/`power_off` can treat the
+subsequent disconnect as the expected outcome while `clear_history` still needs
+`result ok`. `BridgeController.forgetPhone/factoryReset/powerOff/
+clearBridgeHistory` own the local outcome: bond and saved-connection clearing for
+forget and reset, `bridgeOff` for power off, and Bridge-figure zeroing plus the
+`History on the Bridge cleared` result for clear history. Setup shows orphaned
+`History on this phone` (`· from your previous Bridge.`) and a `Pairing not
+confirmed` notice after an unconfirmed forget. The approved 12 §12.2 copy is
+unchanged, and no `current cook` copy appears in any sheet.
+
+**Tests.** `app/test/settings_destructive_test.dart` (17) covers the exact copy
+and no-send-on-open for each sheet, the neutral sending state, success only on
+`ok`, refusal and timeout, the expected-disconnect branches for factory reset
+and forget (online and offline), the `Bridge is off` screen, and Setup return
+with orphaned history. Four scripted-bridge tests assert the wire ops and bond
+removal. `flutter analyze` clean, `flutter test` 262/262, host verify 25/25.
+
+**Deviated / deferred.** The destructive board walk is deferred to T55 with an
+NVS/samples backup and a re-pair plan, matching T48/T49; no destructive op was
+sent to the shared bench board. The real-phone/OLED evidence and the new
+generation boundary stay open in `docs/hardware-verified.md`.
+
+**Next task must know.** `clear_history` must not treat a disconnect as success;
+only `factory_reset`, `forget_phone` and `power_off` do. Forget is local-first,
+so it always returns to Setup and keeps phone history; the notice is the only
+difference when the pairing is unconfirmed. `clearBridgeHistory()` only zeroes
+the displayed figures — the new epoch arrives on the next stats read (T49
+firmware). T53 owns units/theme formatting inside these sheets, T54 their
+state-matrix/a11y/copy gate, and T55 the real-board walk.

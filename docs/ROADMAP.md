@@ -130,7 +130,7 @@ pass.
 - [x] T49 — ble_service: destructive-action state and reconnect → [tasks/49-ble-destructive-state-reconnect.md](tasks/49-ble-destructive-state-reconnect.md)
 - [x] T50 — app: Settings shell → [tasks/50-app-settings-shell.md](tasks/50-app-settings-shell.md)
 - [x] T51 — app: bridge settings → [tasks/51-app-bridge-settings.md](tasks/51-app-bridge-settings.md)
-- [~] T52 — app: destructive actions → [tasks/52-app-destructive-actions.md](tasks/52-app-destructive-actions.md) ⟵ failed
+- [x] T52 — app: destructive actions → [tasks/52-app-destructive-actions.md](tasks/52-app-destructive-actions.md) ⟵ closed with the T55 destructive board walk
 - [ ] T53 — app: units and time end-to-end → [tasks/53-app-units-time-end-to-end.md](tasks/53-app-units-time-end-to-end.md)
 - [ ] T46a — app: fix T46 History and connection findings → [tasks/46a-fix-history-connection-findings.md](tasks/46a-fix-history-connection-findings.md)
 - [ ] T54 — app: UI state matrix, accessibility and copy gate → [tasks/54-app-ui-state-matrix-a11y-copy.md](tasks/54-app-ui-state-matrix-a11y-copy.md)
