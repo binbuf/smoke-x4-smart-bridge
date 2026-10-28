@@ -116,3 +116,17 @@ Chronological raw notes; the committed report is `docs/progress/T46.md`.
     83,050 rows.
 - `artifacts/bench/T46/empty-phone.db`: same schema/identity, zero rows,
   NULL cursors → `No readings yet`.
+
+## Follow-up run 16:11-17:14 PDT
+
+- X4 base switched off 16:21:05; Live showed Signal lost at 9:30/10:00 and
+  auto-opened the amber Smoke X4 signal lost dialog at 16:31:40 (10 min 30 s).
+  Captured at physical size and 320 dp (32-x4-dialog-*).
+- Clean 10.0 min absence 16:48:45-16:58:45: 835 -> 856 rows, 21 records in one
+  411 B forward frame, no duplicates (33-absence10-*).
+- Bench-level clear: backed up and erased the samples partition (6,160,384 B,
+  SHA-256 A79190FB...B881D9). The reboot reused generation 135870198 because the
+  generation is NVS-owned; the app kept all 874 rows and started no new segment.
+  Partition restored; boot read gen 081936f6, seq 0..874, 875 records, state OK.
+  Evidence 34-*; finding L routed to T48/T49/T52.
+- Final phone archive after restore/catch-up: 877 rows, seq 0..876.

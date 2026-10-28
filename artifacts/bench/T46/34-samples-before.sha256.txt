@@ -1,0 +1,10 @@
+T46 bench-level clear backup (not committed)
+partition: samples
+offset: 0x220000
+length: 0x5e0000 (6,160,384 bytes)
+file: 34-samples-before.bin
+sha256: A79190FB7811014BA6410A687B600BD8AD2A1BE0E966AFC1A585A77613B881D9
+read: 2026-10-27 17:08-17:11 PDT at 460800 baud (921600 failed at 77%)
+erase: erase_region 0x220000 0x5e0000 at 17:12, 2.5 s
+restore: write_flash 0x220000, hash verified, hard reset
+boot after restore: gen 081936f6, seq 0..874, next 875, 875 records, state OK

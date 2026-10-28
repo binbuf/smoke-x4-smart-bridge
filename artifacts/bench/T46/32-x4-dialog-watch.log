@@ -1,0 +1,69 @@
+
+watch restart 16:11:06
+fresh sample 16:11:31
+fresh sample 16:12:01
+fresh sample 16:12:31
+fresh sample 16:13:02
+fresh sample 16:13:32
+fresh sample 16:14:02
+fresh sample 16:14:32
+fresh sample 16:15:03
+fresh sample 16:15:33
+fresh sample 16:16:03
+fresh sample 16:16:33
+fresh sample 16:17:04
+fresh sample 16:17:34
+fresh sample 16:18:04
+fresh sample 16:18:34
+fresh sample 16:19:05
+fresh sample 16:19:35
+fresh sample 16:20:05
+fresh sample 16:20:35
+fresh sample 16:21:05
+x4_off_at 16:21:05
+capture_target 16:31:05
+
+=== 0930 16:30:38 ===
+
+Live
+App menu
+Probes
+Connection details. App 1h 14m. Bridge Connected. Smoke X4 Receiving readings, Signal lost. | App, This phone | App | Good Bluetooth signal, -62 dBm | App to Bridge: 1h 14m | 1h 14m | Bridge, Connected | Bridge | Excellent radio signal, -32 dBm | Bridge to Smoke X4: Signal lost | Signal lost | Smoke X4, Receiving readings | Smoke X4
+Probe 1, 78.9°F, No readings for 4 min. Tap for History.
+P1 | 78.9°F | Min 78.0°F  Max 79.0°F | No readings for 4 min
+Probe 2, 78.5°F, No readings for 4 min. Tap for History.
+P2 | 78.5°F | Min 77.6°F  Max 78.6°F | No readings for 4 min
+Probe 3, 78.9°F, No readings for 4 min. Tap for History.
+P3 | 78.9°F | Min 78.2°F  Max 79.0°F | No readings for 4 min
+Probe 4, 78.7°F, No readings for 4 min. Tap for History.
+P4 | 78.7°F | Min 77.9°F  Max 78.7°F | No readings for 4 min
+Live | Tab 1 of 3
+History | Tab 2 of 3
+Settings | Tab 3 of 3
+
+=== 1000 16:31:12 ===
+
+Live
+App menu
+Probes
+Connection details. App 1h 15m. Bridge Connected. Smoke X4 Receiving readings, Signal lost. | App, This phone | App | Excellent Bluetooth signal, -58 dBm | App to Bridge: 1h 15m | 1h 15m | Bridge, Connected | Bridge | Excellent radio signal, -32 dBm | Bridge to Smoke X4: Signal lost | Signal lost | Smoke X4, Receiving readings | Smoke X4
+Probe 1, 78.9°F, No readings for 4 min. Tap for History.
+P1 | 78.9°F | Min 78.0°F  Max 79.0°F | No readings for 4 min
+Probe 2, 78.5°F, No readings for 4 min. Tap for History.
+P2 | 78.5°F | Min 77.6°F  Max 78.6°F | No readings for 4 min
+Probe 3, 78.9°F, No readings for 4 min. Tap for History.
+P3 | 78.9°F | Min 78.2°F  Max 79.0°F | No readings for 4 min
+Probe 4, 78.7°F, No readings for 4 min. Tap for History.
+P4 | 78.7°F | Min 77.9°F  Max 78.7°F | No readings for 4 min
+Live | Tab 1 of 3
+History | Tab 2 of 3
+Settings | Tab 3 of 3
+
+=== 1030 16:31:40 ===
+
+Smoke X4 signal lost
+The Bridge is connected but hasn’t received data from the Smoke X4 for a while. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.
+Pairing steps
+Got it
+Dismiss
+watch done

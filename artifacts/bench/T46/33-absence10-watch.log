@@ -1,0 +1,9 @@
+16:37:46 watcher start; waiting for X4 packets
+16:48:44 X4 resumed: [16:48:44] I (6511690) sx4.sample: stored seq=835 t=795,791,795,792 flags=0x2f
+16:48:45 before rows=835 min=0 max=834 distinct=835
+16:48:45 app force-stopped; absence starts
+16:58:45 absence done; launching app
+16:58:57 after rows=856 min=0 max=855 distinct=856
+16:58:57 delta rows=21
+16:58:57 sync frames after relaunch=2
+16:59:01 done
