@@ -53,8 +53,18 @@ uint8_t ble_service_bond_count(void);
  * link. The normal disconnect path re-advertises; other bonds are untouched.
  * Returns an SX4_RESULT_STATUS_* value (NOT_FOUND when there is no current link
  * or no stored bond for it).
+ *
+ * T49: if the app dropped the link after `result ok` but before the deferred
+ * action ran, the peer captured at write time is removed instead.
  */
 uint8_t ble_service_forget_current_peer(void);
+
+/*
+ * T49: stop advertising and cancel advertising timers before deep sleep. Does
+ * not deinit NimBLE, so it is safe from the BLE action timer. The policy still
+ * reports not-advertising if the sleep call fails and the device stays awake.
+ */
+void ble_service_prepare_sleep(void);
 
 /*
  * Passkey display seam. ble_service calls this with six ASCII digits when a

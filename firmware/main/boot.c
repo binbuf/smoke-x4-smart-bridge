@@ -172,6 +172,10 @@ static uint8_t action_power_off(void *ctx) {
     (void)ctx;
     (void)board_power_off_vext();
     (void)sx_radio_sleep();
+    /* T49: stop advertising and cancel the advertising timers before the SoC
+     * powers down. A failed sleep call leaves a coherent, discoverable radio
+     * rather than one that still claims to advertise. */
+    ble_service_prepare_sleep();
     esp_err_t err = board_enter_deep_sleep();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "power_off: deep sleep failed (%s)",

@@ -358,6 +358,30 @@ add_executable(test_ble_adv test_ble_adv.c)
 target_link_libraries(test_ble_adv PRIVATE sx4_ble_adv sx4_test_support)
 add_test(NAME ble-adv COMMAND test_ble_adv)
 
+# T49: destructive-action link lifecycle and boot recovery. The real
+# dispatcher/router, advertising state machine, factory-reset step table and
+# boot-time log-clear policy are linked; the BLE/NVS/board backends are fakes.
+add_library(sx4_ble_destructive STATIC
+    "${REPO_ROOT}/firmware/components/ble_service/ble_destructive.c"
+)
+target_include_directories(sx4_ble_destructive
+    PUBLIC "${REPO_ROOT}/firmware/components/ble_service/include"
+)
+target_link_libraries(sx4_ble_destructive PUBLIC sx4_ble_control)
+
+add_executable(test_ble_destructive test_ble_destructive.c)
+target_link_libraries(test_ble_destructive
+    PRIVATE
+        sx4_ble_destructive
+        sx4_ble_adv
+        sx4_ble_control_actions
+        sx4_bridge_config
+        sx4_sample_log_flash
+        sx4_test_support
+)
+add_test(NAME ble-destructive COMMAND test_ble_destructive)
+
+
 # tasks.h is pure C on purpose: the task table and its stack budget are checked
 # without ESP-IDF, in addition to the _Static_assert compiled into the firmware.
 add_executable(test_tasks

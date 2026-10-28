@@ -25,6 +25,7 @@
 #include "ble_control.h"
 #include "ble_adv.h"
 #include "ble_config.h"
+#include "ble_destructive.h"
 #include "ble_gatt_spec.h"
 #include "ble_info.h"
 #include "ble_live.h"
@@ -118,6 +119,12 @@ static bool s_connected;
 static bool s_result_subscribed;
 static esp_timer_handle_t s_action_timer;
 static ble_control_action_t s_pending_action;
+
+/* T49: the destructive-action lifecycle and the peer a deferred forget must
+ * remove even if the app drops the link before the action timer fires. */
+static ble_destructive_state_t s_destructive;
+static ble_addr_t s_forget_peer;
+static bool s_forget_peer_valid;
 
 /* T30 advertising/security state. */
 static bool s_adv_active;
@@ -733,12 +740,22 @@ static void action_timer_cb(void *arg) {
     (void)arg;
     ble_control_action_t action = s_pending_action;
     s_pending_action = BLE_CONTROL_ACTION_NONE;
+    (void)ble_destructive_take_action(&s_destructive);
     uint8_t status = ble_control_run_action(action);
     if (status != SX4_RESULT_STATUS_OK) {
         /* Answer-first: the result already said ok; only the log can report
          * a late backend failure. */
         ESP_LOGW(TAG, "control action %u failed late (status %u)",
                  (unsigned)action, (unsigned)status);
+    }
+    ble_destructive_outcome_t outcome =
+        ble_destructive_on_action_finished(&s_destructive, action, status);
+    if (outcome == BLE_DESTRUCTIVE_OUTCOME_ADVERTISE && !s_connected) {
+        adv_apply_event(BLE_ADV_EVENT_DISCONNECT, false);
+    } else if (outcome == BLE_DESTRUCTIVE_OUTCOME_REBOOT) {
+        ESP_LOGI(TAG, "factory reset complete; reboot owed");
+    } else if (outcome == BLE_DESTRUCTIVE_OUTCOME_SLEEP) {
+        ESP_LOGI(TAG, "power off complete; deep sleep owed");
     }
 }
 
@@ -826,6 +843,19 @@ static int write_control(uint16_t conn_handle,
                  (unsigned)result.op, (unsigned)result.op_id,
                  (unsigned)result.status, (unsigned)encoded_len);
         notify_result(conn_handle, encoded, encoded_len);
+    }
+    if (result.action != BLE_CONTROL_ACTION_NONE) {
+        /* T49: remember the peer *now*. A deferred forget must still remove
+         * this bond if the app drops the link before the action timer fires. */
+        if (result.action == BLE_CONTROL_ACTION_FORGET_PHONE) {
+            struct ble_gap_conn_desc desc;
+            if (conn_handle != BLE_HS_CONN_HANDLE_NONE &&
+                ble_gap_conn_find(conn_handle, &desc) == 0) {
+                s_forget_peer = desc.peer_id_addr;
+                s_forget_peer_valid = true;
+            }
+        }
+        (void)ble_destructive_on_result(&s_destructive, result.action);
     }
     schedule_control_action(&result);
     return 0;
@@ -1178,6 +1208,7 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
             s_conn_handle = event->connect.conn_handle;
             s_result_subscribed = false;
             s_sync_subscribed = false;
+            ble_destructive_on_connect(&s_destructive);
             ble_tx_on_connect(event->connect.conn_handle);
             adv_apply_event(BLE_ADV_EVENT_CONNECTED, false);
             bridge_state_set_sync_active(false);
@@ -1204,7 +1235,14 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
         bridge_state_set_sync_active(false);
         ESP_LOGI(TAG, "central disconnected (reason 0x%02x)",
                  event->disconnect.reason);
-        adv_apply_event(BLE_ADV_EVENT_DISCONNECT, false);
+        /* A pending destructive action survives the link drop (T49). Factory
+         * reset/power off stay silent until reboot/sleep; everything else
+         * re-advertises now. */
+        ble_destructive_outcome_t outcome =
+            ble_destructive_on_disconnect(&s_destructive);
+        if (outcome == BLE_DESTRUCTIVE_OUTCOME_ADVERTISE) {
+            adv_apply_event(BLE_ADV_EVENT_DISCONNECT, false);
+        }
         break;
     case BLE_GAP_EVENT_ADV_COMPLETE:
         /* Our own stop (interval change) is silent. A real controller timeout
@@ -1289,16 +1327,35 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
     return 0;
 }
 
+static bool addr_equal(const ble_addr_t *a, const ble_addr_t *b) {
+    return a->type == b->type &&
+           memcmp(a->val, b->val, sizeof(a->val)) == 0;
+}
+
 uint8_t ble_service_forget_current_peer(void) {
-    if (!s_connected || s_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
-        return SX4_RESULT_STATUS_NOT_FOUND;
+    ble_addr_t peer;
+    bool have_peer = false;
+
+    /* Prefer the peer captured when the deferred action was accepted: the
+     * phone might drop (or another phone connect) before the timer fires, and
+     * forget must remove the phone that asked, never a newer link. */
+    if (s_forget_peer_valid) {
+        peer = s_forget_peer;
+        have_peer = true;
     }
-    struct ble_gap_conn_desc desc;
-    if (ble_gap_conn_find(s_conn_handle, &desc) != 0) {
+    if (!have_peer && s_connected && s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+        struct ble_gap_conn_desc desc;
+        if (ble_gap_conn_find(s_conn_handle, &desc) == 0) {
+            peer = desc.peer_id_addr;
+            have_peer = true;
+        }
+    }
+    s_forget_peer_valid = false;
+    if (!have_peer) {
         return SX4_RESULT_STATUS_NOT_FOUND;
     }
 
-    int rc = ble_store_util_delete_peer(&desc.peer_id_addr);
+    int rc = ble_store_util_delete_peer(&peer);
     refresh_bond_count();
     if (rc == BLE_HS_ENOENT) {
         return SX4_RESULT_STATUS_NOT_FOUND;
@@ -1309,10 +1366,16 @@ uint8_t ble_service_forget_current_peer(void) {
     }
 
     /* Other phone bonds stay. The disconnect event re-advertises. */
-    if (ble_gap_terminate(s_conn_handle, 0x13 /* Remote User Terminated */) !=
-        0) {
-        ESP_LOGW(TAG, "forget: link termination failed");
-        return SX4_RESULT_STATUS_FAILED;
+    if (s_connected && s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+        struct ble_gap_conn_desc desc;
+        if (ble_gap_conn_find(s_conn_handle, &desc) == 0 &&
+            addr_equal(&desc.peer_id_addr, &peer)) {
+            if (ble_gap_terminate(s_conn_handle,
+                                  0x13 /* Remote User Terminated */) != 0) {
+                ESP_LOGW(TAG, "forget: link termination failed");
+                return SX4_RESULT_STATUS_FAILED;
+            }
+        }
     }
     ESP_LOGI(TAG, "forget: current peer bond removed, %u bond(s) remain",
              (unsigned)s_bond_count);
@@ -1320,6 +1383,33 @@ uint8_t ble_service_forget_current_peer(void) {
 }
 
 bool ble_service_is_connected(void) { return s_connected; }
+
+/*
+ * T49: stop advertising and every advertising timer before deep sleep. The SoC
+ * powers the radio down, but the policy state must not claim we are still
+ * findable if the sleep call fails. Safe from the BLE action timer (does not
+ * deinit NimBLE or delete the running timer).
+ */
+void ble_service_prepare_sleep(void) {
+    s_adv_restart_pending = false;
+    s_pending_interval_ms = 0;
+    if (s_adv_window_timer != NULL) {
+        (void)esp_timer_stop(s_adv_window_timer);
+    }
+    if (s_adv_restart_timer != NULL) {
+        (void)esp_timer_stop(s_adv_restart_timer);
+    }
+    if (ble_gap_adv_active()) {
+        s_adv_stopping = true;
+        (void)ble_gap_adv_stop();
+        s_adv_stopping = false;
+    }
+    s_adv_active = false;
+    adv_window_stop();
+    passkey_clear();
+    /* Leave link_up alone: if deep sleep fails the connection may still exist.
+     * on_action_finished(FAILED) then keeps advertising off while connected. */
+}
 
 bool ble_service_is_advertising(void) { return s_adv_active && !s_connected; }
 
@@ -1382,6 +1472,8 @@ static void on_reset(int reason) {
     s_adv_active = false;
     s_adv_restart_pending = false;
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    s_forget_peer_valid = false;
+    ble_destructive_init(&s_destructive, false);
     ble_adv_state_init(&s_adv_state);
     passkey_clear();
 }
@@ -1416,6 +1508,7 @@ static void on_sync(void) {
     }
     refresh_bond_count();
     ble_adv_state_init(&s_adv_state);
+    ble_destructive_init(&s_destructive, true);
     /* Boot with free slots: advertise immediately. A full bond store still
      * advertises so a phone can read `info` and explain `bonds_free == 0`. */
     adv_apply_event(BLE_ADV_EVENT_BOOT, true);
@@ -1511,6 +1604,8 @@ esp_err_t ble_service_stop(void) {
     s_sync_subscribed = false;
     sync_cancel();
     s_pending_action = BLE_CONTROL_ACTION_NONE;
+    s_forget_peer_valid = false;
+    ble_destructive_init(&s_destructive, false);
     if (s_action_timer != NULL) {
         (void)esp_timer_stop(s_action_timer);
         (void)esp_timer_delete(s_action_timer);

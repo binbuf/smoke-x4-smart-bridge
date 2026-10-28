@@ -630,6 +630,28 @@ The app treats a disconnect after the request as the expected success signal for
 factory reset and power off, but only after a `result ok` or a deliberate
 timeout with the link gone.
 
+### Implementation rules (T49)
+
+- `ble_destructive.c` is the pure link/action state machine. It is driven from
+  `ble_service.c` after the result notification, on GAP connect/disconnect and
+  when the ≈250 ms action timer finishes. Advertising is never true while the
+  link is up, and an owed reboot/sleep never advertises.
+- A link drop after `result ok` but before the action timer does **not** cancel
+  the action. Forget/clear/unpair re-advertise immediately; factory reset and
+  power off stay silent until they reboot/sleep.
+- Forget captures the current peer identity at write time, so an app that drops
+  mid-op still has that one bond deleted. Other bonds are untouched.
+- A failed late action returns to the normal discoverable state (unless still
+  connected), so the app can reconnect and retry; the already-sent `result ok`
+  is never rewritten.
+- Power off stops advertising and cancels the advertising timers before deep
+  sleep (`ble_service_prepare_sleep()`), so a failed sleep call cannot leave the
+  policy claiming the bridge is findable.
+- A power cut during factory reset or clear leaves `clear_pending` set (the
+  reset step table writes generation + flag before erasing anything). Boot's
+  `log_flash_open()` finishes the erase and only then advertises; the device
+  never starts in a half-wiped, advertising state.
+
 ## 5.13 Versioning and errors
 
 - `info.proto_major` must be `1`; an app seeing another major shows "Update the
