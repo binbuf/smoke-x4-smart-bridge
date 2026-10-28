@@ -169,9 +169,11 @@ static void check_vector_corpus(void) {
 
         if (strcmp(v->category, "billows") == 0) {
             CHECK(state.billows_attached);
-            /* Candidate only: the max<->target relation is not validated
-             * until M5, so it must not be exposed as a target yet. */
-            CHECK(!state.billows_target_valid);
+            /* T56 confirmed max == target while the Billows is attached. */
+            CHECK(state.billows_target_valid);
+            CHECK_EQ_INT(state.billows_target_deg,
+                         state.probes[3].alarm_high_deg);
+            CHECK_EQ_INT(state.billows_target_units, state.units);
         }
     }
 
@@ -273,7 +275,7 @@ static void check_named_vectors(void) {
         CHECK_EQ_INT(state.billows_target_deg, 160);
         CHECK_EQ_INT(state.billows_target_units,
                      SX_PROTOCOL_UNITS_FAHRENHEIT);
-        CHECK(!state.billows_target_valid);
+        CHECK(state.billows_target_valid);
     }
 
     const sx4_parser_vector_t *target =
@@ -286,7 +288,7 @@ static void check_named_vectors(void) {
             SX_PROTOCOL_OK);
         CHECK(state.billows_attached);
         CHECK_EQ_INT(state.billows_target_deg, 250);
-        CHECK(!state.billows_target_valid);
+        CHECK(state.billows_target_valid);
     }
 
     const sx4_parser_vector_t *x2 = find_vector(vectors, count, "x2-real-state");
@@ -313,6 +315,60 @@ static void check_named_vectors(void) {
         CHECK(state.probes[1].attached == false);
         CHECK_EQ_INT(state.probes[1].temp_f10, SX_PROTOCOL_TEMP_DETACHED);
     }
+}
+
+/* T56 real capture: max == the base target only while attached. */
+static void check_t56_billows_capture(void) {
+    char path[512];
+    fixture_path(path, sizeof path, "x4-billows-225-250-275.loralog");
+
+    sx4_loralog_line_t lines[MAX_CAPTURE_LINES];
+    size_t count = 0;
+    CHECK_EQ_INT(sx4_loralog_read(path, lines, MAX_CAPTURE_LINES, &count), 0);
+    CHECK_EQ_UINT(count, 17u);
+
+    unsigned int at_225 = 0;
+    unsigned int at_250 = 0;
+    unsigned int at_275 = 0;
+    unsigned int detached = 0;
+    for (size_t i = 0; i < count; i++) {
+        sx_protocol_state_t state;
+        CHECK_EQ_INT(sx_protocol_parse_state(lines[i].payload, PAIRED_ID,
+                                             &state),
+                     SX_PROTOCOL_OK);
+        if (state.billows_attached) {
+            CHECK(state.billows_target_valid);
+            CHECK_EQ_INT(state.billows_target_units,
+                         SX_PROTOCOL_UNITS_FAHRENHEIT);
+            CHECK_EQ_INT(state.probes[3].alarm_low_deg, 0);
+            switch (state.billows_target_deg) {
+            case 225:
+                at_225++;
+                break;
+            case 250:
+                at_250++;
+                break;
+            case 275:
+                at_275++;
+                break;
+            default:
+                CHECK(false);
+                break;
+            }
+        } else {
+            detached++;
+            CHECK(!state.billows_target_valid);
+            CHECK_EQ_INT(state.billows_target_deg, 0);
+            /* The detached fallback is 160; it must never become a target. */
+            CHECK_EQ_INT(state.probes[3].alarm_high_deg, 160);
+            CHECK_EQ_INT(state.probes[3].alarm_low_deg, 32);
+        }
+    }
+
+    CHECK_EQ_UINT(at_225, 4u);
+    CHECK_EQ_UINT(at_250, 4u);
+    CHECK_EQ_UINT(at_275, 5u);
+    CHECK_EQ_UINT(detached, 4u);
 }
 
 static void check_sync_and_ack(void) {
@@ -508,6 +564,7 @@ int main(void) {
     check_arguments();
     check_vector_corpus();
     check_named_vectors();
+    check_t56_billows_capture();
     check_sync_and_ack();
     check_rejection_is_atomic();
     check_counters();

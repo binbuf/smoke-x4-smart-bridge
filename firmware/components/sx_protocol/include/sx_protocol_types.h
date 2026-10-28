@@ -55,10 +55,11 @@ typedef struct {
     bool billows_attached;
     bool new_alarm; /* trailing edge-triggered field; preserved, unused */
 
-    /* Billows target candidate: probe 4 `max` while billows_attached is
-     * set, in `billows_target_units`. The max <-> target relation is not
-     * validated until M5, so consumers must show a target only when
-     * billows_target_valid is true. It stays false in the MVP parser. */
+    /* Billows target: probe 4 `max` while billows_attached is set, in
+     * `billows_target_units`. T56 confirmed max == the base set temp at
+     * 225/250/275 °F (min stays 0). It is valid only when attached; the
+     * detached fallback fields must never be shown as a target. Consumers
+     * still gate on billows_target_valid. */
     int16_t billows_target_deg;
     sx_protocol_units_t billows_target_units;
     bool billows_target_valid;

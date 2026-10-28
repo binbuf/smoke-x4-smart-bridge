@@ -112,6 +112,10 @@ class FakeBridgeSession {
     BillowsAttachment? billowsAttachment,
     bool? billowsSeenThisSession,
     bool? billowsObserve,
+    bool? billowsTargetKnown,
+    int? billowsTargetF,
+    DateTime? billowsLastDetectedAt,
+    DateTime? billowsLostAt,
   }) {
     if (phase != null) controller.phase = phase;
     if (clearSmokeXAge) controller.smokeXAgeOverride = null;
@@ -134,6 +138,14 @@ class FakeBridgeSession {
       controller.billowsSeenThisSession = billowsSeenThisSession;
     }
     if (billowsObserve != null) controller.billowsObserveCap = billowsObserve;
+    if (billowsTargetKnown != null) {
+      controller.smokeXChannel4SetKnown = billowsTargetKnown;
+    }
+    if (billowsTargetF != null) controller.smokeXChannel4SetF = billowsTargetF;
+    if (billowsLastDetectedAt != null) {
+      controller.billowsLastDetectedAt = billowsLastDetectedAt;
+    }
+    if (billowsLostAt != null) controller.billowsLostAt = billowsLostAt;
     controller.notifyListeners();
   }
 
@@ -166,6 +178,7 @@ class FakeBridgeSession {
               ? null
               : live.tempOrNull(index)! / 10.0,
       ];
+      final wasDetected = controller.billowsDetected;
       controller
         ..phase = ConnectionPhase.live
         ..probeHealth = ProbeHealth.live
@@ -182,8 +195,15 @@ class FakeBridgeSession {
         ..billowsSeenThisSession =
             controller.billowsSeenThisSession || live.billowsAttached
         ..smokeXChannel4SetKnown = live.billowsTargetF10 != 0
-        ..smokeXChannel4SetF = (live.billowsTargetF10 / 10).round()
-        ..notifyListeners();
+        ..smokeXChannel4SetF = (live.billowsTargetF10 / 10).round();
+      if (live.billowsAttached) {
+        controller
+          ..billowsLastDetectedAt = controller.content.now
+          ..billowsLostAt = null;
+      } else if (wasDetected) {
+        controller.billowsLostAt = controller.content.now;
+      }
+      controller.notifyListeners();
     } on RangeError {
       // A truncated notification is a test-script bug; the next sample would
       // overwrite it. Never fabricate probe values from a bad frame.

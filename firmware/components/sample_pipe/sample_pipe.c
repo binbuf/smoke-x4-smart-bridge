@@ -26,8 +26,8 @@ static bool payload_to_text(const uint8_t *payload, uint8_t length, char *out,
     return memchr(out, '\0', length) == NULL;
 }
 
-/* Celsius whole degrees -> Fahrenheit tenths. Only used for a future valid
- * Billows target; the MVP parser never marks one valid. */
+/* Celsius whole degrees -> Fahrenheit tenths. Used for the validated Billows
+ * target when the X4 is in °C (T56 relation: probe 4 max = base set temp). */
 static int16_t celsius_deg_to_f10(int16_t c_deg) {
     int32_t f10 = (int32_t)c_deg * 18 + 320;
     if (f10 > INT16_MAX) {

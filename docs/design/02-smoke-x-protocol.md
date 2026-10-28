@@ -219,17 +219,17 @@ X2). What is known and what is not:
 - `billows_attached` is the trailing `−2` field. **[K]**
 - The fan's actual on/off duty is **not** in the state broadcast. There is no
   observed fan-speed field. **[K]**
-- The setpoint representation is **unsettled**. The candidate is probe 4's
-  `max` field, but the Smoke X4's fan mode also sets high/low alarms at ±25 °F
-  around the target. If `max` is the high alarm, it is `target + 25`, not the
-  target. If `max` is the target, the ±25 alarms are not represented in the
-  packet. **[?]**
+- The setpoint representation is **confirmed by T56** (2026-10-28). Passive
+  captures with a real Billows on a real X4 show probe 4 `max` equal to the
+  base set temp at **225, 250 and 275 °F**, while `min` stayed `0`. The target is
+  therefore `max`, not `max − 25` and not the midpoint. **[K]**
+- `max`/`min` are only target data while `billows_attached` is set. After detach
+  the X4 returns to the non-fan defaults `max=160`, `min=32`, so the parser must
+  not expose those as a target. T57 gates the live target on the attached flag.
+  The capture is `protocol/fixtures/lora/x4-billows-225-250-275.loralog`.
 
-T56 must passively capture `max` and `min` at 225, 250, and 275 °F and derive
-the relation before the app displays a target. A single known setpoint separates
-`max = target` from `max = target + 25`; a second setpoint confirms the mapping.
-Do not change a setpoint during a live cook just to capture — use the M5 bench
-sitting. The air probe can be at room temperature; no cook is required.
+The air probe can be at room temperature for this observation; no cook is
+required. Do not change a setpoint during a live cook just to capture.
 
 The attached flag is sufficient to display "Billows detected". The target is
 shown only after T56 validates it; otherwise the UI shows `—`. There is no

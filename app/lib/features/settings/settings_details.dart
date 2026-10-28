@@ -5,6 +5,7 @@ import '../../data/ble/bridge_protocol.dart';
 import '../../app/formatters.dart';
 import '../../data/history/history_deletion.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/connection_log.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 import '../setup/setup_screen.dart';
@@ -79,7 +80,7 @@ class BillowsSettingsScreen extends StatelessWidget {
                             value: view.billows.lastDetectedLabel,
                           ),
                           KeyValueRow(
-                            label: 'Set temp',
+                            label: view.billows.setTempLabel,
                             value: view.billows.setTempKnown
                                 ? view.billows.setTempText
                                 : '—',
@@ -122,11 +123,15 @@ class BillowsSettingsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Bridge, Smoke X4, Billows and sync events are in Bridge details → Connection log.',
+                            'Newest first. The full Bridge timeline is in Bridge details → Connection log.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
                           const SizedBox(height: 8),
+                          ConnectionLogList(
+                            events: view.billowsLog,
+                            billowsOnly: true,
+                          ),
                         ],
                       ),
                     ),

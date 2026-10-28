@@ -71,7 +71,7 @@ typedef struct {
     uint8_t attached_mask;     /* bit 0..3: probe attached in the last sample */
     uint8_t flags;             /* SX4_LIVE_FLAG_* */
     int16_t billows_target_f10; /* 0 when unavailable */
-    bool billows_target_valid;  /* false until the Billows relation is proven */
+    bool billows_target_valid;  /* false when detached or no target was decoded */
     uint16_t age_s;            /* seconds since the last valid state packet */
     uint32_t uptime_s;         /* device uptime at snapshot read */
     uint16_t battery_mv;

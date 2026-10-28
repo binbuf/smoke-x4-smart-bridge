@@ -23,9 +23,10 @@ From ThermoWorks' instructions:
 The Smoke X4 state broadcast exposes:
 
 - `billows_attached` — trailing field, non-zero when a Billows is connected.
-- Probe 4's `max`/`min` — the fan-mode setpoint relation is still unproven; one of
-  them may carry the target, or the target may be derivable from them. This is a
-  **decode** question, not a control question.
+- Probe 4's `max` — the fan-mode setpoint, **confirmed by T56** at 225/250/275 °F
+  to equal the base target. `min` stayed `0`; it is not `target − 25`. This is a
+  **decode** result, not a control result. The value is only meaningful while
+  `billows_attached` is set.
 
 ## 8.2 What the bridge can and cannot do
 
@@ -74,8 +75,9 @@ for a future decision, but the MVP does not implement them.
 The MVP shall:
 
 - Decode `billows_attached` and expose it in `live.flags`.
-- Decode the candidate target field and expose `live.billows_target_f10` only
-  when T56 has validated the relation; otherwise return `0` (unknown).
+- Decode the target field and expose `live.billows_target_f10` as probe 4 `max`
+  while `billows_attached` is set (T56 validated the relation); otherwise return
+  `0` (unknown). Never expose the detached `160`/`32` defaults as a target.
 - Show a Billows card on Live and a page on the OLED **only when a Billows has
   been detected**; no zero or fake target when absent.
 - Say "Set on the Smoke X4" wherever the target is shown.
@@ -112,8 +114,10 @@ The target relation is captured passively; no setpoint is changed during a cook.
    [`../billows-decision.md`](../billows-decision.md) and
    [`../hardware-verified.md`](../hardware-verified.md).
 
-If the relation is not confirmed, the target stays unknown. The attached flag is
-independently useful and ships regardless.
+T56 completed this procedure on 2026-10-28: `max` tracked the base target at all
+three setpoints and `min` stayed `0`. The target is `max`. Evidence:
+`protocol/fixtures/lora/x4-billows-225-250-275.loralog`. If a later capture
+contradicts it, the target returns to unknown rather than guessing.
 
 There is no requirement to press receiver buttons or hunt for a command frame in
 the MVP. That is post-MVP research ([§8.9](#89-post-mvp-passive-rf-survey)).
@@ -261,8 +265,8 @@ Rules:
 | # | Question | Needed for | Status |
 |---|---|---|---|
 | BQ1 | Does the receiver transmit anything besides the sync ACK? | Any future RF control | **Answered by product docs: no setpoint controls on the receiver. Passive confirmation is post-MVP.** |
-| BQ2 | What changes in the state packet when the target changes? | Observation target | T56 passive capture |
-| BQ3 | Is the target probe 4 `max`, `max − 25`, midpoint, or another field? | Observation target | T56 passive capture |
+| BQ2 | What changes in the state packet when the target changes? | Observation target | **Answered by T56: probe 4 `max` follows the base target (225/250/275 °F); header field 3 and `new_alarm` show a menu edge only.** |
+| BQ3 | Is the target probe 4 `max`, `max − 25`, midpoint, or another field? | Observation target | **Answered by T56: `max` = target; `min` = 0; not `max − 25` or the midpoint.** |
 | BQ4 | Does the state packet expose fan duty or a fan-running flag? | Extra observation | Post-MVP passive survey |
 | BQ5 | Does the fan adapter or Billows emit any RF telemetry? | Extra observation | Post-MVP passive survey |
 | BQ6 | What is the fan's inrush/steady current? | Future inline controller | Deferred with option B |
