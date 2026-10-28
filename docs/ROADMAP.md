@@ -148,9 +148,12 @@ the target set on the Smoke X4. `caps.billows_control = 0`; there is no setpoint
 setter and no Billows TX path.
 
 - [ ] T56 — Billows observation evidence (passive) → [tasks/56-billows-observation-evidence.md](tasks/56-billows-observation-evidence.md)
-- [ ] T57 — Firmware: Billows observation → [tasks/57-firmware-billows-observation.md](tasks/57-firmware-billows-observation.md)
-- [ ] T58 — App: Billows UI (observation only) → [tasks/58-app-billows-ui.md](tasks/58-app-billows-ui.md)
+- [ ] T57 — Firmware and app: Billows observation → [tasks/57-billows-observation.md](tasks/57-billows-observation.md)
 - [ ] T59 — Bench: Billows observation → [tasks/59-bench-billows-observation.md](tasks/59-bench-billows-observation.md)
+
+T58 (the separate app task) was folded into T57: the Live card, Settings screen
+and capability gate already landed, so splitting firmware decode from app
+surfaces created two tasks for one host-only implementation pass.
 
 **Exit gate:** observed state and target are verified with a real Billows; the
 target shows only if validated, otherwise `—`; `billows_control = 0`; Option C
@@ -187,11 +190,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-28T17:12:51Z · 55/67 done
+**Pipeline status** — updated 2026-10-28T17:12:51Z · 55/66 done
 
 - Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T46a, T54, T55
 - Blocked: none
 - Failed: none
-- Remaining: T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Remaining: T56, T57, T59, T61, T62, T63, T64, T65, T66, T67, T68
 - Last finished: T55 — accepted · accepted by human — Manual bench checks completed with the operator: OLED units C/F and 30s/1min timeout confirmed on the panel (saved read-back); Smoke X4 SYNC re-pair produced pair ACK on 918.5MHz and preserved gen 081936f6/seq 2710-2714; power-off OFF overlay confirmed and a real ~1.9s PRG hold logged 'hold-to-wake confirmed', recovering seq 0..2712. Only the RESETTING overlay photo was not captured (factory reset itself is evidenced). | was blocked: Seeded Not synced gap and range-scoped loss/Cooks recheck landed and host gate passes; OLED panel and real X4 SYNC re-pair still need physical human access.
 <!-- /symphony:status -->

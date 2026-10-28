@@ -33,7 +33,7 @@ Build the repository that turns raw BLE sync batches into a durable, resumable l
 - Firmware sync engine and gap detection on the device — owned by T39.
 - BLE transport, scan, bond, and link procedures — owned by T32/T33/T35.
 - Settings and device actions — M4 (T47–T55).
-- Billows — M5 (T56–T60).
+- Billows — M5 (T56, T57, T59).
 - Server/cloud sync and export/share — outside MVP; no task owns them.
 - Automatic deletion — outside MVP; no task owns it.
 

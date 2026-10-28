@@ -43,7 +43,7 @@
 - Parser → log → UI pipeline wiring → T21.
 - BLE advertising, notifications, and sync → Phase 3 BLE tasks (T27–T37).
 - Wi-Fi/HTTP/OTA and any other RF transmit path: outside MVP; no task owns it.
-- Billows TX/control: outside MVP; M5 (T56–T60) is observation only.
+- Billows TX/control: outside MVP; M5 (T56, T57, T59) is observation only.
 
 ## Design notes
 - Pins from [01 §1.2](../design/01-hardware.md): NSS GPIO8, SCK GPIO9, MOSI GPIO10, MISO GPIO11, RST GPIO12, BUSY GPIO13, DIO1 GPIO14 (optional because the driver polls).

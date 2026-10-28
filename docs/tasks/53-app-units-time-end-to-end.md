@@ -42,7 +42,7 @@ Make one conversion path and one formatting layer govern every screen: Live, spa
 - Settings editors for name, timeout and Appearance → T51.
 - Destructive flows and loss copy → T52.
 - Full UI state matrix, accessibility, goldens and copy-lint gate → T54.
-- Billows control or setpoint editing → M5 Billows (T56–T60); `caps.billows_control` is always 0.
+- Billows control or setpoint editing → M5 Billows (T56, T57, T59); `caps.billows_control` is always 0.
 - Probe names, roles or labels — removed from the MVP; outside MVP, no task owns it.
 - Local web UI, Wi-Fi/HTTP/OTA — outside MVP; no task owns it.
 

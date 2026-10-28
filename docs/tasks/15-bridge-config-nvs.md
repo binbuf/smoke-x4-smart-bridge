@@ -35,7 +35,7 @@
 - Clock policy and the live snapshot → T20.
 - BLE bond creation/security and the NimBLE host → Phase 3 BLE tasks (T27–T37).
 - Factory-reset/clear-history UI and command handling → M4 settings (T47–T55).
-- Billows mode/target behavior → M5 Billows (T56–T60); the fields are reserved and unwritten here.
+- Billows mode/target behavior → M5 Billows (T56, T57, T59); the fields are reserved and unwritten here.
 - Any Wi-Fi/HTTP/OTA configuration: outside MVP; no task owns it.
 
 ## Design notes

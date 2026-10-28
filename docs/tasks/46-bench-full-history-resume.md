@@ -32,7 +32,7 @@ Prove the complete history path on the real Bridge and target phone: full-ring s
 ## Out of scope
 - Fixing product behavior found during the walk — record the defect and route it to the owning task (T39–T45); this task is evidence.
 - Settings, units, appearance, and device actions — M4 (T47–T55).
-- Billows observation — M5 (T56–T60).
+- Billows observation — M5 (T56, T57, T59).
 - 24 h soak, release builds, field cook, and final acceptance — M6 release hardening (T61–T67); the post-MVP passive RF survey is T68.
 - Server/cloud sync and export/share — outside MVP; no task owns them.
 - Automatic deletion — outside MVP; no task owns it.

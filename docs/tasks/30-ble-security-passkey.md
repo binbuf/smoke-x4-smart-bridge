@@ -31,7 +31,7 @@ A phone bonds with the bridge using LE Secure Connections and the six-digit code
 - Scanning and the app BLE client → T32.
 - Device-name and display-timeout configuration → T51 (M4).
 - `forget_phone` / `factory_reset` bond removal → T48; lost-phone USB recovery is outside MVP and no task owns it.
-- Billows observation and target validation → T56–T60 (M5). The blob carries the observed target; it does not enable control.
+- Billows observation and target validation → T56, T57, T59 (M5). The blob carries the observed target; it does not enable control.
 - Wi-Fi/HTTP/OTA and any provisioning service — outside MVP; no task owns it.
 
 ## Design notes

@@ -42,7 +42,7 @@ Ship the approved destructive flows with exact cost-before-send copy: Forget thi
 - Full UI matrix, accessibility and copy-lint gate → T54.
 - On-device factory reset gesture or boot-time button menu — outside MVP; no task owns it.
 - Notifications — outside MVP; no task owns it.
-- Billows control — M5 Billows (T56–T60); `caps.billows_control` is always 0.
+- Billows control — M5 Billows (T56, T57, T59); `caps.billows_control` is always 0.
 
 ## Design notes
 - Exact copy (12 §12.2):

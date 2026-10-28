@@ -159,7 +159,7 @@ steps are marked **[human]** and must not be claimed from a host test.
 - Full-ring history, mid-sync resume and 24 h sync timing → T46.
 - Settings/config writes, destructive app flows and the full UI/a11y/copy gate →
   T55/T54.
-- Billows observation on a real unit → T56–T59.
+- Billows observation on a real unit → T56, T57, T59.
 - Release packaging → T64/T65; soak/runtime → T61/T62.
 - Wi-Fi/HTTP/OTA — outside MVP; no task owns it.
 

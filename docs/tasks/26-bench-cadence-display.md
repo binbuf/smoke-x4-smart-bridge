@@ -34,7 +34,7 @@ USB-detached wake/current at **T62**).
 - Pairing, stock-receiver independence, power-cut recovery, detached sentinel,
   and °F/°C storage — prepared by T25, executed at T37.
 - BLE sync/catch-up and app history → T39–T46.
-- Billows observation and target validation → T56–T60.
+- Billows observation and target validation → T56, T57, T59.
 - Charging/USB-state reporting: outside MVP; no task owns it.
 - Any Wi-Fi/HTTP/OTA testing: outside MVP; no task owns it.
 

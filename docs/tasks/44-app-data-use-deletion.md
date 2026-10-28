@@ -31,7 +31,7 @@ Build the approved History & storage screen so users can see exactly what is on 
 - Settings root shell and navigation — owned by T50.
 - Bridge destructive-action confirmations for power off, factory reset, and forget this phone — owned by T52; the Bridge clear command/state machine is owned by T49.
 - History chart, Summary, Cooks, and their empty states — owned by T42/T45.
-- Billows surfaces — M5 (T56–T60).
+- Billows surfaces — M5 (T56, T57, T59).
 - Automatic deletion — outside MVP; no task owns it.
 - Server/cloud sync — outside MVP; no task owns it.
 - Export/share — outside MVP; no task owns it.

@@ -29,7 +29,7 @@ A pure-C parser turns Smoke X4 state and sync payloads into validated values: ca
 - Pairing FSM, sync ACK, frequency validation, and retuning → T16.
 - Record encoding and CRC → T17.
 - Ring writes, flash, and boot recovery → T18/T19.
-- Billows target validation and observation UI → M5 Billows (T56–T60); no Billows TX/control path exists in the MVP.
+- Billows target validation and observation UI → M5 Billows (T56, T57, T59); no Billows TX/control path exists in the MVP.
 - Alarm handling, buzzer, or phone notifications: outside MVP; no task owns them.
 - App-side parsing or display → Phase 3 app tasks (T27–T37 and later M3 history tasks T39–T46).
 

@@ -7,7 +7,7 @@ A receive-only survey documents whether the Smoke X4, fan adapter, or Billows em
 - **Post-MVP only.** Do not run this task before T67 (final acceptance audit) completes; it does not gate the release.
 - Design: [08 §8.9](../design/08-billows.md); open questions BQ4/BQ5 in [08 §8.10](../design/08-billows.md).
 - Original verification: **B** (bench) · **board:** yes · **status:** post-MVP.
-- Depends on T59, the exit gate for the T56–T59 observation group.
+- Depends on T59, the exit gate for the Billows observation group (T56, T57, T59).
 - This is a passive data survey, not a control investigation. There is no transmitter, replay, or fuzzing.
 
 ## Scope

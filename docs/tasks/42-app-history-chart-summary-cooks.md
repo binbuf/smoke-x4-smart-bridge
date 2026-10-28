@@ -41,7 +41,7 @@ Turn the History shell into the approved full archive: every range and custom ra
 - Settings shell, Bridge details, units, and appearance — M4 (T47–T55).
 - Full UI state/accessibility/copy gate at 320 dp — owned by T54.
 - Live screen implementation — owned by T34.
-- Billows surfaces — M5 (T56–T60).
+- Billows surfaces — M5 (T56, T57, T59).
 - User-created cook sessions, names, marks, phases, or cook clock — outside MVP; no task owns them. Detected Cooks are read-only archive navigation.
 - Alarms, phone notifications, export/share, and cloud sync — outside MVP; no task owns them.
 - A second chart or a UI redesign — outside MVP; the contract is [13](../design/13-ui-implementation-contract.md).

@@ -32,7 +32,7 @@ The bridge pairs with one real Smoke X4 through the sync-beacon handshake, persi
 - NVS getters/setters and validation → T15.
 - App-driven `unpair_smoke_x` / Re-pair action and its UI → M4 settings (T47–T55); its bench pass is a later app verification, not this task.
 - BLE pairing/passkey and connection state → Phase 3 BLE tasks (T27–T37).
-- Any LoRa TX other than the pairing ACK, including a Billows control path: outside MVP; no task owns it. M5 (T56–T60) is receive-only observation.
+- Any LoRa TX other than the pairing ACK, including a Billows control path: outside MVP; no task owns it. M5 (T56, T57, T59) is receive-only observation.
 - Automatic re-pair to a different unit after a lost link: deliberately excluded.
 - OTA/Wi-Fi/HTTP: outside MVP; no task owns it.
 

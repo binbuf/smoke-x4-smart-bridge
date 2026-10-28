@@ -35,7 +35,7 @@ The board samples the battery divider with the correct GPIO37 enable/sample/disa
 - Charging status, USB detection, or a fuel gauge: outside MVP; no task owns it. Do not infer charging from voltage.
 - Power-off/deep-sleep sequencing → T23.
 - Any safety decision based on an inferred cable state: outside MVP; no task owns it.
-- Billows power/control: outside MVP; M5 (T56–T60) is observation only.
+- Billows power/control: outside MVP; M5 (T56, T57, T59) is observation only.
 
 ## Design notes
 - GPIO37 is **active HIGH on this board revision** to enable the divider; it must be driven LOW after sampling.

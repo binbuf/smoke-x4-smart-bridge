@@ -34,7 +34,7 @@ The app performs the real GATT procedure sequence from connect to live data: rea
 - Setup/passkey screen copy and states → T33.
 - `BleClient` platform exception mapping and plugin internals → T32.
 - Destructive control actions (`forget_phone`, factory reset, power off, clear history) → T48.
-- Billows observation/UI → T56–T60 (M5); no Billows control path exists.
+- Billows observation/UI → T56, T57, T59 (M5); no Billows control path exists.
 - Background scanning, a foreground service, or a battery-optimization exemption — outside MVP; no task owns them.
 - Wi-Fi/HTTP/OTA or a cloud sync path — outside MVP; no task owns it.
 

@@ -23,7 +23,7 @@ A committed passive capture set proves whether a real Billows is reported by the
 ## Out of scope
 - Any LoRa transmission, replay, or fuzzing — outside MVP; no task owns it. T68 is a receive-only post-MVP survey.
 - Billows setpoint control (RF command or inline fan controller) — outside MVP; no task owns it. T68 does not add a control path.
-- Firmware decode and capability bits (→ T57), app surfaces (→ T58), and the milestone bench verification (→ T59).
+- Firmware decode, capability bits and app surfaces (→ T57), and the milestone bench verification (→ T59).
 - A cook; none is required.
 - Wi-Fi/HTTP/OTA, notifications, web UI, user-created cook sessions, CSV/JSON export, and multi-bridge — outside MVP; no task owns them.
 

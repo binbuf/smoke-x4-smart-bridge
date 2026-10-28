@@ -494,7 +494,7 @@ T54 implements these as gates that run in `flutter test`:
 | Settings root, Bridge details, History & storage, About, Appearance | T50, T51 |
 | Destructive actions, power-off screen, saved-history escape | T52 |
 | Units, time, theme end-to-end | T53 |
-| Billows status-only surfaces | T58 |
+| Billows status-only surfaces | T57 |
 | OLED pages, overlays and labels | T22 |
 | Release lab gate, parity walk, final UI acceptance | T64, T67 |
 

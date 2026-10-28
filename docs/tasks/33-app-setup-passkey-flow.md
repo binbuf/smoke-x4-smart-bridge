@@ -54,7 +54,7 @@ A factory-fresh phone can go from `Connect your Bridge` through permissions, sca
 - Link procedure internals (MTU, subscriptions, control queue, reconnect state machine) → T35.
 - History shell and chart → T36; full History in M3 → T42.
 - Settings, `Forget this phone`, factory reset, and power off → T50–T52 (M4); this task only provides the setup-side escape after those actions.
-- Billows UI and observation → T56–T60 (M5); Billows stays hidden while `caps.billows_observe = 0`.
+- Billows UI and observation → T56, T57, T59 (M5); Billows stays hidden while `caps.billows_observe = 0`.
 - Wi-Fi/HTTP/OTA or any provisioning path — outside MVP; no task owns it.
 - iOS support — outside MVP; no task owns it.
 

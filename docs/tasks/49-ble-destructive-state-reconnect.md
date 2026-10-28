@@ -41,7 +41,7 @@ Make the BLE link behave correctly after forget, factory reset and power off: an
 - App-side destructive flows, copy and Setup return → T52.
 - Deep-sleep GPIO0/PRG wake behaviour → T23 (T23); this task only enters sleep.
 - Boot-time factory-reset gesture or button menu — outside MVP; no task owns it.
-- Billows control path — M5 Billows (T56–T60); `caps.billows_control` is always 0.
+- Billows control path — M5 Billows (T56, T57, T59); `caps.billows_control` is always 0.
 
 ## Design notes
 - Ordering: validate the whole body → persist any state the next boot needs → send `result ok` → wait ≈250 ms → tear down/reboot/sleep. Never disconnect before the result where a result can be sent.

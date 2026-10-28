@@ -41,7 +41,7 @@ Turn the prototype review into a production gate: every reachable UI state has a
 - Fixing product states that earlier tasks own (Settings root T50, Bridge details T51, destructive flows T52, units/time T53); T46a owns the T46 History/connection corrections. This task adds the gate and verifies them.
 - Implementing new screens or new state that 13 §13.4 does not define — outside MVP; no task owns it.
 - Release-build Experimental lab gating and the final parity walk → release hardening (T61–T68); this task keeps the shared debug/`ENABLE_EXPERIMENTAL_LAB` gate and checks for fixture strings.
-- Billows bench/observation evidence → M5 Billows (T56–T60).
+- Billows bench/observation evidence → M5 Billows (T56, T57, T59).
 - Firmware host tests → T47–T49.
 
 ## Design notes

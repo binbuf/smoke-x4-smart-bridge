@@ -26,7 +26,7 @@ A subscribed phone receives the 20-byte live snapshot on every stored sample and
 - `control`/`result` and `set_time` → T29.
 - The encrypted link, bonding, and CCCD security enforcement mechanics → T30.
 - `sync_ctrl`/`sync_data` and the catch-up path for a missed notification → T31; the app-side periodic forward sync → T35/T41.
-- Billows target validation and the Billows UI → T56–T60 (M5). The target field is carried here but not validated by this task.
+- Billows target validation and the Billows UI → T56, T57, T59 (M5). The target field is carried here but not validated by this task.
 - Wi-Fi/HTTP/OTA or any network telemetry path — outside MVP; no task owns it.
 
 ## Design notes

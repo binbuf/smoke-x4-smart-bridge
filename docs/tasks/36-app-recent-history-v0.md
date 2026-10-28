@@ -39,7 +39,7 @@ The approved History UI is mounted in production and shows the last 15 minutes s
 - History deletion and retention → T44 (M3).
 - Full History empty/error states → T45 (M3).
 - Settings, units, and History & storage → T50–T53 (M4).
-- Billows UI → T56–T60 (M5).
+- Billows UI → T56, T57, T59 (M5).
 - A second dashboard, aggregate graph, or second simplified History screen — outside MVP; no task owns it.
 - Wi-Fi/HTTP/OTA, cloud sync, or export — outside MVP; no task owns them.
 

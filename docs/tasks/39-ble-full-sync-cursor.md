@@ -35,7 +35,7 @@ Complete the firmware sync engine so the app can pull the whole ring in both dir
 - History deletion and retention UI — owned by T44.
 - Server/cloud sync and export/share — outside MVP; no task owns them.
 - Alarms and phone notifications — outside MVP; no task owns them.
-- Billows control — outside MVP; Billows is observation-only in T56–T60.
+- Billows control — outside MVP; Billows is observation-only in T56, T57, T59.
 
 ## Design notes
 - The wire format is fixed by [04 §4.5](../design/04-data-and-storage.md) and [05 §5.7–§5.8](../design/05-ble-contract.md): START payload 20 B, `count × 18` B of records, END payload 13 B, carried in a framed notification stream with a 4 B frame header.
