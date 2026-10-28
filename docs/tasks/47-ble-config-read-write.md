@@ -147,6 +147,13 @@ missing UCRT DLL path, not the implementation. The harness verify now runs
 and `ctest` reported `100% tests passed out of 23` (exit 0), including
 `ble-config` and `ble-stats`. Bench deferral to T51/T55 stands.
 
+**Attempt 3.** Re-ran the objective trigger
+`powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/verify_host.ps1`
+against the existing implementation: CTest reported `100% tests passed out of
+23`, including `ble-config` and `ble-stats`, exit 0. No code or test changes
+were needed; the only working-tree change is the harness's `docs/ROADMAP.md`
+status line. Bench deferral to T51/T55 stands.
+
 **Next.** T51 maps 0x81/0x82/0x87 to the Settings copy and adds the app editor;
 T55 does the real-phone config/stats bench checks. T48/T49 still own the
 destructive control actions and the clear-generation boundary.
