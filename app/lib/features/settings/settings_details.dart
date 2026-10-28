@@ -652,7 +652,7 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'The confirmation sheet is shown as it would appear in the app. No device is contacted.',
+                'The confirmation sheet uses the same code path as Settings. Review builds may show the outcome without hardware.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -690,46 +690,12 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
   }
 
   Future<void> _show() async {
-    final view = widget.controller.settingsView;
     switch (widget.kind) {
       case DestructiveKind.forgetPhone:
-        final confirmed = await showLossSheet(
-          context,
-          title: 'Forget this phone?',
-          intro: 'This removes the Bluetooth pairing for this phone. The Bridge keeps recording.',
-          bullets: const [
-            'The Bridge forgets this phone.',
-            'This app forgets the Bridge.',
-            'History on this phone stays until you delete it.',
-          ],
-          keepNote:
-              'You can pair again later. Other paired phones are not affected.',
-          confirmLabel: 'Forget phone',
-        );
-        if (confirmed == true && mounted) {
-          widget.controller.forgetPhone();
-          _openSetup();
-        }
+        await showForgetFlow(context, widget.controller);
         break;
       case DestructiveKind.clearBridgeHistory:
-        final confirmed = await showLossSheet(
-          context,
-          title: 'Clear history on the Bridge?',
-          intro: 'The Bridge erases its saved readings. This can’t be undone.',
-          bullets: [
-            '${view.bridgeRecordsLabel} readings in history on the Bridge',
-            'The Bridge keeps its pairings and settings',
-            'History on this phone is kept',
-          ],
-          keepNote: 'The Bridge starts recording a new log.',
-          confirmLabel: 'Clear history',
-        );
-        if (confirmed == true && mounted) {
-          widget.controller.clearBridgeHistory();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('History on the Bridge cleared.')),
-          );
-        }
+        await clearBridgeHistory(context, widget.controller);
         break;
       case DestructiveKind.delete30:
       case DestructiveKind.delete90:
@@ -739,92 +705,115 @@ class _ConfirmationPreviewScreenState extends State<ConfirmationPreviewScreen> {
           DestructiveKind.delete90 => HistoryDeletionScope.olderThan90Days,
           _ => HistoryDeletionScope.all,
         };
-        final plan = await widget.controller.planLocalDeletion(deletionScope);
-        if (!mounted) return;
-        if (plan.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('There are no readings to delete.')),
-          );
-          break;
-        }
-        final days = deletionScope.age?.inDays;
-        final confirmed = await showLossSheet(
-          context,
-          title: days == null
-              ? 'Delete all history from this phone?'
-              : 'Delete history older than $days days?',
-          intro: days == null
-              ? 'All readings stored on this phone will be deleted. This can’t be undone.'
-              : 'Only readings older than $days days will be deleted. This can’t be undone.',
-          bullets: [
-            'Date range: ${_deletionRangeLabel(plan)}',
-            'This doesn’t change the Bridge',
-            days == null
-                ? 'All readings on this phone are deleted'
-                : 'Only the selected readings are deleted',
-          ],
-          confirmLabel: 'Delete ${commaInt(plan.count)} readings',
-        );
-        if (confirmed == true && mounted) {
-          await widget.controller.applyLocalDeletion(plan);
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('History deleted from this phone.')),
-          );
-        }
+        await deleteLocalData(context, widget.controller, deletionScope);
         break;
       case DestructiveKind.factoryReset:
-        final confirmed = await showLossSheet(
-          context,
-          title: 'Factory reset this Bridge?',
-          intro: 'The Bridge erases its pairings, settings, and saved readings, then restarts.',
-          bullets: const [
-            'All paired phones, including this one',
-            'Bridge settings and screen preferences',
-            'Saved readings and the clock',
-            'The Bridge becomes available to pair as a new device',
-          ],
-          keepNote: 'History on this phone is kept.',
-          confirmLabel: 'Factory reset',
-        );
-        if (confirmed == true && mounted) {
-          widget.controller.factoryReset();
-          _openSetup();
-        }
+        await factoryReset(context, widget.controller);
         break;
       case DestructiveKind.powerOff:
-        final confirmed = await showLossSheet(
-          context,
-          title: 'Power off the Bridge?',
-          intro: 'The Bridge stops recording until you turn it back on.',
-          bullets: const [
-            'Recording stops while the Bridge is off',
-            'History on this phone is kept',
-          ],
-          keepNote: 'Hold PRG for 1.5 seconds to turn the Bridge back on.',
-          confirmLabel: 'Power off',
-          destructive: false,
-        );
-        if (confirmed == true && mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => PowerOffScreen(controller: widget.controller),
-            ),
-          );
-        }
+        await powerOff(context, widget.controller);
         break;
     }
   }
+}
 
-  void _openSetup() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(
-        builder: (_) => SetupScreen(
-          controller: widget.controller,
-          initialStep: SetupStep.noBridge,
+/// Runs one confirmed Bridge action and shows the neutral sending state until
+/// the device result (or the expected disconnect) arrives.
+///
+/// The sheet result is the only signal the caller acts on; a GATT write on its
+/// own never produces a success message.
+Future<DestructiveOutcome?> confirmDestructiveAction(
+  BuildContext context, {
+  required String title,
+  required String intro,
+  required List<String> bullets,
+  String? keepNote,
+  required String confirmLabel,
+  required String sendingLabel,
+  required Future<DestructiveOutcome> Function() action,
+  bool destructive = true,
+}) async {
+  final confirmed = await showLossSheet(
+    context,
+    title: title,
+    intro: intro,
+    bullets: bullets,
+    keepNote: keepNote,
+    confirmLabel: confirmLabel,
+    destructive: destructive,
+  );
+  if (confirmed != true || !context.mounted) return null;
+  return showDialog<DestructiveOutcome>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _SendingDialog(label: sendingLabel, action: action),
+  );
+}
+
+void _openSetup(BuildContext context, BridgeController controller) {
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute<void>(
+      builder: (_) => SetupScreen(
+        controller: controller,
+        initialStep: SetupStep.noBridge,
+      ),
+    ),
+    (route) => route.isFirst,
+  );
+}
+
+void _showFailure(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      key: const Key('destructive.failure'),
+      content: Text(message),
+    ),
+  );
+}
+
+class _SendingDialog extends StatefulWidget {
+  const _SendingDialog({required this.label, required this.action});
+
+  final String label;
+  final Future<DestructiveOutcome> Function() action;
+
+  @override
+  State<_SendingDialog> createState() => _SendingDialogState();
+}
+
+class _SendingDialogState extends State<_SendingDialog> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _run();
+    });
+  }
+
+  Future<void> _run() async {
+    final outcome = await widget.action();
+    if (!mounted) return;
+    Navigator.of(context).pop(outcome);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      child: AlertDialog(
+        key: const Key('destructive.sending'),
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: Text(widget.label)),
+          ],
         ),
       ),
-      (route) => route.isFirst,
     );
   }
 }
@@ -833,7 +822,7 @@ Future<void> showForgetFlow(
   BuildContext context,
   BridgeController controller,
 ) async {
-  final confirmed = await showLossSheet(
+  final outcome = await confirmDestructiveAction(
     context,
     title: 'Forget this phone?',
     intro: 'This removes the Bluetooth pairing for this phone. The Bridge keeps recording.',
@@ -844,19 +833,13 @@ Future<void> showForgetFlow(
     ],
     keepNote: 'You can pair again later. Other paired phones are not affected.',
     confirmLabel: 'Forget phone',
+    sendingLabel: 'Forgetting this phone…',
+    action: controller.forgetPhone,
   );
-  if (confirmed == true && context.mounted) {
-    controller.forgetPhone();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(
-        builder: (_) => SetupScreen(
-          controller: controller,
-          initialStep: SetupStep.noBridge,
-        ),
-      ),
-      (route) => route.isFirst,
-    );
-  }
+  if (outcome == null || !context.mounted) return;
+  // Forget is local-first: return to Setup even when the Bridge could not
+  // confirm the pairing removal. Setup names the pairing that may remain.
+  _openSetup(context, controller);
 }
 
 Future<void> clearBridgeHistory(
@@ -864,7 +847,7 @@ Future<void> clearBridgeHistory(
   BridgeController controller,
 ) async {
   final view = controller.settingsView;
-  final confirmed = await showLossSheet(
+  final outcome = await confirmDestructiveAction(
     context,
     title: 'Clear history on the Bridge?',
     intro: 'The Bridge erases its saved readings. This can’t be undone.',
@@ -875,11 +858,23 @@ Future<void> clearBridgeHistory(
     ],
     keepNote: 'The Bridge starts recording a new log.',
     confirmLabel: 'Clear history',
+    sendingLabel: 'Clearing history on the Bridge…',
+    action: controller.clearBridgeHistory,
   );
-  if (confirmed == true && context.mounted) {
-    controller.clearBridgeHistory();
+  if (outcome == null || !context.mounted) return;
+  if (outcome == DestructiveOutcome.success) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('History on the Bridge cleared.')),
+      const SnackBar(
+        key: Key('destructive.clear.success'),
+        content: Text(
+          'History on the Bridge cleared. New readings start a new log.',
+        ),
+      ),
+    );
+  } else {
+    _showFailure(
+      context,
+      'The Bridge didn’t clear its history. Nothing changed. Try again.',
     );
   }
 }
@@ -936,7 +931,7 @@ String _deletionRangeLabel(HistoryDeletionPlan plan) {
 }
 
 Future<void> powerOff(BuildContext context, BridgeController controller) async {
-  final confirmed = await showLossSheet(
+  final outcome = await confirmDestructiveAction(
     context,
     title: 'Power off the Bridge?',
     intro: 'The Bridge stops recording until you turn it back on.',
@@ -946,13 +941,21 @@ Future<void> powerOff(BuildContext context, BridgeController controller) async {
     ],
     keepNote: 'Hold PRG for 1.5 seconds to turn the Bridge back on.',
     confirmLabel: 'Power off',
+    sendingLabel: 'Turning off the Bridge…',
+    action: controller.powerOff,
     destructive: false,
   );
-  if (confirmed == true && context.mounted) {
+  if (outcome == null || !context.mounted) return;
+  if (outcome.landed) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PowerOffScreen(controller: controller),
       ),
+    );
+  } else {
+    _showFailure(
+      context,
+      'The Bridge didn’t turn off. Nothing changed. Try again.',
     );
   }
 }
@@ -961,7 +964,7 @@ Future<void> factoryReset(
   BuildContext context,
   BridgeController controller,
 ) async {
-  final confirmed = await showLossSheet(
+  final outcome = await confirmDestructiveAction(
     context,
     title: 'Factory reset this Bridge?',
     intro: 'The Bridge erases its pairings, settings, and saved readings, then restarts.',
@@ -973,17 +976,16 @@ Future<void> factoryReset(
     ],
     keepNote: 'History on this phone is kept.',
     confirmLabel: 'Factory reset',
+    sendingLabel: 'Resetting the Bridge…',
+    action: controller.factoryReset,
   );
-  if (confirmed == true && context.mounted) {
-    controller.factoryReset();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(
-        builder: (_) => SetupScreen(
-          controller: controller,
-          initialStep: SetupStep.noBridge,
-        ),
-      ),
-      (route) => route.isFirst,
+  if (outcome == null || !context.mounted) return;
+  if (outcome.landed) {
+    _openSetup(context, controller);
+  } else {
+    _showFailure(
+      context,
+      'The Bridge didn’t confirm the reset. Nothing changed. Try again.',
     );
   }
 }

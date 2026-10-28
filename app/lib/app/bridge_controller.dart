@@ -21,6 +21,22 @@ import 'view_state.dart';
 
 export '../domain/models.dart';
 
+/// Outcome of one destructive Bridge action (05 §5.5, 05 §5.12).
+///
+/// A result is never inferred from the GATT write. [disconnected] is a success
+/// only for the ops whose contract makes the link drop the expected answer
+/// (forget, factory reset, power off).
+enum DestructiveOutcome {
+  success,
+  disconnected,
+  failed,
+  timedOut,
+  unavailable;
+
+  /// True when the Bridge did what the sheet promised.
+  bool get landed => this == success || this == disconnected;
+}
+
 /// The app's control seam.
 ///
 /// Owns navigation, theme and the state the approved shell renders. Data access
@@ -589,6 +605,7 @@ class BridgeController extends ChangeNotifier {
     if (becameHealthy) {
       lookingForBridge = false;
       blockReason = BlockReason.none;
+      bridgeOff = false;
       unawaited(_touchSavedIdentity());
       if (_pendingUnitsWrite) {
         unawaited(_writeUnits(units));
@@ -878,6 +895,19 @@ class BridgeController extends ChangeNotifier {
   bool hasSavedBridge = true;
   bool hasSavedData = false;
   bool savedDataEmpty = false;
+
+  /// True after the saved Bridge was forgotten or factory-reset while history
+  /// on this phone remains. Setup names the entry as history from the old
+  /// Bridge instead of implying it belongs to a currently configured device.
+  bool historyOrphaned = false;
+
+  /// Set when a best-effort forget could not be confirmed. Setup renders it so
+  /// the user knows the Bridge may still hold the pairing.
+  String? destructiveNotice;
+
+  /// True after the Bridge accepted `power_off`. No screen may present the
+  /// Bridge as reachable until a later connect succeeds.
+  bool bridgeOff = false;
 
   Units units = Units.fahrenheit;
 
@@ -1954,6 +1984,8 @@ class BridgeController extends ChangeNotifier {
     savedDataSize: savedDataSize,
     syncProgressPercent: syncProgressPercent,
     syncComplete: syncState == SyncState.complete,
+    historyOrphaned: historyOrphaned,
+    destructiveNotice: destructiveNotice,
   );
 
   SettingsViewState get settingsView => SettingsViewState(
@@ -2280,8 +2312,9 @@ class BridgeController extends ChangeNotifier {
   }
 
   void wake() {
-    phase = ConnectionPhase.live;
-    smokeXLiveHint = true;
+    bridgeOff = false;
+    phase = ConnectionPhase.offline;
+    offlineCache = hasSavedData || phoneRecords > 0;
     notifyListeners();
   }
 
@@ -2326,6 +2359,9 @@ class BridgeController extends ChangeNotifier {
   void completeSetup() {
     phase = ConnectionPhase.live;
     hasSavedBridge = true;
+    historyOrphaned = false;
+    bridgeOff = false;
+    destructiveNotice = null;
     probeHealth = ProbeHealth.live;
     probePresence = ProbePresence.all;
     smokeXStatus = SmokeXStatus.pairedLive;
@@ -2350,6 +2386,8 @@ class BridgeController extends ChangeNotifier {
     final hasOrphanedHistory = phoneRecords > 0 || hasSavedData;
     offlineCache = hasOrphanedHistory;
     savedDataEmpty = !hasOrphanedHistory;
+    historyOrphaned = hasOrphanedHistory;
+    bridgeOff = false;
     phase = ConnectionPhase.setup;
     tab = AppTab.live;
     _bridgeConnectedSince = null;
@@ -2370,6 +2408,9 @@ class BridgeController extends ChangeNotifier {
     if (deviceName != null && deviceName.trim().isNotEmpty) {
       rememberedBridgeName = deviceName.trim();
     }
+    historyOrphaned = false;
+    bridgeOff = false;
+    destructiveNotice = null;
     negotiatedMtu = mtu;
     final id = rememberedBridgeId;
     final name = rememberedBridgeName;
@@ -2379,46 +2420,184 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void forgetPhone() {
-    link?.abandon();
+  /// Confirms-forget implementation (05 §5.12, 06 §6.7).
+  ///
+  /// Local-first: the saved connection is cleared immediately and phone history
+  /// is kept. The `forget_phone` write is best-effort; when the Bridge answers
+  /// `ok` or the link drops first, the OS bond is removed too. When neither can
+  /// be confirmed, [destructiveNotice] explains that the Bridge may still hold
+  /// the pairing.
+  Future<DestructiveOutcome> forgetPhone() async {
+    final current = link;
+    _clearSavedConnectionLocally();
+    DestructiveOutcome outcome = DestructiveOutcome.unavailable;
+    if (current != null) {
+      outcome = await _attemptDestructive(
+        current,
+        BridgeControlOp.forgetPhone,
+      );
+    } else {
+      // Review/demo path or an already-detached link: apply the local outcome.
+      outcome = DestructiveOutcome.success;
+    }
+    if (outcome.landed) {
+      destructiveNotice = null;
+      await _removeLocalBond();
+    } else {
+      destructiveNotice =
+          'The Bridge may still have this phone paired. You can pair again later from another phone.';
+    }
+    current?.abandon();
+    notifyListeners();
+    return outcome;
+  }
+
+  /// Factory reset (05 §5.12). The phone-local connection and bond are cleared
+  /// only after the Bridge answers `ok` or the expected disconnect; phone
+  /// history is kept and Setup names it as orphaned.
+  Future<DestructiveOutcome> factoryReset() async {
+    final current = link;
+    DestructiveOutcome outcome = DestructiveOutcome.unavailable;
+    if (current != null) {
+      outcome = await _attemptDestructive(
+        current,
+        BridgeControlOp.factoryReset,
+      );
+    } else {
+      // Review/demo path or an already-detached link: apply the local outcome.
+      outcome = DestructiveOutcome.success;
+    }
+    if (outcome.landed) {
+      current?.abandon();
+      await _removeLocalBond();
+      destructiveNotice = null;
+      _clearSavedConnectionLocally();
+    }
+    return outcome;
+  }
+
+  /// Power off (05 §5.12). A disconnect after a delivered request is success.
+  /// The saved Bridge identity stays so a PRG wake can reconnect, but the app
+  /// never reports it reachable while it is off.
+  Future<DestructiveOutcome> powerOff() async {
+    final current = link;
+    DestructiveOutcome outcome = DestructiveOutcome.unavailable;
+    if (current != null) {
+      outcome = await _attemptDestructive(current, BridgeControlOp.powerOff);
+    } else {
+      // Review/demo path or an already-detached link: apply the local outcome.
+      outcome = DestructiveOutcome.success;
+    }
+    if (outcome.landed) {
+      current?.abandon();
+      bridgeOff = true;
+      phase = ConnectionPhase.offline;
+      offlineCache = hasSavedData || phoneRecords > 0;
+      _bridgeConnectedSince = null;
+      _smokeXConnectedSince = null;
+      notifyListeners();
+    }
+    return outcome;
+  }
+
+  /// `clear_history` outcome. Only an `ok` result changes the displayed Bridge
+  /// figures; the phone copy and the Bridge config/pairing are untouched. The
+  /// next stats read carries the new generation boundary.
+  Future<DestructiveOutcome> clearBridgeHistory() async {
+    final current = link;
+    DestructiveOutcome outcome = DestructiveOutcome.unavailable;
+    if (current != null) {
+      outcome = await _attemptDestructive(
+        current,
+        BridgeControlOp.clearHistory,
+        disconnectIsSuccess: false,
+      );
+    } else {
+      // Review/demo path or an already-detached link: apply the local outcome.
+      outcome = DestructiveOutcome.success;
+    }
+    if (outcome == DestructiveOutcome.success) {
+      bridgeRecords = 0;
+      bridgeOldestReadingAt = null;
+      bridgeNewestReadingAt = null;
+      notifyListeners();
+    }
+    return outcome;
+  }
+
+  /// Sends one destructive control op and maps the result / link drop.
+  Future<DestructiveOutcome> _attemptDestructive(
+    BridgeLink current,
+    BridgeControlOp op, {
+    bool disconnectIsSuccess = true,
+  }) async {
+    final attempt = await current.attemptControl(op);
+    final result = attempt.result;
+    if (result != null) {
+      return result.status == BridgeResultStatus.ok
+          ? DestructiveOutcome.success
+          : DestructiveOutcome.failed;
+    }
+    final error = attempt.error;
+    final disconnected =
+        attempt.written &&
+        ((error is BridgeLinkException &&
+                error.failure == BridgeLinkFailure.notConnected) ||
+            _linkGone);
+    if (disconnected) {
+      return disconnectIsSuccess
+          ? DestructiveOutcome.disconnected
+          : DestructiveOutcome.failed;
+    }
+    if (attempt.timedOut) {
+      // The result can no longer arrive after a reboot/sleep. A sent request
+      // with the link already gone is the expected success; a link that is
+      // still up did not act.
+      return _linkGone && disconnectIsSuccess
+          ? DestructiveOutcome.disconnected
+          : DestructiveOutcome.timedOut;
+    }
+    return DestructiveOutcome.failed;
+  }
+
+  bool get _linkGone {
+    if (bleClient?.connectionState == BleConnectionState.disconnected) {
+      return true;
+    }
+    final value = link?.phase;
+    return value == ConnectionPhase.reconnecting ||
+        value == ConnectionPhase.offline ||
+        value == ConnectionPhase.failed;
+  }
+
+  Future<void> _removeLocalBond() async {
+    final client = bleClient;
+    if (client == null) return;
+    try {
+      await client.removeBond();
+    } catch (_) {
+      // The saved identity is already gone; a failed OS bond removal is named
+      // by the Setup notice rather than blocking the local outcome.
+    }
+  }
+
+  /// Clears the saved connection and returns to Setup while keeping every
+  /// reading on this phone. Shared by forget and factory reset.
+  void _clearSavedConnectionLocally() {
     hasSavedBridge = false;
     final hasOrphanedHistory = phoneRecords > 0 || hasSavedData;
     hasSavedData = hasOrphanedHistory;
     savedDataEmpty = !hasOrphanedHistory;
     offlineCache = hasOrphanedHistory;
+    historyOrphaned = hasOrphanedHistory;
     phase = ConnectionPhase.setup;
     lookingForBridge = false;
     launchScanning = false;
     localMaxSeq = null;
+    bridgeOff = false;
     _bridgeConnectedSince = null;
     _smokeXConnectedSince = null;
     unawaited(_clearSavedIdentity());
-    notifyListeners();
-  }
-
-  void factoryReset() {
-    link?.abandon();
-    hasSavedBridge = false;
-    final hasOrphanedHistory = phoneRecords > 0 || hasSavedData;
-    savedDataEmpty = !hasOrphanedHistory;
-    offlineCache = hasOrphanedHistory;
-    phase = ConnectionPhase.setup;
-    lookingForBridge = false;
-    launchScanning = false;
-    localMaxSeq = null;
-    _bridgeConnectedSince = null;
-    _smokeXConnectedSince = null;
-    unawaited(_clearSavedIdentity());
-    notifyListeners();
-  }
-
-  /// Local outcome of a confirmed Bridge clear. T49/T52 replace this with the
-  /// `clear_history` command and generation boundary; T44 owns the confirmation,
-  /// the separate copy and keeping phone history.
-  void clearBridgeHistory() {
-    bridgeRecords = 0;
-    bridgeOldestReadingAt = null;
-    bridgeNewestReadingAt = null;
     notifyListeners();
   }
 
