@@ -152,6 +152,7 @@ void main() {
         BleFailure.bondStoreFull: BleAppState.phoneListFull,
         BleFailure.connectionFailed: BleAppState.connectionFailed,
         BleFailure.gattError: BleAppState.gattError,
+        BleFailure.configRefused: BleAppState.gattError,
       };
 
       expect(expected.keys.toSet(), BleFailure.values.toSet());
@@ -344,6 +345,12 @@ void main() {
         BleAppState.connectionFailed,
       );
       expect(gatt(19).appState, BleAppState.connectionFailed);
+      // Config ATT application errors keep the exact status for the editor.
+      expect(gatt(0x81).failure, BleFailure.configRefused);
+      expect(gatt(0x81).attCode, 0x81);
+      expect(gatt(0x82).attCode, 0x82);
+      expect(gatt(0x87).attCode, 0x87);
+      expect(gatt(0x83).failure, BleFailure.gattError);
     });
 
     test('missing GATT objects and disconnected devices are named', () {

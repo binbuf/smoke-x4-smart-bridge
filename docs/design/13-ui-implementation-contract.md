@@ -414,14 +414,14 @@ are tracked in the task plan, not silently copied.
 | Opening `Custom range…` changes the selected range before the sheet is applied | Apply only on `Apply`; `Cancel` restores the previous range and viewport | T42 |
 | About long-press and app-bar lab entry share a gate, but no release-build test proves it | Keep the shared debug/`ENABLE_EXPERIMENTAL_LAB` gate and verify it in the release build | T64 |
 | Setup protocol-mismatch/unsupported actions are only `Close` | Add `Update app`, `View history on this phone`, `Learn more` where applicable | T33 |
-| Bridge details pill says `Receiving` | Use `Receiving readings` only when fresh; otherwise `No readings for 4 min` | T51 |
+| Bridge details pill says `Receiving` | Use `Receiving readings` only when fresh; otherwise `No readings for 4 min` | T51 (landed) |
 | Summary’s disabled sort reads `Since cook start (no cook detected)` | Keep `Since cook start` disabled and show `No cook detected yet` as supporting copy | T42 |
 | Probe delta uses `+3.8°F` rather than an arrow | Keep the sign; it is clearer and accessible | Accepted |
 | All strings are hard-coded | Centralize strings, use locale formatting, add a banned-term copy test | T54, T64 |
 | Fixtures, simulation timers and fake OS prompts | Remove from release; keep under test/debug only | T06, T64 |
 | Scenario lab uses the production `BridgeController` | Keep as a debug-only adapter; no release import | T06, T64 |
 | Screenshot set is a review artifact | Regenerate intentionally and make the production set a release gate | T54, T64 |
-| Appearance theme is a lab switch today | Persist it in Preferences and apply on launch | T51 |
+| Appearance theme is a lab switch today | Persist it in Preferences and apply on launch | T51 (landed) |
 
 ---
 

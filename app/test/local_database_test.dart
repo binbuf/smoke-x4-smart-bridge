@@ -440,7 +440,7 @@ void main() {
       factory: databaseFactoryFfi,
       databasePath: path,
     );
-    expect(await migrated.database.getVersion(), 2);
+    expect(await migrated.database.getVersion(), 3);
     final dao = SqfliteSampleDao(migrated);
     await dao.saveBridge(
       const SavedBridge(id: 'bridge-a', name: 'SmokeX4-1A2B', lastSeenMs: 1),

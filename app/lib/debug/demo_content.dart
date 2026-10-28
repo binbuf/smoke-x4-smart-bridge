@@ -66,10 +66,10 @@ class DemoBridgeContent implements BridgeContent {
 
 /// Test/review controller seeded with the approved prototype fixtures.
 BridgeController demoBridgeController({
-  BridgeRepository repository = const EmptyBridgeRepository(),
+  BridgeRepository? repository,
 }) {
   return BridgeController(
-    repository: repository,
+    repository: repository ?? EmptyBridgeRepository(),
     content: const DemoBridgeContent(),
   )..historyHasData = true;
 }

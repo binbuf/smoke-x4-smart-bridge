@@ -73,7 +73,7 @@ void main() {
     final details = controller.bridgeDetailsView;
     expect(details.firmware, '0.1.0');
     expect(details.timeoutSubtitle, '1 min · screen turns off');
-    expect(details.smokeXLabel, 'Receiving');
+    expect(details.smokeXLabel, 'Receiving readings');
     expect(details.billows.setTempText, '225.0°F');
   });
 

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smoke_bridge/app/bridge_controller.dart';
 import 'package:smoke_bridge/app/smoke_bridge_app.dart';
 import 'package:smoke_bridge/data/db/app_database.dart';
+import 'package:smoke_bridge/data/db/app_preferences.dart';
 import 'package:smoke_bridge/data/repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -12,11 +13,14 @@ class _FakeRepository implements BridgeRepository {
   _FakeRepository(this.snapshot);
 
   final BridgeSnapshot snapshot;
+  final InMemoryAppPreferences _preferences = InMemoryAppPreferences();
   bool closed = false;
 
   @override
   Future<BridgeSnapshot> loadSnapshot() async => snapshot;
 
+  @override
+  AppPreferences get preferences => _preferences;
   @override
   Future<void> close() async {
     closed = true;

@@ -163,11 +163,13 @@ void main() {
       await expectLater(
         client.write(_uuid('config'), Config(billowsMode: 1).encode()),
         throwsA(
-          isA<BleException>().having(
-            (error) => error.failure,
-            'failure',
-            BleFailure.unsupported,
-          ),
+          isA<BleException>()
+              .having(
+                (error) => error.failure,
+                'failure',
+                BleFailure.configRefused,
+              )
+              .having((error) => error.attCode, 'attCode', 0x82),
         ),
       );
 
@@ -285,7 +287,7 @@ void main() {
 
   test('bootstrap accepts the injected BLE client seam', () async {
     final controller = await createBridgeController(
-      repository: const EmptyBridgeRepository(),
+      repository: EmptyBridgeRepository(),
       bleClient: client,
     );
 

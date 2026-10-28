@@ -471,6 +471,22 @@ A partial write is not supported; read-modify-write is the app's job.
   OLED reads `units` from the next snapshot and `ui_set_display_timeout()`
   applies the new timeout immediately, so no reboot is needed.
 
+### App rules (T51)
+
+- The app's `BridgeConfig` codec covers the whole struct. Every Settings edit is
+  a read-modify-write of all 80 bytes; no partial write is ever sent.
+- Success is confirmed by reading `config` back after the write and comparing
+  the edited field. A GATT write response alone never shows `Saved`.
+- Refusals map to `BridgeConfigStatus` from the ATT application code
+  (`0x80 | status`). Only `0x81`, `0x82` and `0x87` are recognised by the generic
+  mapper; other codes stay ordinary GATT errors.
+- Units apply locally at once. An offline choice is queued and written on the
+  next healthy connect; the OLED updates then, not before.
+- The name is at most 15 UTF-8 bytes and is an app-facing label only. The
+  Bluetooth name does not change.
+- Writes from different fields are serialised so two quick edits cannot lose a
+  field through interleaved read-modify-write.
+
 ## 5.10 `0008 stats` — Read, encrypted
 
 Fixed 60 B.

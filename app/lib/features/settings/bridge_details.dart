@@ -274,9 +274,25 @@ class BridgeDetailsScreen extends StatelessWidget {
                             key: const Key('bridge.name'),
                             icon: Icons.badge_outlined,
                             title: 'Bridge name',
-                            subtitle: view.canEdit
-                                ? view.deviceName
-                                : '${view.deviceName}\nConnect to change',
+                            subtitle: view.deviceName,
+                            subtitleWidget: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  view.canEdit
+                                      ? view.deviceName
+                                      : '${view.deviceName}\nConnect to change this',
+                                ),
+                                if (view.canEdit &&
+                                    view.nameSaveState !=
+                                        SettingsSaveState.idle)
+                                  InlineSaveState(
+                                    state: view.nameSaveState,
+                                    error: view.nameSaveError,
+                                    savedLabel: 'Saved',
+                                  ),
+                              ],
+                            ),
                             onTap: view.canEdit
                                 ? () =>
                                       showBridgeNameDialog(context, controller)
@@ -287,9 +303,25 @@ class BridgeDetailsScreen extends StatelessWidget {
                             key: const Key('bridge.timeout'),
                             icon: Icons.timer_outlined,
                             title: 'Bridge screen timeout',
-                            subtitle: view.canEdit
-                                ? view.timeoutSubtitle
-                                : '${view.timeoutSubtitle}\nConnect to change',
+                            subtitle: view.timeoutSubtitle,
+                            subtitleWidget: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  view.canEdit
+                                      ? view.timeoutSubtitle
+                                      : 'Connect to change this',
+                                ),
+                                if (view.canEdit &&
+                                    view.timeoutSaveState !=
+                                        SettingsSaveState.idle)
+                                  InlineSaveState(
+                                    state: view.timeoutSaveState,
+                                    error: view.timeoutSaveError,
+                                    savedLabel: 'Saved',
+                                  ),
+                              ],
+                            ),
                             onTap: view.canEdit
                                 ? () => showBridgeTimeoutSheet(
                                     context,

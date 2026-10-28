@@ -358,6 +358,8 @@ class SettingsViewState {
     required this.connectionSummary,
     required this.themeModeLabel,
     required this.units,
+    required this.unitsSaveState,
+    required this.unitsSaveError,
     required this.tempChangeWindowMinutes,
     required this.phoneRecords,
     required this.bridgeRecords,
@@ -390,6 +392,8 @@ class SettingsViewState {
   final String connectionSummary;
   final String themeModeLabel;
   final Units units;
+  final SettingsSaveState unitsSaveState;
+  final String? unitsSaveError;
   final int tempChangeWindowMinutes;
   final int phoneRecords;
   final int bridgeRecords;
@@ -455,6 +459,10 @@ class BridgeDetailsViewState {
     required this.billows,
     required this.displayTimeoutSeconds,
     required this.displayTimeoutLabel,
+    required this.nameSaveState,
+    required this.nameSaveError,
+    required this.timeoutSaveState,
+    required this.timeoutSaveError,
     required this.bridgeRecords,
     required this.bridgeCapacity,
     required this.phoneRecords,
@@ -489,6 +497,10 @@ class BridgeDetailsViewState {
   final BillowsView billows;
   final int displayTimeoutSeconds;
   final String displayTimeoutLabel;
+  final SettingsSaveState nameSaveState;
+  final String? nameSaveError;
+  final SettingsSaveState timeoutSaveState;
+  final String? timeoutSaveError;
   final int bridgeRecords;
   final int bridgeCapacity;
   final int phoneRecords;
