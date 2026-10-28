@@ -306,7 +306,7 @@ class _HistoryChartPainter extends CustomPainter {
   }
 
   double _display(double fahrenheit) =>
-      units == Units.fahrenheit ? fahrenheit : (fahrenheit - 32) * 5 / 9;
+      toDisplayTemperature(fahrenheit, units);
 
   List<double> _niceTicks(double minValue, double maxValue) {
     final range = math.max(1.0, maxValue - minValue);

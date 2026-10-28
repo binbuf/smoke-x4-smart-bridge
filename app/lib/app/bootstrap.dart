@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../data/ble/ble_client.dart';
@@ -20,6 +21,8 @@ Future<BridgeController> createBridgeController({
   String? databasePath,
   BridgeRepository? repository,
   BleClient? bleClient,
+  String localeName = 'en_US',
+  bool use24Hour = false,
 }) async {
   final data =
       repository ??
@@ -30,6 +33,8 @@ Future<BridgeController> createBridgeController({
     repository: data,
     bleClient: bleClient ?? FlutterBluePlusBleClient(),
     sampleDao: data is SqliteBridgeRepository ? data.dao : null,
+    localeName: localeName,
+    use24Hour: use24Hour,
   );
   await controller.initialize();
   // The recent History store fills from the durable archive's accepted batches.
@@ -41,7 +46,13 @@ Future<BridgeController> createBridgeController({
 /// Production entrypoint.
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final controller = await createBridgeController();
+  final dispatcher = WidgetsBinding.instance.platformDispatcher;
+  final localeName = _intlLocale(dispatcher.locale);
+  Intl.defaultLocale = localeName;
+  final controller = await createBridgeController(
+    localeName: localeName,
+    use24Hour: dispatcher.alwaysUse24HourFormat,
+  );
   // Load the saved Bridge and the last-known archive before the first frame, so
   // a returning user lands in the shell (never Setup) and offline values are
   // real stored readings. The bounded scan then runs in the foreground.
@@ -51,3 +62,7 @@ Future<void> bootstrap() async {
     unawaited(controller.connectSavedBridge());
   }
 }
+
+/// intl wants `en_US`, the platform reports `en-US`.
+String _intlLocale(Locale locale) =>
+    locale.toLanguageTag().replaceAll('-', '_');

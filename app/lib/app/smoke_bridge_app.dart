@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'lab_gate.dart';
 import '../features/setup/setup_screen.dart';
@@ -28,6 +29,36 @@ class _SmokeBridgeAppState extends State<SmokeBridgeApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _syncPlatformFormatting();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPlatformFormatting();
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    super.didChangeLocales(locales);
+    _syncPlatformFormatting();
+  }
+
+  /// The device locale and 12/24-hour setting drive the one formatter layer.
+  /// A change repaints the controller's pre-formatted view states after the
+  /// frame that delivered the change.
+  void _syncPlatformFormatting() {
+    final dispatcher = WidgetsBinding.instance.platformDispatcher;
+    final localeName = dispatcher.locale.toLanguageTag().replaceAll('-', '_');
+    Intl.defaultLocale = localeName;
+    final changed = widget.controller.applyPlatformFormatting(
+      localeName: localeName,
+      use24Hour: dispatcher.alwaysUse24HourFormat,
+    );
+    if (!changed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.controller.repaintForFormatting();
+    });
   }
 
   @override

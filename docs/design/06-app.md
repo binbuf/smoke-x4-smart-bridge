@@ -669,9 +669,9 @@ ABOUT
 
 | Control | Behaviour |
 |---|---|
-| Temperature units | Immediate; local change + queued bridge write if offline |
+| Temperature units | Immediate; local change + queued bridge write if offline; persisted locally |
 | Live change window | Immediate; local only; persisted across relaunch |
-| Appearance | Immediate; local only |
+| Appearance | Immediate; local only; persisted across relaunch |
 | Bridge screen timeout | Immediate; requires connection, disabled with reason offline |
 | Bridge name | Edit dialog; apply on Done; inline `Saving…` / `Saved` / `Couldn’t save` |
 | Billows | Status only; detection/last-seen only. No mode or target write. |

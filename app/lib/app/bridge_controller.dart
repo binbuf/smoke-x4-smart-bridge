@@ -49,6 +49,8 @@ class BridgeController extends ChangeNotifier {
     this.content = const EmptyBridgeContent(),
     this.bleClient,
     this.sampleDao,
+    this.localeName = 'en_US',
+    this.use24Hour = false,
   }) : repository = repository ?? EmptyBridgeRepository(),
        bridgeRecords = content.bridgeRecords,
        bridgeCapacity = content.bridgeCapacity,
@@ -122,9 +124,11 @@ class BridgeController extends ChangeNotifier {
       savedDataRange = dateRangeLabel(
         DateTime.fromMillisecondsSinceEpoch(extent.minRecordedMs),
         DateTime.fromMillisecondsSinceEpoch(extent.maxRecordedMs),
+        locale: localeName,
       );
       savedDataSize = storageSizeLabel(
         extent.count * estimatedStoredBytesPerReading,
+        locale: localeName,
       );
       savedDataEmpty = false;
       hasSavedData = true;
@@ -715,7 +719,11 @@ class BridgeController extends ChangeNotifier {
     if (config.deviceName.isNotEmpty) deviceName = config.deviceName;
     displayTimeoutSeconds = config.displayTimeoutSeconds;
     if (!_pendingUnitsWrite) {
-      units = config.units == 0 ? Units.celsius : Units.fahrenheit;
+      final adopted = config.units == 0 ? Units.celsius : Units.fahrenheit;
+      if (adopted != units) {
+        units = adopted;
+        unawaited(_persistUnits(adopted));
+      }
     }
     unitsSaveState = SettingsSaveState.idle;
     nameSaveState = SettingsSaveState.idle;
@@ -788,23 +796,81 @@ class BridgeController extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
 
   static const String themePreferenceKey = 'appearance.theme_mode';
+  static const String unitsPreferenceKey = 'preferences.temperature_units';
+  static const String changeWindowPreferenceKey =
+      'preferences.live_change_window_minutes';
+
+  /// Device locale (`en_US`, `de_DE`, …) used by the formatter layer. It is not
+  /// persisted: the platform is the source.
+  String localeName;
+
+  /// Device 12/24-hour setting; the platform is the source.
+  bool use24Hour;
+
+  /// Applies the platform locale and clock convention and returns true when
+  /// either changed, so the caller can repaint the pre-formatted view states.
+  bool applyPlatformFormatting({
+    required String localeName,
+    required bool use24Hour,
+  }) {
+    final changed = this.localeName != localeName || this.use24Hour != use24Hour;
+    this.localeName = localeName;
+    this.use24Hour = use24Hour;
+    return changed;
+  }
+
+  /// Repaints the pre-formatted view states after a locale/clock change. The
+  /// platform pushes the new values in during a build, so the repaint is
+  /// deferred by the caller to the next frame.
+  void repaintForFormatting() => notifyListeners();
 
   /// Restores local-only preferences before the first frame. A missing or
   /// unreadable value keeps `System`, never a guessed theme.
   Future<void> loadLocalPreferences() async {
     try {
-      final stored = await repository.preferences.read(themePreferenceKey);
-      final restored = switch (stored) {
+      final storedTheme = await repository.preferences.read(themePreferenceKey);
+      final restoredTheme = switch (storedTheme) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
         _ => ThemeMode.system,
       };
-      if (restored != _themeMode) {
-        _themeMode = restored;
+      if (restoredTheme != _themeMode) {
+        _themeMode = restoredTheme;
         notifyListeners();
       }
     } catch (_) {
       // A broken preferences read must not block launch.
+    }
+    try {
+      final storedUnits = await repository.preferences.read(unitsPreferenceKey);
+      final restoredUnits = switch (storedUnits) {
+        'celsius' => Units.celsius,
+        'fahrenheit' => Units.fahrenheit,
+        _ => null,
+      };
+      if (restoredUnits != null && restoredUnits != units) {
+        // The Bridge's stored config remains authoritative once connected;
+        // this is the honest value for the first frame and an offline launch.
+        units = restoredUnits;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Fall back to the default unit rather than blocking launch.
+    }
+    try {
+      final storedWindow = await repository.preferences.read(
+        changeWindowPreferenceKey,
+      );
+      final restoredWindow = int.tryParse(storedWindow ?? '');
+      if (restoredWindow != null) {
+        final bounded = restoredWindow.clamp(1, 60);
+        if (bounded != tempChangeWindowMinutes) {
+          tempChangeWindowMinutes = bounded;
+          notifyListeners();
+        }
+      }
+    } catch (_) {
+      // Fall back to the default window rather than blocking launch.
     }
   }
 
@@ -830,6 +896,30 @@ class BridgeController extends ChangeNotifier {
       await repository.preferences.write(themePreferenceKey, mode.name);
     } catch (_) {
       // Appearance still applies for this session; the next tap retries.
+    }
+  }
+
+  /// Units are a local presentation preference as well as a Bridge setting, so
+  /// the choice survives relaunch even while the Bridge is out of range.
+  Future<void> _persistUnits(Units value) async {
+    try {
+      await repository.preferences.write(
+        unitsPreferenceKey,
+        value == Units.celsius ? 'celsius' : 'fahrenheit',
+      );
+    } catch (_) {
+      // The local change still applies for this session.
+    }
+  }
+
+  Future<void> _persistChangeWindow(int minutes) async {
+    try {
+      await repository.preferences.write(
+        changeWindowPreferenceKey,
+        minutes.toString(),
+      );
+    } catch (_) {
+      // The local change still applies for this session.
     }
   }
 
@@ -1421,22 +1511,18 @@ class BridgeController extends ChangeNotifier {
       )
       .toList();
 
-  String get unitsLabel => units == Units.fahrenheit ? '°F' : '°C';
+  String get unitsLabel => unitLabel(units);
 
-  String get unitSuffix => units == Units.fahrenheit ? '°F' : '°C';
+  String get unitSuffix => unitLabel(units);
 
   double? toDisplayTemp(double? fahrenheit) {
     if (fahrenheit == null) return null;
-    return units == Units.fahrenheit ? fahrenheit : (fahrenheit - 32) * 5 / 9;
+    return toDisplayTemperature(fahrenheit, units);
   }
 
-  String valueFor(double? fahrenheit) {
-    final value = toDisplayTemp(fahrenheit);
-    if (value == null) return '—';
-    return value.toStringAsFixed(1);
-  }
+  String valueFor(double? fahrenheit) => temperatureValue(fahrenheit, units);
 
-  String tempFor(double? fahrenheit) => '${valueFor(fahrenheit)}$unitSuffix';
+  String tempFor(double? fahrenheit) => temperatureText(fahrenheit, units);
 
   String get connectionTitle {
     if (lookingForBridge && !isConnected) return 'Looking for the Bridge…';
@@ -1776,17 +1862,10 @@ class BridgeController extends ChangeNotifier {
   }
 
   double _displayDelta(double fahrenheitDelta) =>
-      units == Units.fahrenheit ? fahrenheitDelta : fahrenheitDelta * 5 / 9;
+      toDisplayTemperatureDelta(fahrenheitDelta, units);
 
-  String _probeDeltaLabel(double fahrenheitDelta) {
-    final value = _displayDelta(fahrenheitDelta);
-    final sign = value > 0
-        ? '+'
-        : value < 0
-        ? '-'
-        : '±';
-    return '$sign${value.abs().toStringAsFixed(1)}$unitSuffix';
-  }
+  String _probeDeltaLabel(double fahrenheitDelta) =>
+      temperatureDeltaText(fahrenheitDelta, units);
 
   HistoryViewState historyViewFor({bool hasGap = true}) {
     final useRecentHistory = recentHistory.hasRecords;
@@ -1979,7 +2058,7 @@ class BridgeController extends ChangeNotifier {
     hasSavedData: hasSavedData,
     savedDataEmpty: savedDataEmpty,
     phoneRecords: phoneRecords,
-    phoneRecordsLabel: commaInt(phoneRecords),
+    phoneRecordsLabel: commaInt(phoneRecords, locale: localeName),
     savedDataRange: savedDataRange,
     savedDataSize: savedDataSize,
     syncProgressPercent: syncProgressPercent,
@@ -2011,13 +2090,15 @@ class BridgeController extends ChangeNotifier {
     bridgeCapacity: bridgeCapacity,
     bridgeOldestReadingAt: bridgeOldestReadingAt,
     bridgeNewestReadingAt: bridgeNewestReadingAt,
-    phoneRecordsLabel: commaInt(phoneRecords),
-    bridgeRecordsLabel: commaInt(bridgeRecords),
+    phoneRecordsLabel: commaInt(phoneRecords, locale: localeName),
+    bridgeRecordsLabel: commaInt(bridgeRecords, locale: localeName),
     savedDataRange: savedDataRange,
     savedDataSize: savedDataSize,
     savedDataEmpty: savedDataEmpty,
     firmware: firmware,
     hasSavedData: hasSavedData,
+    localeName: localeName,
+    use24Hour: use24Hour,
   );
 
   BridgeDetailsViewState get bridgeDetailsView => BridgeDetailsViewState(
@@ -2062,9 +2143,11 @@ class BridgeController extends ChangeNotifier {
   /// Units apply on this phone immediately. The Bridge write is the only thing
   /// the UI may report as saved; offline it is queued for the next connect.
   void setUnits(Units value) {
+    final changed = units != value;
     units = value;
     unitsSaveError = null;
     unitsSaveState = SettingsSaveState.idle;
+    if (changed) unawaited(_persistUnits(value));
     notifyListeners();
     if (!canEdit) {
       _pendingUnitsWrite = true;
@@ -2092,7 +2175,11 @@ class BridgeController extends ChangeNotifier {
         ),
       );
       _pendingUnitsWrite = false;
-      units = applied.units == 0 ? Units.celsius : Units.fahrenheit;
+      final appliedUnits = applied.units == 0 ? Units.celsius : Units.fahrenheit;
+      if (appliedUnits != units) {
+        units = appliedUnits;
+        unawaited(_persistUnits(appliedUnits));
+      }
       unitsSaveState = SettingsSaveState.saved;
       unitsSaveError = null;
     } on BridgeConfigException catch (error) {
@@ -2107,7 +2194,10 @@ class BridgeController extends ChangeNotifier {
   }
 
   void setTempChangeWindowMinutes(int value) {
-    tempChangeWindowMinutes = value.clamp(1, 60);
+    final bounded = value.clamp(1, 60);
+    final changed = bounded != tempChangeWindowMinutes;
+    tempChangeWindowMinutes = bounded;
+    if (changed) unawaited(_persistChangeWindow(bounded));
     notifyListeners();
   }
 

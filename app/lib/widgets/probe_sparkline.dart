@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../app/formatters.dart';
 import '../domain/models.dart';
 
 /// A tiny, axis-free trend line for a single probe. The sparkline is scaled to
@@ -151,7 +152,7 @@ class _SparklinePainter extends CustomPainter {
   }
 
   double _display(double fahrenheit) =>
-      units == Units.fahrenheit ? fahrenheit : (fahrenheit - 32) * 5 / 9;
+      toDisplayTemperature(fahrenheit, units);
 
   @override
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) {

@@ -70,3 +70,54 @@ Make one conversion path and one formatting layer govern every screen: Live, spa
 
 ## Hand-off
 _(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+### What landed
+- `app/lib/app/formatters.dart` is now the single temperature conversion and
+  locale formatting layer (values, deltas, counts, storage, dates, times,
+  month labels). It uses `intl` 0.20.2; `clockLabel` takes the 12/24-hour
+  choice and localises the markers, so no production `AM`/`PM` literal remains.
+- `HistoryViewState` and the controller now delegate conversion to that layer;
+  sparklines, charts, Live tiles, History Summary/chart, Cook view, Billows
+  target, confirmations, storage counts and the OLED preview all go through it.
+  Samples remain canonical °F.
+- `BridgeController` stores `localeName`/`use24Hour`, restores units + Appearance
+  + `Live change window` from `AppPreferences` before the first frame, persists
+  changes, and persists the unit adopted from the Bridge config. Keys:
+  `appearance.theme_mode`, `preferences.temperature_units`,
+  `preferences.live_change_window_minutes`.
+- Same-frame repaint: `HistoryViewLoader` re-wraps the loaded view with
+  `HistoryViewState.withUnits` (no archive reload); `PastCookScreen` mirrors
+  the source controller's presentation state; `DevicePreviewScreen` listens to
+  the controller. `SmokeBridgeApp` applies the platform locale/24-hour setting
+  and repaints the controller after the delivery frame.
+- OLED unit and timeout remain the whole-struct `config` write owned by
+  `setUnits` / `setDisplayTimeout` (offline units are queued and flushed on the
+  next healthy connect).
+- `set_time` was already in the connect path from T35; T53 adds a sub-2 s
+  tolerance regression test. The connect path sends exactly one
+  `control(set_time)` with `unix_ms` + `tz_offset_min`, forcing it on first
+  connect, `clock_valid = 0` or drift > 2 s.
+- Tests: `app/test/units_time_test.dart` (8 new), one new case in
+  `bridge_link_test.dart`. `flutter analyze` clean; `flutter test` 271 passing;
+  root `tools/ci/verify_host.ps1` 25/25 CTest passing.
+
+### Deviations / decisions
+- Device locale and 24-hour setting come from `PlatformDispatcher` in the app
+  layer and are pushed into one `Intl`-backed formatter layer, rather than each
+  widget deciding formatting. Recorded in ADR 0057.
+- The real-phone relaunch/OLED walk is not possible in this host session and is
+  recorded as a T55/T46 follow-up, consistent with T47-T52.
+- `PastCookScreen` keeps its copy controller (so History state is untouched) and
+  now mirrors presentation fields via a listener instead of freezing them.
+
+### Docs
+- `docs/design/adr/0057-units-locale-and-persisted-preferences.md`
+- `docs/design/13-ui-implementation-contract.md` §13.5 units/locale note
+- `docs/design/06-app.md` save model persistence notes
+- `docs/progress/T53.md`
+
+### Remaining work / blockers
+- Bench on a real phone: units/Appearance/change window survive force-stop and
+  relaunch; the OLED shows the new unit and timeout; `set_time` lands once per
+  connect with the correct timezone after a board power cycle.
+- T54 owns the copy/accessibility/golden gate over the new locale strings.
