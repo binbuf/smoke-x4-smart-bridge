@@ -1,5 +1,5 @@
 ---
-verify: make host-test
+verify: powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/verify_host.ps1
 ---
 # T47 — ble_service: config read/write and stats read
 
