@@ -697,6 +697,21 @@ persisted in the local `preference` table (schema v3) and restored before the
 first frame. The Billows-only connection-log copy was removed; the one shared
 timeline in Bridge details carries Bridge, Smoke X4, Billows and sync events.
 
+**T52 implementation note.** The four destructive flows now send the real
+`control` ops (ADR 0056). The confirmation sheet keeps the 12 §12.2 loss copy;
+confirming opens a neutral `Forgetting / Resetting / Turning off / Clearing`
+dialog until the device outcome arrives. A non-`ok` result and a timeout with
+the link still up are failures and leave local state unchanged. Forget is
+local-first: the saved connection is cleared and phone history kept even when
+the best-effort send cannot be confirmed; Setup then shows `Pairing not
+confirmed` and explains the Bridge may still hold the pairing. Forget and
+factory reset return to Setup with `History on this phone`; the entry is marked
+as history from the previous Bridge. Factory reset and power off treat the
+disconnect after a written request as success. Power off sets `bridgeOff`, puts
+the link offline and opens `Bridge is off` with the 1.5 s PRG instruction.
+Clear history changes the Bridge figures only on `ok` and keeps phone history.
+No destructive flow contains `current cook` copy.
+
 ### Bridge details
 
 - Status card: name, `Bridge A4F2`, `Connected`, `Battery 87%`, `Signal` +
