@@ -114,8 +114,8 @@ History chart so the app stops asking a returning user to set up the same Bridge
 again; T46 proves the cold-launch path on the phone.
 
 T46 closed the evidence run with findings A–L routed. The M3 exit gate is
-**pass-with-follow-ups**: the History/connection/UI findings are absorbed by
-T54/T55 (with T42/T43/T45 corrections), the real clear/generation boundary by
+**pass-with-follow-ups**: the History/connection findings are owned by T46a,
+the UI/a11y/320 dp gate by T54/T55, the real clear/generation boundary by
 T48/T49/T52, and the true 30+ minute absence and 24 h transfer by T61.
 
 ## Phase 5 — Settings & Actions
@@ -125,13 +125,14 @@ phone, and forget/factory-reset/power-off work on the real bridge. Destructive
 actions explain their cost before sending. Accessibility, copy and layout gates
 pass.
 
-- [ ] T47 — ble_service: config read/write → [tasks/47-ble-config-read-write.md](tasks/47-ble-config-read-write.md)
+- [ ] T47 — ble_service: config read/write and stats read → [tasks/47-ble-config-read-write.md](tasks/47-ble-config-read-write.md)
 - [ ] T48 — ble_service: control actions → [tasks/48-ble-control-actions.md](tasks/48-ble-control-actions.md)
 - [ ] T49 — ble_service: destructive-action state and reconnect → [tasks/49-ble-destructive-state-reconnect.md](tasks/49-ble-destructive-state-reconnect.md)
 - [ ] T50 — app: Settings shell → [tasks/50-app-settings-shell.md](tasks/50-app-settings-shell.md)
 - [ ] T51 — app: bridge settings → [tasks/51-app-bridge-settings.md](tasks/51-app-bridge-settings.md)
 - [ ] T52 — app: destructive actions → [tasks/52-app-destructive-actions.md](tasks/52-app-destructive-actions.md)
 - [ ] T53 — app: units and time end-to-end → [tasks/53-app-units-time-end-to-end.md](tasks/53-app-units-time-end-to-end.md)
+- [ ] T46a — app: fix T46 History and connection findings → [tasks/46a-fix-history-connection-findings.md](tasks/46a-fix-history-connection-findings.md)
 - [ ] T54 — app: UI state matrix, accessibility and copy gate → [tasks/54-app-ui-state-matrix-a11y-copy.md](tasks/54-app-ui-state-matrix-a11y-copy.md)
 - [ ] T55 — Bench: all settings and actions → [tasks/55-bench-settings-actions.md](tasks/55-bench-settings-actions.md)
 
@@ -186,11 +187,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-28T00:31:24Z · 45/66 done
+**Pipeline status** — updated 2026-10-28T00:31:24Z · 45/67 done
 
 - Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46
 - Blocked: none
 - Failed: none
-- Remaining: T47, T48, T49, T50, T51, T52, T53, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Remaining: T47, T48, T49, T50, T51, T52, T53, T46a, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
 - Last finished: T46 — done · Full-history bench passed on the real Pixel/Heltec: 6.43 h archive, saved-Bridge launch, mid-sync resume, 10-min catch-up, full-ring History, 30-day deletion, X4 dialog and 320 dp/dark/light. Findings A–L are routed in the report.
 <!-- /symphony:status -->

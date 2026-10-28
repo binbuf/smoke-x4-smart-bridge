@@ -12,7 +12,7 @@ Turn the prototype review into a production gate: every reachable UI state has a
 - `app/test/widget_test.dart` — existing widget suite.
 - `app/tool/ui_screenshots_test.dart` — screenshot generator for the committed dark/light set.
 - **Verify:** H · **Board:** no
-- Depends on T42, T45, T52 and T53.
+- Depends on T42, T45, T46a, T52 and T53.
 - **Post-T36 status:** `ui_state_matrix_test.dart` already renders seven states
   at 320/390 dp in both themes, and `tool/ui_screenshots_test.dart` is the
   golden generator. The post-T36 connection chain, X4 warning dialog, probe
@@ -35,7 +35,7 @@ Turn the prototype review into a production gate: every reachable UI state has a
 - [ ] Prove the gate catches regressions: a deliberately injected banned term makes the copy test fail, and a deliberately bad state/screenshot change is not silently accepted.
 
 ## Out of scope
-- Fixing product states that earlier tasks own (Settings root T50, Bridge details T51, destructive flows T52, units/time T53); this task adds the gate and reports failures back.
+- Fixing product states that earlier tasks own (Settings root T50, Bridge details T51, destructive flows T52, units/time T53); T46a owns the T46 History/connection corrections. This task adds the gate and verifies them.
 - Implementing new screens or new state that 13 §13.4 does not define — outside MVP; no task owns it.
 - Release-build Experimental lab gating and the final parity walk → release hardening (T61–T68); this task keeps the shared debug/`ENABLE_EXPERIMENTAL_LAB` gate and checks for fixture strings.
 - Billows bench/observation evidence → M5 Billows (T56–T60).
