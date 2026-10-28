@@ -61,22 +61,29 @@ Prove the complete history path on the real Bridge and target phone: full-ring s
 Report: [docs/progress/T46.md](../progress/T46.md). Evidence manifest:
 [artifacts/bench/T46/README.md](../../artifacts/bench/T46/README.md).
 
-- Real 6.43 h / 696-record archive on the Pixel 11 Pro Fold; saved-Bridge cold
-  launch with no Setup/passkey, absent-Bridge last-known + manual Connect,
-  mid-sync resume (96 → 629 rows, no duplicates), quiet 30 s sync, and a 9.7 min
-  forward catch-up (one 411 B frame, not a re-read). MTU 247.
+- Real 6.43 h / 696-record measured archive on the Pixel 11 Pro Fold (877 rows
+  after the later tests); saved-Bridge cold launch with no Setup/passkey,
+  absent-Bridge last-known + manual Connect, mid-sync resume (96 → 629 rows, no
+  duplicates), quiet 30 s sync, and a clean 10.0 min forward catch-up
+  (835 → 856 rows, 21 records in one 411 B frame, not a re-read). MTU 247.
 - Seeded 117-day archive walked every 13 §13.4 History state; full-ring first
   paint 2.65 s; 30-day deletion removed 252,023 rows and left 82,426.
-- **Blocked, not waived:** real clear/factory reset (T48/T49/T52), a true 30+
-  minute absence and a true 24 h radio transfer (T61/T55), and the amber
-  paired-lost X4 dialog (T54/T55). The owner shortened the absence window.
+- X4 amber warning dialog verified: with the X4 base off, Live showed
+  `Signal lost` and the dialog auto-opened at 10 min 30 s; captured at 320 dp.
+- **Blocked, not waived:** the real clear/factory-reset command and generation
+  boundary (T48/T49/T52). A bench-level erase of the `samples` partition kept
+  the phone rows but reused generation `135870198` because the generation is
+  NVS-owned, so no new segment started; the partition was restored. A true
+  30+ minute absence and a true 24 h radio transfer remain T61/T55; the owner
+  chose the 10-min window.
 - **Findings routed:** offline probe tiles say “updated live” (A), Live
   sparklines do not backfill from the archive (B), offline header leaks the
   `A4F2` fixture ID (C), the sync card stays up while Bluetooth is blocked (D),
   Bridge `stats` shows 0 of 0 (E), gap bands use `detected_ms` and the
   `Not synced` label did not render (F), full-ring Cooks/sort are archive-wide
   (G), a Bridge reboot can leave a stale Connected state (H), 320 dp truncates
-  labels (I), the permanent-loss banner is archive-wide (J), and the 1 min
-  Live change window reverted to 5 min after relaunch (K).
-- Phone left on the real archive, physical 1080×2342, theme System, 5 min Live
-  change window, TalkBack disabled.
+  labels (I), the permanent-loss banner is archive-wide (J), the 1 min Live
+  change window reverted to 5 min after relaunch (K), and a partition erase
+  cannot advance the NVS-owned generation (L).
+- Phone left on the real 877-row archive, physical 1080×2342, theme System,
+  5 min Live change window, TalkBack disabled.
