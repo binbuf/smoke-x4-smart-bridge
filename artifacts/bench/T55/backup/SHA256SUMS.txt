@@ -2,3 +2,4 @@
 73382EAF58D705D592178800BEB2D33E3E1713346AFBD73F9B8D7B65BD72EBD1  D:\repos\binbuf\smoke-x4-smart-bridge\artifacts\bench\T55\backup\samples-0x220000.bin
 092C9B5AF76C782E7AAB10FC15CC725972245B9010C11E5CBE88B2F0D9616B54  D:\repos\binbuf\smoke-x4-smart-bridge\artifacts\bench\T55\backup\factory-0x20000-1m.bin
 3AC8537D997339BB06BB0D2EA60FFC6AD48EC4A07187D080F036266E0831658F  D:\repos\binbuf\smoke-x4-smart-bridge\firmware\build\sx4_bridge.bin
+23C6D80C533B7387301DA0943DE1057663CBED33CFF1C5FE5C3575ADD3C2F3B1  D:\repos\binbuf\smoke-x4-smart-bridge\artifacts\bench\T55\backup\phone-archive-pre-seed.db

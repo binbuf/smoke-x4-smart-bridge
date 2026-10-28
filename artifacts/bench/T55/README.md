@@ -1,9 +1,10 @@
 # T55 bench evidence — all settings and actions
 
-**Status:** partial pass, 2026-10-28. Everything that can be driven from the
-phone/PC is recorded here. Two release-blocking defects were found and fixed
-(clear-history stack overflow, sentinel scan preview); the remaining physical
-gaps are listed under **Not completed** and are owned by a follow-up T55 run.
+**Status:** partial pass, 2026-10-28 (continuation 1 adds the seeded History
+recheck). Everything that can be driven from the phone/PC is recorded here. Two
+release-blocking defects were found and fixed (clear-history stack overflow,
+sentinel scan preview); the remaining physical gaps are listed under **Not
+completed** and are owned by a follow-up T55 run.
 
 Report: [`docs/progress/T55.md`](../../../docs/progress/T55.md).
 
@@ -54,8 +55,10 @@ sitting.
 | T46a blocked sync card | `37-live-blocked-offline.*`: blocked banner, no sync card | pass |
 | T46a `Showing saved readings` banner | `67-history-showing-saved.*` after power-off | pass |
 | T46a Bridge-reboot recovery | `84-after-release-reflash.*` (X4 `Not paired` at 2 s), `85-…60s`, `86-…125s` (`Receiving readings`); 110 s watchdog recovered | pass (≈2 min) |
-| T46a range-scoped Cooks | `87-history-24h.*`, `88-history-1h.*`, `89-history-1h-scrolled.*` (Cooks `In progress 7:17–8:16 AM` inside 1 h) | pass for Cooks; loss banner needs the seeded fixture (not run) |
-| `Not synced` gap label | Host `history_gap_chart_test` + `history_archive_test`; no real overwritten-before-sync gap existed on this board | not re-checked on phone (see follow-ups) |
+| T46a range-scoped Cooks | `87-history-24h.*`, `88-history-1h.*`, `89-history-1h-scrolled.*` (Cooks `In progress 7:17–8:16 AM` inside 1 h); seeded 24 h shows only the two in-range cooks, 1 h shows none (`seed-02-*`, `seed-03-*`) | pass |
+| T46a `Not synced` gap label | Seeded debug archive on the real phone: `seed-01-history-24h-not-synced.*` (24 h), `seed-04-history-24h-320-not-synced.*` (320 dp) — dashed band labelled `Not synced` | pass |
+| T46a permanent-loss banner, range-scoped | `seed-02-history-24h-loss-banner.*`: `Some readings were lost before they reached your phone` with the blank period; `seed-03-history-1h-range-scoped.*` shows no banner when the 14 h..6 h gap is outside the 1 h range | pass |
+| Seeded recheck restored | `seed-05-restored-live.*`: real archive back (2,620 rows), release APK reinstalled, X4 `Receiving readings`, no `Not synced` band | pass |
 | Smoke X4 re-pair from Settings | App path and copy checked by widget tests; `unpair_smoke_x` preserves the log/bonds by design | **not executed** — no physical SYNC gesture available; running it would leave the board without X4 data |
 
 ## Findings
@@ -83,6 +86,16 @@ sitting.
    clear on the bridge; the final state is 1 bond and a working link.
 5. The webcam is black, so OLED copies (`°F/°C`, timeout, off/reset overlays)
    are not photographed in this sitting.
+6. **320 dp History offline banner truncates.** In the seeded run at 320 dp the
+   offline banner reads `Turn Bluetooth on to find your ...` and the range /
+   probe chips read `24 ho...` / `All pro...` (`seed-04-*`). Settings rows were
+   already rechecked at 320 dp and are fine; this is History copy, not the
+   Settings walk. Follow-up for T54/T50.
+7. **T46 seeded fixture overlays two gaps.** `tools/bench/t46_seed_db.py` deletes
+   the whole of yesterday *and* the 14 h..6 h `Not synced` period, so both band
+   labels draw at the same x and the label is unreadable on the phone. The T55
+   run used a local variant with only the `Not synced` gap (procedure below);
+   the shared tool is unchanged because T46 evidence cites it.
 
 ## Not completed (follow-up T55 run)
 
@@ -90,8 +103,6 @@ sitting.
   overlays (needs a working camera or a person at the bench).
 - Re-pair the Smoke X4 from Settings on a real X4, including the new-channel
   SYNC and “log preserved” checks (needs physical SYNC mode).
-- Seeded-archive recheck of `Not synced` and the range-scoped permanent-loss
-  banner (needs `tools/bench/t46_seed_db.py` and a debuggable install).
 - Five physical phones for the 4-slot cap (host-tested here, which the task
   explicitly allows).
 
@@ -107,3 +118,18 @@ sitting.
 - The temporary `BENCH passkey` log line and the one-time bond clear used while
   restoring the board were reverted before the final build; the committed
   firmware hash above is the release image.
+- **Seeded History recheck (continuation 1).** Build/install the debug APK over
+  the release app (`adb install -r app/build/app/outputs/flutter-apk/app-debug.apk`;
+  the release APK is debug-signed, so data/bonds are kept), force-stop, then
+  `adb exec-out run-as com.binbuf.smoke_bridge cat databases/smoke_bridge.db >
+  artifacts/bench/T55/backup/phone-archive-pre-seed.db`, push the seeded DB to
+  `/data/local/tmp/`, and `run-as ... cp` it over `databases/smoke_bridge.db`
+  after deleting `-wal`/`-shm`. Run with Bluetooth off so the app opens on the
+  saved archive. Restore by copying the archive back, reinstalling
+  `app-release.apk` and enabling Bluetooth; `seed-05-restored-live.*` is the
+  after-state.
+- **Screenshots on the fold.** `adb shell screencap -p` warns about two displays
+  and can capture the stale inner display. Use the outer SurfaceFlinger id from
+  `adb shell dumpsys SurfaceFlinger --display-id`
+  (`screencap -p -d 4619827677550801153 /sdcard/s.png`), then `adb pull`.
+  PowerShell `>` corrupts the PNG (UTF-16) — write on the device and pull.

@@ -25,7 +25,7 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 - [x] Kill the app mid-action; verify no half-state on the bridge.
 - [x] Fill all 4 pairing slots (or host-test the cap); confirm the 5th pairing is refused with the named state and a paired phone can still forget one.
 - [x] Walk Settings/Bridge details in 13 §13.4 connected and offline; no duplicate rows, no save-all bar, no `Device log` copy, no lab entry in release.
-- [ ] Re-check the T46a History/connection fixes on the real phone: offline probe semantics, sparkline backfill, saved-ID header, blocked sync card, `Not synced` gap label, range-scoped Cooks/loss banner, and Bridge-reboot recovery.
+- [x] Re-check the T46a History/connection fixes on the real phone: offline probe semantics, sparkline backfill, saved-ID header, blocked sync card, `Not synced` gap label, range-scoped Cooks/loss banner, and Bridge-reboot recovery.
 
 ## Out of scope
 - 24 h soak, field cook and release hardening → M6 (T61–T68).
@@ -65,7 +65,12 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 **Result: partial pass (tree green).** The app-driven walk is complete on the
 real Pixel 11 Pro Fold + Heltec V3, including every setting, forget/wrong-code/
 re-pair, clear (normal and app-killed), power off/PRG wake, factory reset and the
-T46a offline/reboot re-check. Two release defects were found and fixed:
+T46a offline/reboot re-check. Continuation 1 closed the seeded History gap: on a
+debug install over the real phone archive, the 24 h chart draws the dashed
+`Not synced` band and its label (390 and 320 dp), the permanent-loss banner sits
+below Summary/Cooks, and the 1 h range drops both the banner and the long cook
+(range-scoped). The real archive, release APK and live X4 link were restored;
+`seed-01`-`seed-05` are the evidence. Two release defects were found and fixed:
 
 1. **Clear history crashed and boot-looped the bridge.** The clear sweep used a
    4 KB stack buffer on the 3.5 KB `esp_timer`/main tasks. Fixed with a 256 B
@@ -83,26 +88,26 @@ release APK `2E095C5343D0D7350B574EE376A9E7D59963571745363296026ABD6B1505F28C`.
 **Not completed (needs a human/physical access, recorded as follow-ups):**
 
 - OLED photo/visible check for units, timeout and the off/reset overlays. The
-  webcam returns black frames; config read-back and the OLED-render host tests
-  are the evidence, not the panel itself.
+  webcam returns black frames (lens capped / no light); config read-back and the
+  OLED-render host tests are the evidence, not the panel itself.
 - Re-pair a real Smoke X4 from Settings into a new SYNC channel. The X4 cannot
   be put into SYNC mode from this session, and unpairing it would leave the
   shared board without radio data. The app path/copy and `unpair_smoke_x`
   preservation are covered by tests.
-- Seeded-archive `Not synced` gap and range-scoped permanent-loss banner (fixture
-  not present; host chart/archive tests cover the logic). Range-scoped Cooks was
-  re-checked on the real phone.
 - Five physical phones for the 4-slot cap; the task explicitly allows the host
   test, which passes (`ble-adv` bond limit + setup full-store widget test).
 
-**Checks:** `verify_host.ps1` → 25/25 CTest pass; `flutter analyze` → clean;
-`flutter test --timeout 180s` → full suite pass; `make bench-test` pass;
-firmware release build and flash verified on the board.
+**Checks:** `verify_host.ps1` → 25/25 CTest pass (re-run in continuation 1);
+`flutter analyze` → clean; `flutter test --timeout 180s` → full suite pass;
+`make bench-test` pass; firmware release build and flash verified on the board.
+No product code changed in continuation 1.
 
 **Bench state:** pre-run NVS/samples backups are under
 `artifacts/bench/T55/backup/` (binaries local-only, hashes committed). The board
 was restored to the pre-run log/generation and X4 pairing, phone re-paired on
-the release image, 1 bond slot used, recording. Do not restore the NVS backup
+the release image, 1 bond slot used, recording. The phone archive was backed up
+before the seeded run (`backup/phone-archive-pre-seed.db`, SHA-256 in
+`SHA256SUMS.txt`) and restored afterwards. Do not restore the NVS backup
 again after pairing: it reintroduces a stale bond and the link loops on
 `disconnected reason 0x23d`. To repeat the pairing steps, use the temporary
 passkey log / one-time bond clear dance described in `docs/progress/T55.md`,
