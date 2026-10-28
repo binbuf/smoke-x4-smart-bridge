@@ -134,7 +134,7 @@ pass.
 - [x] T53 — app: units and time end-to-end → [tasks/53-app-units-time-end-to-end.md](tasks/53-app-units-time-end-to-end.md)
 - [x] T46a — app: fix T46 History and connection findings → [tasks/46a-fix-history-connection-findings.md](tasks/46a-fix-history-connection-findings.md) ⟵ accepted
 - [x] T54 — app: UI state matrix, accessibility and copy gate → [tasks/54-app-ui-state-matrix-a11y-copy.md](tasks/54-app-ui-state-matrix-a11y-copy.md)
-- [~] T55 — Bench: all settings and actions → [tasks/55-bench-settings-actions.md](tasks/55-bench-settings-actions.md) ⟵ running
+- [~] T55 — Bench: all settings and actions → [tasks/55-bench-settings-actions.md](tasks/55-bench-settings-actions.md) ⟵ blocked
 
 **Exit gate:** every app-controlled setting/action works on the real bridge;
 factory reset returns the app to setup with saved history kept; Settings matches
@@ -187,11 +187,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-28T13:58:22Z · 54/67 done
+**Pipeline status** — updated 2026-10-28T16:05:49Z · 54/67 done
 
 - Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50, T51, T52, T53, T46a, T54
-- Blocked: none
+- Blocked: T55
 - Failed: none
-- Remaining: T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T54 — done · T54 state matrix, accessibility, copy lint and reviewed screenshot manifest are committed and all app, golden and host checks pass.
+- Remaining: T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T55 — blocked · Seeded Not synced gap and range-scoped loss/Cooks recheck landed and host gate passes; OLED panel and real X4 SYNC re-pair still need physical human access.
 <!-- /symphony:status -->
