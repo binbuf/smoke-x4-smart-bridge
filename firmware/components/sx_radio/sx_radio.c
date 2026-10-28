@@ -22,6 +22,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "ra01s.h"
 #include "sx_protocol.h"
@@ -41,6 +42,22 @@ static uint32_t s_frequency_hz = SX4_RADIO_DEFAULT_FREQUENCY_HZ;
 static bool s_configured;
 static bool s_started;
 static volatile bool s_sleeping;
+
+/* The pairing FSM is single-owner: radio_rx and the T48 unpair action share it
+ * through this mutex. */
+static SemaphoreHandle_t s_pair_lock;
+
+static void pair_lock(void) {
+    if (s_pair_lock != NULL) {
+        (void)xSemaphoreTake(s_pair_lock, portMAX_DELAY);
+    }
+}
+
+static void pair_unlock(void) {
+    if (s_pair_lock != NULL) {
+        (void)xSemaphoreGive(s_pair_lock);
+    }
+}
 
 /*
  * Pairing persistence adapter. bridge_config is the only NVS owner; paired_at
@@ -177,8 +194,10 @@ static void radio_task(void *argument) {
                     GetPacketStatus(&rssi, &snr);
                     /* Pairing consumes sync/state frames; the seam below still
                      * carries the raw bytes to the sample pipeline (T21). */
+                    pair_lock();
                     (void)sx4_radio_pair_on_packet(payload, length,
                                                    pair_now_ms());
+                    pair_unlock();
                     if (sx4_radio_rx_publish(payload, length, rssi, snr)) {
                         ESP_LOGI(TAG,
                                  "rx len=%u rssi=%d snr=%d freq=%lu", length,
@@ -200,13 +219,21 @@ static void radio_task(void *argument) {
             }
             rearm_receive();
         }
+        pair_lock();
         sx4_radio_pair_tick(pair_now_ms());
+        pair_unlock();
         vTaskDelay(SX4_RADIO_POLL_DELAY_TICKS);
     }
 }
 
 esp_err_t sx_radio_init(void) {
     sx4_radio_rx_reset();
+    if (s_pair_lock == NULL) {
+        s_pair_lock = xSemaphoreCreateMutex();
+        if (s_pair_lock == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
 
     /* Load pairing before the SX1262 is configured: the FSM's tune callback
      * sets s_frequency_hz (and is a no-op on the hardware until configured). */
@@ -290,6 +317,21 @@ esp_err_t sx_radio_set_frequency(uint32_t frequency_hz) {
 }
 
 uint32_t sx_radio_frequency(void) { return s_frequency_hz; }
+
+esp_err_t sx_radio_unpair(void) {
+    if (s_pair_lock == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    pair_lock();
+    const bool cleared = sx4_radio_pair_unpair(pair_now_ms());
+    pair_unlock();
+    if (!cleared) {
+        ESP_LOGW(TAG, "unpair_smoke_x: pairing clear failed");
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "unpair_smoke_x: pairing cleared, scanning 915/920");
+    return ESP_OK;
+}
 
 esp_err_t sx_radio_sleep(void) {
     if (!s_configured) {

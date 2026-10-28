@@ -37,11 +37,17 @@ typedef enum {
  * `load_generation` may fail when NVS is unreadable; the core then tries to
  * adopt the newest sector header. `new_generation` must persist before it
  * returns, so the erase that follows can never resurrect old records.
+ *
+ * `begin_clear` is the runtime clear (T48): persist the new generation and
+ * `clear_pending` before the caller erases anything. `finish_clear` clears the
+ * flag after the erase completed. `new_generation` is the boot-time "blank log"
+ * path and does not set `clear_pending`.
  */
 typedef struct {
     int (*load_generation)(void *ctx, uint32_t *out);
     int (*store_generation)(void *ctx, uint32_t generation);
     int (*new_generation)(void *ctx, uint32_t *out);
+    int (*begin_clear)(void *ctx, uint32_t *out);
     bool (*clear_pending)(void *ctx);
     int (*finish_clear)(void *ctx);
 } log_flash_hooks_t;
@@ -81,6 +87,18 @@ sample_log_status_t log_flash_read_seq(log_flash_t *flash, uint32_t seq,
 
 /* No-I/O bookkeeping snapshot. Returns false when never opened. */
 bool log_flash_info(const log_flash_t *flash, log_ring_info_t *out);
+
+/*
+ * Runtime `clear_history` (T48): persist a new random generation and
+ * `clear_pending`, erase every non-blank sector, clear the pending flag, and
+ * restart the ring empty with the new generation. Pairing and config live in
+ * other namespaces and are untouched.
+ *
+ * Appends must be serialized with this call (the firmware singleton owns a
+ * mutex). A failed begin leaves the old generation/ring usable; a failed erase
+ * parks the log READ_ONLY until the next boot, where the pending clear resumes.
+ */
+log_flash_status_t log_flash_clear(log_flash_t *flash);
 
 #ifdef ESP_PLATFORM
 #include "esp_err.h"

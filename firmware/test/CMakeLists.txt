@@ -280,6 +280,23 @@ add_executable(test_ble_control test_ble_control.c)
 target_link_libraries(test_ble_control PRIVATE sx4_ble_control sx4_test_support)
 add_test(NAME ble-control COMMAND test_ble_control)
 
+# T48: the deferred destructive-action router. The real dispatcher is linked;
+# the backend is a fake, so ordering/idempotency/failure are host-provable
+# without NimBLE, NVS, flash or the board.
+add_library(sx4_ble_control_actions STATIC
+    "${REPO_ROOT}/firmware/components/ble_service/ble_control_actions.c"
+)
+target_include_directories(sx4_ble_control_actions
+    PUBLIC "${REPO_ROOT}/firmware/components/ble_service/include"
+)
+target_link_libraries(sx4_ble_control_actions PUBLIC sx4_ble_control)
+
+add_executable(test_ble_control_actions test_ble_control_actions.c)
+target_link_libraries(test_ble_control_actions
+    PRIVATE sx4_ble_control_actions sx4_test_support
+)
+add_test(NAME ble-control-actions COMMAND test_ble_control_actions)
+
 # The `config` validator/encoder is pure C11 (T47). bridge_config supplies the
 # shared name/timeout constants; the host test does not touch NVS.
 add_library(sx4_ble_config STATIC

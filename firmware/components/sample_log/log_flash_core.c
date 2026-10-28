@@ -10,7 +10,8 @@
 static bool hooks_complete(const log_flash_hooks_t *hooks) {
     return hooks != NULL && hooks->load_generation != NULL &&
            hooks->store_generation != NULL && hooks->new_generation != NULL &&
-           hooks->clear_pending != NULL && hooks->finish_clear != NULL;
+           hooks->begin_clear != NULL && hooks->clear_pending != NULL &&
+           hooks->finish_clear != NULL;
 }
 
 static void set_read_only(log_flash_t *flash) {
@@ -192,4 +193,41 @@ bool log_flash_info(const log_flash_t *flash, log_ring_info_t *out) {
     }
     log_ring_info(&flash->ring, out);
     return true;
+}
+
+log_flash_status_t log_flash_clear(log_flash_t *flash) {
+    if (flash == NULL) {
+        return LOG_FLASH_ERR_ARGUMENT;
+    }
+    if (!flash->opened || flash->storage == SAMPLE_LOG_STORAGE_READ_ONLY) {
+        return LOG_FLASH_ERR_STATE;
+    }
+
+    /* Stop appends while the ring is remounted. The caller serializes tasks. */
+    flash->ready = false;
+
+    uint32_t generation = 0;
+    if (flash->hooks.begin_clear(flash->hook_ctx, &generation) != 0) {
+        /* Nothing was erased and the old ring is still valid. */
+        flash->ready = true;
+        return LOG_FLASH_ERR_IO;
+    }
+
+    if (erase_nonblank_sectors(flash) != LOG_FLASH_OK) {
+        /* Pending clear stays set: boot resumes and finishes the erase. */
+        set_read_only(flash);
+        return LOG_FLASH_ERR_IO;
+    }
+    if (flash->hooks.finish_clear(flash->hook_ctx) != 0) {
+        set_read_only(flash);
+        return LOG_FLASH_ERR_IO;
+    }
+
+    if (log_ring_format(&flash->ring, generation) != SAMPLE_LOG_OK) {
+        set_read_only(flash);
+        return LOG_FLASH_ERR_STATE;
+    }
+    flash->ready = true;
+    flash->storage = state_for(&flash->ring);
+    return LOG_FLASH_OK;
 }

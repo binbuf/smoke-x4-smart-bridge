@@ -49,6 +49,14 @@ void ble_service_keep_advertising(void);
 uint8_t ble_service_bond_count(void);
 
 /*
+ * T48 `forget_phone` backend: delete only the current peer's bond and drop the
+ * link. The normal disconnect path re-advertises; other bonds are untouched.
+ * Returns an SX4_RESULT_STATUS_* value (NOT_FOUND when there is no current link
+ * or no stored bond for it).
+ */
+uint8_t ble_service_forget_current_peer(void);
+
+/*
  * Passkey display seam. ble_service calls this with six ASCII digits when a
  * bond starts and with NULL when the attempt ends, expires or is cancelled. The
  * boot sequence wires it to ui_set_passkey(); the host build never links it.

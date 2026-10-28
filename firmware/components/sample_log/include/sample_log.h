@@ -73,6 +73,15 @@ esp_err_t sample_log_read_seq(uint32_t seq, sx4_sample_rec_t *out);
 /* Bookkeeping snapshot for stats/sync (no flash I/O). */
 bool sample_log_get_info(log_ring_info_t *out);
 
+/*
+ * `clear_history` (T48): persist a new random generation, erase the sample
+ * sectors, clear the pending-clear flag and restart the ring empty. Pairing and
+ * config are untouched. Serialized with append/read/info through one mutex.
+ * Returns ESP_OK, ESP_FAIL (flash failure: storage is READ_ONLY until reboot),
+ * ESP_ERR_INVALID_STATE (not mounted/READ_ONLY) or ESP_ERR_INVALID_ARG.
+ */
+esp_err_t sample_log_clear(void);
+
 /* Boot recovery duration and sectors erased finishing a pending clear. */
 uint32_t sample_log_recovery_ms(void);
 uint32_t sample_log_cleared_sectors(void);

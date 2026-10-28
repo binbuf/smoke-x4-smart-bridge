@@ -161,6 +161,14 @@ uint8_t ble_control_handle(const uint8_t *in, size_t in_len,
     out->op = in[1];
     out->op_id = in[2];
 
+    if (in_len > SX4_BLE_CONTROL_MAX_SIZE) {
+        /* The characteristic carries at most 16 B; never truncate silently. */
+        result_reset(out, SX4_RESULT_STATUS_INVALID, "control too long");
+        out->op = in[1];
+        out->op_id = in[2];
+        return out->status;
+    }
+
     if (in[0] != 1u) {
         result_reset(out, SX4_RESULT_STATUS_INVALID, "unsupported version");
         out->op = in[1];
@@ -301,11 +309,12 @@ static uint8_t set_time(uint8_t op_id, const uint8_t *body, size_t body_len,
 }
 
 /*
- * Intentionally unused in T29: T48 registers a handler and starts filling
- * result.action. Kept here so the reply-first seam lives with the dispatcher.
+ * T48 registers the handler that runs the destructive effect. The result has
+ * already been notified by the GATT layer; a failure here is only reported.
  */
-void ble_control_run_action(ble_control_action_t action) {
-    if (s_action_fn != NULL && action != BLE_CONTROL_ACTION_NONE) {
-        s_action_fn(action, s_action_ctx);
+uint8_t ble_control_run_action(ble_control_action_t action) {
+    if (s_action_fn == NULL || action == BLE_CONTROL_ACTION_NONE) {
+        return SX4_RESULT_STATUS_UNSUPPORTED;
     }
+    return s_action_fn(action, s_action_ctx);
 }
