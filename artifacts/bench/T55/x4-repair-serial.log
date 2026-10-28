@@ -1,0 +1,250 @@
+# opened 2026-10-28T10:03:38 port=COM5 baud=115200
+I (5180152) sx4.radio: rx len=77 rssi=-25 snr=11 freq=918500000
+I (5180152) sx4.radio: payload="LMXC[\,30,1,1,0,803,0,99,47,0,800,0,160,32,0,802,0,160,32,0,800,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 38 30 33 2C 30 2C 39 39 2C 34 37 2C 30 2C 38 30 30 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 30 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (5180162) sx4.sample: stored seq=2709 t=803,800,802,800 flags=0x2f
+I (5182902) sx4.house: battery 4038 mV (84%)
+I (5192902) sx4.house: battery 4038 mV (84%)
+I (5194852) sx4.ble: control op 7 id 1 -> status 0 (13 B)
+I (5194852) NimBLE: GATT procedure initiated: notify; 
+I (5194852) NimBLE: att_handle=23
+
+I (5195172) sx4.radio: tuned to 915000000 Hz
+I (5195172) sx4.radio: unpair_smoke_x: pairing cleared, scanning 915/920
+I (5198472) sx4.radio: tuned to 920000000 Hz
+I (5201772) sx4.radio: tuned to 915000000 Hz
+I (5202902) sx4.house: battery 4038 mV (84%)
+I (5205072) sx4.radio: tuned to 920000000 Hz
+I (5205872) NimBLE: GATT procedure initiated: notify; 
+I (5205872) NimBLE: att_handle=28
+
+I (5205982) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+I (5205982) NimBLE: GATT procedure initiated: notify; 
+I (5205982) NimBLE: att_handle=28
+
+I (5205982) sx4.ble: sync transfer ended (status 0)
+I (5208372) sx4.radio: tuned to 915000000 Hz
+I (5211672) sx4.radio: tuned to 920000000 Hz
+I (5212902) sx4.house: battery 4038 mV (84%)
+I (5214972) sx4.radio: tuned to 915000000 Hz
+I (5218272) sx4.radio: tuned to 920000000 Hz
+I (5221572) sx4.radio: tuned to 915000000 Hz
+I (5222902) sx4.house: battery 4038 mV (84%)
+I (5224872) sx4.radio: tuned to 920000000 Hz
+I (5228172) sx4.radio: tuned to 915000000 Hz
+I (5231472) sx4.radio: tuned to 920000000 Hz
+I (5232902) sx4.house: battery 4038 mV (84%)
+I (5234772) sx4.radio: tuned to 915000000 Hz
+I (5236192) NimBLE: GATT procedure initiated: notify; 
+I (5236192) NimBLE: att_handle=28
+
+I (5236302) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+I (5236302) NimBLE: GATT procedure initiated: notify; 
+I (5236302) NimBLE: att_handle=28
+
+I (5236302) sx4.ble: sync transfer ended (status 0)
+I (5237632) sx4.radio: tuned to 918500000 Hz
+I (5237862) sx4.radio: pair ACK sent on 918500000 Hz
+I (5237862) sx4.radio: rx len=28 rssi=-31 snr=6 freq=918500000
+I (5237862) sx4.radio: payload="000000,LMXC[\,160,50,191,54," hex=30 30 30 30 30 30 2C 4C 4D 58 43 5B 5C 2C 31 36 30 2C 35 30 2C 31 39 31 2C 35 34 2C 
+I (5238532) sx4.radio: rx len=77 rssi=-31 snr=10 freq=918500000
+I (5238542) sx4.radio: payload="LMXC[\,30,1,1,0,808,0,99,47,0,804,0,160,32,0,805,0,160,32,0,804,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 38 30 38 2C 30 2C 39 39 2C 34 37 2C 30 2C 38 30 34 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 34 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (5238542) sx4.sample: stored seq=2710 t=808,804,805,804 flags=0x2f
+I (5242902) sx4.house: battery 4038 mV (84%)
+I (5252902) sx4.house: battery 4038 mV (84%)
+I (5262902) sx4.house: battery 4038 mV (84%)
+I (5266612) NimBLE: GATT procedure initiated: notify; 
+I (5266612) NimBLE: att_handle=28
+
+I (5266822) sx4.ble: sync frame_seq snapshot: 33 B, status 0
+I (5266822) NimBLE: GATT procedure initiated: notify; 
+I (5266822) NimBLE: att_handle=28
+
+I (5266822) sx4.ble: sync transfer ended (status 0)
+I (5268822) sx4.radio: rx len=77 rssi=-35 snr=11 freq=918500000
+I (5268822) sx4.radio: payload="LMXC[\,30,1,1,0,810,0,99,47,0,805,0,160,32,0,805,0,160,32,0,805,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 38 31 30 2C 30 2C 39 39 2C 34 37 2C 30 2C 38 30 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 35 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 35 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (5268832) sx4.sample: stored seq=2711 t=810,805,805,805 flags=0x2f
+I (5272902) sx4.house: battery 4038 mV (84%)
+I (5282902) sx4.house: battery 4047 mV (85%)
+I (5292902) sx4.house: battery 4038 mV (84%)
+I (5297032) NimBLE: GATT procedure initiated: notify; 
+I (5297032) NimBLE: att_handle=28
+
+I (5297142) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+I (5297142) NimBLE: GATT procedure initiated: notify; 
+I (5297142) NimBLE: att_handle=28
+
+I (5297152) sx4.ble: sync transfer ended (status 0)
+I (5299052) sx4.radio: rx len=77 rssi=-30 snr=11 freq=918500000
+I (5299052) sx4.radio: payload="LMXC[\,30,1,1,0,811,0,99,47,0,807,0,160,32,0,807,0,160,32,0,806,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 38 31 31 2C 30 2C 39 39 2C 34 37 2C 30 2C 38 30 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 37 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 30 36 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (5299062) sx4.sample: stored seq=2712 t=811,807,807,806 flags=0x2f
+I (5302902) sx4.house: battery 4038 mV (84%)
+I (5312902) sx4.house: battery 4038 mV (84%)
+I (5322902) sx4.house: battery 4038 mV (84%)
+I (5327352) NimBLE: GATT procedure initiated: notify; 
+I (5327352) NimBLE: att_handle=28
+
+I (5327462) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+I (5327472) NimBLE: GATT procedure initiated: notify; 
+I (5327472) NimBLE: att_handle=28
+
+I (5327472) sx4.ble: sync transfer ended (status 0)
+I (5327552) sx4.ble: control op 4 id 2 -> status 0 (13 B)
+I (5327552) NimBLE: GATT procedure initiated: notify; 
+I (5327552) NimBLE: att_handle=23
+
+I (5327802) sx4.board: Vext off (GPIO36 high)
+W (5332862) RA01S: WaitForIdle Timeout text=end WriteCommand2 timeout=5000 start=532751
+I (5332862) sx4.radio: SX1262 asleep (cold start)
+I (5332862) sx4.board: Vext off (GPIO36 high)
+I (5332862) sx4.board: deep sleep: Vext off, GPIO0 ANY_LOW wake armed
+I (5332902) sx4.house: battery 4038 mV (84%)
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x5 (DSLEEP),boot:0x8 (SPI_FAST_FLASH_BOOT)
+pro cpu reset by JTAG
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xda0
+load:0x403cb700,len:0x2f54
+entry 0x403c8908
+I (26) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Oct 27 2026 00:09:54
+I (27) boot: Multicore bootloader
+I (27) boot: chip revision: v0.2
+I (30) boot: efuse block revision: v1.3
+I (33) boot.esp32s3: Boot SPI Speed : 80MHz
+I (37) boot.esp32s3: SPI Mode       : DIO
+I (41) boot.esp32s3: SPI Flash Size : 8MB
+I (45) boot: Enabling RNG early entropy source...
+I (49) boot: Partition Table:
+I (52) boot: ## Label            Usage          Type ST Offset   Length
+I (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 00011000 00001000
+I (71) boot:  2 coredump         Unknown data     01 03 00012000 0000e000
+I (77) boot:  3 factory          factory app      00 00 00020000 00200000
+I (84) boot:  4 samples          Unknown data     01 40 00220000 005e0000
+I (91) boot: End of partition table
+I (94) esp_image: segment 0: paddr=00020020 vaddr=3c060020 size=19d6ch (105836) map
+I (121) esp_image: segment 1: paddr=00039d94 vaddr=3fc9b100 size=04994h ( 18836) load
+I (125) esp_image: segment 2: paddr=0003e730 vaddr=40374000 size=018e8h (  6376) load
+I (127) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=5dd4ch (384332) map
+I (202) esp_image: segment 4: paddr=0009dd74 vaddr=403758e8 size=1570ch ( 87820) load
+I (222) esp_image: segment 5: paddr=000b3488 vaddr=50000000 size=00024h (    36) 
+I (223) esp_image: segment 6: paddr=000b34b4 vaddr=600fe000 size=0006ch (   108) 
+I (235) boot: Loaded app from partition at offset 0x20000
+I (235) boot: Disabling RNG early entropy source...
+I (247) cpu_start: Multicore app
+I (255) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (256) cpu_start: Pro cpu start user code
+I (256) cpu_start: cpu freq: 240000000 Hz
+I (258) app_init: Application information:
+I (262) app_init: Project name:     sx4_bridge
+I (266) app_init: App version:      657a44e-dirty
+I (270) app_init: Compile time:     Oct 28 2026 07:57:18
+I (275) app_init: ELF file SHA256:  68d4d5144...
+I (280) app_init: ESP-IDF:          v6.0.2
+I (283) efuse_init: Min chip rev:     v0.0
+I (287) efuse_init: Max chip rev:     v0.99 
+I (291) efuse_init: Chip rev:         v0.2
+I (295) heap_init: Initializing. RAM available for dynamic allocation:
+I (301) heap_init: At 3FCA2F20 len 000467F0 (281 KiB): RAM
+I (306) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (312) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (317) heap_init: At 600FE06C len 00001F7C (7 KiB): RTCRAM
+I (323) spi_flash: detected chip: gd
+I (325) spi_flash: flash io: dio
+I (329) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (335) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (341) esp_core_dump_flash: Init core dump to flash
+I (346) esp_core_dump_flash: Found partition 'coredump' @ 12000 57344 bytes
+I (353) main_task: Started on CPU0
+I (373) main_task: Calling app_main()
+I (373) sx4.boot: boot: starting
+I (373) sx4.boot: deep-sleep wake: confirming PRG hold
+I (1893) sx4.boot: hold-to-wake confirmed
+I (1903) sx4.boot: nvs: ok
+I (1923) sx4.config: loaded: version 1
+I (1923) sx4.boot: bridge_config_init: ok
+I (1923) sx4.boot: bridge_state_init: ok
+I (1923) sx4.boot: board_prg_init: ok
+I (2023) sx4.board: Vext on (GPIO36 low), OLED reset released
+I (2023) sx4.batt: battery ADC ready: GPIO1/ADC1_CH0, x4.90 divider
+I (2023) sx4.boot: board_power_init: ok
+I (2063) sx4.ui: SSD1306 128x64 at 0x3c, 400000 Hz
+I (2083) sx4.boot: ui_init: ok
+I (3013) sx4.log.flash: recovered in 929 ms: gen 081936f6, seq 0..2712, next 2713, 2713 records, 0 sectors cleared, state OK
+I (3013) sx4.boot: sample_log_init: ok
+I (3023) sx4.boot: sx_protocol_init: ok
+I (3023) RA01S: CONFIG_MISO_GPIO=11
+I (3023) RA01S: CONFIG_MOSI_GPIO=10
+I (3033) RA01S: CONFIG_SCLK_GPIO=9
+I (3033) RA01S: CONFIG_NSS_GPIO=8
+I (3033) RA01S: CONFIG_RST_GPIO=12
+I (3033) RA01S: CONFIG_BUSY_GPIO=13
+I (3043) RA01S: CONFIG_TXEN_GPIO=-1
+I (3043) RA01S: CONFIG_RXEN_GPIO=-1
+I (3053) RA01S: spi_bus_initialize=0
+I (3053) RA01S: spi_bus_add_device=0
+I (3093) RA01S: syncWord=0x1424
+I (3093) RA01S: SX126x installed
+W (3103) RA01S: WriteCommand2 status=0a retry=1
+I (3113) RA01S: tcxoVoltage=3.300000
+I (3133) RA01S: useRegulatorLDO=1
+I (3153) RA01S: SetStopRxTimerOnPreambleDetect enable=0
+I (3213) sx4.radio: configured: SF9 BW4 CR0x01 preamble=10 sync=0x1424 crc=1 tcxo=3.3V ldo=1 freq=918500000
+I (3213) sx4.boot: sx_radio_init: ok
+I (3213) sx4.boot: sample_pipe_start: ok
+I (3213) sx4.boot: ble_tx_start: ok
+I (3213) sx4.boot: sx_radio_start: ok
+I (3213) sx4.radio: radio_rx started on core 1
+I (3223) BLE_INIT: BT controller compile version [51d9dfd]
+I (3233) BLE_INIT: Using main XTAL as clock source
+I (3233) BLE_INIT: Feature Config, ADV:1, BLE_50:1, DTM:1, SCAN:1, CCA:0, SMP:1, CONNECT:1
+I (3243) BLE_INIT: Bluetooth MAC: ac:a7:04:38:82:76
+I (3243) phy_init: phy_version 712,87e8c20e,Apr 13 2026,18:51:10
+I (3293) NimBLE: GAP procedure initiated: stop advertising.
+
+I (3293) NimBLE: GAP procedure initiated: stop advertising.
+
+I (3293) NimBLE: GAP procedure initiated: advertise; 
+I (3303) NimBLE: disc_mode=2
+I (3303) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=400 adv_itvl_max=400
+I (3313) NimBLE: 
+
+I (3313) sx4.ble: advertising at 250 ms (adv 21 B, rsp 27 B)
+I (3323) sx4.ble: host synced; 1/4 bond slot(s) used
+I (3323) sx4.ble: GATT service registered (8 slots), host starting
+I (3333) sx4.boot: ble_service_start: ok
+I (3333) sx4.house: housekeeping started: battery every 10000 ms
+I (3343) sx4.house: battery 4028 mV (83%)
+I (3343) sx4.boot: housekeeping_start: ok
+I (3343) sx4.ui: ui task started (page 0, timeout 60 s)
+I (3353) sx4.boot: ui_start: ok
+I (3353) sx4.boot: boot: sequence complete
+I (3353) main_task: Returned from app_main()
+I (13343) sx4.house: battery 4028 mV (83%)
+I (16433) sx4.radio: rx len=77 rssi=-32 snr=11 freq=918500000
+I (16433) sx4.radio: payload="LMXC[\,30,1,1,0,816,0,99,47,0,812,0,160,32,0,812,0,160,32,0,812,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 38 31 36 2C 30 2C 39 39 2C 34 37 2C 30 2C 38 31 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 31 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 31 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (16443) sx4.sample: stored seq=2713 t=816,812,812,812 flags=0x2f
+I (23343) sx4.house: battery 4033 mV (83%)
+I (32163) sx4.ble: central connected (handle 1)
+I (32263) sx4.ble: pairing complete (status 0, 1 bond(s))
+I (32263) sx4.ble: link secured (authenticated, 1 bond(s))
+I (33343) sx4.house: battery 4033 mV (83%)
+I (34063) sx4.ble: control op 1 id 0 -> status 0 (14 B)
+I (34063) NimBLE: GATT procedure initiated: notify; 
+I (34063) NimBLE: att_handle=23
+
+I (34163) NimBLE: GATT procedure initiated: notify; 
+I (34163) NimBLE: att_handle=28
+
+I (34273) sx4.ble: sync frame_seq snapshot: 51 B, status 0
+I (34273) NimBLE: GATT procedure initiated: notify; 
+I (34273) NimBLE: att_handle=28
+
+I (34273) sx4.ble: sync transfer ended (status 0)
+I (43343) sx4.house: battery 4033 mV (83%)
+I (46683) sx4.radio: rx len=77 rssi=-31 snr=11 freq=918500000
+I (46683) sx4.radio: payload="LMXC[\,30,1,1,0,815,0,99,47,0,812,0,160,32,0,812,0,160,32,0,812,1,160,32,0,0," hex=4C 4D 58 43 5B 5C 2C 33 30 2C 31 2C 31 2C 30 2C 38 31 35 2C 30 2C 39 39 2C 34 37 2C 30 2C 38 31 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 31 32 2C 30 2C 31 36 30 2C 33 32 2C 30 2C 38 31 32 2C 31 2C 31 36 30 2C 33 32 2C 30 2C 30 2C 
+I (46693) sx4.sample: stored seq=2714 t=815,812,812,812 flags=0x2f

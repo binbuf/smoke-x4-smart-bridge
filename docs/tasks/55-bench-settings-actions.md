@@ -13,12 +13,12 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 - Depends on T46a, T49, T52, T53 and T54.
 
 ## Scope
-- [ ] Change every Bridge/Preferences setting; verify read-back, persistence and the OLED. Check units, Appearance, Bridge name and screen timeout copy.
+- [x] Change every Bridge/Preferences setting; verify read-back, persistence and the OLED. Check units, Appearance, Bridge name and screen timeout copy. (Continuation 2: °C/°F and 30 s/1 min confirmed on the panel.)
 - [x] Forget this phone; verify bond removal, re-pair, and the orphaned `History on this phone` entry.
 - [x] Reject a wrong passkey once, confirm the named `The code didn’t match`
       state, then complete a correct re-pair. Confirm the bond survives a bridge
       reboot with no prompt. This absorbs the T37 wrong-code/bond residual.
-- [ ] Re-pair the Smoke X4 from Settings; verify the log is preserved and the new channel is heard after SYNC.
+- [x] Re-pair the Smoke X4 from Settings; verify the log is preserved and the new channel is heard after SYNC. (Continuation 2: SYNC beep → `pair ACK sent on 918500000 Hz`, seq continued 2710→2714.)
 - [x] Factory reset; verify config/log/pairings wiped, the app returns to Setup, and phone history is kept.
 - [x] Power off; verify the `Bridge is off` screen and hold-PRG wake.
 - [x] Clear history on the Bridge; verify the generation change and that old app data is preserved.
@@ -55,7 +55,7 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 - Design: [10 §10.3 B2/B3](../design/10-test-and-release.md), [13 §13.4](../design/13-ui-implementation-contract.md#settings-bridge-details-and-confirmations), [05 §5.12](../design/05-ble-contract.md).
 
 ## Done when
-- [ ] All nine checks pass on the real bridge and phone.
+- [x] All nine checks pass on the real bridge and phone.
 - [x] The destructive-action evidence is committed.
 - [x] The Settings UI matches the approved contract in both themes at 320 dp.
 - [x] Hand-off below filled in.
@@ -85,17 +85,32 @@ below Summary/Cooks, and the 1 h range drops both the banner and the long cook
 `02E2E2B4DA3013E14E3AED57A2D5505417B5214C263F2C7F43009ED3340F61F6`;
 release APK `2E095C5343D0D7350B574EE376A9E7D59963571745363296026ABD6B1505F28C`.
 
-**Not completed (needs a human/physical access, recorded as follow-ups):**
+**Continuation 2 — manual checks completed (2026-10-28).** With the operator at
+the bench:
 
-- OLED photo/visible check for units, timeout and the off/reset overlays. The
-  webcam returns black frames (lens capped / no light); config read-back and the
-  OLED-render host tests are the evidence, not the panel itself.
-- Re-pair a real Smoke X4 from Settings into a new SYNC channel. The X4 cannot
-  be put into SYNC mode from this session, and unpairing it would leave the
-  shared board without radio data. The app path/copy and `unpair_smoke_x`
-  preservation are covered by tests.
-- Five physical phones for the 4-slot cap; the task explicitly allows the host
-  test, which passes (`ble-adv` bond limit + setup full-store widget test).
+- **OLED units:** °C and °F both confirmed on the panel by the operator while the
+  app showed `Saved on the Bridge`; screenshots `t55-units-celsius-final.png` and
+  `t55-units-fahrenheit-final.png` plus `t55-units-*-final.xml`.
+- **OLED timeout:** 30 s confirmed to sleep the panel and wake on a PRG tap, then
+  restored to 1 min; `t55-timeout-30sec-final.png` plus the operator confirmation.
+- **Smoke X4 SYNC re-pair:** Settings → Re-pair cleared the old radio pairing
+  (`unpair_smoke_x: pairing cleared, scanning 915/920`); the operator held the X4
+  button until it beeped; the Bridge answered `pair ACK sent on 918500000 Hz` and
+  frames resumed. The log was preserved (`gen 081936f6`, `stored seq 2710` →
+  `2714`). Evidence: `x4-repair-serial.log`, `t55-x4-repair-sync-steps.png`,
+  `t55-x4-repair-done.png`.
+- **Power off / OFF overlay:** the operator confirmed the panel `OFF` overlay and
+  then held PRG ~1.9 s; the boot log shows
+  `deep-sleep wake: confirming PRG hold` → `hold-to-wake confirmed`, recovered
+  `seq 0..2712`, re-advertised and resumed `stored seq=2713`. Evidence:
+  `t55-poweroff-screen.png`, `x4-repair-serial.log`. The app itself stayed on
+  `Bridge is off` until relaunch — the known T43/T46a follow-up, not a new
+  failure.
+- **Not captured:** a panel photo of the `RESETTING` overlay (the factory-reset
+  copy, `result ok`, reboot, wipe and orphaned history are already evidenced);
+  the panel photos were operator-confirmed in this hand-off rather than captured.
+- **Five physical phones** for the 4-slot cap: the task allows the host test,
+  which passes (`ble-adv` bond limit + setup full-store widget test).
 
 **Checks:** `verify_host.ps1` → 25/25 CTest pass (re-run in continuation 1);
 `flutter analyze` → clean; `flutter test --timeout 180s` → full suite pass;
