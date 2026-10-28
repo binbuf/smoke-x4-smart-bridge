@@ -1,3 +1,6 @@
+---
+verify: powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/verify_host.ps1
+---
 # T48 — ble_service: control actions
 
 ## Goal
@@ -60,12 +63,14 @@ Implement the `control` characteristic actions so the phone can forget its bond,
 - `forget_phone` is current-peer only. Factory reset clears every bond. There is no eviction; up to 4 phones.
 - `set_billows_target` stays on the wire so a future control build can add it without a wire break, but this build has no fan output and no Billows TX path.
 - Design: [05 §5.5](../design/05-ble-contract.md), [05 §5.6](../design/05-ble-contract.md), [05 §5.12](../design/05-ble-contract.md), [03 §3.9](../design/03-firmware-architecture.md).
+- **Bench safety for this slice:** the app control client and destructive confirmations are T52. Do not run `factory_reset`, `forget_phone` or `power_off` against the shared bench board in this task; implement and host-test the handlers, run the firmware build, and defer the destructive board evidence to T55 with an NVS/samples backup and a re-pair plan. `clear_history` generation evidence is T49/T52/T55.
+- The T47 config/stats image is not necessarily flashed on the bench board. Build the T48 image and record the hash; flashing and the destructive walk belong to T55.
 
 ## Done when
 - [ ] Each op is host-tested for ordering, idempotency and failure, including malformed bodies, wrong length, unknown op and op_id echo.
 - [ ] `set_billows_target` is host-tested to always return `unsupported`.
 - [ ] `ctest --test-dir firmware/test/build` passes.
-- [ ] The destructive paths (forget, factory reset, power off) run on the board with `result ok` observed before the link drops or the device sleeps.
+- [ ] Destructive board paths are **deferred to T55** per the bench-safety note; this task proves answer-first ordering, idempotency and failure in host tests and builds the T48 image with its hash recorded.
 - [ ] Hand-off below filled in.
 
 ## Hand-off
