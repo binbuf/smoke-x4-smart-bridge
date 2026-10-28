@@ -374,6 +374,12 @@ reset / first-run flow, and never be reachable in a release build unless
 - Theme is `System / Light / Dark`, local only, applied immediately.
 - Times and dates use the device locale and 12/24-hour setting. No hard-coded
   `PM`/`AM` strings in production widgets.
+- Implementation (T53, ADR 0057): `app/lib/app/formatters.dart` owns conversion,
+  locale numbers/dates and the 12/24-hour clock. Units, Appearance and the Live
+  change window persist through `AppPreferences` and are restored before the
+  first frame; units also ride the Bridge `config` write so the OLED agrees.
+  History re-wraps its loaded view with `withUnits` so a live change repaints in
+  the next frame instead of waiting for a reload.
 
 ---
 

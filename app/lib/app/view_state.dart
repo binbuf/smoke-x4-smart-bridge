@@ -218,6 +218,29 @@ class HistoryViewState {
 
   String get unitsLabel => unitLabel(units);
 
+  /// Presentation-only copy: a live unit change repaints the existing chart and
+  /// summary without reloading the archive.
+  HistoryViewState withUnits(Units value) => HistoryViewState(
+    range: range,
+    customRange: customRange,
+    probe: probe,
+    sort: sort,
+    fixture: fixture,
+    stats: stats,
+    cooks: cooks,
+    activeCook: activeCook,
+    cookReference: cookReference,
+    now: now,
+    estimated: estimated,
+    missingFromBridge: missingFromBridge,
+    offline: offline,
+    hasAnyHistory: hasAnyHistory,
+    oneProbe: oneProbe,
+    units: value,
+    lastSyncedLabel: lastSyncedLabel,
+    entireHistoryRange: entireHistoryRange,
+  );
+
   String get rangeChipLabel =>
       range == HistoryRange.custom ? 'Custom' : historyChipLabel(range);
 
@@ -254,25 +277,19 @@ class HistoryViewState {
     return '$dataProbeCount of $label';
   }
 
-  String windowLabel({required bool use24Hour}) => historyWindowLabel(
-    range,
-    fixture.start,
-    fixture.end,
-    use24Hour: use24Hour,
-  );
+  String windowLabel({required bool use24Hour, String? locale}) =>
+      historyWindowLabel(
+        range,
+        fixture.start,
+        fixture.end,
+        use24Hour: use24Hour,
+        locale: locale,
+      );
 
-  String valueFor(double? fahrenheit) {
-    if (fahrenheit == null) return '—';
-    final value = units == Units.fahrenheit
-        ? fahrenheit
-        : (fahrenheit - 32) * 5 / 9;
-    return value.toStringAsFixed(1);
-  }
+  String valueFor(double? fahrenheit) =>
+      temperatureValue(fahrenheit, units);
 
-  String tempFor(double? fahrenheit) {
-    if (fahrenheit == null) return '—';
-    return '${valueFor(fahrenheit)}${unitLabel(units)}';
-  }
+  String tempFor(double? fahrenheit) => temperatureText(fahrenheit, units);
 
   List<CookSession> get visibleCooks => cooks.take(3).toList();
 
@@ -383,6 +400,8 @@ class SettingsViewState {
     required this.savedDataEmpty,
     required this.firmware,
     required this.hasSavedData,
+    this.localeName = 'en_US',
+    this.use24Hour = false,
   });
 
   final bool connected;
@@ -418,6 +437,11 @@ class SettingsViewState {
   final String firmware;
   final bool hasSavedData;
 
+  /// Device locale and 12/24-hour setting captured by the app layer so this
+  /// snapshot formats dates exactly like the live screens.
+  final String localeName;
+  final bool use24Hour;
+
   bool get canEdit => connected;
 
   bool get canClearBridgeHistory => connected;
@@ -432,11 +456,19 @@ class SettingsViewState {
 
   String get bridgeOldestReadingLabel => bridgeOldestReadingAt == null
       ? '—'
-      : dateTimeLabel(bridgeOldestReadingAt!);
+      : dateTimeLabel(
+          bridgeOldestReadingAt!,
+          use24Hour: use24Hour,
+          locale: localeName,
+        );
 
   String get bridgeNewestReadingLabel => bridgeNewestReadingAt == null
       ? '—'
-      : dateTimeLabel(bridgeNewestReadingAt!);
+      : dateTimeLabel(
+          bridgeNewestReadingAt!,
+          use24Hour: use24Hour,
+          locale: localeName,
+        );
 
   bool get localHistoryEmpty => savedDataEmpty || phoneRecords == 0;
 }

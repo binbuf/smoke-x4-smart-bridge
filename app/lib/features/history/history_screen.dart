@@ -744,6 +744,8 @@ class _PastCookScreenState extends State<PastCookScreen> {
       sampleDao: source.sampleDao,
     )
       ..units = source.units
+      ..localeName = source.localeName
+      ..use24Hour = source.use24Hour
       ..historyRange = HistoryRange.custom
       ..historyCustomRange = DateTimeRange(
         start: widget.cook.start,
@@ -755,10 +757,30 @@ class _PastCookScreenState extends State<PastCookScreen> {
       ..historyOneProbe = source.historyOneProbe
       ..historyEstimated = source.historyEstimated
       ..historyMissingFromBridge = false;
+    // Units, change window and locale are presentation state: an open Cook
+    // view follows a live change instead of keeping its initState snapshot.
+    source.addListener(_syncPresentation);
+  }
+
+  void _syncPresentation() {
+    final source = widget.controller;
+    if (_history.units == source.units &&
+        _history.localeName == source.localeName &&
+        _history.use24Hour == source.use24Hour &&
+        _history.tempChangeWindowMinutes == source.tempChangeWindowMinutes) {
+      return;
+    }
+    _history
+      ..units = source.units
+      ..localeName = source.localeName
+      ..use24Hour = source.use24Hour
+      ..tempChangeWindowMinutes = source.tempChangeWindowMinutes
+      ..repaintForFormatting();
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_syncPresentation);
     _history.dispose();
     super.dispose();
   }
@@ -1358,7 +1380,7 @@ class _CookTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _monthLabel(cook.start.month),
+              monthShort(cook.start, upper: true),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w800,
@@ -1403,24 +1425,6 @@ class _CookTile extends StatelessWidget {
       ),
       onTap: onTap,
     );
-  }
-
-  String _monthLabel(int month) {
-    const months = [
-      'JAN',
-      'FEB',
-      'MAR',
-      'APR',
-      'MAY',
-      'JUN',
-      'JUL',
-      'AUG',
-      'SEP',
-      'OCT',
-      'NOV',
-      'DEC',
-    ];
-    return months[month - 1];
   }
 }
 

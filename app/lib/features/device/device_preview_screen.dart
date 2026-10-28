@@ -55,6 +55,15 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The preview is the app-side proof of the OLED contract: a unit or
+    // timeout change repaints it without reopening the screen.
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) => _buildScreen(context),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: prototypeAppBar(context, widget.controller, 'Bridge screen'),

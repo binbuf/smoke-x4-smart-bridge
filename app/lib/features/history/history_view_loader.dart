@@ -38,7 +38,6 @@ class _HistoryViewLoaderState extends State<HistoryViewLoader> {
       custom?.end.millisecondsSinceEpoch ?? 0,
       controller.historyProbe ?? 0,
       controller.historySort.name,
-      controller.units.name,
       controller.historyRevision,
       controller.isOffline,
       controller.offlineCache,
@@ -60,8 +59,12 @@ class _HistoryViewLoaderState extends State<HistoryViewLoader> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.hasData) {
-              _lastView = snapshot.data;
-              return widget.builder(context, snapshot.data!);
+              final loaded = snapshot.data!;
+              final current = loaded.units == widget.controller.units
+                  ? loaded
+                  : loaded.withUnits(widget.controller.units);
+              _lastView = current;
+              return widget.builder(context, current);
             }
             if (snapshot.hasError) {
               return _HistoryLoadError(
@@ -73,7 +76,12 @@ class _HistoryViewLoaderState extends State<HistoryViewLoader> {
             }
             final previous = _lastView;
             if (previous != null) {
-              return widget.builder(context, previous);
+              return widget.builder(
+                context,
+                previous.units == widget.controller.units
+                    ? previous
+                    : previous.withUnits(widget.controller.units),
+              );
             }
             return const _HistoryLoading();
           },
