@@ -19,15 +19,15 @@ Close the app-side defects found during the T46 full-history bench, so the M3 Hi
 
 ## Scope
 
-- [ ] **A — offline probe semantics.** While offline/stale, probe-tile semantics must never say `updated live`; use the last-known age and `Showing saved readings` vocabulary. Add a widget/semantics regression test.
-- [ ] **B — Live sparklines.** After a cold launch with a durable archive, Live sparklines must backfill from `SampleDao` (or show the approved `No history yet` only when the archive has no rows for that probe). Do not add a second timer or sync path.
-- [ ] **C — saved-Bridge identity.** The offline saved-Bridge header must not show the fixture default `A4F2`; show the saved short id, the saved name, or `—`. Add a regression test that fails if a fixture id is reachable.
-- [ ] **D — blocked adapter.** Entering `ConnectionPhase.blocked` must clear the sync card and any pending sync/backfill UI; the blocked notice is the only sync surface. Add a widget test.
-- [ ] **F — gap bands.** Stored gaps must be placed over the missing period, not at `detected_ms`; the `Not synced` label must render when the band is wide enough, with the permanent-loss explanation. Prefer a sequence→time mapping (from/to seq) over the detection timestamp. Add archive/chart tests for both `Not synced` and inferred holes.
-- [ ] **G — Cooks and Summary sort.** Cooks and `Since cook start` must be scoped to the visible History range (or otherwise cannot show a 115-day full-ring cook or enable `Since cook start` when the range has no cook). Add full-ring and range-scoped tests.
-- [ ] **H — Bridge reboot recovery.** If the Bridge reboots while the app is connected, recover live notifications and the paired X4 state without a process restart; a stale `Connected` + `Not paired` state is not acceptable. Add a link/controller test for the disconnect/reconnect path.
-- [ ] **J — permanent-loss banner.** The `Some readings were lost…` banner must be scoped to the visible range, not the whole archive. Add a range test.
-- [ ] Re-run `flutter analyze` and the full `flutter test` suite; keep the existing 223+ tests green.
+- [x] **A — offline probe semantics.** While offline/stale, probe-tile semantics must never say `updated live`; use the last-known age and `Showing saved readings` vocabulary. Add a widget/semantics regression test.
+- [x] **B — Live sparklines.** After a cold launch with a durable archive, Live sparklines must backfill from `SampleDao` (or show the approved `No history yet` only when the archive has no rows for that probe). Do not add a second timer or sync path.
+- [x] **C — saved-Bridge identity.** The offline saved-Bridge header must not show the fixture default `A4F2`; show the saved short id, the saved name, or `—`. Add a regression test that fails if a fixture id is reachable.
+- [x] **D — blocked adapter.** Entering `ConnectionPhase.blocked` must clear the sync card and any pending sync/backfill UI; the blocked notice is the only sync surface. Add a widget test.
+- [x] **F — gap bands.** Stored gaps must be placed over the missing period, not at `detected_ms`; the `Not synced` label must render when the band is wide enough, with the permanent-loss explanation. Prefer a sequence→time mapping (from/to seq) over the detection timestamp. Add archive/chart tests for both `Not synced` and inferred holes.
+- [x] **G — Cooks and Summary sort.** Cooks and `Since cook start` must be scoped to the visible History range (or otherwise cannot show a 115-day full-ring cook or enable `Since cook start` when the range has no cook). Add full-ring and range-scoped tests.
+- [x] **H — Bridge reboot recovery.** If the Bridge reboots while the app is connected, recover live notifications and the paired X4 state without a process restart; a stale `Connected` + `Not paired` state is not acceptable. Add a link/controller test for the disconnect/reconnect path.
+- [x] **J — permanent-loss banner.** The `Some readings were lost…` banner must be scoped to the visible range, not the whole archive. Add a range test.
+- [x] Re-run `flutter analyze` and the full `flutter test` suite; keep the existing 223+ tests green.
 - [ ] Re-check A–D, F–H and J on the real phone against the T46 evidence states and record before/after screenshots under `artifacts/bench/T46/fix-*` or the T55 evidence folder.
 
 ## Out of scope
@@ -49,10 +49,10 @@ Close the app-side defects found during the T46 full-history bench, so the M3 Hi
 - Verify at 320 dp and with TalkBack once the fixes land; T54 still owns the full gate.
 
 ## Done when
-- [ ] Findings A, B, C, D, F, G, H and J have regression tests that fail on the T46 builds and pass after the fix.
-- [ ] `flutter analyze` is clean and the full `flutter test` suite passes.
+- [x] Findings A, B, C, D, F, G, H and J have regression tests that fail on the T46 builds and pass after the fix.
+- [x] `flutter analyze` is clean and the full `flutter test` suite passes.
 - [ ] The affected states are re-checked on the real phone; before/after evidence is committed.
-- [ ] Hand-off below filled in.
+- [x] Hand-off below filled in.
 
 ## Hand-off
 
@@ -95,6 +95,9 @@ All eight app-side findings have a regression test and a fix; details in
 
 ### Checks
 
+Continuation 1 re-ran the gate on 2026-10-27 after the code commit; results
+below are from that run.
+
 ```powershell
 cd app
 flutter analyze                  # No issues found
@@ -110,12 +113,19 @@ range-scoped by design.
 ### Real-phone re-check — blocked
 
 The new debug APK was built (`app/build/app/outputs/flutter-apk/app-debug.apk`)
-and installed on the Pixel 11 Pro Fold. The device was on its lock screen when
-the after-run started; `adb` could not dismiss the keyguard and no app screen
-could be brought forward. No after screenshots were captured, and the bogus
-lock-screen capture was removed. T55 must re-check A–D, F–H and J on the
-unlocked phone against the T46 states (seeded debug DB for full-ring/`Not
-synced`, real X4/Bridge for the reboot).
+and installed on the Pixel 11 Pro Fold. Both the first attempt and continuation
+1 found the device security-locked (`isKeyguardShowing=true`,
+`deviceLocked=1`, managed by CloudDPC). `adb shell wm dismiss-keyguard`, wake,
+back and swipe gestures all left the keyguard in place; a PIN is required and
+is not available to this session. No app screen could be brought forward, so no
+after screenshots were captured, and the bogus lock-screen capture from the
+first attempt was removed. T55 must re-check A–D, F–H and J on the unlocked
+phone against the T46 states (seeded debug DB for full-ring/`Not synced`, real
+X4/Bridge for the reboot).
+
+Remaining work for this task is exactly that physical pass plus committing the
+before/after images under `artifacts/bench/T46/fix-*` (or the T55 folder). All
+code, tests, docs and host checks are complete.
 
 ### Docs
 
