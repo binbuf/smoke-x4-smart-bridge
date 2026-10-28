@@ -1,4 +1,7 @@
-# T54 — app: UI state matrix, accessibility and copy gate
+---
+hitl: true
+---
+# T54 - app: UI state matrix, accessibility and copy gate
 
 ## Goal
 Turn the prototype review into a production gate: every reachable UI state has a widget test, both themes are regenerated from production widgets, and accessibility plus banned-term copy checks run in CI. This is the evidence that Settings and the rest of M4 match the approved contract.
