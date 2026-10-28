@@ -55,4 +55,80 @@ Close the app-side defects found during the T46 full-history bench, so the M3 Hi
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+### What landed
+
+All eight app-side findings have a regression test and a fix; details in
+`docs/progress/T46a.md`.
+
+- **A — offline semantics.** `BridgeController._probeSemantics` says
+  `last reading … ago, showing saved readings` whenever the link is offline and
+  never `updated live`. Test: `live_screen_test` (probe semantics).
+- **B — Live sparklines.** `prepareLaunch` seeds `RecentHistoryStore` from
+  `SampleDao` after the newest-reading read. The seeded window ends at the
+  newest saved reading when the archive is older than an hour, so a 6 h-old
+  archive still shows the last recorded hour instead of `No history yet`. No
+  new timer or sync path. Tests: `live_backfill_and_identity_test`.
+- **C — saved-Bridge identity.** Offline launch sets `deviceName`/`deviceId`
+  from the saved `bridge` row (`savedBridgeShortId`; MAC `…:82:76` → `8276`,
+  unknown → `—`). The fixture `A4F2` is unreachable from that path. Test:
+  `live_backfill_and_identity_test`.
+- **D — blocked adapter.** `ConnectionPhase.blocked` clears `syncState` and
+  progress in all three blocked entry points, and Live refuses to render the
+  sync card while blocked. Tests: `live_screen_test`, `launch_connect_test`.
+- **F — gap bands.** Stored gaps are mapped by `from_seq`/`to_seq` onto the
+  readings that flank them (`SampleDao.samplesAroundSeq`), never by
+  `detected_ms`. `Not synced` bands are labelled even when narrow; inferred
+  holes stay `No signal`. Tests: `history_archive_test`,
+  `history_gap_chart_test`.
+- **G — Cooks / Since cook start.** Cook detection and cook-gap spans use the
+  visible `[startMs, endMs)` window. A 3-day ring produces a ≤24 h cook in the
+  24 h view and the sort is disabled when the range has no cook. Tests:
+  `history_archive_test`.
+- **H — Bridge reboot.** `BridgeLink.healthCheck` re-arms the `live`
+  notification after reading `live`, recovering the paired X4 state and values
+  when Android keeps the GATT link marked connected through a peripheral
+  reboot. Test: `bridge_link_test` (simulated peripheral restart).
+- **J — permanent-loss banner.** `missingFromBridge` comes from the same
+  visible-range bands, so an old loss does not raise the banner in a loss-free
+  range. Test: `history_archive_test`.
+
+### Checks
+
+```powershell
+cd app
+flutter analyze                  # No issues found
+flutter test --timeout 180s      # 289 tests, all passed
+# from the repository root
+make app-check                   # analyze + 289 tests pass
+```
+
+The full suite grew from 223 to 289 tests; no existing test was deleted. The
+two-cook archive test was widened to `twoDays` because cooks are now
+range-scoped by design.
+
+### Real-phone re-check — blocked
+
+The new debug APK was built (`app/build/app/outputs/flutter-apk/app-debug.apk`)
+and installed on the Pixel 11 Pro Fold. The device was on its lock screen when
+the after-run started; `adb` could not dismiss the keyguard and no app screen
+could be brought forward. No after screenshots were captured, and the bogus
+lock-screen capture was removed. T55 must re-check A–D, F–H and J on the
+unlocked phone against the T46 states (seeded debug DB for full-ring/`Not
+synced`, real X4/Bridge for the reboot).
+
+### Docs
+
+- `docs/design/adr/0058-history-gap-placement-and-reboot-recovery.md` (new)
+- `docs/design/06-app.md` (T46a implementation note)
+- `docs/progress/T46a.md` (facts, commands, follow-ups)
+
+### Next task must know
+
+- History reads `gaps()` + `samplesAroundSeq`; `gapsInRange` stays the
+  detection-time helper for sync/deletion. Do not mix them.
+- A gap with no surviving neighbour row is skipped rather than guessed.
+- `RecentHistoryStore.sparkline` now follows the newest sample; the 15-minute
+  fixture window is unchanged.
+- T55 owns the real-phone evidence and the 320 dp/TalkBack pass for these
+  states; T54 owns the layout/truncation gate.

@@ -109,8 +109,7 @@ class _FakeHistoryDao implements SampleDao {
   }) async {
     return samples
         .where(
-          (sample) =>
-              sample.recordedMs >= fromMs && sample.recordedMs < toMs,
+          (sample) => sample.recordedMs >= fromMs && sample.recordedMs < toMs,
         )
         .toList(growable: false);
   }
@@ -193,6 +192,26 @@ class _FakeHistoryDao implements SampleDao {
     String? bridgeId,
     int? generation,
   }) async => const <StoredGap>[];
+
+  @override
+  Future<List<StoredGap>> gaps({String? bridgeId, int? generation}) async =>
+      const <StoredGap>[];
+
+  @override
+  Future<(StoredSample?, StoredSample?)> samplesAroundSeq({
+    required int fromSeq,
+    required int toSeq,
+    String? bridgeId,
+    int? generation,
+  }) async {
+    StoredSample? before;
+    StoredSample? after;
+    for (final sample in samples) {
+      if (sample.seq <= fromSeq) before = sample;
+      if (after == null && sample.seq >= toSeq) after = sample;
+    }
+    return (before, after);
+  }
 }
 
 StoredSample _sample(DateTime time, int seq, {double? p3}) {

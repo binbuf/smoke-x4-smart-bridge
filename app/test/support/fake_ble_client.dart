@@ -169,6 +169,16 @@ class FakeBleClient implements BleClient {
     _setConnection(BleConnectionState.disconnected);
   }
 
+  /// Simulates a peripheral reboot that left the Android GATT link marked
+  /// connected but dropped every CCCD subscription. Notifications stop until
+  /// the app subscribes again, which is the T46 finding-H failure shape.
+  Future<void> simulatePeripheralRestart() async {
+    for (final subscription in _serverSubscriptions.values) {
+      await subscription.cancel();
+    }
+    _serverSubscriptions.clear();
+  }
+
   @override
   Future<BlePermissionState> requestPermissions() async {
     final requested = permissionOnRequest;

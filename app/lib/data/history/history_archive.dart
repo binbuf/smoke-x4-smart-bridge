@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../../domain/content.dart';
 import '../../domain/cook_detection.dart';
 import '../../domain/history_decimate.dart';
@@ -99,8 +101,12 @@ class HistoryArchive {
     );
     final rows = loaded.rows;
     final stats = await _loadStats(fromMs: startMs, toMs: endMs);
-    final gapRows = await dao.gapsInRange(fromMs: startMs, toMs: endMs);
-    final bands = _gapBands(
+    // Stored gaps describe missing sequence ranges, not the sync time. Read
+    // them all and place each one against the readings that flank it; filtering
+    // by `detected_ms` would draw a loss at the moment the app learned of it and
+    // hide an older loss that still overlaps the visible window.
+    final gapRows = await dao.gaps();
+    final bands = await _gapBands(
       gapRows,
       rows,
       startMs,
@@ -128,7 +134,13 @@ class HistoryArchive {
     ];
 
     final cooks = includeCooks
-        ? await _loadCooks(extent: extent)
+        ? await _loadCooks(
+            fromMs: startMs,
+            toMs: endMs,
+            gapSpans: <({DateTime start, DateTime end})>[
+              for (final band in bands) (start: band.start, end: band.end),
+            ],
+          )
         : const <CookSession>[];
 
     final missing = bands.any(
@@ -163,7 +175,10 @@ class HistoryArchive {
     required int count,
   }) async {
     if (count == 0) {
-      return const _SeriesRows(rows: <_SeriesRow>[], maxDelta: historyGapThreshold);
+      return const _SeriesRows(
+        rows: <_SeriesRow>[],
+        maxDelta: historyGapThreshold,
+      );
     }
     if (count <= maxRawRows) {
       final samples = await dao.samplesInRange(fromMs: fromMs, toMs: toMs);
@@ -227,10 +242,18 @@ class HistoryArchive {
     ];
   }
 
-  Future<List<CookSession>> _loadCooks({required SampleExtent extent}) async {
+  /// Detects cooks from the recorded activity **inside the visible window**.
+  ///
+  /// A full ring must not produce one multi-month cook: the card and the
+  /// `Since cook start` sort describe the range the user is looking at.
+  Future<List<CookSession>> _loadCooks({
+    required int fromMs,
+    required int toMs,
+    required List<({DateTime start, DateTime end})> gapSpans,
+  }) async {
     final activityRows = await dao.bucketedSamplesInRange(
-      fromMs: extent.minRecordedMs,
-      toMs: extent.maxRecordedMs + 1,
+      fromMs: fromMs,
+      toMs: toMs,
       bucketMs: cookActivityBucket.inMilliseconds,
     );
     final activity = <CookActivity>[
@@ -241,54 +264,52 @@ class HistoryArchive {
           probes: row.tempsF.where((value) => value != null).length,
         ),
     ];
-    final gapRows = await dao.gapsInRange(
-      fromMs: extent.minRecordedMs,
-      toMs: extent.maxRecordedMs + 1,
-    );
-    final gapSpans = <({DateTime start, DateTime end})>[
-      for (final gap in gapRows)
-        (
-          start: DateTime.fromMillisecondsSinceEpoch(gap.detectedMs),
-          end: DateTime.fromMillisecondsSinceEpoch(
-            gap.detectedMs + const Duration(minutes: 2).inMilliseconds,
-          ),
-        ),
-    ];
     return const CookDetection().detect(activity, gapSpans: gapSpans);
   }
 
-  List<HistoryGapBand> _gapBands(
+  Future<List<HistoryGapBand>> _gapBands(
     List<StoredGap> gaps,
     List<_SeriesRow> rows,
     int startMs,
     int endMs, {
     required Duration maxDelta,
-  }) {
+  }) async {
     final bands = <HistoryGapBand>[];
     for (final gap in gaps) {
-      if (gap.detectedMs < startMs || gap.detectedMs >= endMs) continue;
-      final detected = gap.detectedMs;
-      int? before;
-      int? after;
-      for (final row in rows) {
-        if (row.recordedMs <= detected) {
-          before = row.recordedMs;
-        } else {
-          after = row.recordedMs;
-          break;
-        }
+      // Map the missing sequence range to time using the readings that surround
+      // it. `detected_ms` says when the app learned about the loss; it is never
+      // the missing period itself.
+      final (before, after) = await dao.samplesAroundSeq(
+        fromSeq: gap.fromSeq,
+        toSeq: gap.toSeq,
+        bridgeId: gap.bridgeId,
+        generation: gap.generation,
+      );
+      if (before == null && after == null) continue;
+      final missingMs = math.max(
+        estimatedSampleCadenceMs,
+        (gap.toSeq - gap.fromSeq + 1) * estimatedSampleCadenceMs,
+      );
+      final int bandStart;
+      final int bandEnd;
+      if (before != null && after != null) {
+        bandStart = before.recordedMs;
+        bandEnd = after.recordedMs;
+      } else if (after != null) {
+        bandEnd = after.recordedMs;
+        bandStart = after.recordedMs - missingMs;
+      } else {
+        bandStart = before!.recordedMs;
+        bandEnd = before.recordedMs + missingMs;
       }
-      final bandStart = before ?? detected;
-      var bandEnd = after ?? detected + const Duration(minutes: 2).inMilliseconds;
-      if (bandEnd - bandStart < const Duration(minutes: 2).inMilliseconds) {
-        bandEnd = bandStart + const Duration(minutes: 2).inMilliseconds;
-      }
-      if (bandEnd > endMs) bandEnd = endMs;
       if (bandEnd <= bandStart) continue;
+      if (bandEnd <= startMs || bandStart >= endMs) continue;
       bands.add(
         HistoryGapBand(
-          start: DateTime.fromMillisecondsSinceEpoch(bandStart),
-          end: DateTime.fromMillisecondsSinceEpoch(bandEnd),
+          start: DateTime.fromMillisecondsSinceEpoch(
+            math.max(bandStart, startMs),
+          ),
+          end: DateTime.fromMillisecondsSinceEpoch(math.min(bandEnd, endMs)),
           reason: _reason(gap.reason),
         ),
       );

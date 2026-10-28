@@ -90,6 +90,21 @@ class RecentHistoryStore implements BridgeSyncSink {
     onChanged?.call();
   }
 
+  /// Seeds the in-memory sparkline window from the durable archive.
+  ///
+  /// Cold launch uses this once, before the link exists, so Live is not forced
+  /// to claim `No history yet` while the phone already holds real readings. It
+  /// is not a second sync path: the archive remains the source and later live
+  /// notifications / sync batches replace the same seq.
+  void seed(Iterable<RecentSample> values) {
+    var changed = false;
+    for (final sample in values) {
+      _bySeq[sample.seq] = sample;
+      changed = true;
+    }
+    if (changed) onChanged?.call();
+  }
+
   /// Adds the reading carried by a `live` notification.
   ///
   /// Live notifications arrive between sync passes, so recording them keeps the
@@ -120,7 +135,12 @@ class RecentHistoryStore implements BridgeSyncSink {
     int probe, {
     Duration window = const Duration(hours: 1),
   }) {
-    final end = _now();
+    // The window follows the newest reading, not the wall clock, so a cold
+    // launch with a stale-but-real archive still shows the last recorded hour
+    // instead of an empty tile. A healthy link's newest reading is ~now.
+    final now = _now();
+    final newest = newestAt;
+    final end = newest != null && newest.isBefore(now) ? newest : now;
     final start = end.subtract(window);
     return <ChartPoint>[
       for (final sample in samples)

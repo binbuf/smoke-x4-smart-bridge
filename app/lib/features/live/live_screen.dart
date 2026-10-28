@@ -49,8 +49,7 @@ class LiveScreen extends StatelessWidget {
                         icon: Icons.history,
                         color: StatusColors.stale(context),
                         title: view.telemetryStatusLabel,
-                        message:
-                            'These are saved readings, not live values. Retry when the Bridge is back in range.',
+                        message: 'These are saved readings, not live values. Retry when the Bridge is back in range.',
                         action: TextButton(
                           key: const Key('live.savedReadings.retry'),
                           onPressed: controller.retryConnection,
@@ -141,8 +140,7 @@ class LiveScreen extends StatelessWidget {
                         key: const Key('live.noCache'),
                         icon: Icons.cloud_off_outlined,
                         title: 'Bridge disconnected · nothing saved yet',
-                        message:
-                            'This phone has no saved readings. Connect to your Bridge to see live values.',
+                        message: 'This phone has no saved readings. Connect to your Bridge to see live values.',
                         action: TextButton(
                           key: const Key('live.noCache.retry'),
                           onPressed: controller.retryConnection,
@@ -159,16 +157,16 @@ class LiveScreen extends StatelessWidget {
                         icon: Icons.sensors_off_outlined,
                         color: StatusColors.aging(context),
                         title: 'No data from Smoke X4',
-                        message:
-                            'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
+                        message: 'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
                         action: TextButton(
                           onPressed: () => _showSmokeXHelp(context),
                           child: const Text('Pairing steps'),
                         ),
                       ),
                     ],
-                    if (view.syncState == SyncState.recent ||
-                        view.syncState == SyncState.backfill) ...[
+                    if (view.phase != ConnectionPhase.blocked &&
+                        (view.syncState == SyncState.recent ||
+                            view.syncState == SyncState.backfill)) ...[
                       const SizedBox(height: 10),
                       _SyncCard(view: view),
                     ],

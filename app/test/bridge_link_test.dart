@@ -287,6 +287,56 @@ void main() {
       },
     );
 
+    test('a Bridge reboot that drops notifications recovers without a restart', () async {
+      final harness = _Harness();
+      addTearDown(harness.dispose);
+      await harness.link.connectAndSecure(harness.device);
+      expect(harness.controller.phase, ConnectionPhase.live);
+      expect(harness.controller.smokeXStatus, SmokeXStatus.pairedLive);
+
+      // The Bridge rebooted and lost its X4 pairing/notification state while
+      // Android still reports the GATT link as connected.
+      harness.bridge
+        ..smokePaired = false
+        ..smokeLive = false
+        ..ageS = 20;
+      await harness.client.simulatePeripheralRestart();
+
+      harness.clock.fire(const Duration(seconds: 110));
+      await _waitFor(
+        () => harness.controller.smokeXStatus == SmokeXStatus.unpaired,
+      );
+      final liveNotify =
+          'notify:${gen.bleCharacteristicByName('live').uuid}:true';
+      final liveSubscriptions = harness.client.operations
+          .where((entry) => entry == liveNotify)
+          .length;
+      expect(
+        liveSubscriptions,
+        greaterThan(1),
+        reason: 'the watchdog re-arms the live notification after a reboot',
+      );
+
+      // The Bridge is back up and restored its X4 pairing. A notification must
+      // reach the app again without restarting the process.
+      harness.bridge
+        ..smokePaired = true
+        ..smokeLive = true
+        ..ageS = 3;
+      harness.bridge.publishLive(
+        seq: harness.bridge.seq + 1,
+        tempsF10: const <int>[2300, 1700, -32768, 800],
+      );
+      await _waitFor(
+        () => harness.controller.smokeXStatus == SmokeXStatus.pairedLive,
+      );
+
+      expect(harness.controller.phase, ConnectionPhase.live);
+      expect(harness.controller.liveView.smokeXStatus, SmokeXStatus.pairedLive);
+      expect(harness.controller.liveProbeTemps?[0], 230);
+      expect(harness.controller.liveProbeTemps?[1], 170);
+    });
+
     test('all six failed attempts show the named unreachable state', () async {
       final harness = _Harness();
       addTearDown(harness.dispose);
@@ -368,24 +418,26 @@ void main() {
       },
     );
 
-    test('a drift inside the 2 s tolerance is not rewritten on reconnect',
-        () async {
-      final harness = _Harness();
-      addTearDown(harness.dispose);
-      await harness.link.connectAndSecure(harness.device);
-      int setTimeCount() => harness.bridge.controlWrites
-          .where((control) => control.op == gen.ControlOp.setTime.wire)
-          .length;
-      expect(setTimeCount(), 1);
+    test(
+      'a drift inside the 2 s tolerance is not rewritten on reconnect',
+      () async {
+        final harness = _Harness();
+        addTearDown(harness.dispose);
+        await harness.link.connectAndSecure(harness.device);
+        int setTimeCount() => harness.bridge.controlWrites
+            .where((control) => control.op == gen.ControlOp.setTime.wire)
+            .length;
+        expect(setTimeCount(), 1);
 
-      harness.clock.now = harness.clock.now.add(
-        const Duration(milliseconds: 1500),
-      );
-      await harness.client.disconnect();
-      await _waitFor(() => harness.clock.waits.isNotEmpty);
-      await _waitFor(() => harness.controller.phase == ConnectionPhase.live);
-      expect(setTimeCount(), 1);
-    });
+        harness.clock.now = harness.clock.now.add(
+          const Duration(milliseconds: 1500),
+        );
+        await harness.client.disconnect();
+        await _waitFor(() => harness.clock.waits.isNotEmpty);
+        await _waitFor(() => harness.controller.phase == ConnectionPhase.live);
+        expect(setTimeCount(), 1);
+      },
+    );
 
     test('a bridge that lost its clock is set again on reconnect', () async {
       final harness = _Harness();

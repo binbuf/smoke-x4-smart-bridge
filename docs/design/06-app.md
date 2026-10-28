@@ -598,6 +598,14 @@ Cooks are detected from recorded timestamps by `CookDetection`; the card and the
 Cook view never use fixture cooks in production. `HistoryViewLoader` owns the
 async read, so the same approved widgets render with or without a database.
 
+Implementation note (T46a): stored gaps are placed by their sequence range
+(`samplesAroundSeq`) rather than `detected_ms`; a permanent-loss band keeps the
+`Not synced` label even when the band is narrow. Cooks, cook-gap spans and the
+permanent-loss banner all use the visible range. Live sparklines seed their
+last-recorded hour from `SampleDao` on launch, and the health check re-arms the
+`live` notification so a Bridge reboot recovers pairing and values without a
+process restart. ADR 0058 records the decision.
+
 Implementation note (T36): V0 mounted the same shell against
 `RecentHistoryStore`, which held only the current session's recent readings in
 memory. The T42 read model replaced that source without changing the screen

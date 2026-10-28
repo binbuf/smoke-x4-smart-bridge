@@ -164,6 +164,10 @@ class BridgeController extends ChangeNotifier {
         hasSavedData = phoneRecords > 0;
         savedDataEmpty = phoneRecords == 0;
       }
+      // Live sparklines are a view of the same archive, not a session-only
+      // buffer. Seed the last hour before the first paint so a cold launch with
+      // stored readings never claims `No history yet`.
+      await _backfillLiveHistory();
     }
     // Offline values come only from the archive; a launch with nothing stored
     // must not present fixture values as last-known (ADR 0041).
@@ -176,6 +180,11 @@ class BridgeController extends ChangeNotifier {
     savedBridge = saved;
     rememberedBridgeId = saved.id;
     rememberedBridgeName = saved.name;
+    // The offline header names the saved Bridge, never the controller's
+    // fixture default. The configured name only arrives with `config` after a
+    // connect, so use the saved advertised name and the short BLE id here.
+    deviceName = saved.name.trim().isEmpty ? '—' : saved.name.trim();
+    deviceId = savedBridgeShortId(saved.id);
     localMaxSeq = saved.cursorAfter;
     lastSyncedAt = DateTime.fromMillisecondsSinceEpoch(saved.lastSeenMs);
     hasSavedBridge = true;
@@ -187,6 +196,53 @@ class BridgeController extends ChangeNotifier {
     billowsAttachment = BillowsAttachment.unknown;
     billowsSeenThisSession = false;
     notifyListeners();
+  }
+
+  /// The four-character display id used for a saved Bridge before the protocol
+  /// `info` read supplies its identity. A BLE address keeps its last four hex
+  /// digits (`AC:A7:…:82:76` → `8276`); an unknown id renders as `—`.
+  static String savedBridgeShortId(String id) {
+    var value = id.trim();
+    final dash = value.lastIndexOf('-');
+    if (dash >= 0 && dash < value.length - 1) {
+      value = value.substring(dash + 1);
+    }
+    final hex = value.replaceAll(RegExp(r'[^0-9A-Fa-f]'), '');
+    if (hex.isEmpty) return '—';
+    final tail = hex.length <= 4 ? hex : hex.substring(hex.length - 4);
+    return tail.toUpperCase();
+  }
+
+  /// Seeds Live's one-hour sparkline window from the durable archive.
+  ///
+  /// The window ends at the newest saved reading when the archive is older than
+  /// an hour, so an offline launch shows the last hour the Bridge recorded
+  /// rather than `No history yet`. The archive remains the only source.
+  Future<void> _backfillLiveHistory() async {
+    final dao = sampleDao;
+    if (dao == null) return;
+    final newest = lastKnownReadingAt;
+    final end = newest != null && newest.isBefore(content.now)
+        ? newest
+        : content.now;
+    final start = end.subtract(const Duration(hours: 1));
+    final rows = await dao.samplesInRange(
+      fromMs: start.millisecondsSinceEpoch,
+      toMs: end.millisecondsSinceEpoch + 1,
+    );
+    if (rows.isEmpty) return;
+    recentHistory.seed(<RecentSample>[
+      for (final row in rows)
+        RecentSample(
+          seq: row.seq,
+          time: DateTime.fromMillisecondsSinceEpoch(row.recordedMs),
+          tempsF: <double?>[
+            for (final value in row.tempsF10) value == null ? null : value / 10,
+          ],
+          clockValid: row.clockValid,
+          billowsAttached: false,
+        ),
+    ]);
   }
 
   /// Scans for the saved Bridge by BLE identity, then by name, and connects.
@@ -381,6 +437,10 @@ class BridgeController extends ChangeNotifier {
     launchScanning = false;
     lookingForBridge = false;
     phase = ConnectionPhase.blocked;
+    // A blocked adapter is a named state, not a sync state: clear the sync card
+    // and any backfill progress so the blocked notice is the only sync surface.
+    syncState = SyncState.idle;
+    syncProgressPercent = 0;
     _bridgeConnectedSince = null;
     _smokeXConnectedSince = null;
     notifyListeners();
@@ -390,6 +450,8 @@ class BridgeController extends ChangeNotifier {
     blockReason = reason;
     launchScanning = false;
     lookingForBridge = false;
+    syncState = SyncState.idle;
+    syncProgressPercent = 0;
     notifyListeners();
   }
 
@@ -642,13 +704,14 @@ class BridgeController extends ChangeNotifier {
         lookingForBridge = false;
         _bridgeConnectedSince = null;
         _smokeXConnectedSince = null;
+        // A stale phase must never leave sync/backfill progress on screen.
+        syncState = SyncState.idle;
+        syncProgressPercent = 0;
         break;
     }
     if (value == ConnectionPhase.syncing) {
       syncState = SyncState.recent;
       syncProgressPercent = 10;
-    } else if (value == ConnectionPhase.reconnecting) {
-      syncState = SyncState.idle;
     }
     notifyListeners();
   }
@@ -813,7 +876,8 @@ class BridgeController extends ChangeNotifier {
     required String localeName,
     required bool use24Hour,
   }) {
-    final changed = this.localeName != localeName || this.use24Hour != use24Hour;
+    final changed =
+        this.localeName != localeName || this.use24Hour != use24Hour;
     this.localeName = localeName;
     this.use24Hour = use24Hour;
     return changed;
@@ -1857,7 +1921,19 @@ class BridgeController extends ChangeNotifier {
         : delta.abs() < 0.05
         ? ', flat over the last $window'
         : ', ${delta > 0 ? 'up' : 'down'} ${_displayDelta(delta.abs()).toStringAsFixed(1)} degrees over the last $window';
-    final state = status ?? 'updated live';
+    final String state;
+    if (!isConnected || phase == ConnectionPhase.stale) {
+      // Offline/stale values are last-known readings. Spoken copy must match the
+      // approved saved-readings vocabulary, never `updated live`.
+      final age = phase == ConnectionPhase.stale
+          ? smokeXLastPacketAge
+          : bridgeLastContactAge;
+      state = age == null
+          ? 'showing saved readings'
+          : 'last reading ${_proseDuration(age)} ago, showing saved readings';
+    } else {
+      state = status ?? 'updated live';
+    }
     return 'Probe $probe, ${tempFor(temp)}, $state$trend. Tap for History.';
   }
 
@@ -2170,12 +2246,12 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
     try {
       final applied = await _writeWholeConfig(
-        (config) => config.copyWith(
-          units: value == Units.celsius ? 0 : 1,
-        ),
+        (config) => config.copyWith(units: value == Units.celsius ? 0 : 1),
       );
       _pendingUnitsWrite = false;
-      final appliedUnits = applied.units == 0 ? Units.celsius : Units.fahrenheit;
+      final appliedUnits = applied.units == 0
+          ? Units.celsius
+          : Units.fahrenheit;
       if (appliedUnits != units) {
         units = appliedUnits;
         unawaited(_persistUnits(appliedUnits));
@@ -2522,10 +2598,7 @@ class BridgeController extends ChangeNotifier {
     _clearSavedConnectionLocally();
     DestructiveOutcome outcome = DestructiveOutcome.unavailable;
     if (current != null) {
-      outcome = await _attemptDestructive(
-        current,
-        BridgeControlOp.forgetPhone,
-      );
+      outcome = await _attemptDestructive(current, BridgeControlOp.forgetPhone);
     } else {
       // Review/demo path or an already-detached link: apply the local outcome.
       outcome = DestructiveOutcome.success;
@@ -2534,8 +2607,7 @@ class BridgeController extends ChangeNotifier {
       destructiveNotice = null;
       await _removeLocalBond();
     } else {
-      destructiveNotice =
-          'The Bridge may still have this phone paired. You can pair again later from another phone.';
+      destructiveNotice = 'The Bridge may still have this phone paired. You can pair again later from another phone.';
     }
     current?.abandon();
     notifyListeners();

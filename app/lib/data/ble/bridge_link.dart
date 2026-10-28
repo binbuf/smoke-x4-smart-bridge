@@ -185,11 +185,7 @@ class BridgeLinkException implements Exception {
 
 /// One control attempt, including whether the write reached the Bridge.
 class BridgeControlAttempt {
-  const BridgeControlAttempt({
-    required this.written,
-    this.result,
-    this.error,
-  });
+  const BridgeControlAttempt({required this.written, this.result, this.error});
 
   /// True when the GATT control write returned before the result/error.
   final bool written;
@@ -506,10 +502,7 @@ class BridgeLink implements SyncTransport {
       if (_isBondRequired(error)) {
         throw const BridgeLinkException(BridgeLinkFailure.bondRequired);
       }
-      throw BridgeConfigException(
-        _configStatusOf(error),
-        error.message,
-      );
+      throw BridgeConfigException(_configStatusOf(error), error.message);
     }
   }
 
@@ -701,6 +694,20 @@ class BridgeLink implements SyncTransport {
     _syncSubscription ??= client
         .notifications(bleSyncDataCharacteristicUuid)
         .listen(_onSyncChunk, onError: _onNotificationError);
+  }
+
+  /// Re-enables the `live` notification after a peripheral restart that kept
+  /// the GATT link up. Best effort: the health read still refreshes state.
+  Future<void> _resubscribeLive() async {
+    if (_disposed || !_secure) return;
+    try {
+      await client.setNotify(bleLiveCharacteristicUuid, enabled: true);
+      _liveSubscription ??= client
+          .notifications(bleLiveCharacteristicUuid)
+          .listen(_onLiveChunk, onError: _onNotificationError);
+    } catch (_) {
+      // The next watchdog or resume retries; the live read already landed.
+    }
   }
 
   void _onNotificationError(Object error) {
@@ -1384,6 +1391,12 @@ class BridgeLink implements SyncTransport {
   }
 
   /// No notification for 110 s: read `live`.
+  ///
+  /// The read also re-arms the live subscription. Android can keep a GATT link
+  /// marked `connected` across a peripheral reboot while silently dropping its
+  /// CCCD state; without this the app would hold a stale `Connected` +
+  /// `Not paired` snapshot until a process restart, even though the Bridge is
+  /// recording again.
   Future<void> healthCheck() async {
     if (_disposed || !_secure) return;
     final hadQuietX4 = _lastLive != null && !_isFresh(_lastLive!);
@@ -1396,6 +1409,9 @@ class BridgeLink implements SyncTransport {
         _setPhase(ConnectionPhase.stale);
       }
       _armWatchdog();
+      // Re-arm notifications after the state is published; the read above is
+      // the authoritative snapshot for this watchdog tick.
+      unawaited(_resubscribeLive());
     } on BleException catch (error) {
       if (_isBondRequired(error)) {
         try {
