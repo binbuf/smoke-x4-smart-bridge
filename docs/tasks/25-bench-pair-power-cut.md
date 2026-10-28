@@ -38,7 +38,7 @@ paths that the sitting will exercise. The physical run is executed at **T37**.
 - Full ring rotation or `min_seq`/`max_seq`/`generation` over BLE → T39/T46.
 - A 30-minute cadence run and page walk → T37 (physical), prepared by T26.
 - 24 h soak and field cooks → T61/T63.
-- Billows observation → T56–T60.
+- Billows observation → T56, T57, T59.
 - Any Wi-Fi/HTTP/OTA test: outside MVP; no task owns it.
 
 ## Design notes

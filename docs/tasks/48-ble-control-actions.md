@@ -38,7 +38,7 @@ Implement the `control` characteristic actions so the phone can forget its bond,
 - `config` read/write and validation → T47.
 - `set_time` (op 1) and the clock path → T29.
 - App confirmation sheets, destructive copy and Setup return → T52.
-- Billows control, mode or target editing → M5 Billows (T56–T60); `caps.billows_control` is always 0.
+- Billows control, mode or target editing → M5 Billows (T56, T57, T59); `caps.billows_control` is always 0.
 - On-device factory reset gesture or boot-time button menu — outside MVP; no task owns it.
 - Notifications — outside MVP; no task owns it.
 

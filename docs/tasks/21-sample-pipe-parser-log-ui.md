@@ -32,7 +32,7 @@ The sample pipeline validates each packet, builds one 18-byte record, appends it
 - BLE notification queue, `live` characteristic, and sync → Phase 3 BLE tasks (T27–T37). A missed notification is not a data-loss path and is recovered by sync later.
 - App-side history import → M3 history tasks (T39–T46).
 - Alarms/notifications and any Wi-Fi/HTTP/OTA path: outside MVP; no task owns them.
-- Billows TX/control: outside MVP; M5 (T56–T60) is observation only.
+- Billows TX/control: outside MVP; M5 (T56, T57, T59) is observation only.
 
 ## Design notes
 - Pipeline from [03 §3.6](../design/03-firmware-architecture.md):

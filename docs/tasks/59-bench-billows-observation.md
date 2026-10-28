@@ -6,7 +6,7 @@ Bench evidence with a real Billows confirms attach/detach, target display (or `�
 ## Context (read first)
 - Design: [08 §8.8](../design/08-billows.md); the contract under test is [08 §8.4, §8.6](../design/08-billows.md) and [05 §5.4, §5.9](../design/05-ble-contract.md).
 - Original verification: **P** (phone + board) · **board:** yes.
-- Depends on T57, T58.
+- Depends on T57.
 - This is the **M5 exit gate**: Billows observation is verified with a real unit, the bridge shows attached/not attached and, when the probe-4 target relation is confirmed, the target set on the Smoke X4. `caps.billows_control = 0`; the app offers no target setter and the firmware has no Billows TX path. The decision is recorded in [`../billows-decision.md`](../billows-decision.md) as **Option C, observation only**, and no release claims "set target".
 - Observation only; no cook is required.
 

@@ -23,7 +23,7 @@ The bridge accepts authenticated control writes, executes `set_time`, and answer
 
 ## Out of scope
 - `forget_phone`, `factory_reset`, `power_off`, `clear_history`, and `unpair_smoke_x` actions → T48 (M4).
-- `set_billows_target` — reserved and always `unsupported`; Billows control is outside MVP and no task owns a control path (observation is T56–T60).
+- `set_billows_target` — reserved and always `unsupported`; Billows control is outside MVP and no task owns a control path (observation is T56, T57, T59).
 - `config`/`stats` writes and reads → T47/T51 (M4).
 - The app-side op queue, `op_id` matching, and 3 s timeout → T35.
 - `info` encoding and service registration → T27; link security → T30.

@@ -90,7 +90,7 @@ Implement the 80-byte `config` characteristic end to end, so a phone can read an
 - App Settings editors, read-modify-write UI and per-field save states → T51.
 - `set_time` and the clock path → T29.
 - Probe names and roles — removed from the MVP; outside MVP, no task owns it.
-- Billows control or a target editor — M5 Billows (T56–T60); `caps.billows_control` is always 0.
+- Billows control or a target editor — M5 Billows (T56, T57, T59); `caps.billows_control` is always 0.
 - Wi-Fi/HTTP/OTA and a local web UI — outside MVP; no task owns it.
 
 ## Design notes

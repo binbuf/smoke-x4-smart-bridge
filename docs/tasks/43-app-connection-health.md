@@ -63,7 +63,7 @@ Remaining for this task:
 - History deletion and storage — owned by T44.
 - Firmware connection/state reporting and BLE transport — owned by T27/T28; app link procedures and time sync — owned by T35.
 - The formal cold-launch phone proof — owned by T46.
-- Billows status surfaces — M5 (T56–T60).
+- Billows status surfaces — M5 (T56, T57, T59).
 - Alarms, phone notifications, foreground service, and background scanning — outside MVP; no task owns them.
 - Server/cloud sync and export/share — outside MVP; no task owns them.
 

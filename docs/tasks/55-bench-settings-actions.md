@@ -29,7 +29,7 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 
 ## Out of scope
 - 24 h soak, field cook and release hardening → M6 (T61–T68).
-- Billows observation bench evidence and target validation → M5 Billows (T56–T60).
+- Billows observation bench evidence and target validation → M5 Billows (T56, T57, T59).
 - New features or UI changes discovered during the walk; file them against the owning task rather than fixing scope here.
 - Firmware host suite → T47–T49; app unit/widget gate → T54.
 - Wi-Fi/HTTP/OTA, local web UI, notifications, on-device factory-reset gesture — outside MVP; no task owns it.

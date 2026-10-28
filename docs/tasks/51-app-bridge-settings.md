@@ -47,7 +47,7 @@ Implement the approved Settings editors and Bridge details against the real conf
 - UI state matrix, accessibility audit, screenshot suite and copy-lint gate → T54.
 - `config` characteristic implementation and validation → T47.
 - Control op implementation → T48.
-- Billows control, mode or target editor → M5 Billows (T56–T60); `caps.billows_control` is always 0.
+- Billows control, mode or target editor → M5 Billows (T56, T57, T59); `caps.billows_control` is always 0.
 - Probe names and roles — removed from the MVP; outside MVP, no task owns it.
 - A second Smoke X4 screen or a separate `Bridge details` button — explicitly not in the approved contract.
 

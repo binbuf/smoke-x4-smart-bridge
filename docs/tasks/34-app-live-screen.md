@@ -44,7 +44,7 @@ Live is the single status surface: the App → Bridge → Smoke X4 chain, four n
 - Setup and passkey states → T33.
 - The reconnect state machine, control queue, and time sync → T35.
 - Settings, units, and Bridge details → T50–T53 (M4); the `Troubleshoot` action opens the SYNC-mode help, not a new settings surface.
-- Billows observation, target relation, and the Billows details screen → T56–T60 (M5). No Billows control, setpoint editor, or fan-running claim; control is outside MVP and no task owns it.
+- Billows observation, target relation, and the Billows details screen → T56, T57, T59 (M5). No Billows control, setpoint editor, or fan-running claim; control is outside MVP and no task owns it.
 - Wi-Fi/HTTP/OTA — outside MVP; no task owns it.
 - A second dashboard, aggregate graph, or redesigned Live — not in the MVP; no task owns it.
 - Fixture values, simulated live readings, or prototype chrome presented as current — outside MVP; no task owns it.

@@ -38,7 +38,7 @@ Make every History and data failure honest and actionable: no readings, no readi
 - Setup, permission, scan, and pairing failures — owned by T33.
 - Settings and Bridge-action failure states — owned by T50–T52.
 - The full UI state/accessibility/copy gate — owned by T54.
-- Billows empty/lost states — M5 (T58).
+- Billows empty/lost states — M5 (T57).
 - Alarms, phone notifications, export/share, and cloud sync — outside MVP; no task owns them.
 
 ## Design notes

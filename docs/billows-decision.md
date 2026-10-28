@@ -2,9 +2,13 @@
 
 **Status:** decided — **Option C, observation only** · **Decision date:** 2026-10-26
 
-This record closes [08 §8.3](design/08-billows.md#83-why-set-target-is-not-an-mvp-feature)
-and [T56](tasks/56-billows-observation-evidence.md). The MVP does not implement "set target" and does
-not transmit to a Billows or to the Smoke X4 outside the pairing ACK.
+This record closes the control-path question in
+[08 §8.3](design/08-billows.md#83-why-set-target-is-not-an-mvp-feature). The MVP
+does not implement "set target" and does not transmit to a Billows or to the
+Smoke X4 outside the pairing ACK.
+[T56](tasks/56-billows-observation-evidence.md) remains open: it is the passive
+capture that validates the target **relation**, which is a decode question, not
+a control decision.
 
 ## Evidence
 
