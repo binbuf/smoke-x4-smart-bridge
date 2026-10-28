@@ -140,6 +140,13 @@ once the firmware/host half is green.
 this machine or cc1.exe fails to start.) No ESP-IDF build was run in this
 session; the host gate is the task's objective trigger.
 
+**Attempt 2.** No code changes were needed: the attempt-1 failure was only the
+missing UCRT DLL path, not the implementation. The harness verify now runs
+`tools/ci/verify_host.ps1`, which prepends `C:\msys64\ucrt64\bin` and
+`C:\msys64\usr\bin`. Deleted `firmware/test/build`, ran the script from clean,
+and `ctest` reported `100% tests passed out of 23` (exit 0), including
+`ble-config` and `ble-stats`. Bench deferral to T51/T55 stands.
+
 **Next.** T51 maps 0x81/0x82/0x87 to the Settings copy and adds the app editor;
 T55 does the real-phone config/stats bench checks. T48/T49 still own the
 destructive control actions and the clear-generation boundary.
