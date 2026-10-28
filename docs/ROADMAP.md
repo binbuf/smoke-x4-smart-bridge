@@ -128,7 +128,7 @@ pass.
 - [x] T47 — ble_service: config read/write and stats read → [tasks/47-ble-config-read-write.md](tasks/47-ble-config-read-write.md)
 - [x] T48 — ble_service: control actions → [tasks/48-ble-control-actions.md](tasks/48-ble-control-actions.md)
 - [x] T49 — ble_service: destructive-action state and reconnect → [tasks/49-ble-destructive-state-reconnect.md](tasks/49-ble-destructive-state-reconnect.md)
-- [ ] T50 — app: Settings shell → [tasks/50-app-settings-shell.md](tasks/50-app-settings-shell.md)
+- [x] T50 — app: Settings shell → [tasks/50-app-settings-shell.md](tasks/50-app-settings-shell.md)
 - [ ] T51 — app: bridge settings → [tasks/51-app-bridge-settings.md](tasks/51-app-bridge-settings.md)
 - [ ] T52 — app: destructive actions → [tasks/52-app-destructive-actions.md](tasks/52-app-destructive-actions.md)
 - [ ] T53 — app: units and time end-to-end → [tasks/53-app-units-time-end-to-end.md](tasks/53-app-units-time-end-to-end.md)
@@ -187,11 +187,11 @@ Billows telemetry exists; if not, the question closes and observation stays
 as-is.
 
 <!-- symphony:status -->
-**Pipeline status** — updated 2026-10-28T01:22:14Z · 48/67 done
+**Pipeline status** — updated 2026-10-28T02:07:05Z · 49/67 done
 
-- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49
+- Completed: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T39, T40, T41, T43, T42, T44, T45, T46, T47, T48, T49, T50
 - Blocked: none
 - Failed: none
-- Remaining: T50, T51, T52, T53, T46a, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
-- Last finished: T49 — done · Destructive-action link lifecycle, deferred-forget peer capture, power-off advertising teardown and seven host state paths (including clear_pending power cut) landed; 25/25 host tests pass and the T49 image is built with hash recorded; destructive board walk deferred to T55.
+- Remaining: T51, T52, T53, T46a, T54, T55, T56, T57, T58, T59, T61, T62, T63, T64, T65, T66, T67, T68
+- Last finished: T50 — done · Settings root landed with one offline banner, separate Live change window preference, read-only Bridge details behavior and a connected/offline/read-only widget matrix; analyze, 230 app tests and 25 firmware host tests pass.
 <!-- /symphony:status -->

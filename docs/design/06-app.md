@@ -681,6 +681,13 @@ Remove bottom `Save changes` bars. A preference should not need a second tap.
 Do not show a global success banner for a successful write; a small inline state
 is enough.
 
+**T50 implementation note.** The production root renders one offline
+`InlineNotice` above the Bridge group while disconnected. Its text comes from
+`SettingsViewState.connectionSummary` (`Bridge disconnected · last connected …`
+or `… nothing saved yet`) and it has no Retry action; sync/reconnect remains in
+Bridge details. `Live change window` is its own Preferences row and sheet, not
+a control nested under Temperature units (ADR 0054).
+
 ### Bridge details
 
 - Status card: name, `Bridge A4F2`, `Connected`, `Battery 87%`, `Signal` +

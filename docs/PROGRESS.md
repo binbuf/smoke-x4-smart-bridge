@@ -3,10 +3,8 @@
 <!-- symphony:digest:start -->
 ## Key facts (maintained by symphony — do not edit)
 
-_(3 earlier sections omitted)_
+_(5 earlier sections omitted)_
 
-- **T04 — Firmware skeleton and partition table**: ESP-IDF 6.0.2 project root `firmware/CMakeLists.txt` targeting `esp32s3`.; `firmware/main/`:
-- **T05 — App skeleton**: Production entrypoint: `app/lib/main.dart` → `app/lib/app/bootstrap.dart`.; `app/lib/app/bridge_controller.dart` is now the single
 - **T06 — UI baseline and view-model seam**: Production view state in `app/lib/app/view_state.dart`: immutable; Screens and shared widgets now render view state: Live, History, full-screen
 - **T07 — BLE fake and app test seam**: Production BLE seam: `app/lib/data/ble/ble_client.dart` with `BleClient`,; `BridgeController` and `createBridgeController` accept an optional `BleClient`.
 - **T08 — CI**: `.github/workflows/ci.yml` — six separately named jobs, all on every pull; `tools/ci/check_forbidden_deps.py`: rejects forbidden app packages in
@@ -46,7 +44,8 @@ _(3 earlier sections omitted)_
 - **T46 — Bench: full history and resume**: **Date:** 2026-10-27 · **Verification:** real Pixel 11 Pro Fold + Heltec V3 +; Dark and light Live + History captured from the production Appearance path:
 - **T47 — ble_service: config read/write and stats read**: **Date:** 2026-10-27 · **Verification:** H (host) · **Result:** done for the; `firmware/components/ble_service/ble_config.c` + `include/ble_config.h`
 - **T48 — ble_service: control actions**: **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done; `firmware/components/ble_service/ble_control.c` / `include/ble_control.h`
-- **T49 — ble_service: destructive-action state and reconnect**: **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done; `f
+- **T49 — ble_service: destructive-action state and reconnect**: **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done; `firmware/components/ble_service/ble_destructive.c` + `include/ble_destructive.h`
+- **T50 — app: Settings shell**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,; `app/lib/features/settings/settings_screen.dart`
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -95,6 +94,7 @@ _(3 earlier sections omitted)_
 - [T47](progress/T47.md) — **Date:** 2026-10-27 · **Verification:** H (host) · **Result:** done for the
 - [T48](progress/T48.md) — **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done
 - [T49](progress/T49.md) — **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done
+- [T50](progress/T50.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/
