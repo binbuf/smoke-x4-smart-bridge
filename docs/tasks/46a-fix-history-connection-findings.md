@@ -1,3 +1,6 @@
+---
+verify: make app-check
+---
 # T46a — app: fix T46 History and connection findings
 
 ## Goal

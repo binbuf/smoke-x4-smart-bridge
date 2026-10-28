@@ -1,3 +1,6 @@
+---
+verify: make host-test
+---
 # T47 — ble_service: config read/write and stats read
 
 ## Goal
