@@ -11,6 +11,7 @@ firmware at runtime; production code only ever sees air payloads.
 | `x4-passive-session.loralog` | real X4 capture | Copied unchanged from `legacy/protocol/fixtures/lora/`; passive overnight session at the normal ~30 s cadence | `x4-passive-session.report.md` |
 | `first-x4-contact.loralog` | real X4 capture | Copied unchanged from `legacy/protocol/fixtures/lora/`; first verified X4 state packet | `first-x4-contact.report.md` |
 | `x4-t10-25min.loralog` | real X4 capture | T10 bench capture 2026-10-26 on the current board: sync beacon, our ACK, stock receiver ACK, 41 state frames, detach/reattach and °F→°C→°F; 918.5 MHz, `LMXC[\` | `x4-t10-25min.report.md` |
+| `x4-billows-225-250-275.loralog` | real X4 capture | T56 passive bench capture 2026-10-28 on the current board with a Billows attached: 17 state frames, `billows_attached` 0→1→0, probe 4 `max` 225/250/275 at the three base targets; 918.5 MHz, `LMXC[\` | `x4-billows-225-250-275.report.md` |
 | `malformed.loralog` | adversarial corpus | Copied unchanged from `legacy/protocol/fixtures/lora/`; hand-written "must reject" payloads | header comment |
 | `parser-vectors.tsv` | synthetic/transcribed vectors | X4 rows transcribed from the captures above; X2 rows from the legacy reference test corpus; foreign-ID, malformed, oversized, out-of-band and Billows-shape rows synthetic | per-row `provenance` column |
 

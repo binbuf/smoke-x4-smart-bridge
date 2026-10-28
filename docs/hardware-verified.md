@@ -161,12 +161,12 @@ the M5 bench work, not in V0. The MVP is observation-only; no cook is required.
 
 | Check | Result | Evidence |
 |---|---|---|
-| T56 passive capture: `billows_attached`, probe 4 `max`/`min` at 225/250/275 °F | ⏳ | |
-| Attach/detach changes `billows_attached` | ⏳ | |
-| Raw `max`/`min` at three known targets; relation confirmed or marked unknown | ⏳ | |
-| °F/°C target conversion | ⏳ | |
-| App/OLED show target read-only, `—` when unknown, and "Set on the Smoke X4" | ⏳ | |
-| No Billows TX path; only the pairing ACK is transmitted | ⏳ | |
+| T56 passive capture: `billows_attached`, probe 4 `max`/`min` at 225/250/275 °F | ✅ 2026-10-28 — release image on the current board, not reflashed; 17 state frames captured on 918.5 MHz with the existing X4 pairing. No TX and no SYNC gesture. Probe 4 `max` = 225/250/275 at the three base targets, `min` = 0, `billows_attached` = 1. | [`x4-billows-225-250-275.loralog`](../protocol/fixtures/lora/x4-billows-225-250-275.loralog), [`report`](../protocol/fixtures/lora/x4-billows-225-250-275.report.md), [`serial-t56.log`](../artifacts/bench/T56/serial-t56.log) |
+| Attach/detach changes `billows_attached` | ✅ 2026-10-28 T56 — detached baseline `billows_attached=0`; attached frames `1`; after unplug `0` on two consecutive frames. Probe 4 `max`/`min` returned to the non-fan defaults `160`/`32`. | same capture |
+| Raw `max`/`min` at three known targets; relation confirmed or marked unknown | ✅ 2026-10-28 T56 — **relation confirmed: target = probe 4 `max`**, not `max − 25` and not the midpoint; `min` stayed `0`. Three setpoints (225/250/275 °F) with four or more frames each. Target must be gated on the attached flag. | same capture; [`billows-decision.md`](billows-decision.md#t56-target-relation-result-2026-10-28) |
+| °F/°C target conversion | ⏳ T57/T59 — T56 captured °F only (`units=1`). | — |
+| App/OLED show target read-only, `—` when unknown, and "Set on the Smoke X4" | ⏳ T57/T59 — firmware/app surfaces not changed by T56. | — |
+| No Billows TX path; only the pairing ACK is transmitted | ⏳ T57 — T56 used the product image passively and transmitted nothing, but the host invariant test is T57. | — |
 
 ## Soak and field
 
