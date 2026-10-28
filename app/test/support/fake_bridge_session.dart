@@ -20,7 +20,7 @@ class FakeBridgeSession {
     FakeBridge? bridge,
     List<BleDevice>? advertisements,
     this.passkey = '418302',
-    BridgeRepository repository = const EmptyBridgeRepository(),
+    BridgeRepository? repository,
   }) : bridge = bridge ?? FakeBridge(),
        _content = _FakeLiveContent() {
     client = FakeBleClient(
@@ -30,7 +30,7 @@ class FakeBridgeSession {
       expectedPasskey: passkey,
     );
     controller = BridgeController(
-      repository: repository,
+      repository: repository ?? EmptyBridgeRepository(),
       content: _content,
       bleClient: client,
     )

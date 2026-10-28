@@ -318,6 +318,14 @@ class _UnitsTile extends StatelessWidget {
                   controller.setUnits(selection.first),
             ),
           ),
+          if (view.unitsSaveState != SettingsSaveState.idle) ...[
+            const SizedBox(height: 6),
+            InlineSaveState(
+              state: view.unitsSaveState,
+              error: view.unitsSaveError,
+              savedLabel: 'Saved on the Bridge',
+            ),
+          ],
         ],
       ),
     );

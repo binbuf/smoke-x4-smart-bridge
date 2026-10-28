@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -28,11 +29,12 @@ export '../domain/models.dart';
 /// [bridgeDetailsView], never these mutable fields.
 class BridgeController extends ChangeNotifier {
   BridgeController({
-    this.repository = const EmptyBridgeRepository(),
+    BridgeRepository? repository,
     this.content = const EmptyBridgeContent(),
     this.bleClient,
     this.sampleDao,
-  }) : bridgeRecords = content.bridgeRecords,
+  }) : repository = repository ?? EmptyBridgeRepository(),
+       bridgeRecords = content.bridgeRecords,
        bridgeCapacity = content.bridgeCapacity,
        phoneRecords = content.phoneRecords,
        savedDataRange = content.savedDataRange,
@@ -120,6 +122,7 @@ class BridgeController extends ChangeNotifier {
   /// Bridge, this is a first install and Setup remains the owner of pairing.
   Future<void> prepareLaunch({Duration? scanWindow}) async {
     if (scanWindow != null) launchScanWindow = scanWindow;
+    await loadLocalPreferences();
     final dao = sampleDao;
     SavedBridge? saved;
     if (dao != null) {
@@ -467,6 +470,7 @@ class BridgeController extends ChangeNotifier {
         onLive: _onLinkLive,
         onInfo: _onLinkInfo,
         onStats: _onLinkStats,
+        onConfig: _onLinkConfig,
         onSync: _onLinkSync,
         onReconnect: _onLinkReconnect,
         onRssi: _onLinkRssi,
@@ -586,6 +590,9 @@ class BridgeController extends ChangeNotifier {
       lookingForBridge = false;
       blockReason = BlockReason.none;
       unawaited(_touchSavedIdentity());
+      if (_pendingUnitsWrite) {
+        unawaited(_writeUnits(units));
+      }
     }
     switch (value) {
       case ConnectionPhase.live:
@@ -683,6 +690,25 @@ class BridgeController extends ChangeNotifier {
     billowsObserveCap = info.billowsObserve;
   }
 
+  /// Adopts the Bridge's stored config on connect. Local-only preferences are
+  /// not overwritten: pick the Bridge's values for fields this session has not
+  /// edited, and keep a queued units choice so it can be pushed to the OLED.
+  void _onLinkConfig(BridgeConfig config) {
+    if (_configWriteInFlight) return;
+    if (config.deviceName.isNotEmpty) deviceName = config.deviceName;
+    displayTimeoutSeconds = config.displayTimeoutSeconds;
+    if (!_pendingUnitsWrite) {
+      units = config.units == 0 ? Units.celsius : Units.fahrenheit;
+    }
+    unitsSaveState = SettingsSaveState.idle;
+    nameSaveState = SettingsSaveState.idle;
+    timeoutSaveState = SettingsSaveState.idle;
+    unitsSaveError = null;
+    nameSaveError = null;
+    timeoutSaveError = null;
+    notifyListeners();
+  }
+
   void _onLinkStats(BridgeStats stats) {
     bridgeRecords = stats.hasReadings ? stats.recordsStored : 0;
     if (stats.recordsCapacity > 0) {
@@ -744,6 +770,27 @@ class BridgeController extends ChangeNotifier {
 
   ThemeMode _themeMode = ThemeMode.system;
 
+  static const String themePreferenceKey = 'appearance.theme_mode';
+
+  /// Restores local-only preferences before the first frame. A missing or
+  /// unreadable value keeps `System`, never a guessed theme.
+  Future<void> loadLocalPreferences() async {
+    try {
+      final stored = await repository.preferences.read(themePreferenceKey);
+      final restored = switch (stored) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+      if (restored != _themeMode) {
+        _themeMode = restored;
+        notifyListeners();
+      }
+    } catch (_) {
+      // A broken preferences read must not block launch.
+    }
+  }
+
   ThemeMode get themeMode => _themeMode;
   bool get isDark => _themeMode == ThemeMode.dark;
 
@@ -751,12 +798,22 @@ class BridgeController extends ChangeNotifier {
     _themeMode = _themeMode == ThemeMode.dark
         ? ThemeMode.light
         : ThemeMode.dark;
+    unawaited(_persistTheme(_themeMode));
     notifyListeners();
   }
 
   void setThemeMode(ThemeMode mode) {
     _themeMode = mode;
+    unawaited(_persistTheme(mode));
     notifyListeners();
+  }
+
+  Future<void> _persistTheme(ThemeMode mode) async {
+    try {
+      await repository.preferences.write(themePreferenceKey, mode.name);
+    } catch (_) {
+      // Appearance still applies for this session; the next tap retries.
+    }
   }
 
   AppTab tab = AppTab.live;
@@ -830,6 +887,21 @@ class BridgeController extends ChangeNotifier {
   String deviceName = 'Backyard Bridge';
 
   SettingsSaveState saveState = SettingsSaveState.idle;
+
+  /// Per-field write state. A field never shows `Saved` until the Bridge has
+  /// accepted the whole struct and the read-back matches.
+  SettingsSaveState unitsSaveState = SettingsSaveState.idle;
+  SettingsSaveState nameSaveState = SettingsSaveState.idle;
+  SettingsSaveState timeoutSaveState = SettingsSaveState.idle;
+  String? unitsSaveError;
+  String? nameSaveError;
+  String? timeoutSaveError;
+
+  /// A units choice made while offline is applied on this phone immediately and
+  /// written to the Bridge on the next healthy connect.
+  bool _pendingUnitsWrite = false;
+  bool _configWriteInFlight = false;
+  Future<void> _configChain = Future<void>.value();
 
   int bridgeRecords;
   int bridgeCapacity;
@@ -1425,27 +1497,30 @@ class BridgeController extends ChangeNotifier {
 
   String get smokeXLabel {
     if (smokeXStatus == SmokeXStatus.unpaired) return 'Not paired';
-    if (!isConnected) return 'Paired · last known';
+    if (!isConnected) return 'Last known';
     final age = smokeXLastPacketAge;
-    if (smokeXStatus == SmokeXStatus.pairedLost) return 'Signal lost';
-    if (age != null && age <= const Duration(seconds: 90)) return 'Receiving';
-    return 'No readings';
+    if (smokeXStatus == SmokeXStatus.pairedLost ||
+        (age != null && age > const Duration(minutes: 10))) {
+      return 'Signal lost';
+    }
+    if (age != null && age <= const Duration(seconds: 90)) {
+      return 'Receiving readings';
+    }
+    if (age != null) return 'No readings for ${_proseDuration(age)}';
+    return 'No readings yet';
   }
 
   String get smokeXSubtitle {
     final age = smokeXLastPacketAge;
     if (age == null) return 'No readings yet. Put the Smoke X4 in SYNC mode.';
     if (!isConnected) {
-      return 'Last reading ${_proseDuration(age)} ago · last known';
+      return 'Updated ${_shortDuration(age)} ago · last known';
     }
     if (smokeXStatus == SmokeXStatus.pairedLost ||
         age > const Duration(minutes: 10)) {
-      return 'No readings for ${_proseDuration(age)}. Put the Smoke X4 in SYNC mode.';
+      return 'Updated ${_shortDuration(age)} ago. Put the Smoke X4 in SYNC mode.';
     }
-    if (age <= const Duration(seconds: 90)) {
-      return 'Updated ${_shortDuration(age)} ago';
-    }
-    return 'No readings for ${_proseDuration(age)}';
+    return 'Updated ${_shortDuration(age)} ago';
   }
 
   String get billowsAttachmentLabel {
@@ -1896,6 +1971,8 @@ class BridgeController extends ChangeNotifier {
     connectionSummary: bridgeConnectedLabel,
     themeModeLabel: themeModeLabel,
     units: units,
+    unitsSaveState: unitsSaveState,
+    unitsSaveError: unitsSaveError,
     tempChangeWindowMinutes: tempChangeWindowMinutes,
     phoneRecords: phoneRecords,
     bridgeRecords: bridgeRecords,
@@ -1936,6 +2013,10 @@ class BridgeController extends ChangeNotifier {
     billows: _billowsView,
     displayTimeoutSeconds: displayTimeoutSeconds,
     displayTimeoutLabel: displayTimeoutLabel,
+    nameSaveState: nameSaveState,
+    nameSaveError: nameSaveError,
+    timeoutSaveState: timeoutSaveState,
+    timeoutSaveError: timeoutSaveError,
     bridgeRecords: bridgeRecords,
     bridgeCapacity: bridgeCapacity,
     phoneRecords: phoneRecords,
@@ -1946,9 +2027,51 @@ class BridgeController extends ChangeNotifier {
     billowsLog: List<ConnectionEvent>.unmodifiable(billowsLog),
   );
 
+  /// Units apply on this phone immediately. The Bridge write is the only thing
+  /// the UI may report as saved; offline it is queued for the next connect.
   void setUnits(Units value) {
     units = value;
+    unitsSaveError = null;
+    unitsSaveState = SettingsSaveState.idle;
     notifyListeners();
+    if (!canEdit) {
+      _pendingUnitsWrite = true;
+      return;
+    }
+    if (link == null && bleClient == null) {
+      unitsSaveState = SettingsSaveState.saved;
+      notifyListeners();
+      return;
+    }
+    unawaited(_writeUnits(value));
+  }
+
+  Future<void> _writeUnits(Units value) async {
+    if (!canEdit) {
+      _pendingUnitsWrite = true;
+      return;
+    }
+    unitsSaveState = SettingsSaveState.saving;
+    notifyListeners();
+    try {
+      final applied = await _writeWholeConfig(
+        (config) => config.copyWith(
+          units: value == Units.celsius ? 0 : 1,
+        ),
+      );
+      _pendingUnitsWrite = false;
+      units = applied.units == 0 ? Units.celsius : Units.fahrenheit;
+      unitsSaveState = SettingsSaveState.saved;
+      unitsSaveError = null;
+    } on BridgeConfigException catch (error) {
+      unitsSaveState = SettingsSaveState.error;
+      unitsSaveError = bridgeRefusalMessage(error.status);
+    } on BridgeLinkException {
+      unitsSaveState = SettingsSaveState.error;
+      unitsSaveError = bridgeRefusalMessage(BridgeConfigStatus.failed);
+    } finally {
+      notifyListeners();
+    }
   }
 
   void setTempChangeWindowMinutes(int value) {
@@ -1956,14 +2079,132 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setDisplayTimeout(int value) {
-    displayTimeoutSeconds = value;
+  /// Applies a screen timeout only after the Bridge accepted the whole config.
+  Future<void> setDisplayTimeout(int value) async {
+    if (!{0, 30, 60, 120}.contains(value)) {
+      timeoutSaveState = SettingsSaveState.error;
+      timeoutSaveError = bridgeRefusalMessage(BridgeConfigStatus.invalid);
+      notifyListeners();
+      return;
+    }
+    if (!canEdit) return;
+    if (link == null && bleClient == null) {
+      displayTimeoutSeconds = value;
+      timeoutSaveState = SettingsSaveState.saved;
+      timeoutSaveError = null;
+      notifyListeners();
+      return;
+    }
+    timeoutSaveState = SettingsSaveState.saving;
+    timeoutSaveError = null;
     notifyListeners();
+    try {
+      final applied = await _writeWholeConfig(
+        (config) => config.copyWith(displayTimeoutSeconds: value),
+      );
+      displayTimeoutSeconds = applied.displayTimeoutSeconds;
+      timeoutSaveState = SettingsSaveState.saved;
+    } on BridgeConfigException catch (error) {
+      timeoutSaveState = SettingsSaveState.error;
+      timeoutSaveError = bridgeRefusalMessage(error.status);
+    } on BridgeLinkException {
+      timeoutSaveState = SettingsSaveState.error;
+      timeoutSaveError = bridgeRefusalMessage(BridgeConfigStatus.failed);
+    } finally {
+      notifyListeners();
+    }
   }
 
-  void setDeviceName(String value) {
-    deviceName = value;
+  /// Saves the app-facing label. The Bridge's Bluetooth name does not change.
+  Future<void> setDeviceName(String value) async {
+    final name = value.trim();
+    if (name.isEmpty) {
+      nameSaveState = SettingsSaveState.error;
+      nameSaveError = 'Enter a name for the Bridge.';
+      notifyListeners();
+      return;
+    }
+    if (utf8.encode(name).length > BridgeConfig.maxNameBytes) {
+      nameSaveState = SettingsSaveState.error;
+      nameSaveError = 'Use 15 characters or fewer.';
+      notifyListeners();
+      return;
+    }
+    if (!canEdit) return;
+    if (link == null && bleClient == null) {
+      deviceName = name;
+      if (rememberedBridgeName != null) rememberedBridgeName = name;
+      nameSaveState = SettingsSaveState.saved;
+      nameSaveError = null;
+      notifyListeners();
+      return;
+    }
+    nameSaveState = SettingsSaveState.saving;
+    nameSaveError = null;
     notifyListeners();
+    try {
+      final applied = await _writeWholeConfig(
+        (config) => config.copyWith(deviceName: name),
+      );
+      deviceName = applied.deviceName;
+      if (rememberedBridgeName != null) rememberedBridgeName = name;
+      nameSaveState = SettingsSaveState.saved;
+    } on BridgeConfigException catch (error) {
+      nameSaveState = SettingsSaveState.error;
+      nameSaveError = bridgeRefusalMessage(error.status);
+    } on BridgeLinkException {
+      nameSaveState = SettingsSaveState.error;
+      nameSaveError = bridgeRefusalMessage(BridgeConfigStatus.failed);
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  /// Reads, mutates exactly one field and writes the whole 80-byte struct. Writes
+  /// are serialised so two quick taps cannot interleave read-modify-write.
+  Future<BridgeConfig> _writeWholeConfig(
+    BridgeConfig Function(BridgeConfig config) mutate,
+  ) {
+    final result = _configChain.then((_) async {
+      final current = link;
+      if (current == null || !canEdit) {
+        throw const BridgeConfigException(
+          BridgeConfigStatus.failed,
+          'the Bridge is not connected',
+        );
+      }
+      _configWriteInFlight = true;
+      try {
+        final existing = await current.readConfig();
+        return await current.writeConfig(mutate(existing));
+      } finally {
+        _configWriteInFlight = false;
+      }
+    });
+    _configChain = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  /// Approved per-status copy. The branch is always the Bridge's status.
+  String bridgeRefusalMessage(BridgeConfigStatus status) {
+    switch (status) {
+      case BridgeConfigStatus.invalid:
+        return 'The Bridge refused this value. Check it and try again.';
+      case BridgeConfigStatus.unsupported:
+        return 'The Bridge doesn’t support this setting.';
+      case BridgeConfigStatus.busy:
+        return 'The Bridge is busy. Try again in a moment.';
+      case BridgeConfigStatus.unauthorized:
+        return 'This phone isn’t authorized. Reconnect to the Bridge.';
+      case BridgeConfigStatus.failed:
+        return 'The change didn’t reach the Bridge. Try again.';
+      case BridgeConfigStatus.notFound:
+        return 'The Bridge couldn’t find that setting.';
+      case BridgeConfigStatus.storage:
+        return 'The Bridge couldn’t save it. Its storage may be full.';
+      case BridgeConfigStatus.ok:
+        return '';
+    }
   }
 
   void setHistoryRange(HistoryRange value) {
@@ -2018,9 +2259,24 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void startRePair() {
-    smokeXStatus = SmokeXStatus.pairedLost;
-    notifyListeners();
+  /// The only re-pair entry point. It clears the Smoke X4 radio pairing on the
+  /// Bridge; the screen shows the SYNC steps only after an `ok` result.
+  Future<BridgeConfigStatus> startRePair() async {
+    if (!canEdit) return BridgeConfigStatus.failed;
+    final current = link;
+    if (current == null) return BridgeConfigStatus.failed;
+    try {
+      final result = await current.sendControl(BridgeControlOp.unpairSmokeX);
+      if (result.status == BridgeResultStatus.ok) {
+        smokeXStatus = SmokeXStatus.unpaired;
+        smokeXLiveHint = false;
+        notifyListeners();
+      }
+      return BridgeConfigStatus.fromWire(result.status.wire) ??
+          BridgeConfigStatus.failed;
+    } on BridgeLinkException {
+      return BridgeConfigStatus.failed;
+    }
   }
 
   void wake() {

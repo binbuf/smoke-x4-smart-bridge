@@ -35,6 +35,7 @@ class FakeBridge implements FakeGattServer {
     this.billowsAttached = true,
     this.dropControlResults = false,
     this.forcedControlStatus,
+    this.forcedConfigAttStatus,
     int mtu = bleMtuDefault,
   }) : _tempsF10 = List<int>.from(
          tempsF10 ?? const <int>[2250, 1652, tempDetached, 800],
@@ -73,6 +74,10 @@ class FakeBridge implements FakeGattServer {
 
   /// Overrides the status of every control result when set.
   ResultStatus? forcedControlStatus;
+
+  /// Refuses every config write with this ATT application status (1–7 is
+  /// encoded as `0x80 | status`), so the UI's named-refusal branch is testable.
+  int? forcedConfigAttStatus;
 
   final List<Control> controlWrites = <Control>[];
   final List<Uint8List> controlBodies = <Uint8List>[];
@@ -297,20 +302,44 @@ class FakeBridge implements FakeGattServer {
   }
 
   void _writeConfig(Uint8List value) {
+    final forced = forcedConfigAttStatus;
+    if (forced != null) {
+      throw BleException(
+        BleFailure.configRefused,
+        'scripted config refusal',
+        0x80 | forced,
+      );
+    }
     final next = Config.decode(value);
     if (next.units != 0 && next.units != 1) {
-      throw const BleException(BleFailure.invalidValue, 'bad units');
+      throw const BleException(
+        BleFailure.configRefused,
+        'bad units',
+        0x81,
+      );
     }
     if (next.displayTimeoutS != 0 &&
         next.displayTimeoutS != 30 &&
         next.displayTimeoutS != 60 &&
         next.displayTimeoutS != 120) {
-      throw const BleException(BleFailure.invalidValue, 'bad display timeout');
+      throw const BleException(
+        BleFailure.configRefused,
+        'bad display timeout',
+        0x81,
+      );
     }
     if (next.billowsMode != 0) {
       throw const BleException(
-        BleFailure.unsupported,
+        BleFailure.configRefused,
         'Billows is observation-only in the MVP',
+        0x82,
+      );
+    }
+    if (value.length != Config.size) {
+      throw const BleException(
+        BleFailure.configRefused,
+        'config must be 80 bytes',
+        0x81,
       );
     }
     _config = Config(

@@ -20,6 +20,8 @@ const String bleSyncDataCharacteristicUuid =
     '7f9b0006-4c5b-4b0f-9a3d-1c2e3f405162';
 const String bleStatsCharacteristicUuid =
     '7f9b0008-4c5b-4b0f-9a3d-1c2e3f405162';
+const String bleConfigCharacteristicUuid =
+    '7f9b0007-4c5b-4b0f-9a3d-1c2e3f405162';
 
 const int bleProtocolMajor = 1;
 
@@ -201,6 +203,122 @@ class BridgeResult {
       detail: detail,
     );
   }
+}
+
+/// `config` (05 §5.9). Fixed 80 bytes; the app always reads, mutates one field
+/// and writes the whole struct back. A partial struct write is never sent.
+class BridgeConfig {
+  const BridgeConfig({
+    required this.units,
+    required this.displayTimeoutSeconds,
+    required this.deviceName,
+    this.billowsTargetF10 = 0,
+    this.billowsMode = 0,
+  });
+
+  /// 0 = °C, 1 = °F. Stored samples are always °F.
+  final int units;
+
+  /// 0 = never; otherwise 30, 60 or 120.
+  final int displayTimeoutSeconds;
+
+  /// UTF-8, NUL-padded, 1–15 bytes.
+  final String deviceName;
+
+  /// Reserved in the MVP; always written as 0.
+  final int billowsTargetF10;
+
+  /// Must be 0 (observe). The Bridge refuses any control value.
+  final int billowsMode;
+
+  static const int size = 80;
+  static const int maxNameBytes = 15;
+
+  BridgeConfig copyWith({
+    int? units,
+    int? displayTimeoutSeconds,
+    String? deviceName,
+  }) {
+    return BridgeConfig(
+      units: units ?? this.units,
+      displayTimeoutSeconds:
+          displayTimeoutSeconds ?? this.displayTimeoutSeconds,
+      deviceName: deviceName ?? this.deviceName,
+      billowsTargetF10: billowsTargetF10,
+      billowsMode: billowsMode,
+    );
+  }
+
+  static BridgeConfig decode(Uint8List bytes, [int offset = 0]) {
+    if (bytes.length - offset < size) {
+      throw RangeError('truncated config');
+    }
+    final view = ByteData.sublistView(bytes, offset, offset + size);
+    return BridgeConfig(
+      units: view.getUint8(1),
+      displayTimeoutSeconds: view.getUint16(2, Endian.little),
+      deviceName: _readString(bytes, offset + 4, 16),
+      billowsTargetF10: view.getInt16(20, Endian.little),
+      billowsMode: view.getUint8(22),
+    );
+  }
+
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final view = ByteData.sublistView(out);
+    view.setUint8(0, 1);
+    view.setUint8(1, units);
+    view.setUint16(2, displayTimeoutSeconds, Endian.little);
+    final name = Uint8List.fromList(utf8.encode(deviceName));
+    if (name.length > maxNameBytes) {
+      throw RangeError('config device name is longer than 15 UTF-8 bytes');
+    }
+    out.setRange(4, 4 + name.length, name);
+    // Offset 4 + name.length..19 stays NUL-padded.
+    view.setInt16(20, 0, Endian.little);
+    view.setUint8(22, 0);
+    return out;
+  }
+}
+
+/// `result.status` / config ATT refusal statuses. The UI branches on this enum,
+/// never on a detail string.
+enum BridgeConfigStatus {
+  ok(0),
+  invalid(1),
+  unsupported(2),
+  busy(3),
+  unauthorized(4),
+  failed(5),
+  notFound(6),
+  storage(7);
+
+  const BridgeConfigStatus(this.wire);
+
+  final int wire;
+
+  static BridgeConfigStatus? fromWire(int value) {
+    for (final status in values) {
+      if (status.wire == value) return status;
+    }
+    return null;
+  }
+
+  /// ATT application errors are `0x80 | status` (05 §5.9).
+  static BridgeConfigStatus fromAttCode(int code) {
+    if (code < 0x80) return BridgeConfigStatus.failed;
+    return fromWire(code & 0x7F) ?? BridgeConfigStatus.failed;
+  }
+}
+
+class BridgeConfigException implements Exception {
+  const BridgeConfigException(this.status, [this.message = '']);
+
+  final BridgeConfigStatus status;
+  final String message;
+
+  @override
+  String toString() => 'BridgeConfigException(${status.name})$message';
 }
 
 /// `live` (05 §5.4). Decoded on reads and on every notification.

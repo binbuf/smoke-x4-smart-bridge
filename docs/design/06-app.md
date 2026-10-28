@@ -688,6 +688,15 @@ or `… nothing saved yet`) and it has no Retry action; sync/reconnect remains i
 Bridge details. `Live change window` is its own Preferences row and sheet, not
 a control nested under Temperature units (ADR 0054).
 
+**T51 implementation note.** Units, Bridge name and screen timeout now write the
+real 80-byte `config` (ADR 0055). Each row owns its inline
+`saving / saved / error` state; a refusal is named from the Bridge status and
+never shows `Saved`. Units apply locally first and queue the Bridge write while
+offline. Bridge name and timeout update only after the read-back. Appearance is
+persisted in the local `preference` table (schema v3) and restored before the
+first frame. The Billows-only connection-log copy was removed; the one shared
+timeline in Bridge details carries Bridge, Smoke X4, Billows and sync events.
+
 ### Bridge details
 
 - Status card: name, `Bridge A4F2`, `Connected`, `Battery 87%`, `Signal` +

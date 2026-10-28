@@ -14,7 +14,8 @@ class AppDatabase {
   ///
   /// - 1: empty database (T05 open path)
   /// - 2: `bridge`, `sample`, `sample_time` and `gap` (T40)
-  static const int schemaVersion = 2;
+  /// - 3: `preference` (T51 local Appearance persistence)
+  static const int schemaVersion = 3;
 
   /// The default on-phone file name.
   static const String fileName = 'smoke_bridge.db';
@@ -85,6 +86,11 @@ class AppDatabase {
         await db.execute(statement);
       }
     }
+    if (oldVersion < 3 && newVersion >= 3) {
+      for (final statement in _schemaV3) {
+        await db.execute(statement);
+      }
+    }
   }
 
   /// The exact schema from 04 §4.7. Do not reorder or weaken the keys: the
@@ -128,6 +134,16 @@ class AppDatabase {
       reason TEXT NOT NULL,
       detected_ms INTEGER NOT NULL,
       PRIMARY KEY (bridge_id, generation, from_seq)
+    )
+    ''',
+  ];
+
+  /// Local, non-archive preferences such as the Appearance choice.
+  static const List<String> _schemaV3 = <String>[
+    '''
+    CREATE TABLE IF NOT EXISTS preference (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     )
     ''',
   ];

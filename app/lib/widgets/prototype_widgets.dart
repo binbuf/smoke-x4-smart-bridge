@@ -519,18 +519,83 @@ class SettingsGroup extends StatelessWidget {
   }
 }
 
+/// A small per-field write state line. Success is deliberately quiet: there is
+/// no global banner and no save-all bar (06 §6.7).
+class InlineSaveState extends StatelessWidget {
+  const InlineSaveState({
+    super.key,
+    required this.state,
+    required this.error,
+    this.savedLabel = 'Saved',
+  });
+
+  final SettingsSaveState state;
+  final String? error;
+  final String savedLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    switch (state) {
+      case SettingsSaveState.idle:
+        return const SizedBox.shrink();
+      case SettingsSaveState.saving:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Saving…',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        );
+      case SettingsSaveState.saved:
+        return Text(
+          savedLabel,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: StatusColors.live(context),
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      case SettingsSaveState.error:
+        return Text(
+          error ?? 'Couldn’t save',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: scheme.error,
+          ),
+        );
+    }
+  }
+}
+
 class SettingsTile extends StatelessWidget {
   const SettingsTile({
     super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.subtitleWidget,
     this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+
+  /// Optional rich subtitle (for inline per-field save state). When set, it
+  /// replaces [subtitle].
+  final Widget? subtitleWidget;
   final VoidCallback? onTap;
 
   @override
@@ -556,7 +621,9 @@ class SettingsTile extends StatelessWidget {
         ),
       ),
       title: Text(title),
-      subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle:
+          subtitleWidget ??
+          Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
       trailing: Icon(
         enabled ? Icons.chevron_right : Icons.lock_outline,
         size: 20,

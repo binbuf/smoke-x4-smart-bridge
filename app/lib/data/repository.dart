@@ -1,4 +1,5 @@
 import 'db/app_database.dart';
+import 'db/app_preferences.dart';
 import 'db/sample_dao.dart';
 
 /// A small, immutable cache summary the shell can read at startup.
@@ -20,15 +21,23 @@ class BridgeSnapshot {
 abstract interface class BridgeRepository {
   Future<BridgeSnapshot> loadSnapshot();
 
+  /// Local-only preferences that survive a relaunch (Appearance today).
+  AppPreferences get preferences;
+
   Future<void> close();
 }
 
 /// Used by bootstrap/tests before a database exists. It reports no readings.
 class EmptyBridgeRepository implements BridgeRepository {
-  const EmptyBridgeRepository();
+  EmptyBridgeRepository();
+
+  final InMemoryAppPreferences _preferences = InMemoryAppPreferences();
 
   @override
   Future<BridgeSnapshot> loadSnapshot() async => BridgeSnapshot.empty;
+
+  @override
+  AppPreferences get preferences => _preferences;
 
   @override
   Future<void> close() async {}
@@ -44,10 +53,15 @@ class SqliteBridgeRepository implements BridgeRepository {
 
   final AppDatabase _database;
   SampleDao? _dao;
+  AppPreferences? _preferences;
 
   /// The archive DAO, used by T41's sync coordinator. Lazy so read-only
   /// callers keep the small snapshot seam.
   SampleDao get dao => _dao ??= SqfliteSampleDao(_database);
+
+  @override
+  AppPreferences get preferences =>
+      _preferences ??= SqliteAppPreferences(_database.database);
 
   @override
   Future<BridgeSnapshot> loadSnapshot() async {

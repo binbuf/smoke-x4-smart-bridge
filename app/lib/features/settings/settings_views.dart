@@ -394,12 +394,13 @@ Future<void> showBridgeTimeoutSheet(
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    builder: (sheetContext) => StatefulBuilder(
-      builder: (sheetContext, setSheetState) {
+    builder: (sheetContext) => ListenableBuilder(
+      listenable: controller,
+      builder: (sheetContext, _) {
         final view = controller.bridgeDetailsView;
         return SafeArea(
           top: false,
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -416,29 +417,24 @@ Future<void> showBridgeTimeoutSheet(
                     color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final option in const [30, 60, 120, 0])
-                      ChoiceChip(
-                        label: Text(
-                          option == 0
-                              ? 'Never'
-                              : option < 60
-                              ? '$option sec'
-                              : '${option ~/ 60} min',
-                        ),
-                        selected: view.displayTimeoutSeconds == option,
-                        onSelected: (_) {
-                          controller.setDisplayTimeout(option);
-                          setSheetState(() {});
-                        },
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
+                for (final option in const [30, 60, 120, 0])
+                  _TimeoutOption(
+                    key: Key('bridge.timeout.$option'),
+                    seconds: option,
+                    selected: view.displayTimeoutSeconds == option,
+                    onTap: () =>
+                        unawaited(controller.setDisplayTimeout(option)),
+                  ),
+                if (view.timeoutSaveState != SettingsSaveState.idle) ...[
+                  const SizedBox(height: 8),
+                  InlineSaveState(
+                    state: view.timeoutSaveState,
+                    error: view.timeoutSaveError,
+                    savedLabel: 'Saved',
+                  ),
+                ],
+                const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
@@ -455,6 +451,46 @@ Future<void> showBridgeTimeoutSheet(
   );
 }
 
+class _TimeoutOption extends StatelessWidget {
+  const _TimeoutOption({
+    super.key,
+    required this.seconds,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int seconds;
+  final bool selected;
+  final VoidCallback onTap;
+
+  String get _label {
+    if (seconds == 0) return 'Never';
+    if (seconds < 60) return '$seconds sec';
+    return '${seconds ~/ 60} min';
+  }
+
+  String get _subtitle {
+    if (seconds == 0) return 'Screen stays on';
+    return '$_label · screen turns off';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      enabled: true,
+      leading: Icon(
+        selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+        color: selected ? scheme.primary : scheme.onSurfaceVariant,
+      ),
+      title: Text(_label),
+      subtitle: Text(_subtitle),
+      onTap: onTap,
+    );
+  }
+}
+
 Future<void> showBridgeNameDialog(
   BuildContext context,
   BridgeController controller,
@@ -469,6 +505,7 @@ Future<void> showBridgeNameDialog(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextFormField(
+            key: const Key('bridge.name.field'),
             initialValue: draft,
             autofocus: true,
             maxLength: 15,
@@ -493,13 +530,14 @@ Future<void> showBridgeNameDialog(
           child: const Text('Cancel'),
         ),
         FilledButton(
+          key: const Key('bridge.name.done'),
           onPressed: () => Navigator.of(dialogContext).pop(draft.trim()),
-          child: const Text('Save'),
+          child: const Text('Done'),
         ),
       ],
     ),
   );
   if (result != null && result.isNotEmpty) {
-    controller.setDeviceName(result);
+    await controller.setDeviceName(result);
   }
 }

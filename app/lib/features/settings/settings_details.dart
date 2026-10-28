@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
+import '../../data/ble/bridge_protocol.dart';
 import '../../app/formatters.dart';
 import '../../data/history/history_deletion.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/connection_log.dart';
 import '../../widgets/prototype_app_bar.dart';
 import '../../widgets/prototype_widgets.dart';
 import '../setup/setup_screen.dart';
@@ -99,7 +99,6 @@ class BillowsSettingsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     SectionCard(
-                      key: const Key('billows.connectionLog'),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -123,15 +122,11 @@ class BillowsSettingsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Billows events appear here with the Bridge’s connection events.',
+                            'Bridge, Smoke X4, Billows and sync events are in Bridge details → Connection log.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
-                          const SizedBox(height: 12),
-                          ConnectionLogList(
-                            events: view.billowsLog,
-                            billowsOnly: true,
-                          ),
+                          const SizedBox(height: 8),
                         ],
                       ),
                     ),
@@ -276,16 +271,41 @@ class AboutScreen extends StatelessWidget {
   }
 }
 
-class RePairScreen extends StatelessWidget {
+class RePairScreen extends StatefulWidget {
   const RePairScreen({super.key, required this.controller});
 
   final BridgeController controller;
 
   @override
+  State<RePairScreen> createState() => _RePairScreenState();
+}
+
+class _RePairScreenState extends State<RePairScreen> {
+  bool _busy = false;
+  bool _cleared = false;
+  String? _error;
+
+  Future<void> _rePair() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final status = await widget.controller.startRePair();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _cleared = status == BridgeConfigStatus.ok;
+      _error = _cleared
+          ? null
+          : widget.controller.bridgeRefusalMessage(status);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: prototypeAppBar(context, controller, 'Re-pair Smoke X4'),
+      appBar: prototypeAppBar(context, widget.controller, 'Re-pair Smoke X4'),
       body: ListView(
         children: [
           ContentWidth(
@@ -297,23 +317,27 @@ class RePairScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Re-pair the Smoke X4',
+                        _cleared
+                            ? 'Put the Smoke X4 into SYNC mode'
+                            : 'Re-pair the Smoke X4',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 14),
-                      const _NumberedStep(
-                        number: '1',
-                        text: 'Put the Smoke X4 into SYNC mode.',
-                      ),
-                      const _NumberedStep(
-                        number: '2',
-                        text: 'Hold its button until it beeps.',
-                      ),
-                      const _NumberedStep(
-                        number: '3',
-                        text: 'The Bridge confirms the pairing.',
-                      ),
-                      const SizedBox(height: 14),
+                      if (_cleared) ...[
+                        const _NumberedStep(
+                          number: '1',
+                          text: 'Put the Smoke X4 into SYNC mode.',
+                        ),
+                        const _NumberedStep(
+                          number: '2',
+                          text: 'Hold its button until it beeps.',
+                        ),
+                        const _NumberedStep(
+                          number: '3',
+                          text: 'The Bridge confirms the pairing.',
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                       Text(
                         'This clears the old radio pairing only. History on the Bridge, phone pairings, and settings are kept.',
                         style: Theme.of(context).textTheme.bodySmall
@@ -322,21 +346,32 @@ class RePairScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _error!,
+                    key: const Key('bridge.repair.error'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.error,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 FilledButton.icon(
-                  onPressed: () {
-                    controller.startRePair();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Re-pairing started. Put the Smoke X4 in SYNC mode.',
-                        ),
-                      ),
-                    );
-                    Navigator.of(context).pop();
-                  },
-                  icon: const Icon(Icons.sync),
-                  label: const Text('Start re-pairing'),
+                  key: const Key('bridge.repair.start'),
+                  onPressed: _busy
+                      ? null
+                      : _cleared
+                      ? () => Navigator.of(context).pop()
+                      : _rePair,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync),
+                  label: Text(_cleared ? 'Done' : 'Start re-pairing'),
                 ),
               ],
             ),

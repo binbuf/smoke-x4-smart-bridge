@@ -149,6 +149,16 @@ BleException mapBlePlatformError(
 
 BleException? _fromGattStatus(int? code, BleOperation operation) {
   if (code == null) return null;
+  // ATT application errors used by `config` (05 §5.9): invalid `0x81`,
+  // unsupported `0x82`, storage `0x87`. 133 is deliberately left as the common
+  // Android GATT error; the config contract does not use `failed` on the wire.
+  if (code == 0x81 || code == 0x82 || code == 0x87) {
+    return BleException(
+      BleFailure.configRefused,
+      'attribute refused with status 0x${code.toRadixString(16)}',
+      code,
+    );
+  }
   switch (code) {
     // ATT insufficient authentication / encryption: bond or re-pair, not a
     // generic GATT error.

@@ -130,6 +130,10 @@ enum BleFailure {
   bondStoreFull,
   connectionFailed,
   gattError,
+
+  /// The peer refused an attribute operation with an ATT application error
+  /// (`0x81`–`0x87`). [BleException.attCode] carries the exact status.
+  configRefused,
 }
 
 /// The named states in 06 §6.8 / 13 §13.4. The client returns these enums; the
@@ -195,6 +199,7 @@ extension BleFailureAppState on BleFailure {
       case BleFailure.invalidValue:
       case BleFailure.notSubscribed:
       case BleFailure.gattError:
+      case BleFailure.configRefused:
         return BleAppState.gattError;
     }
   }
@@ -228,13 +233,18 @@ extension BleAppStateRecovery on BleAppState {
 }
 
 class BleException implements Exception {
-  const BleException(this.failure, [this.message = '']);
+  const BleException(this.failure, [this.message = '', this.attCode]);
 
   final BleFailure failure;
 
   /// Debug-only detail. Screens must render [failure]'s named state, never this
   /// string.
   final String message;
+
+  /// The raw ATT application error (`0x80 | status`) when the peer refused an
+  /// attribute operation. Config writes use this instead of a `result`
+  /// notification (05 §5.9), so the UI branches on [attCode].
+  final int? attCode;
 
   BleAppState get appState => failure.appState;
 

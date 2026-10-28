@@ -23,6 +23,7 @@ class BridgeLinkHost {
     required this.onLive,
     this.onInfo,
     this.onStats,
+    this.onConfig,
     this.onSync,
     this.onReconnect,
     this.onRssi,
@@ -34,6 +35,7 @@ class BridgeLinkHost {
   final void Function(BridgeLiveUpdate update) onLive;
   final void Function(BridgeInfo info)? onInfo;
   final void Function(BridgeStats stats)? onStats;
+  final void Function(BridgeConfig config)? onConfig;
   final void Function(BridgeSyncProgress progress)? onSync;
 
   /// RSSI of the phone→Bridge Bluetooth link.
@@ -242,6 +244,7 @@ class BridgeLink implements SyncTransport {
 
   ConnectionPhase? _phase;
   BridgeInfo? _info;
+  BridgeConfig? _config;
   BridgeLive? _lastLive;
   BleDevice? _device;
   DateTime? _lastLiveReceipt;
@@ -280,6 +283,7 @@ class BridgeLink implements SyncTransport {
 
   ConnectionPhase? get phase => _phase;
   BridgeInfo? get info => _info;
+  BridgeConfig? get config => _config;
   BridgeLive? get lastLive => _lastLive;
   DateTime? get lastLiveReceipt => _lastLiveReceipt;
   int? get negotiatedMtu => _negotiatedMtu;
@@ -397,6 +401,7 @@ class BridgeLink implements SyncTransport {
     _secure = true;
     await _subscribeAll();
     await _refreshStats();
+    await _refreshConfig();
 
     final live = await _readLiveWithBond();
     await _setTimeIfNeeded(force: firstSync, live: live);
@@ -447,6 +452,94 @@ class BridgeLink implements SyncTransport {
       host.onRssi?.call(await client.readRssi());
     } catch (_) {
       // RSSI is decoration; a failed read never changes link health.
+    }
+  }
+
+  /// Reads the complete 80-byte `config`. Best-effort during connect: a failed
+  /// read leaves the previous values instead of breaking a healthy link.
+  Future<void> _refreshConfig() async {
+    if (_disposed || !_secure) return;
+    try {
+      final value = BridgeConfig.decode(
+        await client.read(bleConfigCharacteristicUuid),
+      );
+      _config = value;
+      host.onConfig?.call(value);
+    } catch (_) {
+      // The settings rows keep their last-known values; the next connect retries.
+    }
+  }
+
+  /// Explicit config read used by the settings editors before a write.
+  Future<BridgeConfig> readConfig() async {
+    if (!_secure && !client.bondState.isBonded) {
+      throw const BridgeLinkException(BridgeLinkFailure.notSecured);
+    }
+    try {
+      final value = BridgeConfig.decode(
+        await client.read(bleConfigCharacteristicUuid),
+      );
+      _config = value;
+      host.onConfig?.call(value);
+      return value;
+    } on BleException catch (error) {
+      if (_isBondRequired(error)) {
+        throw const BridgeLinkException(BridgeLinkFailure.bondRequired);
+      }
+      throw BridgeConfigException(
+        _configStatusOf(error),
+        error.message,
+      );
+    }
+  }
+
+  /// Writes the whole 80-byte struct, then reads it back. The ATT write
+  /// response is not treated as success on its own; the read-back is what the
+  /// UI reports.
+  Future<BridgeConfig> writeConfig(BridgeConfig value) async {
+    if (!_secure && !client.bondState.isBonded) {
+      throw const BridgeLinkException(BridgeLinkFailure.notSecured);
+    }
+    try {
+      await client.write(bleConfigCharacteristicUuid, value.encode());
+    } on BleException catch (error) {
+      if (_isBondRequired(error)) {
+        throw const BridgeLinkException(BridgeLinkFailure.bondRequired);
+      }
+      throw BridgeConfigException(_configStatusOf(error), error.message);
+    }
+    return readConfig();
+  }
+
+  BridgeConfigStatus _configStatusOf(BleException error) {
+    final attCode = error.attCode;
+    if (attCode != null) return BridgeConfigStatus.fromAttCode(attCode);
+    switch (error.failure) {
+      case BleFailure.invalidValue:
+        return BridgeConfigStatus.invalid;
+      case BleFailure.unsupported:
+        return BridgeConfigStatus.unsupported;
+      case BleFailure.notConnected:
+        return BridgeConfigStatus.failed;
+      case BleFailure.notBonded:
+      case BleFailure.unknownCharacteristic:
+      case BleFailure.notSubscribed:
+      case BleFailure.timeout:
+      case BleFailure.failed:
+      case BleFailure.permissionDenied:
+      case BleFailure.permissionBlocked:
+      case BleFailure.bluetoothOff:
+      case BleFailure.unsupportedPhone:
+      case BleFailure.scanFailed:
+      case BleFailure.noResults:
+      case BleFailure.wrongPasskey:
+      case BleFailure.promptTimeout:
+      case BleFailure.staleBond:
+      case BleFailure.bondStoreFull:
+      case BleFailure.connectionFailed:
+      case BleFailure.gattError:
+      case BleFailure.configRefused:
+        return BridgeConfigStatus.failed;
     }
   }
 
@@ -566,6 +659,7 @@ class BridgeLink implements SyncTransport {
       case BleFailure.staleBond:
       case BleFailure.bondStoreFull:
       case BleFailure.connectionFailed:
+      case BleFailure.configRefused:
         return false;
     }
   }

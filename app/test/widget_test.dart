@@ -201,7 +201,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'Patio Bridge');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.byKey(const Key('bridge.name.done')));
     await tester.pumpAndSettle();
 
     expect(controller.deviceName, 'Patio Bridge');
@@ -587,7 +587,9 @@ void main() {
     expect(find.text('Sync now'), findsOneWidget);
   });
 
-  testWidgets('Billows loss is added to the connection log', (tester) async {
+  testWidgets('Billows loss is added to the one connection log', (
+    tester,
+  ) async {
     final controller = demoBridgeController()
       ..billowsAttachment = BillowsAttachment.detached
       ..billowsSeenThisSession = true;
@@ -596,15 +598,17 @@ void main() {
 
     expect(find.text('Billows not detected'), findsOneWidget);
     expect(
-      controller.billowsLog.any((event) => event.title == 'Billows lost'),
+      controller.connectionLog.any((event) => event.title == 'Billows lost'),
       isTrue,
     );
 
-    await tester.ensureVisible(find.text('View connection log'));
+    await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('View connection log'));
+    await tester.tap(find.byKey(const Key('settings.bridge.status')));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('billows.connectionLog')));
+    await tester.ensureVisible(find.text('Connection log'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Connection log'));
     await tester.pumpAndSettle();
     expect(find.text('Billows lost'), findsOneWidget);
   });
@@ -628,7 +632,7 @@ void main() {
     expect(find.text('Monitor only'), findsNothing);
     expect(find.text('Control'), findsNothing);
     expect(find.text('Set target'), findsNothing);
-    expect(find.byKey(const Key('billows.connectionLog')), findsOneWidget);
+    expect(find.textContaining('Bridge details → Connection log'), findsOneWidget);
   });
 
   testWidgets('experimental lab opens from the app-bar menu', (tester) async {

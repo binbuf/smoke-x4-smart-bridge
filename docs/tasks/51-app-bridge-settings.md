@@ -76,4 +76,36 @@ Implement the approved Settings editors and Bridge details against the real conf
 - [ ] Hand-off below filled in.
 
 ## Hand-off
-_(filled in by the implementing session: what landed, what deviated and why, what the next task must know)_
+
+**Landed.** Units, Appearance, Bridge screen timeout and Bridge name now use the
+real 80-byte `config` as a whole-struct read-modify-write with a confirming
+read-back (ADR 0055). Each editor owns its inline `saving / saved / named error`
+state and never shows success from the GATT write alone. Units apply locally at
+once and queue the Bridge write while offline. Appearance persists in the local
+`preference` table (schema v3) and is restored before the first frame. Smoke X4
+now reports `Receiving readings`, `No readings for N min`, `Signal lost` or
+`Not paired` with `Updated 12s ago` as support; re-pair sends `unpair_smoke_x`
+and shows the SYNC steps only after `ok`. Billows is status-only and the
+Billows-filtered log was removed so there is one connection log. Technical
+details stay collapsed; the three Bridge action rows have no chevrons; the
+approved offline reasons are in place and no bottom save bar exists.
+
+**Deviation / deferred.** No phone is attached in this session, so the bench
+items (real phone changes each field, forced bad value, OLED units/timeout) are
+deferred to T55, as T47/T49 did. The review/demo path with no BLE client applies
+fields locally for widget review; production always has the BLE seam.
+
+**Checks.** `cd app; flutter analyze` → No issues found. `flutter test
+--reporter expanded` → +245 All tests passed. `powershell -NoProfile
+-ExecutionPolicy Bypass -File tools/ci/verify_host.ps1` → 25/25 CTest, exit 0.
+New tests: `test/settings_config_test.dart` (9), `test/settings_bridge_test.dart`
+(5), plus config codec pinning in `test/link_codec_test.dart`.
+
+**Next.** T52 owns destructive confirmations and `Bridge is off`; T53 should
+persist units and `Live change window` through `AppPreferences` and apply units
+and theme across Live/History/Cook/Billows; T55 runs the real-phone walk.
+Changed docs: `docs/design/05-ble-contract.md`, `docs/design/06-app.md`,
+`docs/design/13-ui-implementation-contract.md`,
+`docs/design/adr/0055-settings-config-writes-read-back.md`,
+`docs/progress/T51.md`.
+
