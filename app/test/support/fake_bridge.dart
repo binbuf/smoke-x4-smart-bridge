@@ -69,6 +69,12 @@ class FakeBridge implements FakeGattServer {
   bool clockValid;
   bool billowsAttached;
 
+  /// `live.smoke_paired` / `live.smoke_live`. A rebooting Bridge reports its
+  /// X4 pairing only once the radio has restored it; tests use these to prove
+  /// the app recovers the state without a process restart.
+  bool smokePaired = true;
+  bool smokeLive = true;
+
   /// Scripts a `result` that never arrives, to prove the 3 s control timeout.
   bool dropControlResults;
 
@@ -99,8 +105,8 @@ class FakeBridge implements FakeGattServer {
   /// The live payload currently readable on `0002 live`.
   Live get live => Live(
     flags:
-        liveFlagSmokePaired |
-        liveFlagSmokeLive |
+        (smokePaired ? liveFlagSmokePaired : 0) |
+        (smokeLive ? liveFlagSmokeLive : 0) |
         (billowsAttached ? liveFlagBillowsAttached : 0) |
         (clockValid ? liveFlagClockValid : 0) |
         liveFlagStorageOk |
@@ -312,11 +318,7 @@ class FakeBridge implements FakeGattServer {
     }
     final next = Config.decode(value);
     if (next.units != 0 && next.units != 1) {
-      throw const BleException(
-        BleFailure.configRefused,
-        'bad units',
-        0x81,
-      );
+      throw const BleException(BleFailure.configRefused, 'bad units', 0x81);
     }
     if (next.displayTimeoutS != 0 &&
         next.displayTimeoutS != 30 &&

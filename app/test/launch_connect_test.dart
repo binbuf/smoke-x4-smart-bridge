@@ -86,8 +86,11 @@ void main() {
     );
   }
 
-  BridgeController controller() =>
-      BridgeController(bleClient: client, sampleDao: dao, content: const EmptyBridgeContent());
+  BridgeController controller() => BridgeController(
+    bleClient: client,
+    sampleDao: dao,
+    content: const EmptyBridgeContent(),
+  );
 
   Future<void> waitFor(bool Function() condition) async {
     final deadline = DateTime.now().add(const Duration(seconds: 5));
@@ -156,7 +159,10 @@ void main() {
 
     expect(app.phase, ConnectionPhase.offline);
     expect(app.lookingForBridge, isTrue);
-    expect(client.operations.where((entry) => entry.startsWith('connect:')), isEmpty);
+    expect(
+      client.operations.where((entry) => entry.startsWith('connect:')),
+      isEmpty,
+    );
     app.dispose();
   });
 
@@ -215,19 +221,22 @@ void main() {
     app.dispose();
   });
 
-  test('Bluetooth off at launch is the named BLOCKED state, not Setup', () async {
-    await seedSavedBridge(bluetoothOn: false);
-    final app = controller();
-    await app.prepareLaunch(scanWindow: _scanWindow);
+  test(
+    'Bluetooth off at launch is the named BLOCKED state, not Setup',
+    () async {
+      await seedSavedBridge(bluetoothOn: false);
+      final app = controller();
+      await app.prepareLaunch(scanWindow: _scanWindow);
 
-    await app.connectSavedBridge();
+      await app.connectSavedBridge();
 
-    expect(app.phase, ConnectionPhase.blocked);
-    expect(app.blockReason, BlockReason.bluetoothOff);
-    expect(app.connectionTitle, 'Bluetooth is off');
-    expect(app.hasSavedBridge, isTrue);
-    app.dispose();
-  });
+      expect(app.phase, ConnectionPhase.blocked);
+      expect(app.blockReason, BlockReason.bluetoothOff);
+      expect(app.connectionTitle, 'Bluetooth is off');
+      expect(app.hasSavedBridge, isTrue);
+      app.dispose();
+    },
+  );
 
   testWidgets('the blocked launch offers a system action', (tester) async {
     await tester.runAsync(() => seedSavedBridge(bluetoothOn: false));
@@ -346,9 +355,15 @@ void main() {
     await app.connectSavedBridge();
     expect(app.phase, ConnectionPhase.live);
 
+    // Leave a live sync card behind, then turn the adapter off: BLOCKED is the
+    // only sync surface, so the progress state must be cleared.
+    app.syncState = SyncState.recent;
+    app.syncProgressPercent = 42;
     await client.setBluetoothOn(false);
     await waitFor(() => app.phase == ConnectionPhase.blocked);
 
+    expect(app.syncState, SyncState.idle);
+    expect(app.syncProgressPercent, 0);
     expect(app.blockReason, BlockReason.bluetoothOff);
     expect(app.bridgeConnectedLabel, isNot(startsWith('Bridge connected')));
     expect(app.effectiveHealth, ProbeHealth.frozen);

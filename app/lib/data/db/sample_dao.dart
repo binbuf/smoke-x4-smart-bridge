@@ -411,6 +411,19 @@ abstract interface class SampleDao {
     int? generation,
   });
 
+  /// The stored readings immediately around a missing sequence range.
+  ///
+  /// `before` is the newest row with `seq <= fromSeq`; `after` is the oldest
+  /// row with `seq >= toSeq`. Both are scoped to the same bridge/generation, so
+  /// a gap is placed on the time axis using the readings that actually surround
+  /// it instead of the time the app detected it.
+  Future<(StoredSample?, StoredSample?)> samplesAroundSeq({
+    required int fromSeq,
+    required int toSeq,
+    String? bridgeId,
+    int? generation,
+  });
+
   /// Gap rows detected in the range, ordered by detection time.
   Future<List<StoredGap>> gapsInRange({
     required int fromMs,
@@ -795,6 +808,42 @@ class SqfliteSampleDao implements SampleDao {
       );
     }
     return stats;
+  }
+
+  @override
+  Future<(StoredSample?, StoredSample?)> samplesAroundSeq({
+    required int fromSeq,
+    required int toSeq,
+    String? bridgeId,
+    int? generation,
+  }) async {
+    Future<StoredSample?> adjacent({required bool below}) async {
+      final where = <String>[below ? 'seq <= ?' : 'seq >= ?'];
+      final args = <Object?>[below ? fromSeq : toSeq];
+      if (bridgeId != null) {
+        where.add('bridge_id = ?');
+        args.add(bridgeId);
+      }
+      if (generation != null) {
+        where.add('generation = ?');
+        args.add(generation);
+      }
+      final rows = await _db.query(
+        'sample',
+        where: where.join(' AND '),
+        whereArgs: args,
+        orderBy: below
+            ? 'seq DESC, recorded_ms DESC'
+            : 'seq ASC, recorded_ms ASC',
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      return StoredSample.fromRow(rows.first);
+    }
+
+    final before = await adjacent(below: true);
+    final after = await adjacent(below: false);
+    return (before, after);
   }
 
   @override

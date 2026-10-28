@@ -234,13 +234,75 @@ void main() {
     );
     expect(inLink('status.x4Link', find.text('Last known')), findsOneWidget);
     expect(find.textContaining('Sensor data received'), findsNothing);
-    expect(
-      find.textContaining('Showing saved readings'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Showing saved readings'), findsOneWidget);
     expect(find.text('Fair'), findsNothing);
     expect(inProbe(1, find.text('225.0°F')), findsOneWidget);
     expect(find.text('Set temp (last known)'), findsOneWidget);
+  });
+
+  testWidgets('offline probe semantics never claim updated live', (
+    tester,
+  ) async {
+    final session = await pumpLive(
+      tester,
+      drive: (session) =>
+          healthy(session)..driveLiveState(phase: ConnectionPhase.offline),
+    );
+    session.controller.lastKnownReadingAt = DateTime.now().subtract(
+      const Duration(minutes: 5),
+    );
+    session.controller.notifyListeners();
+    await tester.pumpAndSettle();
+
+    final labels = <String>[
+      for (final number in <int>[1, 2])
+        tester.getSemantics(find.byKey(Key('live.probe.$number'))).label,
+    ];
+    for (final label in labels) {
+      expect(label, contains('saved readings'));
+      expect(label, isNot(contains('updated live')));
+      expect(label, contains('last reading'));
+    }
+  });
+
+  testWidgets('stale probe semantics also use the saved-readings vocabulary', (
+    tester,
+  ) async {
+    await pumpLive(
+      tester,
+      drive: (session) => healthy(session)
+        ..driveLiveState(
+          phase: ConnectionPhase.stale,
+          smokeXAge: const Duration(minutes: 4),
+          probeHealth: ProbeHealth.stale,
+        ),
+    );
+
+    final label = tester
+        .getSemantics(find.byKey(const Key('live.probe.1')))
+        .label;
+    expect(label, contains('saved readings'));
+    expect(label, contains('last reading'));
+    expect(label, isNot(contains('updated live')));
+  });
+
+  testWidgets('a blocked adapter clears the sync card and backfill UI', (
+    tester,
+  ) async {
+    await pumpLive(
+      tester,
+      drive: (session) => healthy(session)
+        ..driveLiveState(
+          phase: ConnectionPhase.blocked,
+          syncState: SyncState.backfill,
+          syncProgressPercent: 42,
+        ),
+    );
+
+    expect(find.byKey(const Key('live.blocked')), findsOneWidget);
+    expect(find.byKey(const Key('live.sync')), findsNothing);
+    expect(find.text('Loading saved readings'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
   testWidgets('offline without cache never shows fixture values as current', (

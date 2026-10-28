@@ -15,6 +15,61 @@ Rect historyChartPlotRect(Size size) {
   );
 }
 
+/// Placement of one gap band inside the current viewport.
+///
+/// The band's own `start`/`end` describe the missing period. A stored gap that
+/// is narrower than [minimumWidth] still gets a visible sliver so the user can
+/// see the loss; the label policy stays separate.
+Rect? historyGapBandRect({
+  required HistoryGapBand gap,
+  required Rect chart,
+  required DateTime viewStart,
+  required DateTime viewEnd,
+  double minimumWidth = 2,
+}) {
+  final totalMs = viewEnd.difference(viewStart).inMilliseconds;
+  if (totalMs <= 0 || chart.width <= 0) return null;
+  if (!gap.end.isAfter(viewStart) || !gap.start.isBefore(viewEnd)) return null;
+  double xFor(DateTime time) {
+    final clamped = time.isBefore(viewStart)
+        ? viewStart
+        : (time.isAfter(viewEnd) ? viewEnd : time);
+    return chart.left +
+        clamped.difference(viewStart).inMilliseconds / totalMs * chart.width;
+  }
+
+  var left = xFor(gap.start);
+  var right = xFor(gap.end);
+  if (right <= left) right = left + minimumWidth;
+  if (right - left < minimumWidth) {
+    final center = (left + right) / 2;
+    left = (center - minimumWidth / 2).clamp(
+      chart.left,
+      math.max(chart.left, chart.right - minimumWidth),
+    );
+    right = left + minimumWidth;
+  }
+  if (right <= chart.left || left >= chart.right) return null;
+  return Rect.fromLTRB(
+    left.clamp(chart.left, chart.right),
+    chart.top,
+    right.clamp(chart.left, chart.right),
+    chart.bottom,
+  );
+}
+
+/// Whether the reason label fits in [band].
+///
+/// A wide band always labels. A permanent loss (`Not synced`) is labelled even
+/// when the missing period is only a few pixels wide at the current zoom, so
+/// the approved label is present beside the permanent-loss explanation instead
+/// of disappearing with the band.
+bool historyGapBandShowsLabel(Rect band, HistoryGapReason reason) {
+  if (band.width <= 0) return false;
+  if (reason == HistoryGapReason.bridgeRotated) return true;
+  return band.width >= 58;
+}
+
 class HistoryChart extends StatelessWidget {
   const HistoryChart({
     super.key,
@@ -305,8 +360,7 @@ class _HistoryChartPainter extends CustomPainter {
     }
   }
 
-  double _display(double fahrenheit) =>
-      toDisplayTemperature(fahrenheit, units);
+  double _display(double fahrenheit) => toDisplayTemperature(fahrenheit, units);
 
   List<double> _niceTicks(double minValue, double maxValue) {
     final range = math.max(1.0, maxValue - minValue);
@@ -430,42 +484,42 @@ class _HistoryChartPainter extends CustomPainter {
     double maxValue,
   ) {
     for (final gap in fixture.allGaps) {
-      if (!gap.end.isAfter(viewStartTime) || !gap.start.isBefore(viewEndTime)) {
-        continue;
-      }
-      final x1 =
-          chart.left +
-          gap.start.difference(viewStartTime).inMilliseconds /
-              spanMs *
-              chart.width;
-      final x2 =
-          chart.left +
-          gap.end.difference(viewStartTime).inMilliseconds /
-              spanMs *
-              chart.width;
-      final left = x1.clamp(chart.left, chart.right);
-      final right = x2.clamp(chart.left, chart.right);
-      if (right <= left) continue;
-      final band = Paint()..color = gapColor;
-      canvas.drawRect(Rect.fromLTRB(left, chart.top, right, chart.bottom), band);
+      final band = historyGapBandRect(
+        gap: gap,
+        chart: chart,
+        viewStart: viewStartTime,
+        viewEnd: viewEndTime,
+      );
+      if (band == null) continue;
+      final fill = Paint()..color = gapColor;
+      canvas.drawRect(band, fill);
       final dash = Paint()
         ..color = labelColor.withValues(alpha: 0.45)
         ..strokeWidth = 1;
-      _dashedLine(canvas, Offset(left, chart.top), Offset(left, chart.bottom), dash);
-      _dashedLine(canvas, Offset(right, chart.top), Offset(right, chart.bottom), dash);
-      if (right - left > 58) {
-        final painter = TextPainter(
-          text: TextSpan(
-            text: gap.reason.label,
-            style: labelStyle.copyWith(color: labelColor, fontSize: 10),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        painter.paint(
-          canvas,
-          Offset((left + right) / 2 - painter.width / 2, chart.top + 5),
-        );
-      }
+      _dashedLine(
+        canvas,
+        Offset(band.left, chart.top),
+        Offset(band.left, chart.bottom),
+        dash,
+      );
+      _dashedLine(
+        canvas,
+        Offset(band.right, chart.top),
+        Offset(band.right, chart.bottom),
+        dash,
+      );
+      if (!historyGapBandShowsLabel(band, gap.reason)) continue;
+      final painter = TextPainter(
+        text: TextSpan(
+          text: gap.reason.label,
+          style: labelStyle.copyWith(color: labelColor, fontSize: 10),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final x = ((band.left + band.right) / 2 - painter.width / 2)
+          .clamp(chart.left, math.max(chart.left, chart.right - painter.width))
+          .toDouble();
+      painter.paint(canvas, Offset(x, chart.top + 5));
     }
   }
 
