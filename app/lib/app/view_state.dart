@@ -355,6 +355,7 @@ class SettingsViewState {
     required this.rssi,
     required this.bridgeLinkStatusLabel,
     required this.bridgeLastContactDetail,
+    required this.connectionSummary,
     required this.themeModeLabel,
     required this.units,
     required this.tempChangeWindowMinutes,
@@ -383,6 +384,10 @@ class SettingsViewState {
   final int rssi;
   final String bridgeLinkStatusLabel;
   final String bridgeLastContactDetail;
+
+  /// One-line offline context, e.g. `Bridge disconnected · last connected
+  /// 2 hr ago` or `Bridge disconnected · nothing saved yet`.
+  final String connectionSummary;
   final String themeModeLabel;
   final Units units;
   final int tempChangeWindowMinutes;

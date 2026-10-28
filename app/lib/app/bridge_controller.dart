@@ -1893,6 +1893,7 @@ class BridgeController extends ChangeNotifier {
     rssi: rssi,
     bridgeLinkStatusLabel: bridgeLinkStatusLabel,
     bridgeLastContactDetail: bridgeLastContactDetail,
+    connectionSummary: bridgeConnectedLabel,
     themeModeLabel: themeModeLabel,
     units: units,
     tempChangeWindowMinutes: tempChangeWindowMinutes,

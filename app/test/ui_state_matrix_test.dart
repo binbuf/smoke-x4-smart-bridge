@@ -46,6 +46,15 @@ void main() {
       configure: (controller) => controller.tab = AppTab.settings,
     ),
     _StateCase(
+      'settings offline',
+      (controller) => AppShell(controller: controller),
+      'Preferences',
+      configure: (controller) => controller
+        ..tab = AppTab.settings
+        ..phase = ConnectionPhase.offline
+        ..offlineCache = true,
+    ),
+    _StateCase(
       'setup',
       (controller) => SetupScreen(controller: controller, autoAdvance: false),
       'Connect your Bridge',

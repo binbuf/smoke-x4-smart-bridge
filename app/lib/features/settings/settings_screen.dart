@@ -33,6 +33,19 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (!view.connected) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: InlineNotice(
+                        key: const Key('settings.offlineBanner'),
+                        icon: Icons.cloud_off_outlined,
+                        title: 'Offline',
+                        message:
+                            '${view.connectionSummary}. Units, the Live change window and appearance still work on this phone.',
+                        color: StatusColors.stale(context),
+                      ),
+                    ),
+                  ],
                   SettingsGroup(
                     title: 'Bridge',
                     header: _BridgeStatusHeader(
@@ -64,6 +77,14 @@ class SettingsScreen extends StatelessWidget {
                     title: 'Preferences',
                     children: [
                       _UnitsTile(view: view, controller: controller),
+                      SettingsTile(
+                        key: const Key('settings.tempChangeWindow'),
+                        icon: Icons.timelapse_outlined,
+                        title: 'Live change window',
+                        subtitle: view.tempChangeWindowLabel,
+                        onTap: () =>
+                            _showChangeWindowSheet(context, controller),
+                      ),
                       SettingsTile(
                         key: const Key('settings.appearance'),
                         icon: Icons.palette_outlined,
@@ -297,38 +318,71 @@ class _UnitsTile extends StatelessWidget {
                   controller.setUnits(selection.first),
             ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Live change window',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ),
-              DropdownButton<int>(
-                key: const Key('settings.tempChangeWindow'),
-                value: view.tempChangeWindowMinutes,
-                underline: const SizedBox.shrink(),
-                items: const [1, 5, 10, 15, 30, 60]
-                    .map(
-                      (minutes) => DropdownMenuItem<int>(
-                        value: minutes,
-                        child: Text('$minutes min'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    controller.setTempChangeWindowMinutes(value);
-                  }
-                },
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
+}
+
+Future<void> _showChangeWindowSheet(
+  BuildContext context,
+  BridgeController controller,
+) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setSheetState) {
+        final view = controller.settingsView;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Live change window',
+                  style: Theme.of(sheetContext).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Sets the period used for the signed change on the Live probe tiles. It does not change saved readings or the Bridge screen.',
+                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final minutes in const [1, 5, 10, 15, 30, 60])
+                      ChoiceChip(
+                        key: Key('settings.tempChangeWindow.$minutes'),
+                        label: Text('$minutes min'),
+                        selected: view.tempChangeWindowMinutes == minutes,
+                        onSelected: (_) {
+                          controller.setTempChangeWindowMinutes(minutes);
+                          setSheetState(() {});
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    child: const Text('Done'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
 }
