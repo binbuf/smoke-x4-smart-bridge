@@ -21,22 +21,41 @@ static void set_read_only(log_flash_t *flash) {
 
 /* Read every sector and erase the ones that are not already blank. A power
  * cut mid-clear leaves the finished sectors blank, so a resumed clear only
- * re-erases the remainder. */
+ * re-erases the remainder.
+ *
+ * The scan buffer is deliberately small: clear and pending-clear recovery run
+ * on the 3.5 KB esp_timer/main task stacks. A whole-sector (4 KB) stack buffer
+ * overflows them and faults; 256 B keeps the stack use bounded. The sector
+ * cache in the IDF adapter makes the extra reads cheap. */
+#define CLEAR_SCAN_CHUNK 256u
+
+static log_flash_status_t sector_is_blank(log_io_t *io, uint32_t base,
+                                          bool *blank) {
+    uint8_t buf[CLEAR_SCAN_CHUNK];
+    *blank = true;
+    for (uint32_t off = 0; off < SAMPLE_LOG_SECTOR_SIZE;
+         off += (uint32_t)sizeof buf) {
+        if (log_io_read(io, base + off, buf, sizeof buf) != LOG_IO_OK) {
+            return LOG_FLASH_ERR_IO;
+        }
+        for (size_t i = 0; i < sizeof buf; i++) {
+            if (buf[i] != 0xFFu) {
+                *blank = false;
+                return LOG_FLASH_OK;
+            }
+        }
+    }
+    return LOG_FLASH_OK;
+}
+
 static log_flash_status_t erase_nonblank_sectors(log_flash_t *flash) {
-    uint8_t buf[SAMPLE_LOG_SECTOR_SIZE];
     log_io_t *io = &flash->ring.io;
 
     for (uint32_t sector = 0; sector < flash->ring.sector_count; sector++) {
         const uint32_t base = sector * SAMPLE_LOG_SECTOR_SIZE;
-        if (log_io_read(io, base, buf, sizeof buf) != LOG_IO_OK) {
+        bool blank = false;
+        if (sector_is_blank(io, base, &blank) != LOG_FLASH_OK) {
             return LOG_FLASH_ERR_IO;
-        }
-        bool blank = true;
-        for (size_t i = 0; i < sizeof buf; i++) {
-            if (buf[i] != 0xFFu) {
-                blank = false;
-                break;
-            }
         }
         if (blank) {
             continue;

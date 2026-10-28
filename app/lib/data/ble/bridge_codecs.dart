@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'ble_client.dart';
+import 'bridge_protocol.dart' show
+    bleBatteryUnknown,
+    bleTempDetached,
+    bleTempInvalid;
 
 /// The contract's `info` characteristic. Open, so setup can read identity and
 /// `bonds_free` before asking Android to bond.
@@ -75,12 +79,21 @@ class BridgeAdvertisement {
   final int pitTempF10;
   final int batteryPercent;
 
-  bool get hasReading => pitTempF10 != 0;
+  bool get hasReading =>
+      pitTempF10 != 0 && pitTempF10 != bleTempDetached &&
+      pitTempF10 != bleTempInvalid;
 
-  /// `P4 225°F · 87%`, the approved preview shape.
-  String get preview {
-    final temp = pitTempF10 == 0 ? '—' : '${(pitTempF10 / 10).round()}°F';
-    return 'P4 $temp · $batteryPercent%';
+  bool get hasBattery => batteryPercent != bleBatteryUnknown;
+
+  /// `P4 225°F · 87%`, the approved preview shape. A sentinel from a Bridge
+  /// that has no sample yet (or a detached probe / unknown battery) is left
+  /// out instead of being printed as a temperature or percentage.
+  String? get preview {
+    if (!hasReading) {
+      return hasBattery ? 'Battery $batteryPercent%' : null;
+    }
+    final temp = '${(pitTempF10 / 10).round()}°F';
+    return hasBattery ? 'P4 $temp · $batteryPercent%' : 'P4 $temp';
   }
 
   static BridgeAdvertisement? decode(BleDevice device) {
@@ -110,7 +123,8 @@ String scanSignalWord(int? rssi) {
 String scanResultDetail(BleDevice device) {
   final pieces = <String>[];
   final advertisement = BridgeAdvertisement.decode(device);
-  if (advertisement != null) pieces.add(advertisement.preview);
+  final preview = advertisement?.preview;
+  if (preview != null) pieces.add(preview);
   pieces.add(scanSignalWord(device.rssi));
   pieces.add(device.rssi == null ? '— dBm' : '${device.rssi} dBm');
   return pieces.join(' · ');

@@ -264,7 +264,10 @@ The approved prototype flow and copy are the baseline. Every state is listed in
    on this phone` when saved history exists.
 6. **Nearby bridges** — live list, remembered first. Show signal as `Strong /
    Good / Weak`; keep dBm in the detail line. A scan-response preview may show
-   `P4 225°F · 87%`. Mark the remembered row `Last used`. A protocol-mismatch row
+   `P4 225°F · 87%`. Omit the probe preview when the advertisement has the
+   invalid/detached sentinel or no reading, and omit the percentage when the
+   battery is the unknown sentinel; never print `-3277°F` or `255%`. Mark the
+   remembered row `Last used`. A protocol-mismatch row
    says `Requires a newer app`; selecting it opens `Update the app to use this
    Bridge`.
 7. **Select** — connect and read `info`. If the protocol major is not expected,
