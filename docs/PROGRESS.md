@@ -3,9 +3,8 @@
 <!-- symphony:digest:start -->
 ## Key facts (maintained by symphony — do not edit)
 
-_(9 earlier sections omitted)_
+_(10 earlier sections omitted)_
 
-- **T13 — sx_radio: RX loop and parameters**: **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3 · COM5 · IDF 6.0.2; `firmware/components/sx_radio/sx_radio.c` — real SX1262 bring-up and the
 - **T14 - sx_protocol: parser port and canonical conversion**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/sx_protocol/include/sx_protocol_types.h` - the
 - **T15 — bridge_config: typed NVS store**: **Date:** 2026-10-26 · **Verification:** host/CI (no board) · **Result:** done; `firmware/components/bridge_config/include/bridge_config.h` — the typed API:
 - **T16 — sx_radio: pairing state machine and TX guard**: **Date:** 2026-10-26 · **Verification:** host/CI + firmware compile · **Result:** done; `firmware/components/sx_radio/include/sx_radio_pair.h` — pure-C pairing API:
@@ -46,7 +45,8 @@ _(9 earlier sections omitted)_
 - **T51 — app: bridge settings**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,; **Real 80-byte config (ADR 0055)**
 - **T52 - app: destructive actions**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`,; **Delivery-aware control** (`app/lib/data/ble/bridge_link.dart`)
 - **T53 - app: units and time end-to-end**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`,; **One conversion + formatting layer** (`app/lib/app/formatters.dart`)
-- **T54 — UI state matrix, accessibility and copy gate**: **Date:** 2026-10-28 · **Verification:** host (`flutter analyze`, `flutter test`,
+- **T54 — UI state matrix, accessibility and copy gate**: **Date:** 2026-10-28 · **Verification:** host (`flutter analyze`, `flutter test`,; `app/test/ui_state_matrix_test.dart` — the 13 §13.4 matrix: every Setup step,
+- **T55 — Bench: all settings and actions**: **Date:** 2026-10-28 · **Verification:** P (Pixel 11 Pro Fold + Heltec 
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -101,6 +101,7 @@ _(9 earlier sections omitted)_
 - [T52](progress/T52.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`,
 - [T53](progress/T53.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`,
 - [T54](progress/T54.md) — **Date:** 2026-10-28 · **Verification:** host (`flutter analyze`, `flutter test`,
+- [T55](progress/T55.md) — **Date:** 2026-10-28 · **Verification:** P (Pixel 11 Pro Fold + Heltec V3) ·
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/
