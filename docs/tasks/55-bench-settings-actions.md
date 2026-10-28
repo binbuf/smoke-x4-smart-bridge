@@ -35,6 +35,13 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 - Wi-Fi/HTTP/OTA, local web UI, notifications, on-device factory-reset gesture — outside MVP; no task owns it.
 
 ## Design notes
+- **Bench safety before the destructive walk.** Back up the `nvs` and `samples`
+  partitions (flash-read, hash both, store under `artifacts/bench/T55/`) and
+  record the running image hash before forget/factory-reset/power-off. The T49
+  image hash and the T46/T52 destructive state notes are the reference. Write
+  the re-pair plan for the Bridge and the Smoke X4 before starting; restore the
+  backups rather than leaving the shared board half-wiped. Confirm the phone is
+  unlocked before the phone walk — it was PIN-locked at T46a.
 - Run on the real bridge and a real phone, release build, both dark and light themes, 320 dp.
 - This is the board-serialized M4 gate; record the board and phone model with the evidence.
 - "Persistence" means across app relaunch and, where applicable, bridge reboot: units, Appearance, Bridge name and timeout must read back identically.
