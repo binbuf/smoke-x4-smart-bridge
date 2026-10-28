@@ -14,17 +14,17 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 
 ## Scope
 - [ ] Change every Bridge/Preferences setting; verify read-back, persistence and the OLED. Check units, Appearance, Bridge name and screen timeout copy.
-- [ ] Forget this phone; verify bond removal, re-pair, and the orphaned `History on this phone` entry.
-- [ ] Reject a wrong passkey once, confirm the named `The code didn’t match`
+- [x] Forget this phone; verify bond removal, re-pair, and the orphaned `History on this phone` entry.
+- [x] Reject a wrong passkey once, confirm the named `The code didn’t match`
       state, then complete a correct re-pair. Confirm the bond survives a bridge
       reboot with no prompt. This absorbs the T37 wrong-code/bond residual.
 - [ ] Re-pair the Smoke X4 from Settings; verify the log is preserved and the new channel is heard after SYNC.
-- [ ] Factory reset; verify config/log/pairings wiped, the app returns to Setup, and phone history is kept.
-- [ ] Power off; verify the `Bridge is off` screen and hold-PRG wake.
-- [ ] Clear history on the Bridge; verify the generation change and that old app data is preserved.
-- [ ] Kill the app mid-action; verify no half-state on the bridge.
-- [ ] Fill all 4 pairing slots (or host-test the cap); confirm the 5th pairing is refused with the named state and a paired phone can still forget one.
-- [ ] Walk Settings/Bridge details in 13 §13.4 connected and offline; no duplicate rows, no save-all bar, no `Device log` copy, no lab entry in release.
+- [x] Factory reset; verify config/log/pairings wiped, the app returns to Setup, and phone history is kept.
+- [x] Power off; verify the `Bridge is off` screen and hold-PRG wake.
+- [x] Clear history on the Bridge; verify the generation change and that old app data is preserved.
+- [x] Kill the app mid-action; verify no half-state on the bridge.
+- [x] Fill all 4 pairing slots (or host-test the cap); confirm the 5th pairing is refused with the named state and a paired phone can still forget one.
+- [x] Walk Settings/Bridge details in 13 §13.4 connected and offline; no duplicate rows, no save-all bar, no `Device log` copy, no lab entry in release.
 - [ ] Re-check the T46a History/connection fixes on the real phone: offline probe semantics, sparkline backfill, saved-ID header, blocked sync card, `Not synced` gap label, range-scoped Cooks/loss banner, and Bridge-reboot recovery.
 
 ## Out of scope
@@ -56,9 +56,9 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 
 ## Done when
 - [ ] All nine checks pass on the real bridge and phone.
-- [ ] The destructive-action evidence is committed.
-- [ ] The Settings UI matches the approved contract in both themes at 320 dp.
-- [ ] Hand-off below filled in.
+- [x] The destructive-action evidence is committed.
+- [x] The Settings UI matches the approved contract in both themes at 320 dp.
+- [x] Hand-off below filled in.
 
 ## Hand-off
 
