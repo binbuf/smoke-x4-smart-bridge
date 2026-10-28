@@ -3,9 +3,8 @@
 <!-- symphony:digest:start -->
 ## Key facts (maintained by symphony — do not edit)
 
-_(5 earlier sections omitted)_
+_(6 earlier sections omitted)_
 
-- **T06 — UI baseline and view-model seam**: Production view state in `app/lib/app/view_state.dart`: immutable; Screens and shared widgets now render view state: Live, History, full-screen
 - **T07 — BLE fake and app test seam**: Production BLE seam: `app/lib/data/ble/ble_client.dart` with `BleClient`,; `BridgeController` and `createBridgeController` accept an optional `BleClient`.
 - **T08 — CI**: `.github/workflows/ci.yml` — six separately named jobs, all on every pull; `tools/ci/check_forbidden_deps.py`: rejects forbidden app packages in
 - **T09 — Board identity, bench rig, deep-sleep gate**: **Date:** 2026-10-26 · **Board:** Heltec WiFi LoRa 32 V3, ESP32-S3FN8, 8 MB,; Board identity confirmed without a human: ESP32-S3 rev v0.2, 8 MB GD flash,
@@ -46,6 +45,7 @@ _(5 earlier sections omitted)_
 - **T48 — ble_service: control actions**: **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done; `firmware/components/ble_service/ble_control.c` / `include/ble_control.h`
 - **T49 — ble_service: destructive-action state and reconnect**: **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done; `firmware/components/ble_service/ble_destructive.c` + `include/ble_destructive.h`
 - **T50 — app: Settings shell**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,; `app/lib/features/settings/settings_screen.dart`
+- **T51 — app: bridge settings**: **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,; **Real 80-byte config (ADR 0055)**
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -95,6 +95,7 @@ _(5 earlier sections omitted)_
 - [T48](progress/T48.md) — **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done
 - [T49](progress/T49.md) — **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done
 - [T50](progress/T50.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,
+- [T51](progress/T51.md) — **Date:** 2026-10-27 · **Verification:** host (`flutter analyze`, `flutter test`,
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/
