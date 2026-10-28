@@ -399,6 +399,10 @@ NimBLE, one custom GATT service. The contract is in
   live telemetry works even at the default MTU 23; larger reads use Read Blob
   and `config` writes use queued writes.
 - Sync uses a framed byte stream that works at any MTU (see 05 §5.7–§5.8).
+- `control` writes are at most 16 B. Destructive ops answer first and run on a
+  ≈250 ms timer; `boot.c` wires the backend (T48, ADR 0052). `clear_history`
+  uses the runtime ring clear (new generation, erase, restart empty) and
+  `unpair_smoke_x` clears the pairing through the radio mutex.
 
 ## 3.10 UI and power
 

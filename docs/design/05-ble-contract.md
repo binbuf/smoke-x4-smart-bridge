@@ -323,9 +323,20 @@ machine branching. The status code is the branch.
 - `set_time` maps `unix_ms / 1000` to `bridge_state_set_time()`. The bridge
   keeps UTC; `tz_offset_min` is advisory. A backward correction or zero time is
   `invalid` with "clock out of range".
-- T29 answers ops 2/3/4/5/7 as `unsupported`; T48 fills their handlers through
-  the reply-first action seam (result `action` + a ≈250 ms one-shot timer armed
-  only after the notification is handed off).
+- T29 answered ops 2/3/4/5/7 as `unsupported`; T48 registers their handlers
+  through the reply-first action seam (result `action` + a ≈250 ms one-shot
+  timer armed only after the notification is handed off). The dispatcher still
+  answers `unsupported` when no handler is installed.
+- T48 rejects a `control` write longer than 16 B as `invalid` ("control too
+  long"); it never truncates. Every op echoes `op_id` unchanged.
+- After the timer fires, the backend runs once: forget deletes only the current
+  peer bond and drops the link; factory reset wipes config/log generation/all
+  bonds synchronously **then** schedules the reboot; power-off sleeps;
+  clear-history persists a new generation, erases the ring and restarts empty;
+  unpair clears the stored X4 id/frequency and restarts the 915/920 scan. A
+  late backend failure is logged only — the result already said `ok`.
+- ADR 0052 lists the backend seam; T49 owns link teardown/re-advertise and
+  power-cut recovery.
 - `result` is split at `MTU−3`; the first chunk always carries the 5-byte
   header, so the client can reassemble. The app must subscribe before writing.
 - Write security returns the named ATT error: `0x0F` when unencrypted, `0x05`

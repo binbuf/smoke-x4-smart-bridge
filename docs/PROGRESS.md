@@ -3,9 +3,8 @@
 <!-- symphony:digest:start -->
 ## Key facts (maintained by symphony — do not edit)
 
-_(1 earlier section omitted)_
+_(2 earlier sections omitted)_
 
-- **T02 — Protocol contract and codegen**: `protocol/records.yaml`: sample_rec (18 B), sector_header (16 B), temperature; `protocol/ble.yaml`: service UUID, all 8 characteristic slots with
 - **T03 — Host test harness and fixtures**: `firmware/test` plain CMake/C11 project; `ctest` is the entry point.; `records` compiles `protocol/test/test_records.c` directly against
 - **T04 — Firmware skeleton and partition table**: ESP-IDF 6.0.2 project root `firmware/CMakeLists.txt` targeting `esp32s3`.; `firmware/main/`:
 - **T05 — App skeleton**: Production entrypoint: `app/lib/main.dart` → `app/lib/app/bootstrap.dart`.; `app/lib/app/bridge_controller.dart` is now the single
@@ -46,7 +45,8 @@ _(1 earlier section omitted)_
 - **T44 — app: data use and explicit deletion**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`, `flutter test`) · **Result:** done; `app/lib/data/history/history_deletion.dart`
 - **T45 — app: History/data empty and error states**: **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,; `app/lib/app/bridge_controller.dart`
 - **T46 — Bench: full history and resume**: **Date:** 2026-10-27 · **Verification:** real Pixel 11 Pro Fold + Heltec V3 +; Dark and light Live + History captured from the production Appearance path:
-- **T47 — ble_service: config read/write and stats read**: **Date:** 2026-10-27 · **Verification:** H (host) · **Result:** done for the; `firmware/components/ble_service/ble_config.c` + `
+- **T47 — ble_service: config read/write and stats read**: **Date:** 2026-10-27 · **Verification:** H (host) · **Result:** done for the; `firmware/components/ble_service/ble_config.c` + `include/ble_config.h`
+- **T48 — ble_service: control actions**: **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done; `firmware/components/ble_service/ble_contr
 
 ## Task notes (maintained by symphony — do not edit)
 
@@ -93,6 +93,7 @@ _(1 earlier section omitted)_
 - [T45](progress/T45.md) — **Date:** 2026-10-27 · **Verification:** host/CI (`flutter analyze`,
 - [T46](progress/T46.md) — **Date:** 2026-10-27 · **Verification:** real Pixel 11 Pro Fold + Heltec V3 +
 - [T47](progress/T47.md) — **Date:** 2026-10-27 · **Verification:** H (host) · **Result:** done for the
+- [T48](progress/T48.md) — **Date:** 2026-10-27 · **Verification:** H + firmware build · **Result:** done
 <!-- symphony:digest:end -->
 
 Shared index for the symphony run. Each task session writes its own note file under the progress/

@@ -178,10 +178,11 @@ static void check_result_envelope(const ble_control_result_t *result,
 static int s_action_calls;
 static ble_control_action_t s_last_action;
 
-static void test_action_handler(ble_control_action_t action, void *ctx) {
+static uint8_t test_action_handler(ble_control_action_t action, void *ctx) {
     (void)ctx;
     s_action_calls++;
     s_last_action = action;
+    return SX4_RESULT_STATUS_OK;
 }
 
 /* ---- tests --------------------------------------------------------------- */
@@ -463,11 +464,16 @@ static void check_action_seam(void) {
     CHECK_EQ_UINT(result.action_delay_ms, 250u);
     CHECK_EQ_INT(s_action_calls, 0); /* not run inside the dispatcher */
 
-    ble_control_run_action((ble_control_action_t)result.action);
+    CHECK_EQ_UINT(ble_control_run_action((ble_control_action_t)result.action),
+                  SX4_RESULT_STATUS_OK);
     CHECK_EQ_INT(s_action_calls, 1);
     CHECK_EQ_INT(s_last_action, (int)BLE_CONTROL_ACTION_FACTORY_RESET);
 
+    /* With no handler registered the runner reports unsupported rather than
+     * pretending the action ran. */
     ble_control_set_action_handler(NULL, NULL);
+    CHECK_EQ_UINT(ble_control_run_action(BLE_CONTROL_ACTION_POWER_OFF),
+                  SX4_RESULT_STATUS_UNSUPPORTED);
 }
 
 int main(void) {

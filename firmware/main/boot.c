@@ -8,6 +8,8 @@
 
 #include <stdbool.h>
 
+#include "ble_control.h"
+#include "ble_control_actions.h"
 #include "ble_service.h"
 #include "ble_tx.h"
 #include "board.h"
@@ -16,6 +18,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -107,6 +110,113 @@ static void apply_config(uint8_t units, uint16_t display_timeout_s, void *ctx) {
     ui_mark_dirty();
 }
 
+/* ---- T48 destructive control actions ----------------------------------- */
+
+static esp_timer_handle_t s_reboot_timer;
+
+static void reboot_timer_cb(void *arg) {
+    (void)arg;
+    esp_restart();
+}
+
+static uint8_t config_failure(bridge_config_result_t rc) {
+    if (rc == BRIDGE_CONFIG_ERR_IO) {
+        return SX4_RESULT_STATUS_STORAGE;
+    }
+    if (rc == BRIDGE_CONFIG_ERR_NOT_FOUND) {
+        return SX4_RESULT_STATUS_NOT_FOUND;
+    }
+    if (rc == BRIDGE_CONFIG_ERR_INVALID) {
+        return SX4_RESULT_STATUS_INVALID;
+    }
+    return SX4_RESULT_STATUS_FAILED;
+}
+
+static uint8_t action_forget_phone(void *ctx) {
+    (void)ctx;
+    return ble_service_forget_current_peer();
+}
+
+/*
+ * Wipe first, then schedule the reboot. A lost timer leaves a fully wiped
+ * device rather than a half-wiped one. The result was notified ~250 ms ago.
+ */
+static uint8_t action_factory_reset(void *ctx) {
+    (void)ctx;
+    bridge_config_result_t rc = bridge_config_factory_reset();
+    if (rc != BRIDGE_CONFIG_OK) {
+        ESP_LOGE(TAG, "factory reset wipe failed (%d); not rebooting", (int)rc);
+        return config_failure(rc);
+    }
+
+    if (s_reboot_timer == NULL) {
+        const esp_timer_create_args_t args = {
+            .callback = reboot_timer_cb,
+            .name = "reset_reboot",
+        };
+        if (esp_timer_create(&args, &s_reboot_timer) != ESP_OK) {
+            s_reboot_timer = NULL;
+        }
+    }
+    if (s_reboot_timer != NULL &&
+        esp_timer_start_once(s_reboot_timer, 50u * 1000u) == ESP_OK) {
+        return SX4_RESULT_STATUS_OK;
+    }
+
+    /* No timer: reboot now. The wipe is already complete. */
+    esp_restart();
+    return SX4_RESULT_STATUS_OK;
+}
+
+static uint8_t action_power_off(void *ctx) {
+    (void)ctx;
+    (void)board_power_off_vext();
+    (void)sx_radio_sleep();
+    esp_err_t err = board_enter_deep_sleep();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "power_off: deep sleep failed (%s)",
+                 esp_err_to_name(err));
+        return SX4_RESULT_STATUS_FAILED;
+    }
+    return SX4_RESULT_STATUS_OK; /* unreachable */
+}
+
+static uint8_t action_clear_history(void *ctx) {
+    (void)ctx;
+    esp_err_t err = sample_log_clear();
+    if (err == ESP_OK) {
+        ui_mark_dirty();
+        return SX4_RESULT_STATUS_OK;
+    }
+    if (err == ESP_ERR_INVALID_STATE) {
+        return SX4_RESULT_STATUS_STORAGE;
+    }
+    return SX4_RESULT_STATUS_FAILED;
+}
+
+static uint8_t action_unpair_smoke_x(void *ctx) {
+    (void)ctx;
+    esp_err_t err = sx_radio_unpair();
+    if (err == ESP_OK) {
+        ui_mark_dirty();
+        return SX4_RESULT_STATUS_OK;
+    }
+    return SX4_RESULT_STATUS_FAILED;
+}
+
+static const ble_control_action_ops_t s_control_actions = {
+    .forget_phone = action_forget_phone,
+    .factory_reset = action_factory_reset,
+    .power_off = action_power_off,
+    .clear_history = action_clear_history,
+    .unpair_smoke_x = action_unpair_smoke_x,
+};
+
+static uint8_t run_control_action(ble_control_action_t action, void *ctx) {
+    (void)ctx;
+    return ble_control_actions_run(&s_control_actions, action);
+}
+
 void sx4_boot_run(void) {
     ESP_LOGI(TAG, "boot: starting");
 
@@ -130,6 +240,9 @@ void sx4_boot_run(void) {
     run_step("sx_radio_start", sx_radio_start);
     ble_service_set_passkey_callback(show_passkey, NULL);
     ble_service_set_config_applied_callback(apply_config, NULL);
+    /* T48: register the reply-first destructive handlers before the GATT
+     * service can accept a control write. */
+    ble_control_set_action_handler(run_control_action, NULL);
     run_step("ble_service_start", ble_service_start);
 
     /* Housekeeping owns battery sampling and the clock-persistence cadence;

@@ -142,6 +142,11 @@ static int nvs_new_generation(void *ctx, uint32_t *out) {
                                                                         : -1;
 }
 
+static int nvs_begin_clear(void *ctx, uint32_t *out) {
+    (void)ctx;
+    return bridge_config_begin_log_clear(out) == BRIDGE_CONFIG_OK ? 0 : -1;
+}
+
 static bool nvs_clear_pending(void *ctx) {
     (void)ctx;
     bridge_config_log_t log;
@@ -160,6 +165,7 @@ static const log_flash_hooks_t s_hooks = {
     .load_generation = nvs_load_generation,
     .store_generation = nvs_store_generation,
     .new_generation = nvs_new_generation,
+    .begin_clear = nvs_begin_clear,
     .clear_pending = nvs_clear_pending,
     .finish_clear = nvs_finish_clear,
 };

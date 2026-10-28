@@ -28,7 +28,9 @@ typedef struct {
     uint32_t new_generation;
     int store_calls;
     int new_calls;
+    int begin_calls;
     int finish_calls;
+    bool begin_fails;
 } fake_nvs_t;
 
 typedef struct {
@@ -62,6 +64,18 @@ static int nvs_new(void *ctx, uint32_t *out) {
     return 0;
 }
 
+static int nvs_begin_clear(void *ctx, uint32_t *out) {
+    fake_nvs_t *nvs = ctx;
+    nvs->begin_calls++;
+    if (nvs->begin_fails) {
+        return -1;
+    }
+    nvs->generation = nvs->new_generation;
+    nvs->clear_pending = true;
+    *out = nvs->generation;
+    return 0;
+}
+
 static bool nvs_clear_pending(void *ctx) {
     return ((fake_nvs_t *)ctx)->clear_pending;
 }
@@ -77,6 +91,7 @@ static const log_flash_hooks_t HOOKS = {
     .load_generation = nvs_load,
     .store_generation = nvs_store,
     .new_generation = nvs_new,
+    .begin_clear = nvs_begin_clear,
     .clear_pending = nvs_clear_pending,
     .finish_clear = nvs_finish_clear,
 };
@@ -324,6 +339,81 @@ static void test_blank_log_without_generation_formats(void) {
     append_ok(&f, 0, 1);
 }
 
+static void test_runtime_clear_erases_and_regenerates(void) {
+    fixture_t f;
+    log_ring_info_t info;
+    fixture_init(&f, GEN_A);
+    CHECK_EQ_INT(fixture_open(&f), LOG_FLASH_OK);
+    for (uint32_t i = 0; i < SAMPLE_LOG_RECORDS_PER_SECTOR + 3u; i++) {
+        append_ok(&f, i, 1000u + i);
+    }
+    CHECK_EQ_UINT(f.ram.erase_calls, 2u); /* two sectors beyond the first */
+
+    CHECK_EQ_INT(log_flash_clear(&f.flash), LOG_FLASH_OK);
+    CHECK_EQ_INT(f.nvs.begin_calls, 1);
+    CHECK_EQ_INT(f.nvs.finish_calls, 1);
+    CHECK(!f.nvs.clear_pending);
+    CHECK_EQ_UINT(f.nvs.generation, GEN_C);
+    CHECK(f.flash.ready);
+    CHECK_EQ_INT(f.flash.storage, SAMPLE_LOG_STORAGE_OK);
+    CHECK(log_flash_info(&f.flash, &info));
+    CHECK_EQ_UINT(info.generation, GEN_C);
+    CHECK_EQ_UINT(info.count, 0);
+    CHECK_EQ_UINT(info.next_seq, 0);
+
+    /* The old sequence is gone and the new log starts at zero. */
+    sx4_sample_rec_t rec;
+    CHECK_EQ_INT(log_flash_read_seq(&f.flash, 0, &rec), SAMPLE_LOG_ERR_RANGE);
+    append_ok(&f, 0, 5000);
+    CHECK(log_flash_info(&f.flash, &info));
+    CHECK_EQ_UINT(info.generation, GEN_C);
+    CHECK_EQ_UINT(info.next_seq, 1);
+
+    /* A second clear is safe and moves to another generation. */
+    f.nvs.new_generation = 0x55667788u;
+    CHECK_EQ_INT(log_flash_clear(&f.flash), LOG_FLASH_OK);
+    CHECK(log_flash_info(&f.flash, &info));
+    CHECK_EQ_UINT(info.generation, 0x55667788u);
+    CHECK_EQ_UINT(info.count, 0);
+}
+
+static void test_runtime_clear_begin_failure_keeps_ring(void) {
+    fixture_t f;
+    log_ring_info_t info;
+    fixture_init(&f, GEN_A);
+    CHECK_EQ_INT(fixture_open(&f), LOG_FLASH_OK);
+    append_ok(&f, 0, 10);
+
+    f.nvs.begin_fails = true;
+    CHECK_EQ_INT(log_flash_clear(&f.flash), LOG_FLASH_ERR_IO);
+    CHECK(f.flash.ready);
+    CHECK_EQ_INT(f.flash.storage, SAMPLE_LOG_STORAGE_OK);
+    CHECK(log_flash_info(&f.flash, &info));
+    CHECK_EQ_UINT(info.generation, GEN_A);
+    CHECK_EQ_UINT(info.count, 1);
+    CHECK_EQ_UINT(info.next_seq, 1);
+
+    /* The writer can continue: nothing was erased. */
+    append_ok(&f, 1, 40);
+}
+
+static void test_runtime_clear_erase_failure_is_read_only(void) {
+    fixture_t f;
+    fixture_init(&f, GEN_A);
+    CHECK_EQ_INT(fixture_open(&f), LOG_FLASH_OK);
+    append_ok(&f, 0, 10);
+
+    ram_log_io_fail_next(&f.ram, RAM_LOG_IO_OP_ERASE, 0);
+    CHECK_EQ_INT(log_flash_clear(&f.flash), LOG_FLASH_ERR_IO);
+    CHECK(!f.flash.ready);
+    CHECK_EQ_INT(f.flash.storage, SAMPLE_LOG_STORAGE_READ_ONLY);
+    CHECK(f.nvs.clear_pending);
+
+    /* The next boot finishes the pending clear on the new generation. */
+    CHECK_EQ_INT(fixture_open(&f), LOG_FLASH_OK);
+    CHECK(!f.nvs.clear_pending);
+}
+
 static void test_storage_becomes_near_full_only_at_capacity_edge(void) {
     fixture_t f;
     fixture_init(&f, GEN_A);
@@ -351,6 +441,9 @@ int main(void) {
     test_read_failure_is_read_only();
     test_nvs_loss_adopts_newest_header();
     test_blank_log_without_generation_formats();
+    test_runtime_clear_erases_and_regenerates();
+    test_runtime_clear_begin_failure_keeps_ring();
+    test_runtime_clear_erase_failure_is_read_only();
     test_storage_becomes_near_full_only_at_capacity_edge();
     return sx4_test_summary("sample-log-flash");
 }

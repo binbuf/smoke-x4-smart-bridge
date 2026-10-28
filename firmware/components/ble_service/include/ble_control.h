@@ -53,7 +53,11 @@ typedef enum {
     BLE_CONTROL_ACTION_UNPAIR_SMOKE_X,
 } ble_control_action_t;
 
-typedef void (*ble_control_action_fn)(ble_control_action_t action, void *ctx);
+/*
+ * Deferred action runner. Returns an SX4_RESULT_STATUS_* value for the log; the
+ * `result` was already notified, so this cannot change it.
+ */
+typedef uint8_t (*ble_control_action_fn)(ble_control_action_t action, void *ctx);
 
 typedef struct {
     uint8_t ver;    /* always 1 on the wire */
@@ -98,8 +102,10 @@ int ble_control_write_security(bool encrypted, bool authenticated);
 /* T48 seam: install the reply-first action runner (NULL unregisters). */
 void ble_control_set_action_handler(ble_control_action_fn fn, void *ctx);
 
-/* Run a deferred action after its result notification has been handed off. */
-void ble_control_run_action(ble_control_action_t action);
+/* Run a deferred action after its result notification has been handed off.
+ * Returns the backend status (SX4_RESULT_STATUS_OK, a failure status, or
+ * UNSUPPORTED when no handler is installed). */
+uint8_t ble_control_run_action(ble_control_action_t action);
 
 #ifdef __cplusplus
 }

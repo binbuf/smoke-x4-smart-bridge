@@ -33,6 +33,14 @@ esp_err_t sx_radio_set_frequency(uint32_t frequency_hz);
 uint32_t sx_radio_frequency(void);
 
 /*
+ * T48 `unpair_smoke_x`: clear the stored pairing and restart the 915/920 scan.
+ * Serialized with the radio_rx task (the FSM has one owner at a time). Returns
+ * ESP_OK, ESP_ERR_INVALID_STATE when the pairing FSM is not initialized, or
+ * ESP_FAIL when the persisted pairing could not be cleared.
+ */
+esp_err_t sx_radio_unpair(void);
+
+/*
  * Stop the RX task and put the SX1262 into cold sleep for power-off. Called
  * once, immediately before deep sleep; the next boot re-runs sx_radio_init().
  * Safe to call when the radio was never configured (returns ESP_OK).

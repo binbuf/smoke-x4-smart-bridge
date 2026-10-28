@@ -733,7 +733,13 @@ static void action_timer_cb(void *arg) {
     (void)arg;
     ble_control_action_t action = s_pending_action;
     s_pending_action = BLE_CONTROL_ACTION_NONE;
-    ble_control_run_action(action);
+    uint8_t status = ble_control_run_action(action);
+    if (status != SX4_RESULT_STATUS_OK) {
+        /* Answer-first: the result already said ok; only the log can report
+         * a late backend failure. */
+        ESP_LOGW(TAG, "control action %u failed late (status %u)",
+                 (unsigned)action, (unsigned)status);
+    }
 }
 
 /*
@@ -1281,6 +1287,36 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
         break;
     }
     return 0;
+}
+
+uint8_t ble_service_forget_current_peer(void) {
+    if (!s_connected || s_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+        return SX4_RESULT_STATUS_NOT_FOUND;
+    }
+    struct ble_gap_conn_desc desc;
+    if (ble_gap_conn_find(s_conn_handle, &desc) != 0) {
+        return SX4_RESULT_STATUS_NOT_FOUND;
+    }
+
+    int rc = ble_store_util_delete_peer(&desc.peer_id_addr);
+    refresh_bond_count();
+    if (rc == BLE_HS_ENOENT) {
+        return SX4_RESULT_STATUS_NOT_FOUND;
+    }
+    if (rc != 0) {
+        ESP_LOGW(TAG, "forget: bond delete failed (%d)", rc);
+        return SX4_RESULT_STATUS_FAILED;
+    }
+
+    /* Other phone bonds stay. The disconnect event re-advertises. */
+    if (ble_gap_terminate(s_conn_handle, 0x13 /* Remote User Terminated */) !=
+        0) {
+        ESP_LOGW(TAG, "forget: link termination failed");
+        return SX4_RESULT_STATUS_FAILED;
+    }
+    ESP_LOGI(TAG, "forget: current peer bond removed, %u bond(s) remain",
+             (unsigned)s_bond_count);
+    return SX4_RESULT_STATUS_OK;
 }
 
 bool ble_service_is_connected(void) { return s_connected; }
