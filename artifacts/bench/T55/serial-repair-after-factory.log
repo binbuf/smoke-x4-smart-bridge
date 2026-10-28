@@ -1,0 +1,44 @@
+# opened 2026-10-28T08:20:39 port=COM5 baud=115200
+I (8132) sx4.radio: tuned to 915000000 Hz
+I (11432) sx4.radio: tuned to 920000000 Hz
+I (11792) sx4.house: battery 4033 mV (83%)
+I (14732) sx4.radio: tuned to 915000000 Hz
+I (18032) sx4.radio: tuned to 920000000 Hz
+I (21332) sx4.radio: tuned to 915000000 Hz
+I (21792) sx4.house: battery 4038 mV (84%)
+I (24632) sx4.radio: tuned to 920000000 Hz
+I (27932) sx4.radio: tuned to 915000000 Hz
+I (31232) sx4.radio: tuned to 920000000 Hz
+I (31792) sx4.house: battery 4033 mV (83%)
+I (34532) sx4.radio: tuned to 915000000 Hz
+I (37832) sx4.radio: tuned to 920000000 Hz
+I (39322) sx4.ble: central connected (handle 1)
+I (41132) sx4.radio: tuned to 915000000 Hz
+I (41792) sx4.house: battery 4038 mV (84%)
+I (43732) sx4.ble: passkey displayed for conn 1
+I (43732) sx4.ble: BENCH passkey 987698
+I (44432) sx4.radio: tuned to 920000000 Hz
+I (47732) sx4.radio: tuned to 915000000 Hz
+I (51032) sx4.radio: tuned to 920000000 Hz
+I (51792) sx4.house: battery 4033 mV (83%)
+I (54332) sx4.radio: tuned to 915000000 Hz
+I (57632) sx4.radio: tuned to 920000000 Hz
+I (60432) sx4.ble: pairing complete (status 0, 0 bond(s))
+I (60442) NimBLE: GAP procedure initiated: stop advertising.
+
+I (60442) sx4.ble: link secured (authenticated, 1 bond(s))
+I (60932) sx4.radio: tuned to 915000000 Hz
+I (61792) sx4.house: battery 4038 mV (84%)
+I (64232) sx4.radio: tuned to 920000000 Hz
+I (64432) sx4.ble: control op 1 id 4 -> status 0 (14 B)
+I (64442) NimBLE: GATT procedure initiated: notify; 
+I (64442) NimBLE: att_handle=23
+
+I (64532) NimBLE: GATT procedure initiated: notify; 
+I (64532) NimBLE: att_handle=28
+
+I (67532) sx4.radio: tuned to 915000000 Hz
+I (70832) sx4.radio: tuned to 920000000 Hz
+I (71792) sx4.house: battery 4038 mV (84%)
+I (74132) sx4.radio: tuned to 915000000 Hz
+I (77432) sx4.radio: tuned to 920000000 Hz

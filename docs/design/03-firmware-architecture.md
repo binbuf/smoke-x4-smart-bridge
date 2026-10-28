@@ -336,6 +336,10 @@ Implementation (T15, ADR 0023):
   new generation, pending clear, every key, then the NimBLE bond clear.
   `clear_bonds()` forgets phones only; `clear_pairing()` re-pairs the radio and
   keeps bonds and the log.
+- The clear sweep and pending-clear recovery scan a sector in 256 B chunks
+  (ADR 0060). They run on the 3.5 KB timer/main stacks; a sector-sized stack
+  buffer overflows and boot-loops. T55 found this on the real bridge; the host
+  suite cannot see stack size.
 - `billows_mode`/`billows_target_f10` have no setter and are never read from
   NVS; the getter returns the MVP constants 0/0.
 

@@ -63,6 +63,41 @@ void main() {
     expect(BridgeAdvertisement.decode(device), isNull);
   });
 
+  test('a sentinel advertisement shows no invented probe or battery value', () {
+    Uint8List withStatus(int tempF10, int battery) {
+      final encoded = proto.AdvStatus(
+        flags: 0,
+        pitTempF10: tempF10,
+        batteryPct: battery,
+      ).encode();
+      final bytes = Uint8List(2 + encoded.length);
+      ByteData.sublistView(
+        bytes,
+      ).setUint16(0, proto.bleCompanyId, Endian.little);
+      bytes.setRange(2, bytes.length, encoded);
+      return bytes;
+    }
+
+    BleDevice row(int tempF10, int battery) => BleDevice(
+      id: 'fake-A4F2',
+      name: 'SmokeX4-A4F2',
+      rssi: -60,
+      manufacturerData: withStatus(tempF10, battery),
+    );
+
+    // A fresh/blank Bridge advertises the invalid sentinel and unknown battery.
+    final blank = BridgeAdvertisement.decode(row(-32767, 255))!;
+    expect(blank.hasReading, isFalse);
+    expect(blank.preview, isNull);
+    expect(scanResultDetail(row(-32767, 255)), 'Strong · -60 dBm');
+
+    // A detached probe is never printed as a temperature; the battery remains
+    // honest if the Bridge knows it.
+    final detached = BridgeAdvertisement.decode(row(-32768, 87))!;
+    expect(detached.hasReading, isFalse);
+    expect(detached.preview, 'Battery 87%');
+  });
+
   test(
     'a SmokeX4 advertisement without the contract service needs a new app',
     () {
