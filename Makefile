@@ -18,7 +18,7 @@ endif
 PROTO_TEST_BIN := build/protocol_test$(EXE)
 HOST_TEST_BUILD ?= firmware/test/build
 
-.PHONY: protocol protocol-check protocol-test host-test bench-test app-analyze app-test app-check design-export design-capture
+.PHONY: protocol protocol-check protocol-test host-test bench-test app-analyze app-test app-check design-export design-capture design-diff design-approve thumbs capture
 
 protocol:
 	$(PYTHON) tools/protogen/protogen.py
@@ -51,6 +51,24 @@ app-test:
 
 app-check: app-analyze app-test
 
+# Laboratory contact sheet. Downscales the approved screenshots into
+# app/assets/thumbs, which the Experimental lab shows as a grid.
+thumbs:
+	$(PYTHON3) tools/make_thumbs.py
+
+# Fresh 3x captures of every approved screen, for review without touching the
+# baseline. Written by the golden test, so it needs no export step.
+CAPTURE_DIR := $(CURDIR)/build/captures
+
+capture:
+	$(RM) -r $(CAPTURE_DIR)
+	cd $(APP_DIR) && UI_CAPTURE_DIR=$(CAPTURE_DIR) $(FLUTTER) test tool/ui_screenshots_test.dart
+
+# Review a visual change before accepting it: approved screenshots against the
+# captures from `make capture`.
+design-diff:
+	$(PYTHON3) tools/scenario_diff.py $(DIFF_ARGS)
+
 # FigCraft hand-off. The screenshots stay the UI contract; the export turns the
 # real render tree into editable FigCraft text over a cleaned reference image.
 # Generated files live under design/figcraft/render (git-ignored).
@@ -64,3 +82,11 @@ design-export:
 # Save in FigCraft first, then this lists the copy that changed.
 design-capture:
 	$(PYTHON3) tools/figcraft_capture.py
+
+# Accept an intentional visual change. Run `make design-diff` first and look at
+# the changed screens; this then rewrites the baseline, records the new hashes
+# and refreshes the lab thumbnails.
+design-approve:
+	cd $(APP_DIR) && $(FLUTTER) test --update-goldens tool/ui_screenshots_test.dart
+	cd $(APP_DIR) && $(DART) run tool/screenshot_manifest.dart
+	$(PYTHON3) tools/make_thumbs.py

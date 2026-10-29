@@ -8,19 +8,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:smoke_bridge/features/device/device_preview_screen.dart';
-import 'package:smoke_bridge/features/history/history_full_screen.dart';
-import 'package:smoke_bridge/features/history/history_screen.dart';
-import 'package:smoke_bridge/features/settings/bridge_details.dart';
-import 'package:smoke_bridge/features/settings/settings_details.dart';
-import 'package:smoke_bridge/features/settings/settings_views.dart';
-import 'package:smoke_bridge/features/setup/setup_screen.dart';
-import 'package:smoke_bridge/features/shell/app_shell.dart';
-import 'package:smoke_bridge/debug/fixtures.dart';
-import 'package:smoke_bridge/domain/models.dart';
-import 'package:smoke_bridge/app/bridge_controller.dart';
 import 'package:smoke_bridge/debug/demo_content.dart';
-import 'package:smoke_bridge/debug/scenario_lab.dart';
+import 'package:smoke_bridge/debug/scenario_catalog.dart';
 import 'package:smoke_bridge/theme/app_theme.dart';
 
 Future<void> _loadFont(String family, String path) async {
@@ -114,9 +103,14 @@ void main() {
       }
     });
     await tester.pumpAndSettle();
-    // `make design-export` sets this to dump the laid-out text boxes instead of
-    // comparing goldens. CI never sets it, so the screenshot contract above is
-    // unchanged.
+    // `make capture` writes review captures without touching the baseline;
+    // `make design-export` sets FIGCRAFT_DUMP to dump the laid-out text boxes
+    // and the reference images for the FigCraft hand-off. CI sets neither, so
+    // the screenshot contract above is unchanged.
+    final captureDirectory = Platform.environment['UI_CAPTURE_DIR'];
+    if (captureDirectory != null && captureDirectory.isNotEmpty) {
+      await _writeCapture(tester, key, name, Directory(captureDirectory));
+    }
     final dumpDirectory = Platform.environment['FIGCRAFT_DUMP'];
     if (dumpDirectory != null && dumpDirectory.isNotEmpty) {
       await _writeTextDump(tester, key, name, dumpDirectory);
@@ -128,424 +122,33 @@ void main() {
     );
   }
 
-  testWidgets('live dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(tester, 'live_dark', AppShell(controller: controller));
-    controller.dispose();
-  });
+  for (final scenario in goldenScenarios) {
+    testWidgets(scenario.id, (tester) async {
+      final controller = demoBridgeController();
+      scenario.seed(controller);
+      await shot(
+        tester,
+        scenario.id,
+        scenario.screen(controller),
+        brightness: scenario.brightness,
+        interact: scenario.actions.isEmpty
+            ? null
+            : (tester) async {
+                for (final action in scenario.actions) {
+                  switch (action) {
+                    case TapKeyAction(:final key):
+                      await tester.tap(find.byKey(key));
+                    case DragListAction(:final offset):
+                      await tester.drag(find.byType(ListView).first, offset);
+                  }
+                  await tester.pumpAndSettle();
+                }
+              },
+      );
+      controller.dispose();
+    });
+  }
 
-  testWidgets('live light', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'live_light',
-      AppShell(controller: controller),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('live billows detected', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'live_billows_detected',
-      AppShell(controller: controller),
-      interact: (tester) async {
-        await tester.drag(find.byType(ListView).first, const Offset(0, -320));
-      },
-    );
-    controller.dispose();
-  });
-
-  testWidgets('live billows lost', (tester) async {
-    final controller = demoBridgeController()
-      ..billowsAttachment = BillowsAttachment.detached
-      ..billowsSeenThisSession = true
-      ..smokeXChannel4SetKnown = false;
-    await shot(
-      tester,
-      'live_billows_lost',
-      AppShell(controller: controller),
-      interact: (tester) async {
-        await tester.drag(find.byType(ListView).first, const Offset(0, -320));
-      },
-    );
-    controller.dispose();
-  });
-
-  testWidgets('live offline cache', (tester) async {
-    final controller = demoBridgeController()
-      ..phase = ConnectionPhase.offline
-      ..offlineCache = true;
-    await shot(tester, 'live_offline_cache', AppShell(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('live stale dark', (tester) async {
-    final controller = demoBridgeController()
-      ..phase = ConnectionPhase.stale
-      ..smokeXAgeOverride = const Duration(minutes: 4);
-    await shot(tester, 'live_stale_dark', AppShell(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('live offline without cache dark', (tester) async {
-    final controller = demoBridgeController()
-      ..phase = ConnectionPhase.offline
-      ..offlineCache = false;
-    await shot(
-      tester,
-      'live_offline_nocache_dark',
-      AppShell(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('live X4 warning dark', (tester) async {
-    final controller = demoBridgeController()
-      ..smokeXStatus = SmokeXStatus.pairedLive
-      ..smokeXAgeOverride = const Duration(minutes: 4);
-    await shot(
-      tester,
-      'live_x4_warning_dark',
-      AppShell(controller: controller),
-      interact: (tester) async {
-        await tester.tap(find.byKey(const Key('live.smokeXWarning')));
-        await tester.pumpAndSettle();
-      },
-    );
-    controller.dispose();
-  });
-
-  testWidgets('history dark', (tester) async {
-    final controller = demoBridgeController()
-      ..tab = AppTab.history
-      ..historyRange = HistoryRange.twentyFourHours
-      ..historyMissingFromBridge = true;
-    await shot(tester, 'history_dark', AppShell(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('history light', (tester) async {
-    final controller = demoBridgeController()..tab = AppTab.history;
-    await shot(
-      tester,
-      'history_light',
-      AppShell(controller: controller),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('history custom range dark', (tester) async {
-    final controller = demoBridgeController()..tab = AppTab.history;
-    await shot(
-      tester,
-      'history_custom_range_dark',
-      AppShell(controller: controller),
-      interact: (tester) async {
-        await tester.tap(find.byKey(const Key('history.range.menu')));
-        await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('history.range.custom')));
-        await tester.pumpAndSettle();
-      },
-    );
-    controller.dispose();
-  });
-
-  testWidgets('history all dark', (tester) async {
-    final controller = demoBridgeController()
-      ..tab = AppTab.history
-      ..historyRange = HistoryRange.custom
-      ..historyEstimated = true;
-    controller.historyCustomRange = controller.entireHistoryRange;
-    await shot(tester, 'history_all_dark', AppShell(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('history cooks dark', (tester) async {
-    final controller = demoBridgeController()
-      ..tab = AppTab.history
-      ..historyRange = HistoryRange.twoDays;
-    await shot(
-      tester,
-      'history_cooks_dark',
-      AppShell(controller: controller),
-      interact: (tester) async {
-        await tester.drag(find.byType(ListView).first, const Offset(0, -520));
-      },
-    );
-    controller.dispose();
-  });
-
-  testWidgets('cook dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'past_cook_dark',
-      PastCookScreen(controller: controller, cook: buildCookSessions().first),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('cook light', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'past_cook_light',
-      PastCookScreen(controller: controller, cook: buildCookSessions().first),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('history probe filter dark', (tester) async {
-    final controller = demoBridgeController()
-      ..tab = AppTab.history
-      ..historyRange = HistoryRange.oneHour
-      ..historyProbe = 1;
-    await shot(tester, 'history_filter_dark', AppShell(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('history no data dark', (tester) async {
-    final controller = demoBridgeController()
-      ..tab = AppTab.history
-      ..historyHasData = false
-      ..phoneRecords = 0;
-    await shot(tester, 'history_empty_dark', AppShell(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('history probe no data dark', (tester) async {
-    final controller = demoBridgeController()
-      ..tab = AppTab.history
-      ..historyOneProbe = true
-      ..historyProbe = 1
-      ..historyRange = HistoryRange.oneHour;
-    await shot(
-      tester,
-      'history_probe_empty_dark',
-      AppShell(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('settings dark', (tester) async {
-    final controller = demoBridgeController()..tab = AppTab.settings;
-    await shot(tester, 'settings_dark', AppShell(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('settings light', (tester) async {
-    final controller = demoBridgeController()..tab = AppTab.settings;
-    await shot(
-      tester,
-      'settings_light',
-      AppShell(controller: controller),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('bridge details dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'bridge_details_dark',
-      BridgeDetailsScreen(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('bridge details light', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'bridge_details_light',
-      BridgeDetailsScreen(controller: controller),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('history storage dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'history_storage_dark',
-      HistoryStorageScreen(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('history storage light', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'history_storage_light',
-      HistoryStorageScreen(controller: controller),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('appearance dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'appearance_dark',
-      AppearanceScreen(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('appearance light', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'appearance_light',
-      AppearanceScreen(controller: controller),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('setup dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'setup_dark',
-      SetupScreen(controller: controller, autoAdvance: false),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('setup light', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'setup_light',
-      SetupScreen(controller: controller, autoAdvance: false),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('passkey dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'passkey_dark',
-      SetupScreen(
-        controller: controller,
-        initialStep: SetupStep.passkey,
-        autoAdvance: false,
-      ),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('experimental lab dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'scenario_lab_dark',
-      ScenarioLabScreen(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('oled page dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'oled_page_dark',
-      DevicePreviewScreen(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('oled passkey dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'oled_passkey_dark',
-      DevicePreviewScreen(
-        controller: controller,
-        initialOverlay: DeviceOverlay.passkey,
-      ),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('re-pair dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(tester, 're_pair_dark', RePairScreen(controller: controller));
-    controller.dispose();
-  });
-
-  testWidgets('history on phone dark', (tester) async {
-    final controller = demoBridgeController()..hasSavedData = true;
-    await shot(
-      tester,
-      'device_log_dark',
-      SavedDataScreen(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('billows settings dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'billows_settings_dark',
-      BillowsSettingsScreen(controller: controller),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('factory reset confirmation dark', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'confirm_factory_reset_dark',
-      ConfirmationPreviewScreen(
-        controller: controller,
-        kind: DestructiveKind.factoryReset,
-      ),
-    );
-    controller.dispose();
-  });
-
-  testWidgets('power off confirmation light', (tester) async {
-    final controller = demoBridgeController();
-    await shot(
-      tester,
-      'confirm_power_off_light',
-      ConfirmationPreviewScreen(
-        controller: controller,
-        kind: DestructiveKind.powerOff,
-      ),
-      brightness: Brightness.light,
-    );
-    controller.dispose();
-  });
-
-  testWidgets('history standalone full screen dark', (tester) async {
-    final controller = demoBridgeController()
-      ..tab = AppTab.history
-      ..historyRange = HistoryRange.custom
-      ..historyEstimated = true;
-    controller.historyCustomRange = controller.entireHistoryRange;
-    await shot(
-      tester,
-      'history_fullscreen_dark',
-      HistoryFullScreenScreen(controller: controller),
-    );
-    controller.dispose();
-  });
 }
 
 /// One same-styled slice of a paragraph, with offsets into the plain text.
@@ -615,6 +218,27 @@ String _alignName(TextAlign align) => switch (align) {
   TextAlign.justify => 'justify',
   _ => 'left',
 };
+
+/// Repaint the widget tree at 3x and write it to [directory] as `<name>.png`.
+Future<void> _writeCapture(
+  WidgetTester tester,
+  GlobalKey key,
+  String name,
+  Directory directory,
+) async {
+  directory.createSync(recursive: true);
+  final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(key));
+  final bytes = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 3);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    return data;
+  });
+  if (bytes == null) return;
+  File('${directory.path}/$name.png').writeAsBytesSync(
+    bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+  );
+}
 
 Future<void> _writeTextDump(
   WidgetTester tester,
@@ -693,22 +317,15 @@ Future<void> _writeTextDump(
     visible.add(run);
   }
 
-  // The goldens are 1x; a 3x capture keeps the FigCraft reference crisp on a
-  // large canvas. Same widget tree, same layout. `runAsync` runs the engine
+  // The goldens are 1x; a 3x capture stays crisp when it is reviewed on a
+  // larger canvas. Same widget tree, same layout. `runAsync` runs the engine
   // work on the real clock instead of the test's fake one.
-  final shotDirectory = Directory('${Directory(directory).parent.path}/shots');
-  shotDirectory.createSync(recursive: true);
-  final bytes = await tester.runAsync(() async {
-    final image = await boundary.toImage(pixelRatio: 3);
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    image.dispose();
-    return data;
-  });
-  if (bytes != null) {
-    File('${shotDirectory.path}/$name.png').writeAsBytesSync(
-      bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
-    );
-  }
+  await _writeCapture(
+    tester,
+    key,
+    name,
+    Directory('${Directory(directory).parent.path}/shots'),
+  );
 
   final file = File('$directory/$name.json');
   file.parent.createSync(recursive: true);

@@ -78,6 +78,10 @@ flutter:
   # screen; the 1x/2x/3x PNGs are rendered from `bridge_board.svg`.
   assets:
     - assets/images/
+    # Experimental lab contact sheet, downscaled from app/screenshots by
+    # `make thumbs`. The lab is debug-only, but pubspec assets are bundled in
+    # every build, so these stay small (~350 KB for the whole approved set).
+    - assets/thumbs/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

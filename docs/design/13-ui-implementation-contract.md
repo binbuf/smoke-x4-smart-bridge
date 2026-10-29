@@ -306,6 +306,13 @@ Debug/review only. It must cover every state in this document, preserve search /
 reset / first-run flow, and never be reachable in a release build unless
 `ENABLE_EXPERIMENTAL_LAB=true` is explicitly set.
 
+The lab is a view of `app/lib/debug/scenario_catalog.dart`, which is also the
+source of `tool/ui_screenshots_test.dart`. A scenario declares its controller
+seed, screen, theme and any taps or drags needed to reach the state, so the
+gallery and the goldens cannot drift apart. The top of the lab is a contact
+sheet of the approved frames (`app/assets/thumbs`, rebuilt by `make thumbs`);
+tapping a frame opens the live screen with that exact state.
+
 ---
 
 ## 13.5 UI lifecycle flows
@@ -403,6 +410,11 @@ reset / first-run flow, and never be reachable in a release build unless
 - **Copy:** sentence case for buttons/labels; product names keep their casing;
   no raw exceptions or platform error strings; no “simulated” text on product
   screens.
+- **Spacing:** named gaps live in `app/lib/theme/tokens.dart` (`Space.stackGap`,
+  `Space.sectionGap`, …). Colour already had a home in `AppTheme`,
+  `StatusColors` and `ProbeColors`; spacing did not, so the same gap was
+  written as a bare literal wherever it was needed. Values are the shipping
+  values — changing one must be reviewed against the goldens it moves.
 - **Formatting:** `165.2°F` (no space), `2h 14m`, `1 min`, `12s ago`, locale
   dates/times, `readings` not `records` in user copy.
 
@@ -475,6 +487,32 @@ T54 implements these as gates that run in `flutter test`:
 - `app/test/screenshot_manifest_test.dart` — the reviewed 390 × 844 set is
   explicit; a changed or added PNG fails until
   `dart run tool/screenshot_manifest.dart` is run after review.
+
+Approving an intentional visual change is one command:
+
+```bash
+make capture          # fresh 3x captures, baseline untouched
+make design-diff      # baseline vs capture: blend + amplified delta per screen
+make design-approve   # update goldens → regenerate manifest and thumbnails
+```
+
+`make design-diff` writes `build/scenario-diff/index.html`. It is the review step
+between "a golden failed" and "the golden was updated": the diff shows what
+moved, and the manifest hash then records that the change was seen.
+
+### Editing values without an editor round-trip
+
+The Flutter Property Editor (Flutter ≥3.32) writes supported constructor
+arguments — string, double, int, bool, enum — back to the Dart source while the
+app runs. It needs the cursor inside the widget's constructor or a selection in
+the inspector, and it cannot edit `Color`, `TextStyle` or `EdgeInsets`, so
+spacing and colour still go through `app/lib/theme` tokens. Local setup:
+
+```json
+// .vscode/settings.json (git-ignored: it holds machine paths)
+"files.autoSave": "afterDelay",
+"dart.flutterHotReloadOnSave": "all"
+```
 
 ---
 

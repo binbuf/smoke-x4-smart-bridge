@@ -164,11 +164,6 @@
     "height": 844,
     "fnv1a": "4aa58c33"
   },
-  "scenario_lab_dark.png": {
-    "width": 390,
-    "height": 844,
-    "fnv1a": "f168c191"
-  },
   "settings_dark.png": {
     "width": 390,
     "height": 844,
@@ -182,11 +177,11 @@
   "setup_dark.png": {
     "width": 390,
     "height": 844,
-    "fnv1a": "4a4fdb99"
+    "fnv1a": "bdf8b5e9"
   },
   "setup_light.png": {
     "width": 390,
     "height": 844,
-    "fnv1a": "607c336b"
+    "fnv1a": "0ecd9350"
   }
 }

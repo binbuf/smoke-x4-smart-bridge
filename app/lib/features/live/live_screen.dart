@@ -4,6 +4,7 @@ import '../../app/bridge_controller.dart';
 import '../../app/strings.dart';
 import '../../app/view_state.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
 import '../../widgets/prototype_widgets.dart';
 import '../settings/bridge_details.dart';
 import '../settings/settings_details.dart';
@@ -44,7 +45,7 @@ class LiveScreen extends StatelessWidget {
                             view.phase == ConnectionPhase.failed) &&
                         view.showSavedReadings &&
                         !view.lookingForBridge) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.savedReadings'),
                         icon: Icons.history,
@@ -60,7 +61,7 @@ class LiveScreen extends StatelessWidget {
                     ],
                     if (view.phase == ConnectionPhase.failed &&
                         !view.showSavedReadings) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.unreachable'),
                         icon: Icons.link_off,
@@ -85,7 +86,7 @@ class LiveScreen extends StatelessWidget {
                       ),
                     ],
                     if (view.lookingForBridge) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.lookingForBridge'),
                         icon: Icons.bluetooth_searching,
@@ -109,7 +110,7 @@ class LiveScreen extends StatelessWidget {
                       ),
                     ],
                     if (view.phase == ConnectionPhase.blocked) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.blocked'),
                         icon: Icons.bluetooth_disabled,
@@ -136,7 +137,7 @@ class LiveScreen extends StatelessWidget {
                         !view.lookingForBridge &&
                         view.phase != ConnectionPhase.failed &&
                         view.phase != ConnectionPhase.blocked) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.noCache'),
                         icon: Icons.cloud_off_outlined,
@@ -152,7 +153,7 @@ class LiveScreen extends StatelessWidget {
                     if (view.isConnected &&
                         !view.smokeXReceiving &&
                         view.smokeXStatus == SmokeXStatus.unpaired) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.smokeXUnpaired'),
                         icon: Icons.sensors_off_outlined,
@@ -168,11 +169,11 @@ class LiveScreen extends StatelessWidget {
                     if (view.phase != ConnectionPhase.blocked &&
                         (view.syncState == SyncState.recent ||
                             view.syncState == SyncState.backfill)) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       _SyncCard(view: view),
                     ],
                     if (view.syncState == SyncState.error) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.syncFailed'),
                         icon: Icons.error_outline,
@@ -187,7 +188,7 @@ class LiveScreen extends StatelessWidget {
                       ),
                     ],
                     if (!view.storageOk) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.storageUnavailable'),
                         icon: Icons.sd_card_alert_outlined,
@@ -207,7 +208,7 @@ class LiveScreen extends StatelessWidget {
                     ],
                     if (view.probePresence == ProbePresence.none &&
                         !(view.isOffline && !view.showSavedReadings)) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: Space.stackGap),
                       InlineNotice(
                         key: const Key('live.noProbes'),
                         icon: Icons.graphic_eq,
@@ -225,12 +226,12 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 18),
+                    const SizedBox(height: Space.blockGap),
                     Text(
                       AppStrings.probes,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: Space.headingGap),
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -238,8 +239,8 @@ class LiveScreen extends StatelessWidget {
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
+                            crossAxisSpacing: Space.gridGutter,
+                            mainAxisSpacing: Space.gridGutter,
                             childAspectRatio: 0.78,
                           ),
                       itemBuilder: (context, index) {
@@ -254,11 +255,11 @@ class LiveScreen extends StatelessWidget {
                       },
                     ),
                     if (view.billows != null) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: Space.sectionGap),
                       _BillowsCard(view: view.billows!),
                     ],
                     if (view.billowsLostThisSession) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: Space.sectionGap),
                       InlineNotice(
                         icon: Icons.air,
                         color: StatusColors.aging(context),
@@ -275,7 +276,7 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 8),
+                    const SizedBox(height: Space.headingGap),
                   ],
                 ),
               ),
@@ -518,7 +519,7 @@ class _ConnectionCard extends StatelessWidget {
                             color: scheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: Space.inlineGap),
                         Expanded(
                           child: Text(
                             view.telemetryStatusLabel,
@@ -821,13 +822,13 @@ class _SyncCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: Space.stackGap),
           LinearProgressIndicator(
             value: view.syncProgressPercent / 100,
             borderRadius: BorderRadius.circular(8),
             minHeight: 7,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: Space.headingGap),
           Text(
             backfill
                 ? AppStrings.syncBackfillDetail
@@ -875,7 +876,7 @@ class _BillowsCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: Space.sectionGap),
           Row(
             children: [
               Expanded(
@@ -892,7 +893,7 @@ class _BillowsCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: Space.headingGap),
           Text(
             AppStrings.setOnSmokeX,
             style: Theme.of(context).textTheme.bodySmall
@@ -924,7 +925,7 @@ class _Metric extends StatelessWidget {
             letterSpacing: 0.2,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: Space.labelGap),
         Text(
           value,
           maxLines: 1,

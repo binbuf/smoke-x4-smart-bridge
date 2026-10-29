@@ -647,7 +647,7 @@ void main() {
     await tester.tap(find.text('Experimental lab'));
     await tester.pumpAndSettle();
     expect(find.text('Experimental lab'), findsOneWidget);
-    expect(find.text('No devices required'), findsOneWidget);
+    expect(find.text('Approved screenshots'), findsOneWidget);
   });
 
   testWidgets('experimental lab still opens', (tester) async {
@@ -661,7 +661,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Experimental lab'), findsOneWidget);
-    expect(find.text('No devices required'), findsOneWidget);
+    expect(find.text('Approved screenshots'), findsOneWidget);
   });
 
   testWidgets('production entrypoint boots into Live', (tester) async {
