@@ -86,7 +86,7 @@ class _SmokeBridgeAppState extends State<SmokeBridgeApp>
             controller.phase == ConnectionPhase.setup ||
             !controller.hasSavedBridge;
         return MaterialApp(
-          title: 'Smoke X4 Smart Bridge',
+          title: 'Smoke X Smart Bridge',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),

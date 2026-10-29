@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../app/bridge_controller.dart';
@@ -107,7 +109,7 @@ class _SetupScreenState extends State<SetupScreen> {
         content: Text(
           protocol
               ? 'The Bridge speaks a newer protocol than this version of the app. Install the latest app to connect. The Bridge hasn’t been changed and keeps recording.'
-              : 'Smoke X4 Smart Bridge needs a phone with Bluetooth LE. This phone cannot scan for the Bridge. The Bridge itself is unchanged and keeps recording.',
+              : 'Smoke X Smart Bridge needs a phone with Bluetooth LE. This phone cannot scan for the Bridge. The Bridge itself is unchanged and keeps recording.',
         ),
         actions: [
           TextButton(
@@ -151,40 +153,10 @@ class _SetupScreenState extends State<SetupScreen> {
   Widget _bodyFor(SetupStep step, SetupViewState view) {
     switch (step) {
       case SetupStep.noBridge:
-        return _SetupPage(
-          icon: Icons.bluetooth_searching,
-          title: 'Connect your Bridge',
-          message: 'Power it on. Press PRG to wake the screen. If the Bridge is off, hold PRG for 1.5 seconds to turn it on.',
-          primaryLabel: 'Find bridge',
-          onPrimary: _flow.findBridge,
-          secondaryLabel: view.hasSavedData
-              ? 'View history on this phone'
-              : null,
-          onSecondary: view.hasSavedData ? _flow.showSavedData : null,
-          child: view.hasSavedData || view.destructiveNotice != null
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (view.hasSavedData)
-                      InlineNotice(
-                        icon: Icons.folder_open_outlined,
-                        title: 'History on this phone',
-                        message: view.historyOrphaned
-                            ? '${view.phoneRecordsLabel} readings · ${view.savedDataRange} · from your previous Bridge.'
-                            : '${view.phoneRecordsLabel} readings · ${view.savedDataRange}',
-                      ),
-                    if (view.destructiveNotice != null) ...[
-                      if (view.hasSavedData) const SizedBox(height: 10),
-                      InlineNotice(
-                        key: const Key('setup.destructiveNotice'),
-                        icon: Icons.info_outline,
-                        title: 'Pairing not confirmed',
-                        message: view.destructiveNotice!,
-                      ),
-                    ],
-                  ],
-                )
-              : null,
+        return _ConnectBridgePage(
+          view: view,
+          onFindBridge: _flow.findBridge,
+          onShowSavedData: view.hasSavedData ? _flow.showSavedData : null,
         );
       case SetupStep.permissionPrimer:
         return _SetupPage(
@@ -503,6 +475,203 @@ class _SetupPage extends StatelessWidget {
   }
 }
 
+/// The Connect step. The art takes the height left between the instructions
+/// and the action, so "Find bridge" sits at the bottom edge of the screen;
+/// on a short screen the page scrolls instead. On a tablet or an unfolded
+/// foldable the column stays centred and the art is capped.
+class _ConnectBridgePage extends StatelessWidget {
+  const _ConnectBridgePage({
+    required this.view,
+    required this.onFindBridge,
+    this.onShowSavedData,
+  });
+
+  final SetupViewState view;
+  final VoidCallback onFindBridge;
+  final VoidCallback? onShowSavedData;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return LayoutBuilder(
+      builder: (context, page) {
+        // Give the art everything the fixed parts leave over; the page still
+        // scrolls if that is less than the art's smallest useful size.
+        // Short screens give the art a bigger share: the copy and the action
+        // need less room than the fixed 512 a phone uses, so the board stays
+        // legible instead of shrinking to a dot.
+        final reserve = page.maxHeight < 700 ? 440.0 : 512.0;
+        final artMax = (page.maxHeight - reserve).clamp(16.0, 340.0);
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: page.maxHeight),
+            // An unbounded width would let the intrinsic pass measure the art
+            // as if the screen were infinitely wide.
+            child: IntrinsicHeight(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            width: 62,
+                            height: 62,
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Icon(
+                              Icons.bluetooth_searching,
+                              size: 30,
+                              color: scheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Connect your Bridge', style: text.headlineMedium),
+                        const SizedBox(height: 10),
+                        Text(
+                          'The custom firmware flashed ESP32 LoRa device is your '
+                          'wireless bridge to Smoke X.\n\nPower it on by holding '
+                          'PRG and wait for it to indicate its discoverable via '
+                          'Bluetooth.',
+                          style: text.bodyLarge?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: artMax,
+                          child: Center(
+                            child: BridgeBoardIllustration(
+                              maxHeight: artMax,
+                              maxWidth: math.min(page.maxWidth, 560) - 48,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        if (view.hasSavedData) ...[
+                          const SizedBox(height: 16),
+                          InlineNotice(
+                            icon: Icons.folder_open_outlined,
+                            title: 'History on this phone',
+                            message: view.historyOrphaned
+                                ? '${view.phoneRecordsLabel} readings · '
+                                      '${view.savedDataRange} · from your '
+                                      'previous Bridge.'
+                                : '${view.phoneRecordsLabel} readings · '
+                                      '${view.savedDataRange}',
+                          ),
+                        ],
+                        if (view.destructiveNotice != null) ...[
+                          const SizedBox(height: 10),
+                          InlineNotice(
+                            key: const Key('setup.destructiveNotice'),
+                            icon: Icons.info_outline,
+                            title: 'Pairing not confirmed',
+                            message: view.destructiveNotice!,
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        FilledButton(
+                          onPressed: onFindBridge,
+                          child: const Text('Find bridge'),
+                        ),
+                        if (onShowSavedData != null) ...[
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            onPressed: onShowSavedData,
+                            child: const Text('View history on this phone'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The reference Bridge board, drawn without a plate so it sits on the page
+/// background in either theme.
+class BridgeBoardIllustration extends StatefulWidget {
+  const BridgeBoardIllustration({
+    super.key,
+    this.maxHeight = double.infinity,
+    this.maxWidth = double.infinity,
+  });
+
+  /// The artwork's own proportions (`bridge_board.svg`). Kept in step with
+  /// the PNGs; `Image.asset` would compute the same ratio from them.
+  static const aspectRatio = 500 / 1000;
+
+  /// Caps the art on tall surfaces (tablets, an unfolded foldable) so it does
+  /// not tower over the copy.
+  final double maxHeight;
+
+  /// Widest the art may render, so a wide column does not stretch it.
+  final double maxWidth;
+
+  @override
+  State<BridgeBoardIllustration> createState() =>
+      _BridgeBoardIllustrationState();
+}
+
+class _BridgeBoardIllustrationState extends State<BridgeBoardIllustration> {
+  static const _asset = AssetImage('assets/images/bridge_board.png');
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Decode ahead of the first paint so the board appears whole instead of
+    // popping in, and so a render is complete as soon as it has settled.
+    precacheImage(_asset, context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The page hands down a fixed box. Fit the artwork inside it at its own
+    // proportions: width first, then height if the width does not fit.
+    return Semantics(
+      image: true,
+      label: 'Bridge board with the PRG and RST buttons marked',
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final w = math.min(box.maxWidth, widget.maxWidth) / 1.02;
+          final h = math.min(box.maxHeight, widget.maxHeight) / 1.02;
+          var width = w;
+          var height = width / BridgeBoardIllustration.aspectRatio;
+          if (height > h) {
+            height = h;
+            width = height * BridgeBoardIllustration.aspectRatio;
+          }
+          return Image.asset(
+            'assets/images/bridge_board.png',
+            key: const Key('setup.bridgeBoard'),
+            width: width,
+            height: height,
+            fit: BoxFit.contain,
+            excludeFromSemantics: true,
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _BulletList extends StatelessWidget {
   const _BulletList({required this.items});
 
@@ -768,7 +937,7 @@ class _PasskeyPage extends StatelessWidget {
                       Text('PAIR WITH PHONE'),
                       SizedBox(height: 10),
                       Text(
-                        '418 302',
+                        'X X X X X X',
                         style: TextStyle(
                           fontSize: 30,
                           letterSpacing: 5,
@@ -781,12 +950,6 @@ class _PasskeyPage extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Example: the code appears on the Bridge screen. Only the Bridge screen shows the real code.',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant, height: 1.4),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -1112,7 +1275,7 @@ class _SavedDataStep extends StatelessWidget {
                 const EmptyState(
                   icon: Icons.folder_off_outlined,
                   title: 'No history on this phone',
-                  message: 'There is no history on this phone yet. The Bridge records whenever it’s on and paired with the Smoke X4.',
+                  message: 'There is no history on this phone yet. The Bridge records whenever it’s on and paired with the Smoke X.',
                 )
               else
                 SectionCard(

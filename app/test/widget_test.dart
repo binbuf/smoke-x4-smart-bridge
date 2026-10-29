@@ -78,7 +78,7 @@ void main() {
     expect(find.text('ACTIONS'), findsNothing);
     expect(find.text('Storage'), findsOneWidget);
     expect(find.byKey(const Key('settings.history.logs')), findsOneWidget);
-    expect(find.text('Smoke X4'), findsNothing);
+    expect(find.text('Smoke X'), findsNothing);
     expect(find.text('Updated 4s ago'), findsOneWidget);
     expect(find.textContaining('Connected for'), findsNothing);
     expect(find.text('Fair'), findsOneWidget);
@@ -92,9 +92,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ListTile, 'About this app'));
     await tester.pumpAndSettle();
-    expect(find.text('Smoke X4 Smart Bridge'), findsOneWidget);
+    expect(find.text('Smoke X Smart Bridge'), findsOneWidget);
 
-    await tester.longPress(find.text('Smoke X4 Smart Bridge'));
+    await tester.longPress(find.text('Smoke X Smart Bridge'));
     await tester.pumpAndSettle();
     expect(find.text('Experimental lab'), findsOneWidget);
   });
@@ -247,7 +247,7 @@ void main() {
     expect(find.text('Summary'), findsOneWidget);
   });
 
-  testWidgets('Live separates the BLE link from Smoke X4 telemetry', (
+  testWidgets('Live separates the BLE link from Smoke X telemetry', (
     tester,
   ) async {
     final controller = demoBridgeController();
@@ -257,7 +257,7 @@ void main() {
     expect(find.byKey(const Key('status.connection')), findsOneWidget);
     expect(find.text('App'), findsOneWidget);
     expect(find.text('Bridge'), findsWidgets);
-    expect(find.text('Smoke X4'), findsWidgets);
+    expect(find.text('Smoke X'), findsWidgets);
     expect(find.text('This phone'), findsNothing);
     expect(find.text('Connected'), findsNothing);
     expect(find.text('Receiving'), findsNothing);
@@ -324,7 +324,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('live.smokeXWarning')));
     await tester.pumpAndSettle();
-    expect(find.text('Smoke X4 signal lost'), findsOneWidget);
+    expect(find.text('Smoke X signal lost'), findsOneWidget);
   });
 
   testWidgets('Billows only appears when detected and loss is explained', (
@@ -580,7 +580,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('bridge.connectionLog')), findsOneWidget);
-    expect(find.text('Re-pair Smoke X4'), findsOneWidget);
+    expect(find.text('Re-pair Smoke X'), findsOneWidget);
     expect(find.byKey(const Key('bridge.name')), findsOneWidget);
     expect(find.byKey(const Key('bridge.timeout')), findsOneWidget);
     expect(find.byKey(const Key('bridge.billows')), findsOneWidget);
@@ -626,13 +626,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Billows status'), findsOneWidget);
+    expect(find.text('Billows status'), findsNothing);
+    expect(find.text('Status'), findsOneWidget);
     expect(find.text('Set temp'), findsOneWidget);
-    expect(find.text('Smoke X4 (channel 4)'), findsOneWidget);
+    expect(find.textContaining('(channel 4)'), findsOneWidget);
     expect(find.text('Monitor only'), findsNothing);
     expect(find.text('Control'), findsNothing);
     expect(find.text('Set target'), findsNothing);
-    expect(find.textContaining('Bridge details → Connection log'), findsOneWidget);
+    expect(find.textContaining('Bridge details → Connection log'), findsNothing);
   });
 
   testWidgets('experimental lab opens from the app-bar menu', (tester) async {

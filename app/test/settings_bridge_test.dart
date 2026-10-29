@@ -143,7 +143,7 @@ void main() {
 
     expect(find.text('Connection log'), findsOneWidget);
     expect(
-      find.text('Bridge, Smoke X4, and Billows events'),
+      find.text('Bridge, Smoke X, and Billows events'),
       findsOneWidget,
     );
     await tester.ensureVisible(find.text('Connection log'));
@@ -153,7 +153,7 @@ void main() {
     await tester.ensureVisible(find.text('History synced'));
     await tester.pumpAndSettle();
     expect(find.text('Bridge connected'), findsOneWidget);
-    expect(find.text('Smoke X4 paired'), findsOneWidget);
+    expect(find.text('Smoke X paired'), findsOneWidget);
     expect(find.text('Billows detected'), findsOneWidget);
     expect(find.text('History synced'), findsOneWidget);
   });

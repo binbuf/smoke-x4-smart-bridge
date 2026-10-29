@@ -57,7 +57,7 @@ void main() {
         find.text(
           'The Bridge erases its pairings, settings, and saved readings, then restarts.',
         ),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.text('All paired phones, including this one'), findsOneWidget);
       expect(
@@ -82,7 +82,7 @@ void main() {
       expect(find.text('Power off the Bridge?'), findsOneWidget);
       expect(
         find.text('The Bridge stops recording until you turn it back on.'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.text('Recording stops while the Bridge is off'),

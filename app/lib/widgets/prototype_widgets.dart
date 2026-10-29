@@ -852,12 +852,14 @@ Future<bool?> showLossSheet(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 10),
-                Text(
-                  intro,
-                  style: Theme.of(context).textTheme.bodyMedium
-                      ?.copyWith(color: scheme.onSurfaceVariant, height: 1.45),
-                ),
+                if (intro.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    intro,
+                    style: Theme.of(context).textTheme.bodyMedium
+                        ?.copyWith(color: scheme.onSurfaceVariant, height: 1.45),
+                  ),
+                ],
                 if (bullets.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Container(

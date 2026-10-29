@@ -137,7 +137,7 @@ extension HistoryGapReasonLabels on HistoryGapReason {
   String get explanation {
     switch (this) {
       case HistoryGapReason.noSignal:
-        return 'The Bridge did not receive a reading from the Smoke X4 during this period.';
+        return 'The Bridge did not receive a reading from the Smoke X during this period.';
       case HistoryGapReason.bridgeOff:
         return 'The Bridge was off, so it recorded nothing during this period.';
       case HistoryGapReason.bridgeRotated:

@@ -68,7 +68,7 @@ void main() {
       expect(find.text('No readings yet'), findsOneWidget);
       expect(
         find.text(
-          'The Bridge records whenever it’s on and paired with the Smoke X4.',
+          'The Bridge records whenever it’s on and paired with the Smoke X.',
         ),
         findsOneWidget,
       );
@@ -245,7 +245,7 @@ void main() {
 
       expect(find.text('No probes connected'), findsOneWidget);
       expect(
-        find.text('Plug a probe into the Smoke X4 to see a reading.'),
+        find.text('Plug a probe into the Smoke X to see a reading.'),
         findsOneWidget,
       );
       expect(find.text('Bridge details'), findsOneWidget);
@@ -268,22 +268,22 @@ void main() {
       await pumpLive(tester, controller);
 
       expect(find.byKey(const Key('live.smokeXWarning')), findsOneWidget);
-      expect(find.text('No data from Smoke X4'), findsNothing);
+      expect(find.text('No data from Smoke X'), findsNothing);
       expect(find.text('Can’t reach the Bridge'), findsNothing);
 
       await tester.tap(find.byKey(const Key('live.smokeXWarning')));
       await tester.pumpAndSettle();
 
-      expect(find.text('No data from Smoke X4'), findsOneWidget);
+      expect(find.text('No data from Smoke X'), findsOneWidget);
       expect(
         find.text(
-          'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
+          'The Bridge is connected but isn’t receiving data from the Smoke X. Put the Smoke X in SYNC mode and keep it in range of the Bridge.',
         ),
         findsOneWidget,
       );
       expect(find.text('Pairing steps'), findsOneWidget);
       expect(
-        find.text('Plug a probe into the Smoke X4 to see a reading.'),
+        find.text('Plug a probe into the Smoke X to see a reading.'),
         findsNothing,
       );
     });
@@ -299,10 +299,10 @@ void main() {
       await pumpLive(tester, controller);
 
       expect(find.byKey(const Key('live.smokeXUnpaired')), findsOneWidget);
-      expect(find.text('No data from Smoke X4'), findsOneWidget);
+      expect(find.text('No data from Smoke X'), findsOneWidget);
       expect(
         find.text(
-          'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
+          'The Bridge is connected but isn’t receiving data from the Smoke X. Put the Smoke X in SYNC mode and keep it in range of the Bridge.',
         ),
         findsOneWidget,
       );

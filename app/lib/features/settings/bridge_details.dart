@@ -218,7 +218,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                               const SizedBox(width: 9),
                               Expanded(
                                 child: Text(
-                                  'Smoke X4 pairing',
+                                  'Smoke X pairing',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium,
@@ -252,7 +252,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                                   )
                                 : null,
                             icon: const Icon(Icons.sync_alt, size: 18),
-                            label: const Text('Re-pair Smoke X4'),
+                            label: const Text('Re-pair Smoke X'),
                           ),
                           if (!connected) ...[
                             const SizedBox(height: 8),
@@ -435,7 +435,7 @@ class BridgeDetailsScreen extends StatelessWidget {
                           ),
                           title: const Text('Connection log'),
                           subtitle: const Text(
-                            'Bridge, Smoke X4, and Billows events',
+                            'Bridge, Smoke X, and Billows events',
                           ),
                           children: [ConnectionLogList(events: view.connectionLog)],
                         ),

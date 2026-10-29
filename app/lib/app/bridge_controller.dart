@@ -1291,7 +1291,7 @@ class BridgeController extends ChangeNotifier {
       if (age <= const Duration(minutes: 10)) {
         return 'No readings for ${_proseDuration(age)}';
       }
-      return 'Smoke X4 signal lost · ${_proseDuration(age)} ago';
+      return 'Smoke X signal lost · ${_proseDuration(age)} ago';
     }
     if (offlineCache) {
       final age = bridgeLastContactAge;
@@ -1533,7 +1533,7 @@ class BridgeController extends ChangeNotifier {
         kind: ConnectionEventKind.bridgeConnected,
       ),
       ConnectionEvent(
-        title: 'Smoke X4 paired',
+        title: 'Smoke X paired',
         detail: 'The Bridge confirmed the pairing',
         time: now.subtract(bridgeConnectedFor).add(const Duration(minutes: 4)),
         kind: ConnectionEventKind.smokeXPaired,
@@ -1544,7 +1544,7 @@ class BridgeController extends ChangeNotifier {
         ConnectionEvent(
           title: 'Billows detected',
           detail: billowsDetected
-              ? 'The Smoke X4 reports Billows detected'
+              ? 'The Smoke X reports Billows detected'
               : 'Detected earlier this session · not detected now',
           time:
               billowsLastDetectedAt ??
@@ -1557,7 +1557,7 @@ class BridgeController extends ChangeNotifier {
       events.add(
         ConnectionEvent(
           title: 'Billows lost',
-          detail: 'Was paired through the Smoke X4 · check fan power',
+          detail: 'Was paired through the Smoke X · check fan power',
           time: billowsLostAt ?? now.subtract(const Duration(minutes: 12)),
           kind: ConnectionEventKind.billowsLost,
         ),
@@ -1656,7 +1656,7 @@ class BridgeController extends ChangeNotifier {
     switch (phase) {
       case ConnectionPhase.live:
         if (!smokeXLiveHint) {
-          return 'Waiting for Smoke X4 readings';
+          return 'Waiting for Smoke X readings';
         }
         return 'Receiving readings · updated 4s ago · battery $batteryPercent%';
       case ConnectionPhase.stale:
@@ -1712,13 +1712,13 @@ class BridgeController extends ChangeNotifier {
 
   String get smokeXSubtitle {
     final age = smokeXLastPacketAge;
-    if (age == null) return 'No readings yet. Put the Smoke X4 in SYNC mode.';
+    if (age == null) return 'No readings yet. Put the Smoke X in SYNC mode.';
     if (!isConnected) {
       return 'Updated ${_shortDuration(age)} ago · last known';
     }
     if (smokeXStatus == SmokeXStatus.pairedLost ||
         age > const Duration(minutes: 10)) {
-      return 'Updated ${_shortDuration(age)} ago. Put the Smoke X4 in SYNC mode.';
+      return 'Updated ${_shortDuration(age)} ago. Put the Smoke X in SYNC mode.';
     }
     return 'Updated ${_shortDuration(age)} ago';
   }
