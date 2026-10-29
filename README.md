@@ -12,6 +12,9 @@ TODO
 make host-test      # firmware host suite
 make protocol-check # generated protocol drift
 make app-check      # flutter analyze + flutter test
+make capture        # fresh 3x captures of every approved screen
+make design-diff    # baselines vs those captures (blend + delta)
+make design-approve # accept a reviewed visual change: goldens, manifest, thumbs
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same checks plus the protocol

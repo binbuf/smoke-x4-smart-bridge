@@ -31,7 +31,6 @@ visual change must be regenerated and reviewed with the code.
 | `billows_settings_dark.png` | Billows status, set temp and connection log |
 | `oled_page_dark.png`, `oled_passkey_dark.png` | Bridge screen pages and states |
 | `confirm_factory_reset_dark.png` | Destructive confirmation sheet |
-| `scenario_lab_dark.png` | Experimental lab |
 
 Regenerate with:
 
@@ -39,3 +38,12 @@ Regenerate with:
 cd app
 flutter test --update-goldens tool/ui_screenshots_test.dart
 ```
+
+...though `make design-approve` from the repository root is the supported path:
+it also rewrites `manifest.json` and refreshes `app/assets/thumbs` (the
+Experimental lab contact sheet), so neither can lag behind an accepted visual
+change.
+
+Every image in this directory is one entry in
+`app/lib/debug/scenario_catalog.dart`; the golden test and the lab both read that
+list, so a screen cannot be added to one without the other.

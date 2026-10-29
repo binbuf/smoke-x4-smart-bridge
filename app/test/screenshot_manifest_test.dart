@@ -53,14 +53,29 @@ void main() {
     }
   });
 
-  test('a changed screenshot is not silently accepted', () {
-    final entry = manifest['live_dark.png'] as Map<String, dynamic>;
+  test('no screenshot changes without the manifest being regenerated', () {
+    // Every entry, not just one: the whole point of the gate is that a single
+    // accepted-looking pixel change cannot hide behind an untouched test.
+    for (final entry in manifest.entries) {
+      final bytes = File('screenshots/${entry.key}').readAsBytesSync();
+      expect(
+        _hash(bytes),
+        (entry.value as Map<String, dynamic>)['fnv1a'],
+        reason:
+            '${entry.key} changed. Review it with `make design-diff`, then '
+            'record the approval with `make design-approve`.',
+      );
+    }
+  });
+
+  test('a one-byte change is visible to the gate', () {
     final bytes = File('screenshots/live_dark.png').readAsBytesSync();
-    expect(_hash(bytes), entry['fnv1a']);
+    final recorded = (manifest['live_dark.png'] as Map<String, dynamic>)['fnv1a'];
+    expect(_hash(bytes), recorded);
     final altered = List<int>.from(bytes)..[bytes.length - 1] ^= 0x01;
     expect(
       _hash(altered),
-      isNot(entry['fnv1a']),
+      isNot(recorded),
       reason: 'a one-byte screenshot change must be visible to the gate',
     );
   });
