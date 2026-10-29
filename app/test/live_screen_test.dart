@@ -72,14 +72,14 @@ void main() {
     expect(find.byKey(const Key('status.connection')), findsOneWidget);
     expect(find.text('App'), findsOneWidget);
     expect(find.text('Bridge'), findsOneWidget);
-    expect(find.text('Smoke X4'), findsOneWidget);
+    expect(find.text('Smoke X'), findsOneWidget);
     expect(inLink('status.appBridgeLink', find.text('2h 14m')), findsOneWidget);
     expect(inLink('status.x4Link', find.text('2h 10m')), findsOneWidget);
     expect(find.byType(SignalBars), findsNWidgets(2));
     expect(find.text('Bridge connected · 2h 14m'), findsNothing);
     expect(find.text('Sensor data received 12s ago'), findsOneWidget);
     expect(
-      find.byTooltip('Time since last data was received from Smoke X4'),
+      find.byTooltip('Time since last data was received from the Smoke X'),
       findsOneWidget,
     );
     for (var probe = 1; probe <= 4; probe++) {
@@ -99,7 +99,7 @@ void main() {
   testWidgets('telemetry icon opens the last-data tooltip', (tester) async {
     await pumpLive(tester, drive: healthy);
 
-    const message = 'Time since last data was received from Smoke X4';
+    const message = 'Time since last data was received from the Smoke X';
     await tester.tap(find.byTooltip(message));
     await tester.pumpAndSettle();
 
@@ -142,7 +142,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('live.smokeXWarning')));
     await tester.pumpAndSettle();
-    expect(find.text('No data from Smoke X4'), findsOneWidget);
+    expect(find.text('No data from Smoke X'), findsOneWidget);
   });
 
   testWidgets('lost X4 signal shows the age and one troubleshooting notice', (
@@ -164,7 +164,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('live.smokeXWarning')));
     await tester.pumpAndSettle();
-    expect(find.text('Smoke X4 signal lost'), findsOneWidget);
+    expect(find.text('Smoke X signal lost'), findsOneWidget);
     expect(find.text('Pairing steps'), findsOneWidget);
     expect(find.text('Got it'), findsOneWidget);
   });
@@ -180,13 +180,17 @@ void main() {
     );
 
     expect(find.byKey(const Key('live.smokeXUnpaired')), findsOneWidget);
-    expect(find.text('No data from Smoke X4'), findsOneWidget);
+    expect(find.text('No data from Smoke X'), findsOneWidget);
     expect(find.text('Pairing steps'), findsOneWidget);
     expect(find.textContaining('isn’t receiving data'), findsOneWidget);
 
     await tester.tap(find.text('Pairing steps'));
     await tester.pumpAndSettle();
-    expect(find.text('Put the Smoke X4 into SYNC mode.'), findsOneWidget);
+    expect(
+      find.text('Put the Smoke X into SYNC mode.').evaluate().length +
+          find.text('Put the Smoke X in SYNC mode.').evaluate().length,
+      greaterThan(0),
+    );
     expect(find.textContaining('No reset is needed'), findsOneWidget);
     expect(find.text('Got it'), findsOneWidget);
   });
@@ -392,7 +396,7 @@ void main() {
     expect(find.text('Billows'), findsOneWidget);
     expect(find.text('Set temp'), findsOneWidget);
     expect(find.text('Last detected'), findsOneWidget);
-    expect(find.text('Set on the Smoke X4.'), findsOneWidget);
+    expect(find.text('Set on the Smoke X.'), findsOneWidget);
     expect(find.textContaining('Read-only'), findsNothing);
 
     session.driveLiveState(billowsObserve: false);

@@ -6,7 +6,8 @@
 ///
 /// Rules (12 and 13 §13.6):
 /// - Sentence case for buttons, labels and messages; product names keep their
-///   casing (`Smoke X4`, `Bridge`, `Billows`).
+///   casing (`Smoke X`, `Bridge`, `Billows`). `Smoke X` is the family name for
+///   the Smoke X4 and Smoke X2; only a feature unique to one model names it.
 /// - No technical transport vocabulary in product copy. The only allow-listed
 ///   exceptions are the labels under `Technical details`.
 /// - Counts, dates, times and temperatures come from `formatters.dart`; this
@@ -31,20 +32,20 @@ class AppStrings {
   static const billowsDetected = 'Billows detected';
   static const billowsNotDetected = 'Billows not detected';
   static const lastDetected = 'Last detected';
-  static const setOnSmokeX4 = 'Set on the Smoke X4.';
+  static const setOnSmokeX = 'Set on the Smoke X.';
   static const canNotReachBridge = 'Can’t reach the Bridge';
   static const recordingContinues =
       'The app tried six times. Recording continues on the Bridge. Move closer and try again, or forget this phone and set it up again.';
-  static const noDataFromSmokeX4 = 'No data from Smoke X4';
-  static const smokeX4SignalLost = 'Smoke X4 signal lost';
+  static const noDataFromSmokeX = 'No data from Smoke X';
+  static const smokeXSignalLost = 'Smoke X signal lost';
   static const noDataX4Detail =
-      'The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.';
+      'The Bridge is connected but isn’t receiving data from the Smoke X. Put the Smoke X in SYNC mode and keep it in range of the Bridge.';
   static const smokeX4LostDetail =
-      'The Bridge is connected but hasn’t received data from the Smoke X4 for a while. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.';
+      'The Bridge is connected but hasn’t received data from the Smoke X for a while. Put the Smoke X in SYNC mode and keep it in range of the Bridge.';
   static const pairingSteps = 'Pairing steps';
   static const noProbesConnected = 'No probes connected';
   static const plugInProbe =
-      'Plug a probe into the Smoke X4 to see a reading.';
+      'Plug a probe into the Smoke X to see a reading.';
   static const historySyncFailed = 'History sync failed';
   static const noHistoryYet = 'No history yet';
   static const notRecording = 'Not recording';
@@ -73,7 +74,7 @@ class AppStrings {
   static const noReadingsYet = 'No readings yet';
   static const noReadingsInRange = 'No readings in this range';
   static const bridgeRecordsAlways =
-      'The Bridge records whenever it’s on and paired with the Smoke X4.';
+      'The Bridge records whenever it’s on and paired with the Smoke X.';
   static const viewLive = 'View Live';
   static const showAllProbes = 'Show all probes';
   static const showAllSavedHistory = 'Show all saved history';
@@ -91,7 +92,7 @@ class AppStrings {
   static const connectionLog = 'Connection log';
   static const technicalDetails = 'Technical details';
   static const bridgeDisconnected = 'Bridge disconnected';
-  static const rePairSmokeX4 = 'Re-pair Smoke X4';
+  static const rePairSmokeX = 'Re-pair Smoke X';
   static const powerOff = 'Power off';
   static const factoryReset = 'Factory reset';
   static const forgetPhone = 'Forget phone';

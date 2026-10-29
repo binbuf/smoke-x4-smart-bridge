@@ -168,12 +168,6 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Tap the PRG button to wake a sleeping display without changing the page. Hold it to show the countdown; release before 1.5 s cancels.',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
                     ],
                   ),
                 ),
@@ -287,7 +281,7 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
               pit.connected ? '${pit.valueText}${live.unitSuffix}' : '—',
             ),
             const Spacer(),
-            const Text('Set on the Smoke X4'),
+            const Text('Set on the Smoke X'),
           ],
         );
       case 4:
@@ -316,7 +310,7 @@ class _DevicePreviewScreenState extends State<DevicePreviewScreen> {
             Text('  PAIR WITH PHONE'),
             SizedBox(height: 15),
             Text(
-              '      418 302',
+              '      X X X X X X',
               style: TextStyle(
                 fontSize: 27,
                 letterSpacing: 3,

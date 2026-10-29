@@ -18,7 +18,7 @@ endif
 PROTO_TEST_BIN := build/protocol_test$(EXE)
 HOST_TEST_BUILD ?= firmware/test/build
 
-.PHONY: protocol protocol-check protocol-test host-test bench-test app-analyze app-test app-check
+.PHONY: protocol protocol-check protocol-test host-test bench-test app-analyze app-test app-check design-export design-capture
 
 protocol:
 	$(PYTHON) tools/protogen/protogen.py
@@ -50,3 +50,17 @@ app-test:
 	cd $(APP_DIR) && $(FLUTTER) test
 
 app-check: app-analyze app-test
+
+# FigCraft hand-off. The screenshots stay the UI contract; the export turns the
+# real render tree into editable FigCraft text over a cleaned reference image.
+# Generated files live under design/figcraft/render (git-ignored).
+FIGCRAFT_DUMP_DIR := $(CURDIR)/design/figcraft/render/dump
+PYTHON3 ?= python3
+
+design-export:
+	cd $(APP_DIR) && FIGCRAFT_DUMP=$(FIGCRAFT_DUMP_DIR) $(FLUTTER) test tool/ui_screenshots_test.dart
+	$(PYTHON3) tools/figcraft_export.py
+
+# Save in FigCraft first, then this lists the copy that changed.
+design-capture:
+	$(PYTHON3) tools/figcraft_capture.py

@@ -81,7 +81,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: card, matching: find.text('Set on the Smoke X4.')),
+      find.descendant(of: card, matching: find.text('Set on the Smoke X.')),
       findsOneWidget,
     );
     expect(
@@ -123,7 +123,7 @@ void main() {
       findsNothing,
     );
     expect(
-      find.descendant(of: card, matching: find.text('Set on the Smoke X4.')),
+      find.descendant(of: card, matching: find.text('Set on the Smoke X.')),
       findsOneWidget,
     );
   });
@@ -157,7 +157,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Last observed state'), findsOneWidget);
+    expect(find.text('Last observed state'), findsNothing);
+    expect(find.text('Last observed status'), findsOneWidget);
     expect(find.text('Set temp (last known)'), findsOneWidget);
     expect(find.text('250.0°F'), findsOneWidget);
     expect(find.text('2 min ago'), findsWidgets);

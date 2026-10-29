@@ -80,12 +80,6 @@ class _HistoryStorageScreenState extends State<HistoryStorageScreen> {
                             label: 'Storage used',
                             value: view.savedDataSize,
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Stays on this phone even if the Bridge is reset.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
@@ -183,12 +177,6 @@ class _HistoryStorageScreenState extends State<HistoryStorageScreen> {
                           ],
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    InlineNotice(
-                      icon: Icons.info_outline,
-                      title: 'Two separate copies',
-                      message: 'Deleting history from your phone doesn’t clear the Bridge. Clearing the Bridge doesn’t delete history from your phone.',
                     ),
                   ],
                 ),

@@ -61,7 +61,7 @@ void main() {
       findsWidgets,
     );
     expect(
-      find.bySemanticsLabel(RegExp('Bridge to Smoke X4: 2h 10m')),
+      find.bySemanticsLabel(RegExp('Bridge to Smoke X: 2h 10m')),
       findsWidgets,
     );
     handle.dispose();
@@ -132,11 +132,11 @@ void main() {
     await tester.tap(find.byKey(const Key('live.smokeXWarning')));
     await tester.pumpAndSettle();
 
-    expect(find.text('No data from Smoke X4'), findsOneWidget);
+    expect(find.text('No data from Smoke X'), findsOneWidget);
     expect(
       find.text(
-        'The Bridge is connected but isn’t receiving data from the Smoke X4. '
-        'Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.',
+        'The Bridge is connected but isn’t receiving data from the Smoke X. '
+        'Put the Smoke X in SYNC mode and keep it in range of the Bridge.',
       ),
       findsOneWidget,
     );

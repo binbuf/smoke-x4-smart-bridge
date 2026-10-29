@@ -174,7 +174,7 @@ void main() {
       );
       expect(find.bySemanticsLabel(RegExp('App to Bridge:')), findsOneWidget);
       expect(
-        find.bySemanticsLabel(RegExp('Bridge to Smoke X4:')),
+        find.bySemanticsLabel(RegExp('Bridge to Smoke X:')),
         findsOneWidget,
       );
       expect(find.bySemanticsLabel(RegExp('Probe 1,')), findsWidgets);
@@ -290,7 +290,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('live.smokeXWarning')));
       await tester.pumpAndSettle();
-      expect(find.text('No data from Smoke X4'), findsOneWidget);
+      expect(find.text('No data from Smoke X'), findsOneWidget);
       expect(find.byIcon(Icons.warning_amber_rounded), findsWidgets);
     });
   });

@@ -157,7 +157,7 @@ class LiveScreen extends StatelessWidget {
                         key: const Key('live.smokeXUnpaired'),
                         icon: Icons.sensors_off_outlined,
                         color: StatusColors.aging(context),
-                        title: AppStrings.noDataFromSmokeX4,
+                        title: AppStrings.noDataFromSmokeX,
                         message: AppStrings.noDataX4Detail,
                         action: TextButton(
                           onPressed: () => _showSmokeXHelp(context),
@@ -263,7 +263,7 @@ class LiveScreen extends StatelessWidget {
                         icon: Icons.air,
                         color: StatusColors.aging(context),
                         title: AppStrings.billowsNotDetected,
-                        message: 'Billows was detected earlier this session. Make sure the fan is powered on and in range of the Smoke X4.',
+                        message: 'Billows was detected earlier this session. Make sure it is powered on and in range of the Smoke X.',
                         action: TextButton(
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -320,13 +320,13 @@ class LiveScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Pair the Smoke X4',
+                'Pair the Smoke X',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 16),
               const _PairingStep(
                 number: '1',
-                text: 'Put the Smoke X4 into SYNC mode.',
+                text: 'Put the Smoke X in SYNC mode.',
               ),
               const _PairingStep(
                 number: '2',
@@ -433,7 +433,7 @@ class _ConnectionCard extends StatelessWidget {
           label:
               'Connection details. App ${view.appBridgeConnectedForLabel}. '
               'Bridge ${view.bridgeLinkStatusLabel}. '
-              'Smoke X4 ${view.smokeXLinkStatusLabel}, '
+              'Smoke X ${view.smokeXLinkStatusLabel}, '
               '${view.smokeXConnectedForLabel}.',
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
@@ -478,12 +478,12 @@ class _ConnectionCard extends StatelessWidget {
                       color: _x4LinkColor(context),
                       durationLabel: view.smokeXConnectedForLabel,
                       durationSemantics:
-                          'Bridge to Smoke X4: ${view.smokeXConnectedForLabel}',
+                          'Bridge to Smoke X: ${view.smokeXConnectedForLabel}',
                     ),
                     Expanded(
                       child: _ChainNode(
                         icon: Icons.sensors_rounded,
-                        label: 'Smoke X4',
+                        label: 'Smoke X',
                         status: view.smokeXLinkStatusLabel,
                         color: smokeColor,
                         warning:
@@ -510,7 +510,7 @@ class _ConnectionCard extends StatelessWidget {
                       children: [
                         Tooltip(
                           message:
-                              'Time since last data was received from Smoke X4',
+                              'Time since last data was received from the Smoke X',
                           triggerMode: TooltipTriggerMode.tap,
                           child: Icon(
                             Icons.sensors,
@@ -550,7 +550,7 @@ class _ConnectionCard extends StatelessWidget {
           color: StatusColors.aging(dialogContext),
         ),
         title: Text(
-          lost ? AppStrings.smokeX4SignalLost : AppStrings.noDataFromSmokeX4,
+          lost ? AppStrings.smokeXSignalLost : AppStrings.noDataFromSmokeX,
         ),
         content: Text(
           lost ? AppStrings.smokeX4LostDetail : AppStrings.noDataX4Detail,
@@ -894,7 +894,7 @@ class _BillowsCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            AppStrings.setOnSmokeX4,
+            AppStrings.setOnSmokeX,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),

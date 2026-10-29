@@ -76,6 +76,8 @@ Future<void> _pumpSetup(WidgetTester tester, _Harness harness) async {
 }
 
 Future<void> _findBridge(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('Find bridge'));
+  await tester.pumpAndSettle();
   await tester.tap(find.text('Find bridge'));
   await tester.pumpAndSettle();
 }
@@ -97,12 +99,26 @@ void main() {
     expect(find.text('Connect your Bridge'), findsOneWidget);
     expect(
       find.text(
-        'Power it on. Press PRG to wake the screen. If the Bridge is off, hold PRG for 1.5 seconds to turn it on.',
+        'The custom firmware flashed ESP32 LoRa device is your wireless bridge to Smoke X.\n\nPower it on by holding PRG and wait for it to indicate its discoverable via Bluetooth.',
       ),
       findsOneWidget,
     );
     expect(find.text('Find bridge'), findsOneWidget);
     expect(find.text('History on this phone'), findsOneWidget);
+
+    // The reference board sits under the description and above the actions.
+    final board = find.byKey(const Key('setup.bridgeBoard'));
+    expect(board, findsOneWidget);
+    final message = find.textContaining('custom firmware flashed');
+    final findButton = find.text('Find bridge');
+    expect(
+      tester.getTopLeft(board).dy,
+      greaterThan(tester.getBottomLeft(message).dy),
+    );
+    expect(
+      tester.getBottomLeft(board).dy,
+      lessThan(tester.getTopLeft(findButton).dy),
+    );
     expect(find.textContaining('8,241 readings'), findsOneWidget);
     expect(find.textContaining('Oct 19 – Oct 26'), findsOneWidget);
     expect(find.text('View history on this phone'), findsOneWidget);
@@ -224,6 +240,8 @@ void main() {
       expect(find.text('Looking for your Bridge…'), findsNothing);
       expect(harness.client.diagnostics.entries, isEmpty);
 
+      await tester.ensureVisible(find.text('View history on this phone'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('View history on this phone'));
       await tester.pumpAndSettle();
       expect(find.text('History on this phone'), findsWidgets);
@@ -240,6 +258,8 @@ void main() {
     final scanning = _Harness(scanInterval: const Duration(seconds: 5));
     addTearDown(scanning.dispose);
     await _pumpSetup(tester, scanning);
+    await tester.ensureVisible(find.text('Find bridge'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Find bridge'));
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -385,12 +405,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Look at the Bridge screen'), findsOneWidget);
-      expect(find.text('418 302'), findsOneWidget);
+      expect(find.text('X X X X X X'), findsOneWidget);
       expect(
-        find.text(
-          'Example: the code appears on the Bridge screen. Only the Bridge screen shows the real code.',
-        ),
-        findsOneWidget,
+        find.textContaining('Example: the code'),
+        findsNothing,
       );
       expect(find.text('Pair'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
@@ -573,6 +591,8 @@ void main() {
 
       expect(find.text('Connect your Bridge'), findsOneWidget);
       expect(find.text('History on this phone'), findsOneWidget);
+      await tester.ensureVisible(find.text('View history on this phone'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('View history on this phone'));
       await tester.pumpAndSettle();
 

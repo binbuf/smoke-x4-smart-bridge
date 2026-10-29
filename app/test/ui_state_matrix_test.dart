@@ -161,7 +161,7 @@ void main() {
     _StateCase(
       'live X4 warning dialog',
       (controller) => AppShell(controller: controller),
-      'No data from Smoke X4',
+      'No data from Smoke X',
       configure: (controller) => controller
         ..smokeXStatus = SmokeXStatus.pairedLive
         ..smokeXAgeOverride = const Duration(minutes: 4),
@@ -301,12 +301,12 @@ void main() {
     _StateCase(
       'bridge details',
       (controller) => BridgeDetailsScreen(controller: controller),
-      'Re-pair Smoke X4',
+      'Re-pair Smoke X',
     ),
     _StateCase(
       'bridge details offline',
       (controller) => BridgeDetailsScreen(controller: controller),
-      'Re-pair Smoke X4',
+      'Re-pair Smoke X',
       configure: (controller) => controller
         ..phase = ConnectionPhase.offline
         ..offlineCache = true,
@@ -334,7 +334,7 @@ void main() {
     _StateCase(
       're-pair',
       (controller) => RePairScreen(controller: controller),
-      'Re-pair Smoke X4',
+      'Re-pair Smoke X',
     ),
     _StateCase(
       'saved history on phone',

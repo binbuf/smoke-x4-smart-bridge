@@ -40,16 +40,6 @@ class BillowsSettingsScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    InlineNotice(
-                      icon: Icons.lock_outline,
-                      title: view.connected
-                          ? 'Billows status'
-                          : 'Last observed state',
-                      message: view.connected
-                          ? 'Billows reports through the Smoke X4. Its set temperature comes from the Smoke X4; this app shows it for reference.'
-                          : 'Reconnect to refresh the Billows status and set temperature.',
-                    ),
-                    const SizedBox(height: 16),
                     SectionCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,12 +79,6 @@ class BillowsSettingsScreen extends StatelessWidget {
                             label: 'Set on',
                             value: view.billows.sourceLabel,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Detected means the Smoke X4 is receiving Billows data. The set temp can only be changed on the Smoke X4. Detection doesn’t mean the fan is running.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
                         ],
                       ),
                     ),
@@ -120,12 +104,6 @@ class BillowsSettingsScreen extends StatelessWidget {
                                 ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Newest first. The full Bridge timeline is in Bridge details → Connection log.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
                           const SizedBox(height: 8),
                           ConnectionLogList(
@@ -191,7 +169,7 @@ class AboutScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Smoke X4 Smart Bridge',
+                                    'Smoke X Smart Bridge',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium,
@@ -310,7 +288,7 @@ class _RePairScreenState extends State<RePairScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: prototypeAppBar(context, widget.controller, 'Re-pair Smoke X4'),
+      appBar: prototypeAppBar(context, widget.controller, 'Re-pair Smoke X'),
       body: ListView(
         children: [
           ContentWidth(
@@ -323,15 +301,15 @@ class _RePairScreenState extends State<RePairScreen> {
                     children: [
                       Text(
                         _cleared
-                            ? 'Put the Smoke X4 into SYNC mode'
-                            : 'Re-pair the Smoke X4',
+                            ? 'Put the Smoke X in SYNC mode'
+                            : 'Re-pair the Smoke X',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 14),
                       if (_cleared) ...[
                         const _NumberedStep(
                           number: '1',
-                          text: 'Put the Smoke X4 into SYNC mode.',
+                          text: 'Put the Smoke X in SYNC mode.',
                         ),
                         const _NumberedStep(
                           number: '2',
@@ -450,7 +428,7 @@ class SavedDataScreen extends StatelessWidget {
                     ? const EmptyState(
                         icon: Icons.folder_off_outlined,
                         title: 'No history on this phone',
-                        message: 'There is no history on this phone yet. The Bridge records whenever it’s on and paired with the Smoke X4.',
+                        message: 'There is no history on this phone yet. The Bridge records whenever it’s on and paired with the Smoke X.',
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,22 +456,8 @@ class SavedDataScreen extends StatelessWidget {
                                   label: 'Storage used',
                                   value: view.savedDataSize,
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'This history is stored on your phone, not on the Bridge. It stays until you delete it.',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: scheme.onSurfaceVariant,
-                                      ),
-                                ),
                               ],
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          InlineNotice(
-                            icon: Icons.info_outline,
-                            title: 'The Bridge isn’t needed',
-                            message: 'You can review or delete this history even after forgetting or resetting the Bridge.',
                           ),
                           const SizedBox(height: 20),
                           OutlinedButton.icon(
@@ -942,7 +906,7 @@ Future<void> powerOff(BuildContext context, BridgeController controller) async {
   final outcome = await confirmDestructiveAction(
     context,
     title: 'Power off the Bridge?',
-    intro: 'The Bridge stops recording until you turn it back on.',
+    intro: '',
     bullets: const [
       'Recording stops while the Bridge is off',
       'History on this phone is kept',
@@ -975,7 +939,7 @@ Future<void> factoryReset(
   final outcome = await confirmDestructiveAction(
     context,
     title: 'Factory reset this Bridge?',
-    intro: 'The Bridge erases its pairings, settings, and saved readings, then restarts.',
+    intro: '',
     bullets: const [
       'All paired phones, including this one',
       'Bridge settings and screen preferences',

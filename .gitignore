@@ -1,3 +1,5 @@
+.DS_Store
+
 # Local reference tree - not part of the new build
 legacy/
 
@@ -56,6 +58,9 @@ docs/*
 # symphony harness (local tool, not tracked)
 .symphony/
 .stop
+
+# Generated FigCraft hand-off (rebuilt with `make design-export`)
+design/figcraft/render/
 
 # added by symphony (ephemeral/secret files)
 .vscode/

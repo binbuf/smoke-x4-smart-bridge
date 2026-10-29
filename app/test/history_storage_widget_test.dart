@@ -216,7 +216,8 @@ void main() {
     expect(find.text('7.3%'), findsOneWidget);
     expect(find.text('Oct 17, 2026 at 8:14 AM'), findsOneWidget);
     expect(find.text('Oct 25, 2026 at 6:30 PM'), findsOneWidget);
-    expect(find.text('Two separate copies'), findsOneWidget);
+    expect(find.text('Two separate copies'), findsNothing);
+    expect(find.textContaining('even if the Bridge is reset'), findsNothing);
     expect(find.textContaining('records'), findsNothing);
   });
 

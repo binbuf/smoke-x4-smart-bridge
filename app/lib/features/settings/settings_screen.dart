@@ -123,7 +123,7 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   Center(
                     child: Text(
-                      'Smoke X4 Smart Bridge · No account needed',
+                      'Smoke X Smart Bridge · No account needed',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
@@ -291,13 +291,6 @@ class _UnitsTile extends StatelessWidget {
                     Text(
                       'Temperature units',
                       style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    Text(
-                      view.connected
-                          ? 'All temperatures, including the Bridge screen.'
-                          : 'The Bridge screen will update when you reconnect.',
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),

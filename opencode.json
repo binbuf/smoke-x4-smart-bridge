@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "figcraft": {
+        "type": "local",
+        "command": ["/Users/dan/.local/bin/figcraft-cli", "mcp"],
+        "enabled": true,
+        "timeout": { "startup": 120000, "execution": 120000 }
+      }
+    }
+  }
+}

@@ -88,8 +88,8 @@ void main() {
     expect(find.byType(BridgeDetailsScreen), findsOneWidget);
     expect(find.text('Sync now'), findsOneWidget);
     expect(find.text('Disconnect'), findsOneWidget);
-    expect(find.text('Smoke X4 pairing'), findsOneWidget);
-    expect(find.text('Re-pair Smoke X4'), findsOneWidget);
+    expect(find.text('Smoke X pairing'), findsOneWidget);
+    expect(find.text('Re-pair Smoke X'), findsOneWidget);
     expect(find.byKey(const Key('bridge.name')), findsOneWidget);
     expect(find.byKey(const Key('bridge.timeout')), findsOneWidget);
     expect(find.byKey(const Key('bridge.billows')), findsOneWidget);
@@ -160,8 +160,8 @@ void main() {
     expect(find.textContaining('Bridge disconnected'), findsOneWidget);
     expect(find.textContaining('last connected'), findsWidgets);
     expect(
-      find.text('The Bridge screen will update when you reconnect.'),
-      findsOneWidget,
+      find.textContaining('will update when you reconnect'),
+      findsNothing,
     );
 
     // Units and the Live change window stay local-only and immediate.
