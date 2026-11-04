@@ -152,6 +152,25 @@ void main() {
     expect(relaunched.themeMode, ThemeMode.dark);
     expect(relaunched.themeModeLabel, 'Dark');
   });
+
+  test(
+    'Hide empty probes is persisted and applied on the next launch',
+    () async {
+      controller.setHideEmptyProbes(true);
+      for (var attempt = 0; attempt < 100; attempt++) {
+        final stored = await controller.repository.preferences.read(
+          BridgeController.hideEmptyProbesPreferenceKey,
+        );
+        if (stored == 'true') break;
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      final relaunched = BridgeController(repository: controller.repository);
+      addTearDown(relaunched.dispose);
+      await relaunched.loadLocalPreferences();
+      expect(relaunched.hideEmptyProbes, isTrue);
+      expect(relaunched.settingsView.hideEmptyProbes, isTrue);
+    },
+  );
 }
 
 Future<void> _settle(bool Function() predicate) async {

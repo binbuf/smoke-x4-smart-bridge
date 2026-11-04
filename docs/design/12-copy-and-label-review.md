@@ -22,9 +22,9 @@ different things. Never collapse them into one “Connected/Offline” label.
 
 | State | Use | Do not use |
 |---|---|---|
-| BLE link up | `Bridge connected` (Live: duration under the link; Settings: `Connected`) | `Connected` alone |
+| BLE link up | `Bridge connected` (Live: last-update age under the link; Settings: `Connected`) | `Connected` alone |
 | BLE link down | `Bridge disconnected · last connected 2h ago` | `Offline` alone |
-| X4 fresh, ≤90 s | `Receiving readings · updated 12s ago` | `Connected` |
+| X4 fresh, ≤90 s | `Receiving readings` (Live link: `12s ago`) | `Connected` |
 | X4 stale, 90 s–10 min | `No readings for 4 min` | `Receiving` |
 | X4 lost, >10 min | `Smoke X4 signal lost · 10 min ago` | `Not connected` |
 | Bridge syncing | `Syncing saved readings` | `Syncing` or `backfill` alone |
@@ -74,10 +74,11 @@ optional for a high-confidence MVP.
 ### Live
 
 - Chain: `App` → `Bridge` → `Smoke X4`. The node row is visual; the link meters
-  carry the two radios. Durations sit on the node label baseline (`2h 14m`,
-  `12s`, `Reconnecting`, `Offline`); do not add a second status line that repeats
-  `Bridge connected · 2h 14m`.
-- Healthy: `Receiving readings · updated 12s ago`; the X4 node is quiet.
+  carry the two radios. Last-update ages sit on the node label baseline (`4s ago`,
+  `12s ago`, `Reconnecting`, `Offline`); do not add a second telemetry line below
+  the chain. Session durations are `App to Bridge` and `Bridge to Smoke X` in
+  Bridge details.
+- Healthy: link ages show freshness; the X4 node is quiet.
 - Tile exceptions only: `Updated 62s ago`, `No readings for 4 min`,
   `No readings for 12 min`, `Not connected`, `No history yet`.
 - Tile footer: `<window> · +0.4°F` or `<window> · -1.4°F`, where the window is
@@ -113,8 +114,8 @@ optional for a high-confidence MVP.
   (custom also shows the visible span).
 - Range menu: `Last 5 minutes` through `Last 30 days`, `All saved history`,
   `Custom range` (`Any date and time`).
-- Probe menu: `All probes`, `P1`–`P4`; unavailable options disabled with
-  `No data`.
+- Probe menu: `All probes` plus the device's probes; unavailable options are
+  disabled with `No data`, or omitted when **Hide empty probes** is on.
 - Custom range: `Custom range`; “Choose a start and end time. It starts with all
   the history saved on your phone.”; quick picks `All saved history`, `Today`,
   `Yesterday`, `Last 6 hours`; `Apply` / `Cancel`; errors `Choose a range within
@@ -124,9 +125,8 @@ optional for a high-confidence MVP.
 - Chart help: `Reading the chart`; tap to inspect, drag/pinch, Cooks/custom range,
   gaps, shared scale, estimated times.
 - Empty: `No readings yet`; “The Bridge records whenever it’s on and paired with
-  the Smoke X4.”; `View Live`. In-range: `No readings in this range`; “Probe 3
-  has no readings in this range. Try another range or show all probes.”;
-  `Show all probes`.
+  the Smoke X4.”; `View Live`. In-range: `No readings in this range` floats over
+  the unchanged chart as a tooltip; there is no replacement notice or action.
 - Summary: `Summary`; `Probe`, `Latest`, `Min`, `Max`; `No data`; sort labels
   `Probe order`, `Hottest`, `Highest`, `Latest reading`, `Since cook start`.
 - Cooks: `Cooks`; “Grouped automatically from your readings”; `In progress`;
@@ -144,16 +144,18 @@ optional for a high-confidence MVP.
   Bridge screen.” Offline: “The Bridge screen will update when you reconnect.”
 - Appearance: `System`, `Light`, `Dark`; “Match your phone”, “Always use light”,
   “Always use dark”.
+- Hide empty probes: `Hide empty probes`; “Only show probes with readings on Live
+  and History”. Local-only, default off.
 - Storage: `History on this phone`; `History on the Bridge`; `Readings`, `Date
   range`, `Storage used`, `Capacity`, `Oldest reading`, `Newest reading`;
   “About 117 days at 30-second intervals”; “The Bridge overwrites its oldest
   readings automatically.”; “Two separate copies” notice.
 - Delete: `Delete history from this phone…`; `Older than 30 days`, `Older than
   90 days`, `All history on this phone`; `Clear history on the Bridge…`.
-- Bridge details: `Bridge`, `Smoke X4 pairing`, `Re-pair Smoke X4`, `Bridge
-  name`, `Bridge screen timeout`, `Billows`, `Technical details`, `Connection
-  log`, `Bridge actions`, `Power off the Bridge`, `Factory reset Bridge`,
-  `Forget this phone`.
+- Bridge details: `Bridge`, `App to Bridge`, `Bridge to Smoke X`, `Smoke X4
+  pairing`, `Re-pair Smoke X4`, `Bridge name`, `Bridge screen timeout`,
+  `Billows`, `Technical details`, `Connection log`, `Bridge actions`, `Power off
+  the Bridge`, `Factory reset Bridge`, `Forget this phone`.
 - Smoke X4 re-pair: “Put the Smoke X4 into SYNC mode.”; “Hold its button until it
   beeps.”; “The Bridge confirms the pairing.”; “This clears the old radio pairing
   only. History on the Bridge, phone pairings, and settings are kept.”

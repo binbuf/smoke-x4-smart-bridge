@@ -334,9 +334,7 @@ The screen is also reachable from `Setup → View history on this phone` and fro
 │ Live                                       │
 ├────────────────────────────────────────────┤
 │   [phone]  ▂▄▆▁  →  [bt]  ▂▄▆▁  →   [x4]  │
-│     App    2h 14m   Bridge   12s    Smoke X4│
-│                                            │
-│ ⌁ Receiving readings · updated 12s ago      │
+│     App    4s ago   Bridge  12s ago Smoke X4│
 ├────────────────────────────────────────────┤
 │ Probes                                     │
 │ ┌──────────────────┐ ┌──────────────────┐  │
@@ -369,21 +367,21 @@ Rules:
   whole chain as simple icons with labels underneath: **App → Bridge → Smoke
   X4**. Tapping anywhere on the card opens Bridge details, where the manual
   `Sync now` action lives.
-- Each radio link carries its own signal meter and connected duration:
+- Each radio link carries its own signal meter and **last-update age**:
   **phone→Bridge** uses the BLE RSSI and **Bridge→Smoke X4** uses the LoRa RSSI.
-  Put the bars between the nodes and the duration on the node label baseline
-  (`2h 14m`, `12s`, `Reconnecting`, `Offline`). Do not show one shared signal
+  Put the bars between the nodes and the age on the node label baseline
+  (`4s ago`, `12s ago`, `Reconnecting`, `Offline`). Do not show one shared signal
   meter for two different radios. The phone→Bridge meter comes from the live
-  connection read, not from the X4 packet.
+  connection read, not from the X4 packet. The continuous session durations
+  (`App to Bridge`, `Bridge to Smoke X`) live in Bridge details.
 - The chain uses colour as a secondary cue, not the only state. Do not rely on
   grey/green/amber/red alone. The X4 node carries one amber warning icon when
   the Bridge is connected but the X4 is quiet; tapping it opens the SYNC-mode
-  dialog. Do not add a second inline `No data from Smoke X4` notice. When the X4
-  is healthy, `Receiving readings · updated 12s ago` is the only telemetry line.
-  For 90 s–10 min use `No readings for 4 min`; after 10 min use `Smoke X4 signal
-  lost · 10 min ago`. Offline the card is `Bridge disconnected · last connected
-  2h ago`, both signal meters are hidden and the chain is dimmed. When showing
-  cache, add `Showing saved readings · last reading 20 min ago`.
+  dialog. Do not add a second inline `No data from Smoke X4` notice or a separate
+  `Sensor data received` row; the link age already answers freshness. Offline the
+  card is `Bridge disconnected · last connected 2h ago`, both signal meters are
+  hidden and the chain is dimmed. When showing cache, add `Showing saved
+  readings · last reading 20 min ago`.
 - On the Bridge, recording is independent of the phone. The app may say
   `Recording` only when connected and `storage_ok`; when disconnected it says
   “The Bridge keeps recording while it’s on” as reassurance, not as a live
@@ -400,13 +398,19 @@ Rules:
   card; a problem state changes the relevant LED and adds one notice. The X4
   warning is the one exception: it lives on the X4 node as an amber icon and
   opens a dialog, so the healthy card stays compact.
-- Four tiles in probe order, always four. A detached probe is **“—” + “Not
-  connected”**, never 0 °F and never omitted. A tile with no sparkline history
-  says `No history yet`; the tile height does not change.
-- Probe identity is `P1`–`P4` plus colour. No names, roles or tags. The whole
-  tile is the tap target and carries a chevron.
-- If all four probes are absent, show one `No probes connected` notice: “Plug a
-  probe into the Smoke X4 to see a reading.” Keep the four tiles.
+- Probes render in device order. The default is to show every probe, including a
+  detached one as **“—” + “Not connected”**, never 0 °F. The local
+  **Hide empty probes** preference (default off) omits probes with no current
+  reading from Live and from History's legend, filter menu and Summary. A tile
+  with no sparkline history says `No history yet`; the tile height does not
+  change.
+- Probe identity is the device's probe order plus colour (`P1`–`P4` today). No
+  names, roles or tags. The whole tile is the tap target and carries a chevron.
+  The list comes from the content model, not a hard-coded four, so a future RFX
+  Gateway can expose more channels.
+- If no probes are visible, show one `No probes connected` notice: “Plug a probe
+  into the Smoke X4 to see a reading.” With the default preference, the four
+  empty tiles remain.
 - Each tile shows a **relative last-hour sparkline** when that probe has history.
   The sparkline is scaled to its own min/max; it communicates shape, not a
   cross-probe comparison.
@@ -465,17 +469,14 @@ states. It is not a demo chart and it is not a second dashboard.
 ┌────────────────────────────────────────────┐
 │ History                                    │
 ├────────────────────────────────────────────┤
-│ [ 24 hours ▾ ]  [ All probes ▾ ]      ↺    │
-├────────────────────────────────────────────┤
-│ Oct 24, 6:30 PM – Oct 25, 6:30 PM          │
-│ Synced 2 min ago · 4 probes                │
-│                                            │
-│ °F 275 ┤          ╭─╮                      │
-│    225 ┤──╮   ╭───╯ ╰──╮      P4           │
-│    175 ┤  ╰───╯        ╰──╮   P1/P2        │
-│    125 ┤                   ╰──             │
-│        └──────────────────────────────     │
-│         6:30 PM  2:30 AM  10:30 AM   Now   │
+│ ⏱  〰  Oct 24, 6:30 PM – Oct 25, 6:30 PM ? ⛶│
+│       Synced 2 min ago · 4 probes          │
+│  275 ┤          ╭─╮                        │
+│  225 ┤──╮   ╭───╯ ╰──╮      P4             │
+│  175 ┤  ╰───╯        ╰──╮   P1/P2          │
+│  125 ┤                   ╰──               │
+│      └──────────────────────────────       │
+│       6:30 PM  2:30 AM  10:30 AM   Now     │
 │  ● P1 165.0° ● P2 171.9° ● P4 215.8°       │
 │  Drag to pan · pinch to zoom   − + ⛶ Now   │
 ├────────────────────────────────────────────┤
@@ -507,14 +508,16 @@ states. It is not a demo chart and it is not a second dashboard.
   and `Last 7 days`; the primary action is `Apply` and stays pinned while the
   sheet content scrolls. Only `Apply` changes the History range; `Cancel`
   restores the previous range and viewport.
-- Probe menu: `All probes`, `P1`–`P4`. A probe with no data in the range is
-  disabled and labelled `No data`.
-- The two compact dropdown buttons sit in one card; the reset icon appears only
-  when a filter is active. Range, probe and sort persist across tab switches and
-  app resume.
+- Probe menu: `All probes` plus the probes the fixture exposes. With **Hide empty
+  probes** off, a probe with no data in the range is disabled and labelled
+  `No data`; with it on, no-data probes are omitted (the selected probe stays
+  visible so its empty state has context).
+- Range and probe are **icon-only** dropdown buttons in the chart header, not a
+  separate filter card. The reset icon appears only when a filter is active.
+  Range, probe and sort persist across tab switches and app resume.
 - Cooks are reached from the dedicated card below Summary; the filter header does
   not duplicate that entry point.
-- The chart header has a `?` help action (“Reading the chart”) and an expand
+- The chart header also has a `?` help action (“Reading the chart”) and an expand
   action for the full-screen chart.
 - Full-screen chart: a dedicated view, not a restyled History page. It never
   forces an orientation; portrait and landscape are both allowed. The graph
@@ -523,6 +526,9 @@ states. It is not a demo chart and it is not a second dashboard.
 - Shared y-axis when all probes are visible; auto-scale to the selected probe
   when one is selected. The scale covers the loaded window and stays fixed
   while panning, then eases to the new window after a zoom or range commit.
+- The chart has no card or section surface behind it, so it runs nearly edge to
+  edge on a phone; Summary and Cooks keep their cards. Temperature labels sit
+  **inside** the plot and the unit label sits inside the top-right corner.
 - Nice y-axis ticks (1/2/2.5/5 × 10ⁿ) and one unit label (`°F` / `°C`); no
   degree sign on every tick.
 - Locale-aware time labels; date labels at midnight for multi-day ranges.
@@ -555,7 +561,10 @@ states. It is not a demo chart and it is not a second dashboard.
   legend probe chips, Cooks, gaps, shared scale and estimated times. It is not a
   developer diagnostics panel.
 - Empty states: no readings at all, no readings in the selected range, offline
-  with no cache. Metadata must not claim four probes when none have data.
+  with no cache. A range with no readings keeps the chart surface and floats the
+  text `No readings in this range` over it as a tooltip; it never replaces the
+  chart with a layout-shifting notice or action panel. Metadata must not claim
+  four probes when none have data.
 - Accessibility: a chart summary for screen readers and a Summary table that
   does not depend on colour.
 
@@ -657,6 +666,7 @@ PREFERENCES
   Temperature units                    [°F][°C]
   Live change window                   5 min >
   Appearance                           System >
+  Hide empty probes                    [ off ]
 
 ABOUT
   About this app         App 0.1.0 · Firmware 0.1.0 >
@@ -683,6 +693,10 @@ ABOUT
   `Live change window` is a local display preference (`1 / 5 / 10 / 15 / 30 /
   60 min`, default 5) that sets the signed change period on the Live probe
   tiles. It does not affect stored samples, the History chart or the OLED.
+- `Hide empty probes` is a local, persisted display preference (default off). It
+  removes probes without a current reading from Live and probes without readings
+  in the selected window from History's legend, filter menu and Summary. It does
+  not delete readings or change the Bridge.
 - `History on this phone` is the local copy on this phone. `History on the Bridge`
   is the copy on the Bridge. The two copies are never merged even though they
   share one screen.
@@ -746,9 +760,10 @@ No destructive flow contains `current cook` copy.
 ### Bridge details
 
 - Status card: name, `Bridge A4F2`, `Connected`, `Battery 87%`, `Signal` +
-  bars + `Fair`, `Updated 4s ago`, `Sync now`, `Disconnect`. No second
-  connected/pairing pill. Offline the buttons become `Reconnect` / `Connect`,
-  and the card notes “Recording continues on the Bridge.”
+  bars + `Fair`, `Updated 4s ago`, session durations `App to Bridge` and
+  `Bridge to Smoke X`, `Sync now`, `Disconnect`. No second connected/pairing
+  pill. Offline the buttons become `Reconnect` / `Connect`, and the card notes
+  “Recording continues on the Bridge.”
 - Smoke X4 pairing card: `Smoke X4 pairing`, state pill (`Receiving`,
   `No readings`, `Signal lost`, `Not paired`, `Last known`), `Updated 12s ago`,
   and `Re-pair Smoke X4`. When fresh, the state is `Receiving readings`; only
@@ -844,7 +859,7 @@ Every failure names its cause and offers one next action.
 | Connected, no Smoke X4 | `No data from Smoke X4` / “The Bridge is connected but isn’t receiving data from the Smoke X4. Put the Smoke X4 in SYNC mode and keep it in range of the Bridge.” | `Pairing steps` (X4 warning dialog) |
 | No probe data | `No probes connected` / “Plug a probe into the Smoke X4 to see a reading.” | Bridge details |
 | No history | `No readings yet` / “The Bridge records whenever it’s on and paired with the Smoke X4.” | `View Live` |
-| No history in range | `No readings in this range` / “Probe 3 has no readings in this range. Try another range or show all probes.” | `Show all probes` |
+| No history in range | `No readings in this range` floats over the unchanged chart as a tooltip | Change range or probe from the icon menus |
 | Offline with cache | `Showing saved readings · last reading 20 min ago` | `Retry` |
 | Offline, no cache | `Bridge disconnected · nothing saved yet` | `Retry` |
 | Sync failed | `History sync failed` / "Live readings are still updating. Retry when the Bluetooth connection is stable." | `Retry sync` |
@@ -861,12 +876,13 @@ the honest `Showing saved readings · last reading …` banner instead of
 there is no cache. Live shows one cached-readings notice with `Retry`; the
 History banner shows `Showing saved readings` plus the last-reading line. The
 no-cache notice is `Bridge disconnected · nothing saved yet` and renders every
-probe as `—`. A filtered probe with no readings is the probe-specific in-range
-state (`No data`/`—` in Summary, `Show all probes`); a whole empty window keeps
-`Show all saved history`, because showing all probes cannot recover an empty
-range. `No probes connected` now offers `Bridge details`. The no-X4 state stays
-one amber X4-node warning and dialog, never a per-tile notice. The full matrix is
-covered by `app/test/data_state_matrix_test.dart`; see ADR 0050.
+probe as `—`. A filtered probe with no readings keeps the chart surface and
+shows `No data`/`—` in Summary; the empty range floats `No readings in this
+range` over the chart instead of swapping in a notice or action panel. The icon
+menus remain the way to change range or probe. `No probes connected` now offers
+`Bridge details`. The no-X4 state stays one amber X4-node warning and dialog,
+never a per-tile notice. The full matrix is covered by
+`app/test/data_state_matrix_test.dart`; see ADR 0050.
 
 ## 6.9 Android specifics
 

@@ -7,10 +7,12 @@ import '../app/formatters.dart';
 import '../domain/models.dart';
 
 Rect historyChartPlotRect(Size size) {
+  // Temperature labels sit inside the plot, so the chart can run nearly edge
+  // to edge on a phone instead of reserving a left-hand gutter.
   return Rect.fromLTRB(
-    46,
+    8,
     16,
-    math.max(48, size.width - 12),
+    math.max(16, size.width - 8),
     math.max(20, size.height - 34),
   );
 }
@@ -179,6 +181,7 @@ class HistoryChart extends StatelessWidget {
               labelStyle: labelStyle,
               gridColor: scheme.outlineVariant.withValues(alpha: 0.55),
               labelColor: scheme.onSurfaceVariant,
+              labelBackgroundColor: scheme.surface.withValues(alpha: 0.76),
               gapColor: scheme.onSurfaceVariant.withValues(alpha: 0.10),
               plotBackgroundColor: scheme.surfaceContainerHighest.withValues(
                 alpha: 0.28,
@@ -240,6 +243,7 @@ class _HistoryChartPainter extends CustomPainter {
     required this.labelStyle,
     required this.gridColor,
     required this.labelColor,
+    required this.labelBackgroundColor,
     required this.gapColor,
     required this.plotBackgroundColor,
     required this.accentColor,
@@ -259,6 +263,7 @@ class _HistoryChartPainter extends CustomPainter {
   final TextStyle labelStyle;
   final Color gridColor;
   final Color labelColor;
+  final Color labelBackgroundColor;
   final Color gapColor;
   final Color plotBackgroundColor;
   final Color accentColor;
@@ -304,7 +309,7 @@ class _HistoryChartPainter extends CustomPainter {
     }
 
     _drawXAxisLabels(canvas, chart, timeTicks);
-    _drawUnit(canvas, size);
+    _drawUnit(canvas, chart);
 
     if (cursorTime != null &&
         !cursorTime!.isBefore(viewStart) &&
@@ -390,16 +395,31 @@ class _HistoryChartPainter extends CustomPainter {
       final painter = TextPainter(
         text: TextSpan(
           text: label,
-          style: labelStyle.copyWith(color: labelColor),
+          style: labelStyle.copyWith(color: labelColor.withValues(alpha: 0.82)),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
       final y = chart.top + chart.height * i / (ticks.length - 1);
-      painter.paint(canvas, Offset(chart.left - painter.width - 8, y - 7));
+      final top = (y - painter.height / 2)
+          .clamp(chart.top, chart.bottom - painter.height)
+          .toDouble();
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            chart.left + 2,
+            top - 1,
+            painter.width + 8,
+            painter.height + 2,
+          ),
+          const Radius.circular(4),
+        ),
+        Paint()..color = labelBackgroundColor,
+      );
+      painter.paint(canvas, Offset(chart.left + 6, top));
     }
   }
 
-  void _drawUnit(Canvas canvas, Size size) {
+  void _drawUnit(Canvas canvas, Rect chart) {
     final painter = TextPainter(
       text: TextSpan(
         text: units == Units.fahrenheit ? '°F' : '°C',
@@ -411,7 +431,10 @@ class _HistoryChartPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    painter.paint(canvas, const Offset(4, 2));
+    painter.paint(
+      canvas,
+      Offset(chart.right - painter.width - 6, chart.top + 4),
+    );
   }
 
   List<DateTime> _timeTicks(double width) {
@@ -752,6 +775,7 @@ class _HistoryChartPainter extends CustomPainter {
         oldDelegate.yMax != yMax ||
         oldDelegate.colors != colors ||
         oldDelegate.gridColor != gridColor ||
+        oldDelegate.labelBackgroundColor != labelBackgroundColor ||
         oldDelegate.plotBackgroundColor != plotBackgroundColor ||
         oldDelegate.accentColor != accentColor ||
         oldDelegate.labelStyle != labelStyle;

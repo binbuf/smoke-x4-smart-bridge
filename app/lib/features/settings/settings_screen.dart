@@ -96,6 +96,34 @@ class SettingsScreen extends StatelessWidget {
                           AppearanceScreen(controller: controller),
                         ),
                       ),
+                      SwitchListTile.adaptive(
+                        key: const Key('settings.hideEmptyProbes'),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 2,
+                        ),
+                        secondary: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: scheme.surfaceContainerHighest.withValues(
+                              alpha: 0.5,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.visibility_off_outlined,
+                            size: 19,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        title: const Text('Hide empty probes'),
+                        subtitle: const Text(
+                          'Only show probes with readings on Live and History',
+                        ),
+                        value: view.hideEmptyProbes,
+                        onChanged: controller.setHideEmptyProbes,
+                      ),
                     ],
                   ),
                   SettingsGroup(

@@ -16,7 +16,10 @@ import 'package:smoke_bridge/widgets/probe_chart.dart';
 /// 13 §13.4. Copy is asserted literally so a later refactor cannot quietly
 /// reintroduce raw exceptions, fake zeros or an actionless dead end.
 void main() {
-  Future<void> pumpLive(WidgetTester tester, BridgeController controller) async {
+  Future<void> pumpLive(
+    WidgetTester tester,
+    BridgeController controller,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -27,7 +30,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> pumpShell(WidgetTester tester, BridgeController controller) async {
+  Future<void> pumpShell(
+    WidgetTester tester,
+    BridgeController controller,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -81,31 +87,28 @@ void main() {
       expect(controller.tab, AppTab.live);
     });
 
-    testWidgets('a range with no saved readings offers Show all saved history', (
-      tester,
-    ) async {
-      final controller = BridgeController(content: const _EmptyHistoryContent())
-        ..tab = AppTab.history
-        ..historyHasData = true
-        ..phoneRecords = 12;
-      addTearDown(controller.dispose);
-      await pumpShell(tester, controller);
+    testWidgets(
+      'a range with no saved readings keeps the chart and floats a hint',
+      (tester) async {
+        final controller =
+            BridgeController(content: const _EmptyHistoryContent())
+              ..tab = AppTab.history
+              ..historyHasData = true
+              ..phoneRecords = 12;
+        addTearDown(controller.dispose);
+        await pumpShell(tester, controller);
 
-      expect(find.text('No readings in this range'), findsOneWidget);
-      expect(
-        find.text(
-          'This range has no saved readings. Show all saved history to find the readings you expect.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Show all saved history'), findsOneWidget);
-      expect(find.text('No probes'), findsOneWidget);
-      // The chart surface stays in place so the overview brush can be dragged
-      // back to a range that has readings.
-      expect(find.byType(HistoryChart), findsOneWidget);
-      expect(find.byKey(const Key('history.emptyRange')), findsOneWidget);
-      expectNoRawException(tester);
-    });
+        expect(find.text('No readings in this range'), findsOneWidget);
+        expect(find.text('Show all saved history'), findsNothing);
+        expect(find.text('No probes'), findsOneWidget);
+        // The chart surface stays in place so the overview brush can be dragged
+        // back to a range that has readings. The hint floats over it instead of
+        // replacing the layout.
+        expect(find.byType(HistoryChart), findsOneWidget);
+        expect(find.byKey(const Key('history.noReadingsHint')), findsOneWidget);
+        expectNoRawException(tester);
+      },
+    );
 
     testWidgets('a filtered probe with no readings has no line and no zero', (
       tester,
@@ -118,44 +121,59 @@ void main() {
       await pumpShell(tester, controller);
 
       expect(find.text('No readings in this range'), findsOneWidget);
-      expect(
-        find.text(
-          'Probe 3 has no readings in this range. Try another range or show all probes.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Show all probes'), findsOneWidget);
+      expect(find.text('Show all probes'), findsNothing);
+      expect(find.byType(HistoryChart), findsOneWidget);
+      expect(find.byKey(const Key('history.noReadingsHint')), findsOneWidget);
       // Summary is honest: P3 is No data with dashes, never a zero line.
+      await tester.scrollUntilVisible(
+        find.text('Summary'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
       expect(find.text('No data'), findsWidgets);
       expect(find.text('—'), findsWidgets);
       expect(find.textContaining('0.0'), findsNothing);
-      expect(find.byType(HistoryChart), findsNothing);
       expectNoRawException(tester);
+    });
 
-      await tester.tap(find.text('Show all probes'));
-      await tester.pumpAndSettle();
-      expect(controller.historyProbe, isNull);
-      expect(find.byType(HistoryChart), findsOneWidget);
+    testWidgets('hide empty probes removes no-data probes from History', (
+      tester,
+    ) async {
+      final controller = BridgeController(content: const _ProbeGapContent())
+        ..tab = AppTab.history
+        ..historyHasData = true
+        ..hideEmptyProbes = true;
+      addTearDown(controller.dispose);
+      await pumpShell(tester, controller);
+
+      expect(find.byKey(const Key('history.legend.p1')), findsOneWidget);
+      expect(find.byKey(const Key('history.legend.p2')), findsNothing);
+      expect(find.byKey(const Key('history.legend.p3')), findsNothing);
+      expect(find.byKey(const Key('history.legend.p4')), findsNothing);
+      expect(find.text('1 probe'), findsOneWidget);
+      expectNoRawException(tester);
     });
   });
 
   group('Bridge offline', () {
-    testWidgets('offline with cache labels saved readings and keeps the chart', (
-      tester,
-    ) async {
-      final controller = demoBridgeController()
-        ..tab = AppTab.history
-        ..phase = ConnectionPhase.offline
-        ..offlineCache = true;
-      addTearDown(controller.dispose);
-      await pumpShell(tester, controller);
+    testWidgets(
+      'offline with cache labels saved readings and keeps the chart',
+      (tester) async {
+        final controller = demoBridgeController()
+          ..tab = AppTab.history
+          ..phase = ConnectionPhase.offline
+          ..offlineCache = true;
+        addTearDown(controller.dispose);
+        await pumpShell(tester, controller);
 
-      expect(find.text('Showing saved readings'), findsOneWidget);
-      expect(find.text('Last reading 2 hr ago'), findsOneWidget);
-      expect(find.text('Can’t reach the Bridge'), findsNothing);
-      expect(find.byKey(const Key('history.chart')), findsOneWidget);
-      expectNoRawException(tester);
-    });
+        expect(find.text('Showing saved readings'), findsOneWidget);
+        expect(find.text('Last reading 2 hr ago'), findsOneWidget);
+        expect(find.text('Can’t reach the Bridge'), findsNothing);
+        expect(find.byKey(const Key('history.chart')), findsOneWidget);
+        expectNoRawException(tester);
+      },
+    );
 
     testWidgets('failed reconnect with cache still says saved readings', (
       tester,
@@ -191,18 +209,19 @@ void main() {
       expect(find.text('Can’t reach the Bridge'), findsNothing);
     });
 
-    testWidgets('Live failed reconnect with cache hides the unreachable notice', (
-      tester,
-    ) async {
-      final controller = demoBridgeController()
-        ..phase = ConnectionPhase.failed
-        ..offlineCache = true;
-      addTearDown(controller.dispose);
-      await pumpLive(tester, controller);
+    testWidgets(
+      'Live failed reconnect with cache hides the unreachable notice',
+      (tester) async {
+        final controller = demoBridgeController()
+          ..phase = ConnectionPhase.failed
+          ..offlineCache = true;
+        addTearDown(controller.dispose);
+        await pumpLive(tester, controller);
 
-      expect(find.byKey(const Key('live.savedReadings')), findsOneWidget);
-      expect(find.byKey(const Key('live.unreachable')), findsNothing);
-    });
+        expect(find.byKey(const Key('live.savedReadings')), findsOneWidget);
+        expect(find.byKey(const Key('live.unreachable')), findsNothing);
+      },
+    );
 
     testWidgets('offline without cache is named and renders no probe values', (
       tester,
@@ -335,65 +354,72 @@ void main() {
       expectNoRawException(tester);
     });
 
-    testWidgets('storage unavailable says Not recording and opens Bridge details', (
-      tester,
-    ) async {
-      final controller = demoBridgeController()..storageOk = false;
-      addTearDown(controller.dispose);
-      await pumpLive(tester, controller);
+    testWidgets(
+      'storage unavailable says Not recording and opens Bridge details',
+      (tester) async {
+        final controller = demoBridgeController()..storageOk = false;
+        addTearDown(controller.dispose);
+        await pumpLive(tester, controller);
 
-      expect(find.byKey(const Key('live.storageUnavailable')), findsOneWidget);
-      expect(find.text('Not recording'), findsOneWidget);
-      expect(
-        find.text(
-          'Live readings are available, but the Bridge can’t save them. Check the Bridge’s storage.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Bridge details'), findsOneWidget);
+        expect(
+          find.byKey(const Key('live.storageUnavailable')),
+          findsOneWidget,
+        );
+        expect(find.text('Not recording'), findsOneWidget);
+        expect(
+          find.text(
+            'Live readings are available, but the Bridge can’t save them. Check the Bridge’s storage.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Bridge details'), findsOneWidget);
 
-      await tester.tap(find.text('Bridge details'));
-      await tester.pumpAndSettle();
-      expect(find.byType(BridgeDetailsScreen), findsOneWidget);
-    });
+        await tester.tap(find.text('Bridge details'));
+        await tester.pumpAndSettle();
+        expect(find.byType(BridgeDetailsScreen), findsOneWidget);
+      },
+    );
   });
 
   group('Protocol mismatch', () {
-    testWidgets('names the update, keeps the Bridge unchanged and saves history', (
-      tester,
-    ) async {
-      final controller = demoBridgeController()..hasSavedData = true;
-      addTearDown(controller.dispose);
-      await tester.pumpWidget(
-        MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.dark(),
-          home: SetupScreen(
-            controller: controller,
-            initialStep: SetupStep.protocolMismatch,
-            autoAdvance: false,
+    testWidgets(
+      'names the update, keeps the Bridge unchanged and saves history',
+      (tester) async {
+        final controller = demoBridgeController()..hasSavedData = true;
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.dark(),
+            home: SetupScreen(
+              controller: controller,
+              initialStep: SetupStep.protocolMismatch,
+              autoAdvance: false,
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Update the app to use this Bridge'), findsOneWidget);
-      expect(find.text('Update app'), findsOneWidget);
-      expect(
-        find.textContaining('The Bridge hasn’t been changed.'),
-        findsOneWidget,
-      );
-      expect(find.text('View history on this phone'), findsOneWidget);
-      expect(find.text('Learn more'), findsOneWidget);
-      expectNoRawException(tester);
+        expect(find.text('Update the app to use this Bridge'), findsOneWidget);
+        expect(find.text('Update app'), findsOneWidget);
+        expect(
+          find.textContaining('The Bridge hasn’t been changed.'),
+          findsOneWidget,
+        );
+        expect(find.text('View history on this phone'), findsOneWidget);
+        expect(find.text('Learn more'), findsOneWidget);
+        expectNoRawException(tester);
 
-      await tester.tap(find.text('Learn more'));
-      await tester.pumpAndSettle();
-      expect(
-        find.textContaining('The Bridge hasn’t been changed and keeps recording.'),
-        findsOneWidget,
-      );
-    });
+        await tester.tap(find.text('Learn more'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining(
+            'The Bridge hasn’t been changed and keeps recording.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   testWidgets('a storage read failure never renders raw exception text', (

@@ -76,6 +76,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Hide empty probes is a working local preference', (
+    tester,
+  ) async {
+    final controller = demoBridgeController()
+      ..probePresence = ProbePresence.detachedP3;
+    addTearDown(controller.dispose);
+    await pumpSettings(tester, controller);
+
+    final toggle = find.byKey(const Key('settings.hideEmptyProbes'));
+    expect(toggle, findsOneWidget);
+    expect(controller.hideEmptyProbes, isFalse);
+    expect(controller.liveView.probes, hasLength(4));
+
+    await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(controller.hideEmptyProbes, isTrue);
+    expect(controller.liveView.probes, hasLength(3));
+  });
+
   testWidgets('the Bridge status header opens Bridge details and back returns '
       'to the root', (tester) async {
     final controller = demoBridgeController();
@@ -159,10 +181,7 @@ void main() {
     expect(find.byKey(const Key('settings.offlineBanner')), findsOneWidget);
     expect(find.textContaining('Bridge disconnected'), findsOneWidget);
     expect(find.textContaining('last connected'), findsWidgets);
-    expect(
-      find.textContaining('will update when you reconnect'),
-      findsNothing,
-    );
+    expect(find.textContaining('will update when you reconnect'), findsNothing);
 
     // Units and the Live change window stay local-only and immediate.
     await tester.tap(find.text('°C'));
@@ -178,9 +197,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Appearance is local only.
-    await tester.ensureVisible(
-      find.byKey(const Key('settings.appearance')),
-    );
+    await tester.ensureVisible(find.byKey(const Key('settings.appearance')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('settings.appearance')));
     await tester.pumpAndSettle();

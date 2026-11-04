@@ -59,7 +59,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('status.appBridgeLink')),
-          matching: find.text('2h 14m'),
+          matching: find.text('4s ago'),
         ),
         findsOneWidget,
       );

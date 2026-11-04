@@ -26,10 +26,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder inLink(String key, Finder matching) => find.descendant(
-    of: find.byKey(Key(key)),
-    matching: matching,
-  );
+  Finder inLink(String key, Finder matching) =>
+      find.descendant(of: find.byKey(Key(key)), matching: matching);
 
   testWidgets('BLE and LoRa meters are separate and name their durations', (
     tester,
@@ -42,11 +40,8 @@ void main() {
     await pump(tester, controller);
 
     expect(find.byType(SignalBars), findsNWidgets(2));
-    expect(
-      inLink('status.appBridgeLink', find.text('2h 14m')),
-      findsOneWidget,
-    );
-    expect(inLink('status.x4Link', find.text('2h 10m')), findsOneWidget);
+    expect(inLink('status.appBridgeLink', find.text('4s ago')), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('12s ago')), findsOneWidget);
 
     expect(
       find.bySemanticsLabel(RegExp('Bluetooth signal, -58 dBm')),
@@ -57,11 +52,11 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.bySemanticsLabel(RegExp('App to Bridge: 2h 14m')),
+      find.bySemanticsLabel(RegExp('App to Bridge: last update 4s ago')),
       findsWidgets,
     );
     expect(
-      find.bySemanticsLabel(RegExp('Bridge to Smoke X: 2h 10m')),
+      find.bySemanticsLabel(RegExp('Bridge to Smoke X: last update 12s ago')),
       findsWidgets,
     );
     handle.dispose();
@@ -126,7 +121,9 @@ void main() {
     expect(warning.icon, Icons.warning_amber_rounded);
     expect(
       warning.color,
-      StatusColors.aging(tester.element(find.byKey(const Key('live.smokeXWarning')))),
+      StatusColors.aging(
+        tester.element(find.byKey(const Key('live.smokeXWarning'))),
+      ),
     );
 
     await tester.tap(find.byKey(const Key('live.smokeXWarning')));

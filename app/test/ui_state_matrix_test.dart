@@ -37,7 +37,7 @@ void main() {
     _StateCase(
       'live stale X4',
       (controller) => AppShell(controller: controller),
-      'No readings',
+      '4m ago',
       configure: (controller) => controller
         ..phase = ConnectionPhase.stale
         ..smokeXAgeOverride = const Duration(minutes: 4),
@@ -45,7 +45,7 @@ void main() {
     _StateCase(
       'live lost X4',
       (controller) => AppShell(controller: controller),
-      'Signal lost',
+      '12m ago',
       configure: (controller) => controller
         ..smokeXStatus = SmokeXStatus.pairedLost
         ..smokeXAgeOverride = const Duration(minutes: 12),
@@ -468,7 +468,10 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      MaterialApp(theme: AppTheme.dark(), home: AppShell(controller: controller)),
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: AppShell(controller: controller),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -510,6 +513,7 @@ void main() {
       'settings.units',
       'settings.tempChangeWindow',
       'settings.appearance',
+      'settings.hideEmptyProbes',
     ]) {
       expect(find.byKey(Key(key)), findsOneWidget, reason: key);
     }

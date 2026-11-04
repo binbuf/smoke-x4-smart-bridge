@@ -62,7 +62,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('status.appBridgeLink')),
-        matching: find.text('2h 14m'),
+        matching: find.text('4s ago'),
       ),
       findsOneWidget,
     );
@@ -184,7 +184,7 @@ void main() {
     await tester.tap(week);
     await tester.pumpAndSettle();
     expect(controller.historyRange, HistoryRange.sevenDays);
-    expect(find.text('7 days'), findsOneWidget);
+    expect(find.byTooltip('History range'), findsOneWidget);
   });
 
   testWidgets('dragging the chart switches History to a custom range', (
@@ -213,7 +213,7 @@ void main() {
     expect(custom, isNotNull);
     expect(custom!.start.isBefore(before.start), isTrue);
     expect(custom.end.isBefore(before.end), isTrue);
-    expect(find.textContaining('Custom ·'), findsOneWidget);
+    expect(find.byType(HistoryChart), findsOneWidget);
   });
 
   testWidgets('the y-scale stays fixed while the chart pans', (tester) async {
@@ -375,18 +375,18 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('status.appBridgeLink')),
-        matching: find.text('2h 14m'),
+        matching: find.text('4s ago'),
       ),
       findsOneWidget,
     );
     expect(
       find.descendant(
         of: find.byKey(const Key('status.x4Link')),
-        matching: find.text('2h 10m'),
+        matching: find.text('12s ago'),
       ),
       findsOneWidget,
     );
-    expect(find.text('Sensor data received 12s ago'), findsOneWidget);
+    expect(find.textContaining('Sensor data received'), findsNothing);
     expect(find.byType(SignalBars), findsNWidgets(2));
   });
 
@@ -402,14 +402,14 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('status.appBridgeLink')),
-        matching: find.text('2h 14m'),
+        matching: find.text('4s ago'),
       ),
       findsOneWidget,
     );
     expect(
       find.descendant(
         of: find.byKey(const Key('status.x4Link')),
-        matching: find.text('No readings'),
+        matching: find.text('4m ago'),
       ),
       findsOneWidget,
     );
@@ -425,7 +425,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('status.x4Link')),
-        matching: find.text('Signal lost'),
+        matching: find.text('14m ago'),
       ),
       findsOneWidget,
     );
@@ -465,7 +465,10 @@ void main() {
     expect(billows, findsOneWidget);
     expect(find.text('Billows not detected'), findsNothing);
     expect(find.text('Set temp'), findsOneWidget);
-    expect(find.text('12s ago'), findsOneWidget);
+    expect(
+      find.descendant(of: billows, matching: find.text('12s ago')),
+      findsOneWidget,
+    );
     expect(find.textContaining('Read-only'), findsNothing);
     expect(find.text('Set target'), findsNothing);
     expect(find.text('Monitor only'), findsNothing);

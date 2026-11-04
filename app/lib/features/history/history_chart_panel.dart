@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/formatters.dart';
+import '../../app/strings.dart';
 import '../../app/view_state.dart';
 import '../../domain/models.dart';
 import '../../theme/app_theme.dart';
@@ -280,6 +281,20 @@ class HistoryChartPanelState extends State<HistoryChartPanel>
       children: [
         Positioned.fill(child: _chartGestureLayer(context, fixture, plot)),
         if (_cursorTime != null) _buildTooltip(context, fixture, plot),
+        if (view.noDataInRange || view.noProbeData)
+          Positioned(
+            top: 8,
+            left: 12,
+            right: 12,
+            child: IgnorePointer(
+              child: Center(
+                child: _FloatingHint(
+                  key: const Key('history.noReadingsHint'),
+                  label: AppStrings.noReadingsInRange,
+                ),
+              ),
+            ),
+          ),
         if (_gestureMoved)
           Positioned(
             top: 8,
@@ -354,7 +369,7 @@ class HistoryChartPanelState extends State<HistoryChartPanel>
 
   Widget _chartLegend(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final probes = const [1, 2, 3, 4];
+    final probes = view.probeNumbers;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -868,9 +883,10 @@ class HistoryChartPanelState extends State<HistoryChartPanel>
         .clamp(0.0, 1.0);
     final x = plot.left + plot.width * fraction;
     final alignLeft = x > plot.center.dx;
-    final probes = view.probe == null ? [1, 2, 3, 4] : [view.probe!];
+    final probes = view.probe == null ? view.probeNumbers : <int>[view.probe!];
     final rows = <Widget>[];
     for (final probe in probes) {
+      if (probe < 1 || probe > fixture.series.length) continue;
       final series = fixture.series[probe - 1];
       ChartPoint? nearest;
       for (final point in series.points) {
@@ -1264,6 +1280,41 @@ class _LegendChip extends StatelessWidget {
                 ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FloatingHint extends StatelessWidget {
+  const _FloatingHint({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: scheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: scheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),

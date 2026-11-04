@@ -73,15 +73,11 @@ void main() {
     expect(find.text('App'), findsOneWidget);
     expect(find.text('Bridge'), findsOneWidget);
     expect(find.text('Smoke X'), findsOneWidget);
-    expect(inLink('status.appBridgeLink', find.text('2h 14m')), findsOneWidget);
-    expect(inLink('status.x4Link', find.text('2h 10m')), findsOneWidget);
+    expect(inLink('status.appBridgeLink', find.text('4s ago')), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('12s ago')), findsOneWidget);
     expect(find.byType(SignalBars), findsNWidgets(2));
     expect(find.text('Bridge connected · 2h 14m'), findsNothing);
-    expect(find.text('Sensor data received 12s ago'), findsOneWidget);
-    expect(
-      find.byTooltip('Time since last data was received from the Smoke X'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Sensor data received'), findsNothing);
     for (var probe = 1; probe <= 4; probe++) {
       expect(find.byKey(Key('live.probe.$probe')), findsOneWidget);
       expect(find.text('P$probe'), findsOneWidget);
@@ -96,14 +92,18 @@ void main() {
     expect(find.text('Sync now'), findsNothing);
   });
 
-  testWidgets('telemetry icon opens the last-data tooltip', (tester) async {
-    await pumpLive(tester, drive: healthy);
+  testWidgets('hide empty probes removes disconnected tiles', (tester) async {
+    final session = await pumpLive(tester, drive: healthy);
 
-    const message = 'Time since last data was received from the Smoke X';
-    await tester.tap(find.byTooltip(message));
+    expect(find.byKey(const Key('live.probe.3')), findsOneWidget);
+    session.controller.setHideEmptyProbes(true);
     await tester.pumpAndSettle();
 
-    expect(find.text(message), findsOneWidget);
+    expect(find.byKey(const Key('live.probe.1')), findsOneWidget);
+    expect(find.byKey(const Key('live.probe.2')), findsOneWidget);
+    expect(find.byKey(const Key('live.probe.3')), findsNothing);
+    expect(find.byKey(const Key('live.probe.4')), findsOneWidget);
+    expect(find.text('1 hidden'), findsOneWidget);
   });
 
   testWidgets('aging keeps the Bridge healthy and names the reading age', (
@@ -118,9 +118,9 @@ void main() {
         ),
     );
 
-    expect(inLink('status.appBridgeLink', find.text('2h 14m')), findsOneWidget);
+    expect(inLink('status.appBridgeLink', find.text('4s ago')), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('1m ago')), findsOneWidget);
     expect(inProbe(1, find.text('Updated 62s ago')), findsOneWidget);
-    expect(find.text('Sensor data received 1m ago'), findsOneWidget);
   });
 
   testWidgets('stale X4 telemetry keeps the Bridge row connected', (
@@ -135,8 +135,8 @@ void main() {
         ),
     );
 
-    expect(inLink('status.appBridgeLink', find.text('2h 14m')), findsOneWidget);
-    expect(inLink('status.x4Link', find.text('No readings')), findsOneWidget);
+    expect(inLink('status.appBridgeLink', find.text('4s ago')), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('4m ago')), findsOneWidget);
     expect(find.text('No readings for 4 min'), findsWidgets);
     expect(find.byKey(const Key('live.smokeXWarning')), findsOneWidget);
 
@@ -158,7 +158,7 @@ void main() {
         ),
     );
 
-    expect(inLink('status.x4Link', find.text('Signal lost')), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('14m ago')), findsOneWidget);
     expect(find.textContaining('Sensor data received'), findsNothing);
     expect(find.byKey(const Key('live.smokeXWarning')), findsOneWidget);
 
@@ -384,7 +384,7 @@ void main() {
 
     expect(find.text('History sync failed'), findsOneWidget);
     expect(find.text('Retry sync'), findsOneWidget);
-    expect(find.text('Sensor data received 12s ago'), findsOneWidget);
+    expect(inLink('status.x4Link', find.text('12s ago')), findsOneWidget);
     expect(inProbe(1, find.text('225.0°F')), findsOneWidget);
   });
 
@@ -430,6 +430,10 @@ void main() {
     await tester.tap(find.byKey(const Key('status.connection')));
     await tester.pumpAndSettle();
     expect(find.byType(BridgeDetailsScreen), findsOneWidget);
+    expect(find.text('App to Bridge'), findsOneWidget);
+    expect(find.text('Bridge to Smoke X'), findsOneWidget);
+    expect(find.text('2h 14m'), findsWidgets);
+    expect(find.text('2h 10m'), findsWidgets);
 
     await tester.pageBack();
     await tester.pumpAndSettle();

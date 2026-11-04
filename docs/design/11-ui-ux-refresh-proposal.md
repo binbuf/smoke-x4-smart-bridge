@@ -221,8 +221,7 @@ Design principles:
 ├────────────────────────────────────────────┤
 │ [phone] → [bt] → [x4]                      │
 │   App       Bridge      Smoke X4           │
-│ ⏱ Bridge connected · 2h 14m  ▂▄▆▁ Fair  > │
-│ ⌁ Receiving readings · updated 12s ago     │
+│   4s ago    12s ago                         │
 ├────────────────────────────────────────────┤
 │ ┌──────────────────┐ ┌──────────────────┐  │
 │ │ ● P1             │ │ ● P2             │  │
@@ -246,13 +245,12 @@ Design principles:
 
 - **Connection chain first.** The top card shows the whole link as three nodes:
   App → Bridge → Smoke X4. Node colour is a secondary cue, not the only state.
-  Add one compact status block below the chain instead of a second label under
-  every node: `Bridge connected · 2h 14m` and `Receiving readings · updated 12s
-  ago`. Use `Receiving readings` only when a valid X4 packet arrived within 90 s;
-  use `No readings for 4 min` for 90 s–10 min and `Smoke X4 signal lost · 10 min
-  ago` after 10 min. Offline says `Bridge disconnected · last connected 2h ago`
-  and hides the signal. When showing cache, add `Showing saved readings · last
-  reading 20 min ago`. No app-bar status chip.
+  Each radio link shows its **last-update age** (`4s ago`, `12s ago`) instead of a
+  session duration or a second telemetry row. The continuous durations live in
+  Bridge details as `App to Bridge` and `Bridge to Smoke X`. Offline says
+  `Bridge disconnected · last connected 2h ago` and hides the signal. When
+  showing cache, add `Showing saved readings · last reading 20 min ago`. No
+  app-bar status chip.
 - **No names, roles or tags.** The tile label is `Probe 1` / `P1`, plus the
   probe color. The same identity is used in History, Summary and the OLED.
 - **Sparkline in every tile when that probe has history.** Use the last hour,
@@ -294,7 +292,7 @@ Design principles:
 
 | Internal state | User-facing |
 |---|---|
-| `live` | `Bridge connected · 2h 14m`; `Receiving readings · updated 12s ago` (only when the last valid X4 packet is ≤90 s) |
+| `live` | Link ages `4s ago` / `12s ago`; `Bridge connected` and `Receiving readings` stay in the node labels |
 | `aging` | `Updated 62s ago` (amber dot only) |
 | `stale` | `No readings for 4 min`; Bridge remains connected |
 | `frozen` | `No readings for 12 min` (dimmed values) |
@@ -432,7 +430,8 @@ use `Connected` for the X4 link.
   edges when narrow. A gap is information, not an error.
 - Missing-from-bridge: a distinct gap reason and copy:
   “The Bridge overwrote this part of its history before it reached your phone.”
-- No data: no line, no zero, and `No readings in this range` in History.
+- No data: no line, no zero, and `No readings in this range` floats over the
+  unchanged History chart.
 - Units: one conversion path for tiles, axis, tooltip, summary and Billows.
 - Data volume: SQL-bucket long ranges; LTTB plus min/max envelope; never pass
   more than a few thousand points to the painter.
@@ -1113,8 +1112,9 @@ Decisions recorded in the design README:
 - No probe names, roles, tags or `GRATE`/`FOOD` labels anywhere in the product
   UI, OLED preview or history legend.
 - No `Graph` label in the product UI; tab and screen are `History`.
-- Live has four tiles; each shows a relative 1 h sparkline when that probe has
-  data; no aggregate preview graph.
+- Live shows the device's probes in order; each shows a relative 1 h sparkline
+  when that probe has data. **Hide empty probes** can omit probes without a
+  current reading. No aggregate preview graph.
 - History has granular and long range presets (`5 min` through `30 days`, `All`,
   `Custom`), probe filters, crosshair/scrub, pinch/pan with automatic custom
   range, overview brush, reset/Live, gap reasons, Latest/Min/Max Summary,

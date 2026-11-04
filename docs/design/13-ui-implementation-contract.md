@@ -123,7 +123,7 @@ class LiveViewState {
   final String signalLabel;
   final TelemetryState telemetry; // fresh, delayed, stale, lost, unpaired
   final Duration? telemetryAge;
-  final List<ProbeView> probes; // always four, in order
+  final List<ProbeView> probes; // device order; empty probes omitted when the preference is on
   final SyncViewState sync;
   final bool storageOk;
   final BillowsView? billows; // null = never detected / no card
@@ -222,7 +222,7 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 
 | State | Required UI |
 |---|---|
-| Healthy | Chain with separate phone→Bridge BLE and Bridge→X4 LoRa signal meters; `Receiving readings · updated 12s ago`; four quiet tiles with sparklines, Min/Max line and `<window> · signed change` footer |
+| Healthy | Chain with separate phone→Bridge BLE and Bridge→X4 LoRa signal meters; last-update ages under each link (`4s ago`, `12s ago`); quiet tiles with sparklines, Min/Max line and `<window> · signed change` footer |
 | Aging | Bridge row stays healthy; tile says `Updated 62s ago`; amber cue plus text |
 | Stale | Bridge stays connected; `No readings for 4 min`; values remain |
 | Frozen / lost X4 | `Smoke X4 signal lost · 10 min ago`; values dim; one amber warning icon on the X4 node opens the pairing dialog, not an inline notice |
@@ -235,9 +235,10 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 | Offline with cache | `Bridge disconnected · last connected 2h ago`; `Showing saved readings · last reading 20 min ago`; signal hidden; values dim |
 | Offline without cache | `Bridge disconnected · nothing saved yet`; no fake probe values; one next action |
 | No X4 data | Amber X4-node warning with a dialog: `No data from Smoke X4`; SYNC-mode help; no repeated tile notices |
-| Detached probe | `—` and `Not connected`; never `0 °F` |
-| No probes | `No probes connected`; “Plug a probe into the Smoke X4 to see a reading.” |
+| Detached probe | `—` and `Not connected`; never `0 °F`; hidden when **Hide empty probes** is on |
+| No probes | `No probes connected`; “Plug a probe into the Smoke X4 to see a reading.”; empty tiles stay with the preference off |
 | No sparkline history | `No history yet`; tile height unchanged |
+| Hide empty probes | Local persisted preference (default off); Live omits probes with no current reading; History omits no-reading probes from legend, menu and Summary |
 | Storage failure | `Not recording`; “Live readings are available, but the Bridge can’t save them. Check the Bridge’s storage.” |
 | Billows detected | `Billows`; `Set temp`; `Last detected`; `Set on the Smoke X4.`; no Connected pill |
 | Billows lost | One `Billows not detected` notice; `View connection log` |
@@ -247,12 +248,12 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 
 | State | Required UI |
 |---|---|
-| Default | `24 hours`, `All probes`, four series, Summary, Cooks |
-| Ranges | `Last 5 minutes`, `Last 15 minutes`, `Last 30 minutes`, `Last hour`, `Last 3 hours`, `Last 6 hours`, `Last 12 hours`, `Last 24 hours`, `Last 2 days`, `Last 7 days`, `Last 30 days`, `All saved history`, `Custom range`; trigger `5 min` … `30 days`, `All`, `Custom` plus the visible span |
+| Default | `24 hours`, `All probes`, all series, Summary, Cooks; chart has no card and runs nearly edge to edge |
+| Ranges | `Last 5 minutes`, `Last 15 minutes`, `Last 30 minutes`, `Last hour`, `Last 3 hours`, `Last 6 hours`, `Last 12 hours`, `Last 24 hours`, `Last 2 days`, `Last 7 days`, `Last 30 days`, `All saved history`, `Custom range`; icon-only trigger in the chart header |
 | Custom range | Sheet starts with all saved history; start/end date and time; quick picks `All saved history`, `Today`, `Yesterday`, `Last 15 minutes`, `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 7 days`; pinned `Apply` / `Cancel`; validates range |
-| Probe filter | `All probes`, `P1`–`P4`; no-data options disabled with `No data`; reset icon appears only with an active filter |
-| Chart | Shared/auto y-axis with a stable domain while panning, one unit, nice time/value ticks, crosshair + pinned tooltip, hold-to-scrub, pan/pinch/scroll/double-tap, `Live` when panned, latest dots, gap bands, area fill for one probe |
-| Chart range gesture | Pan/pinch/brush/double-tap settles as a custom range; the range trigger switches to `Custom` plus the visible span; Summary reloads for the visible window; a margin is prefetched around the viewport |
+| Probe filter | Icon-only trigger; `All probes` plus fixture probes; no-data options disabled with `No data`, or omitted when **Hide empty probes** is on; reset icon appears only with an active filter |
+| Chart | No card; temperature labels and unit inside the plot; shared/auto y-axis with a stable domain while panning, nice time/value ticks, crosshair + pinned tooltip, hold-to-scrub, pan/pinch/scroll/double-tap, `Live` when panned, latest dots, gap bands, area fill for one probe |
+| Chart range gesture | Pan/pinch/brush/double-tap settles as a custom range; Summary reloads for the visible window; a margin is prefetched around the viewport |
 | Overview brush | Always present for non-empty ranges; drag window to pan, edges to zoom, tap to centre; screen-reader increase/decrease actions |
 | Legend | `P1`–`P4` chips show latest visible value; tap focuses that probe and y-scale; `All` returns to shared scale |
 | Chart help | “Reading the chart” sheet; tap, scrub, pan/zoom, overview brush, legend probe chips, Cooks, gaps, shared scale, estimated times |
@@ -262,7 +263,7 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 | Cook view | App bar `Cook`; probe filter; `Recorded history`; end label is the cook end, not `Now`; back returns to unchanged History state |
 | Full-screen chart | Dedicated route; portrait or landscape; window label, legend/probe chips, overview brush, zoom, close; no orientation lock |
 | No readings at all | `No readings yet`; “The Bridge records whenever it’s on and paired with the Smoke X4.”; `View Live` |
-| No data in range | `No readings in this range`; `Probe 3 has no readings in this range`; `Show all probes` |
+| No data in range | Chart stays in place; `No readings in this range` floats over it as a tooltip; no layout-shifting notice, action panel or probe-specific popup |
 | Offline with cache | Banner `Showing saved readings` + last reading; chart and Summary still render |
 | Estimated time | `times estimated` beside metadata; chart help explains it |
 | Overwritten before sync | Gap label `Not synced`; permanent-loss explanation; never a straight line |
@@ -278,13 +279,14 @@ asserted in `app/test/data_state_matrix_test.dart` (ADR 0050).
 
 | State | Required UI |
 |---|---|
-| Settings connected | Bridge status, `History & storage`, units, `Live change window`, Appearance, About |
+| Settings connected | Bridge status, `History & storage`, units, `Live change window`, Appearance, `Hide empty probes`, About |
 | Settings offline | `Bridge disconnected` + last connected; controls disabled with reasons; local delete/forget still available |
 | Units | Segmented `°F` / `°C`; applies immediately; offline copy says the Bridge screen updates on reconnect |
 | Live change window | `1 / 5 / 10 / 15 / 30 / 60 min`; default 5; immediate; local only; persists across relaunch |
 | Appearance | `System / Light / Dark`; immediate; local only |
+| Hide empty probes | Local persisted toggle (default off); affects Live tiles and History legend/menu/Summary; never deletes readings |
 | History & storage | `History on this phone` and `History on the Bridge`; separate counts/ranges/rules; delete and clear actions |
-| Bridge details | Status, sync/reconnect, disconnect, Smoke X4 pairing, re-pair, name, timeout, Billows, technical details, connection log, actions |
+| Bridge details | Status with `App to Bridge` / `Bridge to Smoke X` session durations, sync/reconnect, disconnect, Smoke X4 pairing, re-pair, name, timeout, Billows, technical details, connection log, actions |
 | Name edit | Dialog; `Saving…` / `Saved` / `Couldn’t save`; no save-all bar |
 | Timeout | 30 sec / 1 min / 2 min / Never; immediate; offline disabled |
 | Billows | Status only; `Last observed state` when offline; `Set temp`; no mode/target editor |
@@ -457,12 +459,13 @@ test update:
 - History: `history.filters`, `history.range.menu`,
   `history.range.5m/.15m/.30m/.1h/.3h/.6h/.12h/.24h/.2d/.7d/.30d/.all/.custom`,
   `history.filter.menu`, `history.filter.all/.p1`–`.p4`, `history.filters.reset`,
-  `history.chart`, `history.overview`, `history.legend.all/.p1`–`.p4`,
-  `history.summary`, `history.cooks`, `history.cooks.open`,
-  `history.zoom.out/.in/.fit/.now`
+  `history.chart`, `history.noReadingsHint`, `history.overview`,
+  `history.legend.all/.p1`–`.p4`, `history.summary`, `history.cooks`,
+  `history.cooks.open`, `history.zoom.out/.in/.fit/.now`
 - Cook view: `pastCook.history`
 - Settings: `settings.bridge.status`, `settings.history.logs`,
-  `settings.units`, `settings.tempChangeWindow`, `settings.appearance`
+  `settings.units`, `settings.tempChangeWindow`, `settings.appearance`,
+  `settings.hideEmptyProbes`
 - Bridge: `bridge.name`, `bridge.timeout`, `bridge.billows`, `bridge.repair`,
   `bridge.connectionLog`
 - Navigation/lab: `nav.experimental`

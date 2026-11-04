@@ -13,6 +13,8 @@ class LiveViewState {
     required this.bridgeConnectedLabel,
     required this.appBridgeConnectedForLabel,
     required this.smokeXConnectedForLabel,
+    required this.appBridgeUpdateLabel,
+    required this.smokeXUpdateLabel,
     required this.telemetryStatusLabel,
     required this.bridgeLinkStatusLabel,
     required this.smokeXLinkStatusLabel,
@@ -38,6 +40,7 @@ class LiveViewState {
     required this.billowsLostThisSession,
     required this.showSavedReadings,
     required this.lastSyncedLabel,
+    required this.hiddenProbeCount,
     this.lookingForBridge = false,
     this.launchScanning = false,
   });
@@ -52,6 +55,11 @@ class LiveViewState {
 
   /// Compact duration under the Bridge↔Smoke X4 arrow.
   final String smokeXConnectedForLabel;
+
+  /// Age of the newest exchange on each half of the chain. Live renders these
+  /// under the links so the card answers "is this still updating?".
+  final String appBridgeUpdateLabel;
+  final String smokeXUpdateLabel;
   final String telemetryStatusLabel;
   final String bridgeLinkStatusLabel;
   final String smokeXLinkStatusLabel;
@@ -87,6 +95,10 @@ class LiveViewState {
   /// "nothing saved yet": probe values must render empty, never as current.
   final bool showSavedReadings;
   final String lastSyncedLabel;
+
+  /// Probes omitted from [probes] because they have no reading and the user
+  /// chose to hide empty probes. Zero when every probe is visible.
+  final int hiddenProbeCount;
 
   /// A saved Bridge exists but is not connected; Live keeps the archive visible
   /// and offers a manual Connect instead of reopening Setup.
@@ -195,6 +207,7 @@ class HistoryViewState {
     required this.units,
     required this.lastSyncedLabel,
     required this.entireHistoryRange,
+    required this.hideEmptyProbes,
   });
 
   final HistoryRange range;
@@ -215,6 +228,12 @@ class HistoryViewState {
   final Units units;
   final String lastSyncedLabel;
   final DateTimeRange entireHistoryRange;
+
+  /// When true, probes with no readings in the loaded window are omitted from
+  /// the legend, filter menu and Summary. A probe the user explicitly selected
+  /// stays visible even when its window is empty, so the empty state still has
+  /// context.
+  final bool hideEmptyProbes;
 
   String get unitsLabel => unitLabel(units);
 
@@ -239,6 +258,7 @@ class HistoryViewState {
     units: value,
     lastSyncedLabel: lastSyncedLabel,
     entireHistoryRange: entireHistoryRange,
+    hideEmptyProbes: hideEmptyProbes,
   );
 
   String get rangeChipLabel {
@@ -279,15 +299,60 @@ class HistoryViewState {
 
   bool get noDataInRange => hasAnyHistory && !fixture.hasValues;
 
-  bool get noProbeData => probe != null && !fixture.seriesHasValues(probe! - 1);
+  bool get noProbeData =>
+      probe != null &&
+      probe! >= 1 &&
+      probe! <= fixture.series.length &&
+      !fixture.seriesHasValues(probe! - 1);
 
-  int get probeCount => probe == null ? 4 : 1;
+  /// Probes the chart and Summary should present, derived from the fixture so
+  /// devices with more than four channels work without another hard-coded list.
+  List<int> get probeNumbers {
+    final all = <int>[
+      for (var index = 0; index < fixture.series.length; index++) index + 1,
+    ];
+    if (!hideEmptyProbes) return all;
+    final withData = <int>[
+      for (final number in all)
+        if (fixture.seriesHasValues(number - 1)) number,
+    ];
+    final selected = probe;
+    if (selected != null &&
+        all.contains(selected) &&
+        !withData.contains(selected)) {
+      withData
+        ..add(selected)
+        ..sort();
+    }
+    return withData;
+  }
+
+  List<ProbeRangeStats> get visibleStats {
+    if (!hideEmptyProbes) return stats;
+    final visible = probeNumbers.toSet();
+    return stats.where((stat) => visible.contains(stat.probe)).toList();
+  }
+
+  int get probeCount => probe == null
+      ? (hideEmptyProbes
+            ? fixture.series
+                  .where(
+                    (series) =>
+                        series.points.any((point) => point.valueF != null),
+                  )
+                  .length
+            : fixture.series.length)
+      : 1;
 
   int get dataProbeCount => probe == null
       ? fixture.series
             .where((series) => series.points.any((p) => p.valueF != null))
             .length
-      : (fixture.seriesHasValues(probe! - 1) ? 1 : 0);
+      : (probe! >= 1 &&
+                probe! <= fixture.series.length &&
+                fixture.seriesHasValues(probe! - 1)
+            ? 1
+            : 0);
 
   String get probeMeta {
     final count = probeCount;
@@ -419,6 +484,7 @@ class SettingsViewState {
     required this.savedDataEmpty,
     required this.firmware,
     required this.hasSavedData,
+    required this.hideEmptyProbes,
     this.localeName = 'en_US',
     this.use24Hour = false,
   });
@@ -455,6 +521,9 @@ class SettingsViewState {
   final bool savedDataEmpty;
   final String firmware;
   final bool hasSavedData;
+
+  /// Local display preference shared by Live and History.
+  final bool hideEmptyProbes;
 
   /// Device locale and 12/24-hour setting captured by the app layer so this
   /// snapshot formats dates exactly like the live screens.
@@ -508,6 +577,7 @@ class BridgeDetailsViewState {
     required this.bridgeLinkStatusLabel,
     required this.bridgeLastContactDetail,
     required this.bridgeConnectedForLabel,
+    required this.smokeXConnectedForLabel,
     required this.lastSyncedLabel,
     required this.firmware,
     required this.protocol,
@@ -546,6 +616,7 @@ class BridgeDetailsViewState {
   final String bridgeLinkStatusLabel;
   final String bridgeLastContactDetail;
   final String bridgeConnectedForLabel;
+  final String smokeXConnectedForLabel;
   final String lastSyncedLabel;
   final String firmware;
   final String protocol;

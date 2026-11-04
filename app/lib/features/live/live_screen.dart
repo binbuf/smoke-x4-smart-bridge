@@ -205,7 +205,8 @@ class LiveScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (view.probePresence == ProbePresence.none &&
+                    if ((view.probePresence == ProbePresence.none ||
+                            view.probes.isEmpty) &&
                         !(view.isOffline && !view.showSavedReadings)) ...[
                       const SizedBox(height: Space.stackGap),
                       InlineNotice(
@@ -231,11 +232,30 @@ class LiveScreen extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      'Tap a probe to open its history',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Tap a probe to open its history',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                        if (view.hiddenProbeCount > 0 && view.probes.isNotEmpty)
+                          Text(
+                            '${view.hiddenProbeCount} hidden',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: Space.headingGap),
                     LayoutBuilder(
@@ -449,7 +469,6 @@ class _ConnectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final bridgeColor = _bridgeColor(context);
     final smokeColor = _smokeColor(context);
     final appColor = _appColor(context);
@@ -464,10 +483,10 @@ class _ConnectionCard extends StatelessWidget {
         child: Semantics(
           button: true,
           label:
-              'Connection details. App ${view.appBridgeConnectedForLabel}. '
+              'Connection details. App ${view.appBridgeUpdateLabel}. '
               'Bridge ${view.bridgeLinkStatusLabel}. '
               'Smoke X ${view.smokeXLinkStatusLabel}, '
-              '${view.smokeXConnectedForLabel}.',
+              '${view.smokeXUpdateLabel}.',
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
             child: Column(
@@ -490,9 +509,11 @@ class _ConnectionCard extends StatelessWidget {
                       signalLabel:
                           '${view.bleSignalQualityLabel} Bluetooth signal, ${view.bleRssi ?? '—'} dBm',
                       color: _bluetoothLinkColor(context),
-                      durationLabel: view.appBridgeConnectedForLabel,
-                      durationSemantics:
-                          'App to Bridge: ${view.appBridgeConnectedForLabel}',
+                      updateLabel: view.appBridgeUpdateLabel,
+                      updateSemantics: _updateSemantics(
+                        'App to Bridge',
+                        view.appBridgeUpdateLabel,
+                      ),
                     ),
                     Expanded(
                       child: _ChainNode(
@@ -509,9 +530,11 @@ class _ConnectionCard extends StatelessWidget {
                       signalLabel:
                           '${view.signalQualityLabel} radio signal, ${view.rssi} dBm',
                       color: _x4LinkColor(context),
-                      durationLabel: view.smokeXConnectedForLabel,
-                      durationSemantics:
-                          'Bridge to Smoke X: ${view.smokeXConnectedForLabel}',
+                      updateLabel: view.smokeXUpdateLabel,
+                      updateSemantics: _updateSemantics(
+                        'Bridge to Smoke X',
+                        view.smokeXUpdateLabel,
+                      ),
                     ),
                     Expanded(
                       child: _ChainNode(
@@ -529,47 +552,17 @@ class _ConnectionCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (view.isConnected && view.smokeXReceiving) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(11, 8, 11, 8),
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHighest.withValues(
-                        alpha: 0.45,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Tooltip(
-                          message: 'Time since last data was received from the Smoke X',
-                          triggerMode: TooltipTriggerMode.tap,
-                          child: Icon(
-                            Icons.sensors,
-                            size: 15,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(width: Space.inlineGap),
-                        Expanded(
-                          child: Text(
-                            view.telemetryStatusLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  String _updateSemantics(String portion, String label) {
+    if (label.endsWith(' ago')) return '$portion: last update $label';
+    return '$portion: $label';
   }
 
   void _showSmokeXWarning(BuildContext context) {
@@ -751,7 +744,7 @@ class _ChainNode extends StatelessWidget {
   }
 }
 
-/// One radio link between two chain nodes: signal and connected duration sit
+/// One radio link between two chain nodes: signal and last-update age sit
 /// together. Their colour carries the health code.
 class _ChainLink extends StatelessWidget {
   const _ChainLink({
@@ -760,16 +753,16 @@ class _ChainLink extends StatelessWidget {
     required this.signalColor,
     required this.signalLabel,
     required this.color,
-    required this.durationLabel,
-    required this.durationSemantics,
+    required this.updateLabel,
+    required this.updateSemantics,
   });
 
   final int signalLevel;
   final Color signalColor;
   final String signalLabel;
   final Color color;
-  final String durationLabel;
-  final String durationSemantics;
+  final String updateLabel;
+  final String updateSemantics;
 
   @override
   Widget build(BuildContext context) {
@@ -794,11 +787,11 @@ class _ChainLink extends StatelessWidget {
             height: 12,
             child: Center(
               child: Semantics(
-                label: durationSemantics,
+                label: updateSemantics,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    durationLabel,
+                    updateLabel,
                     maxLines: 1,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: color,

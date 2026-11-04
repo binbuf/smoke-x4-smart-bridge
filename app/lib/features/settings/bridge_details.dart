@@ -143,6 +143,28 @@ class BridgeDetailsScreen extends StatelessWidget {
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
+                          if (connected) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ConnectionDuration(
+                                    label: 'App to Bridge',
+                                    value: view.bridgeConnectedForLabel,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _ConnectionDuration(
+                                    label: 'Bridge to Smoke X',
+                                    value: view.smokeXReceiving
+                                        ? view.smokeXConnectedForLabel
+                                        : '—',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           if (!connected) ...[
                             const SizedBox(height: 2),
                             Text(
@@ -437,7 +459,9 @@ class BridgeDetailsScreen extends StatelessWidget {
                           subtitle: const Text(
                             'Bridge, Smoke X, and Billows events',
                           ),
-                          children: [ConnectionLogList(events: view.connectionLog)],
+                          children: [
+                            ConnectionLogList(events: view.connectionLog),
+                          ],
                         ),
                       ),
                     ),
@@ -519,5 +543,45 @@ class BridgeDetailsScreen extends StatelessWidget {
       },
     );
   }
+}
 
+class _ConnectionDuration extends StatelessWidget {
+  const _ConnectionDuration({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
 }

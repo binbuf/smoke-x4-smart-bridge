@@ -11,8 +11,6 @@ import 'history_chart_panel.dart';
 import 'history_full_screen.dart';
 import 'history_view_loader.dart';
 
-enum _HistoryEmptyKind { noHistory, noProbeData, noDataInRange }
-
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({
     super.key,
@@ -66,13 +64,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
         controller: _scrollController,
         children: [
           ContentWidth(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+            child: _chartSection(context, view),
+          ),
+          ContentWidth(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _filters(context, view),
-                const SizedBox(height: 10),
-                _chartCard(context, view),
-                const SizedBox(height: 14),
                 _summaryCard(context, view),
                 if (view.hasAnyHistory && widget.showPastCooks) ...[
                   const SizedBox(height: 14),
@@ -90,55 +89,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _filters(BuildContext context, HistoryViewState view) {
-    final rangeLabel = view.rangeChipLabel;
-    final probeLabel = view.probeLabel;
-
-    return SectionCard(
-      key: const Key('history.filters'),
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-      child: Row(
-        children: [
-          if (!widget.historical) ...[
-            Expanded(
-              child: _FilterMenuButton<HistoryRange>(
-                key: const Key('history.range.menu'),
-                icon: Icons.schedule_outlined,
-                label: rangeLabel,
-                tooltip: 'History range',
-                items: _rangeMenuItems(context, view),
-                onSelected: (range) => _selectRange(range, view),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: _FilterMenuButton<int>(
-              key: const Key('history.filter.menu'),
-              icon: Icons.linear_scale,
-              label: probeLabel,
-              tooltip: 'Filter by probe',
-              items: _probeMenuItems(context, view),
-              onSelected: (value) {
-                controller.setHistoryProbe(value == 0 ? null : value);
-              },
-            ),
-          ),
-          if (view.hasActiveFilters && !widget.historical)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: IconButton(
-                key: const Key('history.filters.reset'),
-                tooltip: 'Reset filters',
-                onPressed: _resetFilters,
-                icon: const Icon(Icons.restart_alt, size: 19),
-              ),
-            ),
         ],
       ),
     );
@@ -253,8 +203,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     return [
       item(0, 'All probes', null),
-      for (var i = 1; i <= 4; i++)
-        item(i, 'P$i', ProbeColors.forIndex(context, i - 1)),
+      for (final probe in view.probeNumbers)
+        item(probe, 'P$probe', ProbeColors.forIndex(context, probe - 1)),
     ];
   }
 
@@ -270,80 +220,106 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _resetViewport();
   }
 
-  Widget _chartCard(BuildContext context, HistoryViewState view) {
+  Widget _chartSection(BuildContext context, HistoryViewState view) {
     final scheme = Theme.of(context).colorScheme;
     final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
     final fixture = view.fixture;
     final window = view.windowLabel(use24Hour: use24Hour);
-    final noData = view.noData;
-    final noProbeData = view.noProbeData;
-    final noDataInRange = view.noDataInRange;
-    // A filtered probe with no readings in this window gets the approved
-    // probe-specific copy and one `Show all probes` action, even when the whole
-    // window happens to be empty.
-    final emptyKind = noData
-        ? _HistoryEmptyKind.noHistory
-        : noProbeData
-        ? _HistoryEmptyKind.noProbeData
-        : noDataInRange
-        ? _HistoryEmptyKind.noDataInRange
-        : null;
     final probeMeta = view.probeMeta;
-    final metaLead = noData
+    final metaLead = view.noData
         ? 'No readings'
         : widget.historical
         ? 'Recorded history'
         : view.lastSyncedLabel;
+    final rangeActive =
+        view.range != HistoryRange.twentyFourHours || view.customRange != null;
 
-    final chart = Column(
+    return Column(
+      key: const Key('history.chart'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              key: const Key('history.filters'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!widget.historical)
+                  _FilterMenuIcon<HistoryRange>(
+                    key: const Key('history.range.menu'),
+                    icon: Icons.schedule_outlined,
+                    tooltip: 'History range',
+                    active: rangeActive,
+                    items: _rangeMenuItems(context, view),
+                    onSelected: (range) => _selectRange(range, view),
+                  ),
+                _FilterMenuIcon<int>(
+                  key: const Key('history.filter.menu'),
+                  icon: Icons.linear_scale,
+                  tooltip: 'Filter by probe',
+                  active: view.probe != null,
+                  items: _probeMenuItems(context, view),
+                  onSelected: (value) {
+                    controller.setHistoryProbe(value == 0 ? null : value);
+                  },
+                ),
+                if (view.hasActiveFilters && !widget.historical)
+                  IconButton(
+                    key: const Key('history.filters.reset'),
+                    tooltip: 'Reset filters',
+                    onPressed: _resetFilters,
+                    icon: const Icon(Icons.restart_alt, size: 19),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 2),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    window,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 3),
-                  Wrap(
-                    spacing: 7,
-                    runSpacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        metaLead,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      Text(
-                        '·',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.outline),
-                      ),
-                      Text(
-                        probeMeta,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      if (fixture.estimated)
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10, right: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      window,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
                         Text(
-                          '· times estimated',
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: StatusColors.aging(context),
-                                fontWeight: FontWeight.w700,
-                              ),
+                          metaLead,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
-                    ],
-                  ),
-                ],
+                        Text(
+                          '·',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.outline),
+                        ),
+                        Text(
+                          probeMeta,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                        if (fixture.estimated)
+                          Text(
+                            '· times estimated',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: StatusColors.aging(context),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
             IconButton(
@@ -369,47 +345,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 6),
-        if (emptyKind != null &&
-            (emptyKind == _HistoryEmptyKind.noHistory ||
-                emptyKind == _HistoryEmptyKind.noProbeData))
+        const SizedBox(height: 2),
+        if (view.noData)
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 300),
             child: EmptyState(
               key: const Key('history.empty'),
               icon: Icons.show_chart,
-              title: emptyKind == _HistoryEmptyKind.noHistory
-                  ? AppStrings.noReadingsYet
-                  : AppStrings.noReadingsInRange,
-              message: switch (emptyKind) {
-                _HistoryEmptyKind.noHistory => AppStrings.bridgeRecordsAlways,
-                _HistoryEmptyKind.noProbeData =>
-                  'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
-                _HistoryEmptyKind.noDataInRange => '',
-              },
-              action: () => _emptyAction(emptyKind, view),
-              actionLabel: switch (emptyKind) {
-                _HistoryEmptyKind.noHistory => AppStrings.viewLive,
-                _HistoryEmptyKind.noProbeData => AppStrings.showAllProbes,
-                _HistoryEmptyKind.noDataInRange =>
-                  AppStrings.showAllSavedHistory,
-              },
+              title: AppStrings.noReadingsYet,
+              message: AppStrings.bridgeRecordsAlways,
+              action: () => controller.setTab(AppTab.live),
+              actionLabel: AppStrings.viewLive,
             ),
           )
-        else ...[
-          if (emptyKind == _HistoryEmptyKind.noDataInRange) ...[
-            InlineNotice(
-              key: const Key('history.emptyRange'),
-              icon: Icons.show_chart,
-              title: AppStrings.noReadingsInRange,
-              message: 'This range has no saved readings. Show all saved history to find the readings you expect.',
-              action: TextButton(
-                onPressed: () => _emptyAction(emptyKind!, view),
-                child: const Text(AppStrings.showAllSavedHistory),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
+        else
           HistoryChartPanel(
             key: _chartKey,
             view: view,
@@ -433,35 +382,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               controller.setHistoryProbe(probe);
             },
           ),
-        ],
       ],
     );
-
-    return SectionCard(
-      key: const Key('history.chart'),
-      padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
-      child: chart,
-    );
-  }
-
-  void _emptyAction(_HistoryEmptyKind kind, HistoryViewState view) {
-    switch (kind) {
-      case _HistoryEmptyKind.noHistory:
-        controller.setTab(AppTab.live);
-        break;
-      case _HistoryEmptyKind.noProbeData:
-        controller.setHistoryProbe(null);
-        break;
-      case _HistoryEmptyKind.noDataInRange:
-        final entire = view.entireHistoryRange;
-        if (entire.end.isAfter(entire.start)) {
-          controller.setHistoryCustomRange(entire);
-        } else {
-          controller.setHistoryRange(HistoryRange.oneHour);
-        }
-        _resetViewport();
-        break;
-    }
   }
 
   Widget _summaryCard(BuildContext context, HistoryViewState view) {
@@ -555,7 +477,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(height: 8),
           const _SummaryHeader(),
           const SizedBox(height: 2),
-          for (final stat in view.stats)
+          for (final stat in view.visibleStats)
             _SummaryRow(
               stat: stat,
               view: view,
@@ -850,19 +772,19 @@ class _PastCookScreenState extends State<PastCookScreen> {
   }
 }
 
-class _FilterMenuButton<T> extends StatelessWidget {
-  const _FilterMenuButton({
+class _FilterMenuIcon<T> extends StatelessWidget {
+  const _FilterMenuIcon({
     super.key,
     required this.icon,
-    required this.label,
     required this.tooltip,
+    required this.active,
     required this.items,
     required this.onSelected,
   });
 
   final IconData icon;
-  final String label;
   final String tooltip;
+  final bool active;
   final List<PopupMenuEntry<T>> items;
   final ValueChanged<T> onSelected;
 
@@ -877,37 +799,8 @@ class _FilterMenuButton<T> extends StatelessWidget {
       ),
       onSelected: onSelected,
       itemBuilder: (context) => items,
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 11),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: scheme.outlineVariant.withValues(alpha: 0.8),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 17, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            Icon(
-              Icons.arrow_drop_down,
-              size: 19,
-              color: scheme.onSurfaceVariant,
-            ),
-          ],
-        ),
-      ),
+      icon: Icon(icon, size: 20),
+      iconColor: active ? scheme.primary : scheme.onSurfaceVariant,
     );
   }
 }
