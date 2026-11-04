@@ -497,13 +497,16 @@ states. It is not a demo chart and it is not a second dashboard.
 
 ### Features
 
-- Range trigger values are `1 hour`, `6 hours`, `24 hours`, `2 days`, `Custom`.
-  The menu entries are `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 2
-  days`, `Custom range…` (“Any date and time”).
-- `Custom range…` starts with all saved history and opens a date-and-time sheet
+- Range trigger values are `5 min`, `15 min`, `30 min`, `1 hour`, `3 hours`,
+  `6 hours`, `12 hours`, `24 hours`, `2 days`, `7 days`, `30 days`, `All`,
+  `Custom`. The menu entries are the matching `Last …` labels plus
+  `All saved history` and `Custom range` (“Any date and time”).
+- `Custom range` starts with all saved history and opens a date-and-time sheet
   for exact start/end minutes. Quick picks are `All saved history`, `Today`,
-  `Yesterday`, `Last 6 hours`; the primary action is `Apply`. Only `Apply`
-  changes the History range; `Cancel` restores the previous range and viewport.
+  `Yesterday`, `Last 15 minutes`, `Last hour`, `Last 6 hours`, `Last 24 hours`
+  and `Last 7 days`; the primary action is `Apply` and stays pinned while the
+  sheet content scrolls. Only `Apply` changes the History range; `Cancel`
+  restores the previous range and viewport.
 - Probe menu: `All probes`, `P1`–`P4`. A probe with no data in the range is
   disabled and labelled `No data`.
 - The two compact dropdown buttons sit in one card; the reset icon appears only
@@ -518,23 +521,39 @@ states. It is not a demo chart and it is not a second dashboard.
   fills the screen either way, with only a compact window label, legend and
   zoom controls around it. Close returns to the exact History state.
 - Shared y-axis when all probes are visible; auto-scale to the selected probe
-  when one is selected.
+  when one is selected. The scale covers the loaded window and stays fixed
+  while panning, then eases to the new window after a zoom or range commit.
 - Nice y-axis ticks (1/2/2.5/5 × 10ⁿ) and one unit label (`°F` / `°C`); no
   degree sign on every tick.
 - Locale-aware time labels; date labels at midnight for multi-day ranges.
 - Crosshair + tooltip with the timestamp and every visible probe value. The
   tooltip is pinned until the user taps elsewhere or closes it.
-- Drag to pan; pinch or mouse-wheel/scroll to zoom; double-tap to fit. A visible
-  `Now` action appears when the view is not at the latest data.
-- A compact legend under the chart shows the visible probes and their latest
-  values; single-probe views add a soft area fill.
+- Drag to pan; pinch or mouse-wheel/scroll to zoom; double-tap to zoom in and
+  use `Fit range` to return. A visible `Live` action appears when the view is not
+  at the latest data; it resumes the live tail.
+- A gesture that changes the window settles as a custom range: the range
+  trigger switches to `Custom` plus the visible span, and Summary reloads for
+  that exact window. The chart prefetches a margin around the viewport so
+  panning and pinching stay smooth.
+- A compact overview bar under the chart shows the loaded range with the
+  visible window highlighted. Drag the window to pan, drag either edge to zoom,
+  or tap to centre the window. The bar also exposes increase/decrease actions to
+  screen readers.
+- Hold the chart to scrub a pinned crosshair; the nearest sample snaps with a
+  selection tick. The tooltip is pinned until the user taps elsewhere or closes
+  it.
+- The legend is also the quick probe selector: `P1`–`P4` chips show the latest
+  visible value, tapping one focuses that probe and its y-scale, and `All`
+  returns to the shared scale. The filter menu remains for explicit access.
+- Single-probe views add a soft area fill.
 - Latest-point dots at the end of each visible series.
 - Gap bands with a reason (`No signal`, `Bridge off`, `Not synced`) and a tap
   explanation. Never connect across a gap.
 - Estimated-time badge (`times estimated`) when any visible sample is estimated.
 - Offline cache banner on History; the chart still renders.
-- The chart help sheet explains tap, pan/zoom, Cooks, gaps, shared scale and
-  estimated times. It is not a developer diagnostics panel.
+- The chart help sheet explains tap, scrub, pan/zoom, the overview bar, the
+  legend probe chips, Cooks, gaps, shared scale and estimated times. It is not a
+  developer diagnostics panel.
 - Empty states: no readings at all, no readings in the selected range, offline
   with no cache. Metadata must not claim four probes when none have data.
 - Accessibility: a chart summary for screen readers and a Summary table that

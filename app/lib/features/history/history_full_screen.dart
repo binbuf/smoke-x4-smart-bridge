@@ -47,6 +47,21 @@ class HistoryFullScreenScreen extends StatelessWidget {
                       view: view,
                       expanded: true,
                       historical: historical,
+                      loadRange: historical
+                          ? null
+                          : (range) => controller.loadChartFixture(
+                              range,
+                              hasGap: gapOverride ?? true,
+                            ),
+                      onRangeChanged: historical
+                          ? null
+                          : controller.setHistoryCustomRange,
+                      onGoLive: historical
+                          ? null
+                          : () => controller.setHistoryRange(
+                              HistoryRange.oneHour,
+                            ),
+                      onProbeChanged: controller.setHistoryProbe,
                     ),
                   ),
                 ),

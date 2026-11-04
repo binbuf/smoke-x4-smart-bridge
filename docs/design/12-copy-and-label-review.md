@@ -108,9 +108,11 @@ optional for a high-confidence MVP.
 
 ### History
 
-- Range trigger: `1 hour`, `6 hours`, `24 hours`, `2 days`, `Custom`.
-- Range menu: `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 2 days`,
-  `Custom range…` (`Any date and time`).
+- Range trigger: `5 min`, `15 min`, `30 min`, `1 hour`, `3 hours`, `6 hours`,
+  `12 hours`, `24 hours`, `2 days`, `7 days`, `30 days`, `All`, `Custom`
+  (custom also shows the visible span).
+- Range menu: `Last 5 minutes` through `Last 30 days`, `All saved history`,
+  `Custom range` (`Any date and time`).
 - Probe menu: `All probes`, `P1`–`P4`; unavailable options disabled with
   `No data`.
 - Custom range: `Custom range`; “Choose a start and end time. It starts with all

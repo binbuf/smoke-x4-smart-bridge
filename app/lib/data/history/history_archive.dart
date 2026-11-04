@@ -58,6 +58,7 @@ class HistoryArchive {
     DateTime? customEnd,
     bool empty = false,
     bool includeCooks = true,
+    bool includeStats = true,
   }) async {
     final now = _now();
     final extent = await dao.extent();
@@ -100,7 +101,9 @@ class HistoryArchive {
       count: count,
     );
     final rows = loaded.rows;
-    final stats = await _loadStats(fromMs: startMs, toMs: endMs);
+    final stats = includeStats
+        ? await _loadStats(fromMs: startMs, toMs: endMs)
+        : _emptyStats();
     // Stored gaps describe missing sequence ranges, not the sync time. Read
     // them all and place each one against the readings that flank it; filtering
     // by `detected_ms` would draw a loss at the moment the app learned of it and
@@ -374,14 +377,22 @@ class HistoryArchive {
       }
       return (start, end);
     }
-    final span = switch (range) {
-      HistoryRange.oneHour => const Duration(hours: 1),
-      HistoryRange.sixHours => const Duration(hours: 6),
-      HistoryRange.twentyFourHours => const Duration(hours: 24),
-      HistoryRange.twoDays => const Duration(days: 2),
-      HistoryRange.custom => const Duration(hours: 24),
-    };
-    return (now.subtract(span), now);
+    if (range == HistoryRange.all && entire != null) {
+      var start = entire.$1;
+      var end = entire.$2;
+      if (!end.isAfter(start)) {
+        end = start.add(const Duration(minutes: 1));
+      }
+      return (start, end);
+    }
+    final span =
+        range.span ??
+        (entire != null
+            ? entire.$2.difference(entire.$1)
+            : const Duration(days: 30));
+    final end = now;
+    final start = end.subtract(span);
+    return (start, end);
   }
 
   HistoryFixture _emptyFixture(DateTime start, DateTime end) {

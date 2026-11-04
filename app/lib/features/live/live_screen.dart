@@ -179,8 +179,7 @@ class LiveScreen extends StatelessWidget {
                         icon: Icons.error_outline,
                         color: Theme.of(context).colorScheme.error,
                         title: AppStrings.historySyncFailed,
-                        message:
-                            'Live readings are still updating. Retry when the Bluetooth connection is stable.',
+                        message: 'Live readings are still updating. Retry when the Bluetooth connection is stable.',
                         action: TextButton(
                           onPressed: controller.refreshLink,
                           child: const Text('Retry sync'),
@@ -231,26 +230,59 @@ class LiveScreen extends StatelessWidget {
                       AppStrings.probes,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Tap a probe to open its history',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: Space.headingGap),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: view.probes.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: Space.gridGutter,
-                            mainAxisSpacing: Space.gridGutter,
-                            childAspectRatio: 0.78,
-                          ),
-                      itemBuilder: (context, index) {
-                        return ProbeCard(
-                          key: Key('live.probe.${index + 1}'),
-                          probe: view.probes[index],
-                          units: view.units,
-                          isOffline: view.isOffline,
-                          accent: ProbeColors.forIndex(context, index),
-                          onTap: () => controller.openProbeHistory(index),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = constraints.maxWidth >= 700
+                            ? 4
+                            : constraints.maxWidth >= 520
+                            ? 3
+                            : 2;
+                        final aspect = switch (columns) {
+                          4 => 0.92,
+                          3 => 0.84,
+                          _ => 0.78,
+                        };
+                        final probes = [...view.probes]
+                          ..sort((a, b) {
+                            if (a.connected != b.connected) {
+                              return a.connected ? -1 : 1;
+                            }
+                            return a.number.compareTo(b.number);
+                          });
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: probes.length,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                crossAxisSpacing: Space.gridGutter,
+                                mainAxisSpacing: Space.gridGutter,
+                                childAspectRatio: aspect,
+                              ),
+                          itemBuilder: (context, index) {
+                            final probe = probes[index];
+                            return ProbeCard(
+                              key: Key('live.probe.${probe.number}'),
+                              probe: probe,
+                              units: view.units,
+                              isOffline: view.isOffline,
+                              accent: ProbeColors.forIndex(
+                                context,
+                                probe.number - 1,
+                              ),
+                              onTap: () =>
+                                  controller.openProbeHistory(probe.number - 1),
+                            );
+                          },
                         );
                       },
                     ),
@@ -510,8 +542,7 @@ class _ConnectionCard extends StatelessWidget {
                     child: Row(
                       children: [
                         Tooltip(
-                          message:
-                              'Time since last data was received from the Smoke X',
+                          message: 'Time since last data was received from the Smoke X',
                           triggerMode: TooltipTriggerMode.tap,
                           child: Icon(
                             Icons.sensors,

@@ -210,13 +210,14 @@ class RecentHistoryStore implements BridgeSyncSink {
           ? (rangeStart, rangeEnd)
           : (rangeEnd, rangeEnd);
     }
-    final span = switch (range) {
-      HistoryRange.oneHour => const Duration(hours: 1),
-      HistoryRange.sixHours => const Duration(hours: 6),
-      HistoryRange.twentyFourHours => const Duration(hours: 24),
-      HistoryRange.twoDays => const Duration(days: 2),
-      HistoryRange.custom => recentWindow,
-    };
+    if (range == HistoryRange.all) {
+      final rangeStart = oldestAt ?? now.subtract(recentWindow);
+      final rangeEnd = newestAt ?? now;
+      return rangeEnd.isAfter(rangeStart)
+          ? (rangeStart, rangeEnd)
+          : (rangeStart, rangeStart.add(const Duration(minutes: 1)));
+    }
+    final span = range.span ?? recentWindow;
     return (now.subtract(span), now);
   }
 

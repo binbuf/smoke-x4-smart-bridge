@@ -12,6 +12,7 @@ import 'package:smoke_bridge/app/smoke_bridge_app.dart';
 import 'package:smoke_bridge/debug/scenario_lab.dart';
 import 'package:smoke_bridge/theme/app_theme.dart';
 import 'package:smoke_bridge/widgets/probe_sparkline.dart';
+import 'package:smoke_bridge/widgets/probe_chart.dart';
 import 'package:smoke_bridge/widgets/prototype_widgets.dart';
 
 Widget shell(BridgeController controller) {
@@ -145,6 +146,115 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Temperature units'));
     expect(find.text('Temperature units'), findsOneWidget);
+  });
+
+  testWidgets('History range menu offers granular and long ranges', (
+    tester,
+  ) async {
+    final controller = demoBridgeController()..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    await tester.tap(find.byKey(const Key('history.range.menu')));
+    await tester.pumpAndSettle();
+    for (final key in const [
+      '5m',
+      '15m',
+      '30m',
+      '1h',
+      '3h',
+      '6h',
+      '12h',
+      '24h',
+      '2d',
+      '7d',
+      '30d',
+      'all',
+      'custom',
+    ]) {
+      expect(
+        find.byKey(Key('history.range.$key')),
+        findsOneWidget,
+        reason: 'range $key',
+      );
+    }
+
+    final week = find.byKey(const Key('history.range.7d'));
+    await tester.ensureVisible(week);
+    await tester.tap(week);
+    await tester.pumpAndSettle();
+    expect(controller.historyRange, HistoryRange.sevenDays);
+    expect(find.text('7 days'), findsOneWidget);
+  });
+
+  testWidgets('dragging the chart switches History to a custom range', (
+    tester,
+  ) async {
+    final controller = demoBridgeController()..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    final chart = find.byType(HistoryChart);
+    expect(chart, findsOneWidget);
+    final before = controller.historyView.fixture;
+
+    final gesture = await tester.startGesture(tester.getCenter(chart));
+    await tester.pump(const Duration(milliseconds: 20));
+    for (var step = 0; step < 4; step++) {
+      await gesture.moveBy(const Offset(45, 0));
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(controller.historyRange, HistoryRange.custom);
+    final custom = controller.historyCustomRange;
+    expect(custom, isNotNull);
+    expect(custom!.start.isBefore(before.start), isTrue);
+    expect(custom.end.isBefore(before.end), isTrue);
+    expect(find.textContaining('Custom ·'), findsOneWidget);
+  });
+
+  testWidgets('the y-scale stays fixed while the chart pans', (tester) async {
+    final controller = demoBridgeController()..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    final chart = find.byType(HistoryChart);
+    final before = tester.widget<HistoryChart>(chart);
+    expect(before.yMin, isNotNull);
+    expect(before.yMax, isNotNull);
+
+    final gesture = await tester.startGesture(tester.getCenter(chart));
+    await tester.pump(const Duration(milliseconds: 20));
+    await gesture.moveBy(const Offset(-70, 0));
+    await tester.pump(const Duration(milliseconds: 20));
+    final during = tester.widget<HistoryChart>(chart);
+    expect(during.yMin, before.yMin);
+    expect(during.yMax, before.yMax);
+
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('chart legend selects and clears a probe', (tester) async {
+    final controller = demoBridgeController()..tab = AppTab.history;
+    addTearDown(controller.dispose);
+    await pumpShell(tester, controller);
+
+    final p1 = find.byKey(const Key('history.legend.p1'));
+    await tester.ensureVisible(p1);
+    await tester.tap(p1);
+    await tester.pumpAndSettle();
+    expect(controller.historyProbe, 1);
+
+    final all = find.byKey(const Key('history.legend.all'));
+    await tester.ensureVisible(all);
+    await tester.tap(all);
+    await tester.pumpAndSettle();
+    expect(controller.historyProbe, isNull);
   });
 
   testWidgets('units apply immediately and reach History', (tester) async {
@@ -556,6 +666,12 @@ void main() {
     addTearDown(controller.dispose);
     await pumpShell(tester, controller);
 
+    await tester.scrollUntilVisible(
+      find.text('Probe order'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Probe order'));
     await tester.pumpAndSettle();
 
@@ -633,7 +749,10 @@ void main() {
     expect(find.text('Monitor only'), findsNothing);
     expect(find.text('Control'), findsNothing);
     expect(find.text('Set target'), findsNothing);
-    expect(find.textContaining('Bridge details → Connection log'), findsNothing);
+    expect(
+      find.textContaining('Bridge details → Connection log'),
+      findsNothing,
+    );
   });
 
   testWidgets('experimental lab opens from the app-bar menu', (tester) async {

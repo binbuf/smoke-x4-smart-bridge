@@ -18,10 +18,10 @@ History and Settings direction; the decisions have been folded into
 > observed Smoke X4 channel 4 set temp (status-only) and logs detection/loss
 > beside Bridge pairing events, a Summary with Latest / Min / Max and no deltas,
 > and Cooks that open a dedicated historical view instead of replacing the
-> current History range. History ranges are `1 hour`, `6 hours`, `24 hours`,
-> `2 days` and `Custom`
+> current History range. History ranges run from `5 min` to `30 days`, plus
+> `All` and `Custom`
 > (exact dates and times, defaulting to everything in memory); range and probes
-> are compact dropdowns. Settings shows Bridge first, then Preferences; there is
+> are compact dropdowns, and the chart legend doubles as a probe selector. Settings shows Bridge first, then Preferences; there is
 > no separate `Bridge details` button. Where the sketches below differ,
 > [06-app.md](06-app.md) is authoritative.
 >
@@ -355,8 +355,9 @@ use `Connected` for the X4 link.
 
 **Must ship in the refresh**
 
-- Range trigger: `1 hour`, `6 hours`, `24 hours`, `2 days`, `Custom`; menu:
-  `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 2 days`,
+- Range trigger: `5 min`, `15 min`, `30 min`, `1 hour`, `3 hours`, `6 hours`,
+  `12 hours`, `24 hours`, `2 days`, `7 days`, `30 days`, `All`, `Custom`; menu:
+  `Last 5 minutes` through `Last 30 days`, `All saved history`,
   `Custom range…`. Custom starts with all saved history and opens an exact
   date-and-time sheet.
 - Probe filter: `All probes`, `P1`–`P4`. A probe with no data in the selected
@@ -365,16 +366,24 @@ use `Connected` for the X4 link.
 - One filter card keeps range, probe filter and reset together; Cooks live in
   their own card below Summary.
 - Shared y-axis when all probes are visible; auto-scale to the selected probe
-  when one is selected.
+  when one is selected. The scale covers the loaded window and stays fixed
+  while panning, then eases to the new window after a zoom or range commit.
 - Nice y-axis ticks (1/2/2.5/5 × 10ⁿ) and the unit shown once (`°F` / `°C`).
 - Locale-aware time labels; date labels at midnight for multi-day ranges.
 - Crosshair + tooltip: timestamp and every visible probe value. The tooltip is
   **pinned until the user taps elsewhere**; it does not disappear after a
-  second. Haptic feedback on sample snap.
-- Drag to pan; pinch or mouse-wheel/scroll to zoom; double-tap to fit. Zoom
-  buttons and a `Now` action appear in the chart toolbar when useful.
-- Live-follow badge when the chart is at Now; panning pauses follow, `Now`
-  resumes.
+  second. Hold to scrub; haptic feedback on sample snap.
+- Drag to pan; pinch or mouse-wheel/scroll to zoom; double-tap to zoom in and
+  use `Fit range` to return. A gesture settles as a custom range, so the range
+  trigger becomes `Custom` plus the visible span, and Summary follows the
+  visible window.
+- Zoom buttons and a `Live` action appear in the chart toolbar when useful.
+  Live-follow resumes the current live tail.
+- A compact overview brush is always present for non-empty ranges. Drag its
+  window to pan, drag either edge to zoom, or tap to centre. It is also
+  accessible as a slider.
+- The legend doubles as the quick probe selector. Tapping `P1`–`P4` focuses
+  that probe and its y-scale; `All` restores the shared scale.
 - Latest-point dots at the end of each visible series.
 - Gap bands with a reason (`No signal`, `Bridge off`, `Not synced`) and a tap
   explanation. Never connect across a gap.
@@ -392,7 +401,6 @@ use `Connected` for the X4 link.
 
 - Preload each range on selection and show a non-blocking `Loading 30 days…`
   state.
-- A small overview brush for `2 days` and `Custom`.
 - A dashed Billows target reference line when the target is known and P4 is
   visible. This is a real reading, not an alarm.
 - Sort menu on Summary:
@@ -955,7 +963,8 @@ class ProbeStats {
 - `sample` already has `p1..p4`; no schema change for per-probe sparklines or
   filters.
 - `gap` already has `reason`; use it instead of the fixed `missing` marker.
-- `HistoryRange` is the renamed `GraphRange`; add `custom`.
+- `HistoryRange` is the renamed `GraphRange`; add granular presets, `all` and
+  `custom`.
 - Persist range/filter/sort in the controller or a small view-model so tab
   switches do not reset them.
 - Compute Summary from raw/bucketed data; never show the decimated point count.
@@ -1106,9 +1115,10 @@ Decisions recorded in the design README:
 - No `Graph` label in the product UI; tab and screen are `History`.
 - Live has four tiles; each shows a relative 1 h sparkline when that probe has
   data; no aggregate preview graph.
-- History has range presets (`1 hour`, `6 hours`, `24 hours`, `2 days`,
-  `Custom`), probe filters, crosshair, pinch/pan, reset/Now, gap reasons,
-  Latest/Min/Max Summary, sorting, Cooks and a dedicated Cook view.
+- History has granular and long range presets (`5 min` through `30 days`, `All`,
+  `Custom`), probe filters, crosshair/scrub, pinch/pan with automatic custom
+  range, overview brush, reset/Live, gap reasons, Latest/Min/Max Summary,
+  sorting, Cooks and a dedicated Cook view.
 - Settings has a top-level °F/°C control that applies immediately; no save-all
   bar for units/timeout, and Appearance is local and immediate.
 - No `Actions` screen, no `Probe names & roles`, no duplicate `Sync now` /

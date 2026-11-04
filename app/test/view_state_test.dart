@@ -10,6 +10,19 @@ import 'package:smoke_bridge/debug/demo_content.dart';
 import 'package:smoke_bridge/widgets/prototype_widgets.dart';
 
 void main() {
+  test('history range presets expose their spans and follow behaviour', () {
+    expect(HistoryRange.fiveMinutes.span, const Duration(minutes: 5));
+    expect(HistoryRange.fifteenMinutes.span, const Duration(minutes: 15));
+    expect(HistoryRange.oneHour.span, const Duration(hours: 1));
+    expect(HistoryRange.twelveHours.span, const Duration(hours: 12));
+    expect(HistoryRange.sevenDays.span, const Duration(days: 7));
+    expect(HistoryRange.all.span, isNull);
+    expect(HistoryRange.custom.span, isNull);
+    expect(HistoryRange.oneHour.followsNewest, isTrue);
+    expect(HistoryRange.all.followsNewest, isTrue);
+    expect(HistoryRange.custom.followsNewest, isFalse);
+  });
+
   test('live view state is immutable and fully formatted', () {
     final controller = demoBridgeController();
     addTearDown(controller.dispose);

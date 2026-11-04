@@ -241,8 +241,28 @@ class HistoryViewState {
     entireHistoryRange: entireHistoryRange,
   );
 
-  String get rangeChipLabel =>
-      range == HistoryRange.custom ? 'Custom' : historyChipLabel(range);
+  String get rangeChipLabel {
+    if (range == HistoryRange.custom) {
+      final span = fixture.end.difference(fixture.start);
+      return 'Custom · ${durationShort(span)}';
+    }
+    return historyChipLabel(range);
+  }
+
+  /// True when the right edge of the loaded window is the live edge. Presets
+  /// always follow the newest reading; a custom range only does when its end is
+  /// within two minutes of now.
+  bool get endsAtNow {
+    if (range == HistoryRange.custom) {
+      final custom = customRange;
+      if (custom == null) return false;
+      return custom.end.difference(now).inMinutes.abs() <= 2;
+    }
+    if (range == HistoryRange.all) {
+      return fixture.end.difference(now).inMinutes.abs() <= 2;
+    }
+    return true;
+  }
 
   String get probeLabel => probe == null ? 'All probes' : 'P$probe';
 
@@ -286,8 +306,7 @@ class HistoryViewState {
         locale: locale,
       );
 
-  String valueFor(double? fahrenheit) =>
-      temperatureValue(fahrenheit, units);
+  String valueFor(double? fahrenheit) => temperatureValue(fahrenheit, units);
 
   String tempFor(double? fahrenheit) => temperatureText(fahrenheit, units);
 

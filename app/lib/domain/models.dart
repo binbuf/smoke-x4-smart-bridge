@@ -32,7 +32,44 @@ enum BillowsAttachment { unknown, attached, detached }
 
 enum Units { fahrenheit, celsius }
 
-enum HistoryRange { oneHour, sixHours, twentyFourHours, twoDays, custom }
+enum HistoryRange {
+  fiveMinutes,
+  fifteenMinutes,
+  thirtyMinutes,
+  oneHour,
+  threeHours,
+  sixHours,
+  twelveHours,
+  twentyFourHours,
+  twoDays,
+  sevenDays,
+  thirtyDays,
+  all,
+  custom,
+}
+
+/// Time span presets and follow behaviour shared by the History picker, the
+/// archive window and the chart. `all` and `custom` have no fixed span.
+extension HistoryRangePreset on HistoryRange {
+  Duration? get span => switch (this) {
+    HistoryRange.fiveMinutes => const Duration(minutes: 5),
+    HistoryRange.fifteenMinutes => const Duration(minutes: 15),
+    HistoryRange.thirtyMinutes => const Duration(minutes: 30),
+    HistoryRange.oneHour => const Duration(hours: 1),
+    HistoryRange.threeHours => const Duration(hours: 3),
+    HistoryRange.sixHours => const Duration(hours: 6),
+    HistoryRange.twelveHours => const Duration(hours: 12),
+    HistoryRange.twentyFourHours => const Duration(hours: 24),
+    HistoryRange.twoDays => const Duration(days: 2),
+    HistoryRange.sevenDays => const Duration(days: 7),
+    HistoryRange.thirtyDays => const Duration(days: 30),
+    HistoryRange.all || HistoryRange.custom => null,
+  };
+
+  /// Presets are anchored to the newest reading, so live data keeps extending
+  /// the window. A custom range is a fixed, user-chosen window.
+  bool get followsNewest => this != HistoryRange.custom;
+}
 
 enum ConnectionEventKind {
   bridgeConnected,

@@ -127,11 +127,7 @@ String dateRangeLabel(DateTime start, DateTime end, {String? locale}) {
   return '${shortDateWithYear(start, locale: locale)} – ${shortDateWithYear(end, locale: locale)}';
 }
 
-String dateTimeLabel(
-  DateTime time, {
-  bool use24Hour = false,
-  String? locale,
-}) =>
+String dateTimeLabel(DateTime time, {bool use24Hour = false, String? locale}) =>
     '${shortDateWithYear(time, locale: locale)} at '
     '${clockLabel(time, use24Hour: use24Hour, locale: locale)}';
 
@@ -209,29 +205,61 @@ String chartTime(
 
 String historyRangeLabel(HistoryRange range) {
   switch (range) {
+    case HistoryRange.fiveMinutes:
+      return 'Last 5 minutes';
+    case HistoryRange.fifteenMinutes:
+      return 'Last 15 minutes';
+    case HistoryRange.thirtyMinutes:
+      return 'Last 30 minutes';
     case HistoryRange.oneHour:
       return 'Last hour';
+    case HistoryRange.threeHours:
+      return 'Last 3 hours';
     case HistoryRange.sixHours:
       return 'Last 6 hours';
+    case HistoryRange.twelveHours:
+      return 'Last 12 hours';
     case HistoryRange.twentyFourHours:
       return 'Last 24 hours';
     case HistoryRange.twoDays:
       return 'Last 2 days';
+    case HistoryRange.sevenDays:
+      return 'Last 7 days';
+    case HistoryRange.thirtyDays:
+      return 'Last 30 days';
+    case HistoryRange.all:
+      return 'All saved history';
     case HistoryRange.custom:
-      return 'Custom';
+      return 'Custom range';
   }
 }
 
 String historyChipLabel(HistoryRange range) {
   switch (range) {
+    case HistoryRange.fiveMinutes:
+      return '5 min';
+    case HistoryRange.fifteenMinutes:
+      return '15 min';
+    case HistoryRange.thirtyMinutes:
+      return '30 min';
     case HistoryRange.oneHour:
       return '1 hour';
+    case HistoryRange.threeHours:
+      return '3 hours';
     case HistoryRange.sixHours:
       return '6 hours';
+    case HistoryRange.twelveHours:
+      return '12 hours';
     case HistoryRange.twentyFourHours:
       return '24 hours';
     case HistoryRange.twoDays:
       return '2 days';
+    case HistoryRange.sevenDays:
+      return '7 days';
+    case HistoryRange.thirtyDays:
+      return '30 days';
+    case HistoryRange.all:
+      return 'All';
     case HistoryRange.custom:
       return 'Custom';
   }
@@ -239,14 +267,30 @@ String historyChipLabel(HistoryRange range) {
 
 String historyRangeKey(HistoryRange range) {
   switch (range) {
+    case HistoryRange.fiveMinutes:
+      return '5m';
+    case HistoryRange.fifteenMinutes:
+      return '15m';
+    case HistoryRange.thirtyMinutes:
+      return '30m';
     case HistoryRange.oneHour:
       return '1h';
+    case HistoryRange.threeHours:
+      return '3h';
     case HistoryRange.sixHours:
       return '6h';
+    case HistoryRange.twelveHours:
+      return '12h';
     case HistoryRange.twentyFourHours:
       return '24h';
     case HistoryRange.twoDays:
       return '2d';
+    case HistoryRange.sevenDays:
+      return '7d';
+    case HistoryRange.thirtyDays:
+      return '30d';
+    case HistoryRange.all:
+      return 'all';
     case HistoryRange.custom:
       return 'custom';
   }

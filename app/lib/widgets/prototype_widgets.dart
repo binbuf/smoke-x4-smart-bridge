@@ -294,6 +294,15 @@ class ProbeCard extends StatelessWidget {
                         size: 14,
                         color: StatusColors.aging(context),
                       ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '1h',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(width: 2),
                     Icon(
                       Icons.chevron_right,
@@ -554,9 +563,8 @@ class InlineSaveState extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               'Saving…',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
         );
@@ -571,9 +579,8 @@ class InlineSaveState extends StatelessWidget {
       case SettingsSaveState.error:
         return Text(
           error ?? 'Couldn’t save',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: scheme.error,
-          ),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: scheme.error),
         );
     }
   }
@@ -856,8 +863,10 @@ Future<bool?> showLossSheet(
                   const SizedBox(height: 10),
                   Text(
                     intro,
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: scheme.onSurfaceVariant, height: 1.45),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      height: 1.45,
+                    ),
                   ),
                 ],
                 if (bullets.isNotEmpty) ...[

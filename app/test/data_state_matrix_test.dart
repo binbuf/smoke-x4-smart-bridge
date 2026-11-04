@@ -100,6 +100,10 @@ void main() {
       );
       expect(find.text('Show all saved history'), findsOneWidget);
       expect(find.text('No probes'), findsOneWidget);
+      // The chart surface stays in place so the overview brush can be dragged
+      // back to a range that has readings.
+      expect(find.byType(HistoryChart), findsOneWidget);
+      expect(find.byKey(const Key('history.emptyRange')), findsOneWidget);
       expectNoRawException(tester);
     });
 

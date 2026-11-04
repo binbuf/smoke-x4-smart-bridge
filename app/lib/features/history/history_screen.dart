@@ -83,8 +83,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   InlineNotice(
                     icon: Icons.link_off,
                     title: 'Some readings were lost before they reached your phone',
-                    message:
-                        'The Bridge overwrote this part of its history before it reached your phone. The readings can’t be recovered, so the chart leaves this period blank.',
+                    message: 'The Bridge overwrote this part of its history before it reached your phone. The readings can’t be recovered, so the chart leaves this period blank.',
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -127,7 +126,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
               items: _probeMenuItems(context, view),
               onSelected: (value) {
                 controller.setHistoryProbe(value == 0 ? null : value);
-                _resetViewport();
               },
             ),
           ),
@@ -153,11 +151,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final scheme = Theme.of(context).colorScheme;
     return [
       for (final range in const [
+        HistoryRange.custom,
+        HistoryRange.all,
+        HistoryRange.fiveMinutes,
+        HistoryRange.fifteenMinutes,
+        HistoryRange.thirtyMinutes,
         HistoryRange.oneHour,
+        HistoryRange.threeHours,
         HistoryRange.sixHours,
+        HistoryRange.twelveHours,
         HistoryRange.twentyFourHours,
         HistoryRange.twoDays,
-        HistoryRange.custom,
+        HistoryRange.sevenDays,
+        HistoryRange.thirtyDays,
       ])
         PopupMenuItem<HistoryRange>(
           key: Key('history.range.${historyRangeKey(range)}'),
@@ -169,14 +175,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      range == HistoryRange.custom
-                          ? 'Custom range…'
-                          : historyRangeLabel(range),
-                    ),
+                    Text(historyRangeLabel(range)),
                     if (range == HistoryRange.custom)
                       Text(
-                        'Any date and time',
+                        view.customRange == null
+                            ? 'Any date and time'
+                            : view.windowLabel(
+                                use24Hour: MediaQuery.alwaysUse24HourFormatOf(
+                                  context,
+                                ),
+                              ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
@@ -248,10 +258,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     ];
   }
 
-  Future<void> _selectRange(
-    HistoryRange range,
-    HistoryViewState view,
-  ) async {
+  Future<void> _selectRange(HistoryRange range, HistoryViewState view) async {
     if (range == HistoryRange.custom) {
       final initial = view.customRange ?? view.entireHistoryRange;
       // Only Apply changes History. Opening or cancelling the sheet leaves the
@@ -363,7 +370,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ],
         ),
         const SizedBox(height: 6),
-        if (emptyKind != null)
+        if (emptyKind != null &&
+            (emptyKind == _HistoryEmptyKind.noHistory ||
+                emptyKind == _HistoryEmptyKind.noProbeData))
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 300),
             child: EmptyState(
@@ -373,27 +382,58 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ? AppStrings.noReadingsYet
                   : AppStrings.noReadingsInRange,
               message: switch (emptyKind) {
-                _HistoryEmptyKind.noHistory =>
-                  AppStrings.bridgeRecordsAlways,
+                _HistoryEmptyKind.noHistory => AppStrings.bridgeRecordsAlways,
                 _HistoryEmptyKind.noProbeData =>
                   'Probe ${view.probe} has no readings in this range. Try another range or show all probes.',
-                _HistoryEmptyKind.noDataInRange =>
-                  'This range has no saved readings. Show all saved history to find the readings you expect.',
+                _HistoryEmptyKind.noDataInRange => '',
               },
               action: () => _emptyAction(emptyKind, view),
               actionLabel: switch (emptyKind) {
                 _HistoryEmptyKind.noHistory => AppStrings.viewLive,
                 _HistoryEmptyKind.noProbeData => AppStrings.showAllProbes,
-                _HistoryEmptyKind.noDataInRange => AppStrings.showAllSavedHistory,
+                _HistoryEmptyKind.noDataInRange =>
+                  AppStrings.showAllSavedHistory,
               },
             ),
           )
-        else
+        else ...[
+          if (emptyKind == _HistoryEmptyKind.noDataInRange) ...[
+            InlineNotice(
+              key: const Key('history.emptyRange'),
+              icon: Icons.show_chart,
+              title: AppStrings.noReadingsInRange,
+              message: 'This range has no saved readings. Show all saved history to find the readings you expect.',
+              action: TextButton(
+                onPressed: () => _emptyAction(emptyKind!, view),
+                child: const Text(AppStrings.showAllSavedHistory),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           HistoryChartPanel(
             key: _chartKey,
             view: view,
             historical: widget.historical,
+            loadRange: widget.historical
+                ? null
+                : (range) => controller.loadChartFixture(
+                    range,
+                    hasGap: widget.gapOverride ?? true,
+                  ),
+            onRangeChanged: widget.historical
+                ? null
+                : controller.setHistoryCustomRange,
+            onGoLive: widget.historical
+                ? null
+                : () {
+                    controller.setHistoryRange(HistoryRange.oneHour);
+                    _resetViewport();
+                  },
+            onProbeChanged: (probe) {
+              controller.setHistoryProbe(probe);
+            },
           ),
+        ],
       ],
     );
 
@@ -411,7 +451,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         break;
       case _HistoryEmptyKind.noProbeData:
         controller.setHistoryProbe(null);
-        _resetViewport();
         break;
       case _HistoryEmptyKind.noDataInRange:
         final entire = view.entireHistoryRange;
@@ -480,9 +519,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             AppStrings.noCookDetected,
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                           ),
                       ],
@@ -525,7 +564,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 controller.setHistoryProbe(
                   view.probe == stat.probe ? null : stat.probe,
                 );
-                _resetViewport();
               },
             ),
         ],
@@ -693,32 +731,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(height: 12),
               const _HelpRow(
                 icon: Icons.touch_app_outlined,
-                text: 'Tap the chart to inspect the nearest reading.',
+                text: 'Tap the chart to inspect a reading.',
               ),
               const _HelpRow(
                 icon: Icons.open_with,
-                text:
-                    'Drag to pan. Pinch or scroll to zoom. Double-tap to fit the full range.',
+                text: 'Drag to pan. Pinch or scroll to zoom. Double-tap to zoom in; use Fit range to return.',
+              ),
+              const _HelpRow(
+                icon: Icons.swap_horiz,
+                text: 'Hold the chart to scrub through time. Drag the overview bar to move the window, or drag its edges to zoom.',
+              ),
+              const _HelpRow(
+                icon: Icons.tune,
+                text: 'Tap a probe chip in the legend to focus its scale. Tap All to compare every probe again.',
               ),
               const _HelpRow(
                 icon: Icons.local_fire_department_outlined,
-                text:
-                    'Use Cooks to jump to a recorded cook, or choose Custom range to set exact dates and times.',
+                text: 'Use Cooks to jump to a recorded cook, or choose Custom range to set exact dates and times.',
               ),
               const _HelpRow(
-                icon: Icons.linear_scale,
-                text:
-                    'A gap means no reading was recorded. The chart doesn’t connect across it.',
+                icon: Icons.link_off,
+                text: 'A gap means no reading was recorded. The chart doesn’t connect across it.',
               ),
               const _HelpRow(
                 icon: Icons.straighten,
-                text:
-                    'All probes share one scale. Choose one probe to see more detail.',
+                text: 'All probes share one scale. Choose one probe to see more detail.',
               ),
               const _HelpRow(
                 icon: Icons.schedule,
-                text:
-                    'Times estimated means the Bridge’s clock wasn’t set when these readings were recorded, so the times are approximate.',
+                text: 'Times estimated means the Bridge’s clock wasn’t set when these readings were recorded, so the times are approximate.',
               ),
             ],
           ),
@@ -749,24 +790,22 @@ class _PastCookScreenState extends State<PastCookScreen> {
   void initState() {
     super.initState();
     final source = widget.controller;
-    _history = BridgeController(
-      content: source.content,
-      sampleDao: source.sampleDao,
-    )
-      ..units = source.units
-      ..localeName = source.localeName
-      ..use24Hour = source.use24Hour
-      ..historyRange = HistoryRange.custom
-      ..historyCustomRange = DateTimeRange(
-        start: widget.cook.start,
-        end: widget.cook.end,
-      )
-      ..historyProbe = null
-      ..historySort = source.historySort
-      ..historyHasData = source.historyHasData
-      ..historyOneProbe = source.historyOneProbe
-      ..historyEstimated = source.historyEstimated
-      ..historyMissingFromBridge = false;
+    _history =
+        BridgeController(content: source.content, sampleDao: source.sampleDao)
+          ..units = source.units
+          ..localeName = source.localeName
+          ..use24Hour = source.use24Hour
+          ..historyRange = HistoryRange.custom
+          ..historyCustomRange = DateTimeRange(
+            start: widget.cook.start,
+            end: widget.cook.end,
+          )
+          ..historyProbe = null
+          ..historySort = source.historySort
+          ..historyHasData = source.historyHasData
+          ..historyOneProbe = source.historyOneProbe
+          ..historyEstimated = source.historyEstimated
+          ..historyMissingFromBridge = false;
     // Units, change window and locale are presentation state: an open Cook
     // view follows a live change instead of keeping its initState snapshot.
     source.addListener(_syncPresentation);
@@ -833,6 +872,9 @@ class _FilterMenuButton<T> extends StatelessWidget {
     return PopupMenuButton<T>(
       tooltip: tooltip,
       position: PopupMenuPosition.under,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.62,
+      ),
       onSelected: onSelected,
       itemBuilder: (context) => items,
       child: Container(
@@ -1011,125 +1053,153 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
         clampRange(yesterdayStart, today.subtract(const Duration(minutes: 1))),
       ),
       (
-        'Last 6 hours',
+        'Last 15 minutes',
         clampRange(
-          memory.end.subtract(const Duration(hours: 6)),
+          memory.end.subtract(const Duration(minutes: 15)),
           memory.end,
         ),
+      ),
+      (
+        'Last hour',
+        clampRange(memory.end.subtract(const Duration(hours: 1)), memory.end),
+      ),
+      (
+        'Last 6 hours',
+        clampRange(memory.end.subtract(const Duration(hours: 6)), memory.end),
+      ),
+      (
+        'Last 24 hours',
+        clampRange(memory.end.subtract(const Duration(hours: 24)), memory.end),
+      ),
+      (
+        'Last 7 days',
+        clampRange(memory.end.subtract(const Duration(days: 7)), memory.end),
       ),
     ];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Custom range', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 4),
-            Text(
-              'Choose a start and end time. It starts with all the history saved on your phone.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: 0.09),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: scheme.primary.withValues(alpha: 0.2),
-                ),
-              ),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 8),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('Custom range', style: theme.textTheme.headlineSmall),
+                  const SizedBox(height: 4),
                   Text(
-                    '${shortDateWithYear(_start)} · ${clockLabel(_start, use24Hour: widget.use24Hour)}',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Icon(
-                      Icons.arrow_downward_rounded,
-                      size: 16,
+                    'Choose a start and end time. It starts with all the history saved on your phone.',
+                    style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
+                      height: 1.4,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.09),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: scheme.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${shortDateWithYear(_start)} · ${clockLabel(_start, use24Hour: widget.use24Hour)}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Icon(
+                            Icons.arrow_downward_rounded,
+                            size: 16,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        Text(
+                          '${shortDateWithYear(_end)} · ${clockLabel(_end, use24Hour: widget.use24Hour)}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _valid
+                              ? '${durationLong(_end.difference(_start))} of history'
+                              : 'End time must be after start time',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: _valid
+                                ? scheme.onSurfaceVariant
+                                : scheme.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _RangeField(
+                    label: 'Start',
+                    value: _start,
+                    use24Hour: widget.use24Hour,
+                    onPickDate: () => _pickDate(start: true),
+                    onPickTime: () => _pickTime(start: true),
+                  ),
+                  const SizedBox(height: 8),
+                  _RangeField(
+                    label: 'End',
+                    value: _end,
+                    use24Hour: widget.use24Hour,
+                    onPickDate: () => _pickDate(start: false),
+                    onPickTime: () => _pickTime(start: false),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
                   Text(
-                    '${shortDateWithYear(_end)} · ${clockLabel(_end, use24Hour: widget.use24Hour)}',
-                    style: theme.textTheme.titleSmall?.copyWith(
+                    'Quick picks',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _valid
-                        ? '${durationLong(_end.difference(_start))} of history'
-                        : 'End time must be after start time',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: _valid ? scheme.onSurfaceVariant : scheme.error,
-                    ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final preset in presets)
+                        ActionChip(
+                          label: Text(preset.$1),
+                          onPressed: () => _applyPreset(preset.$2),
+                        ),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
-            _RangeField(
-              label: 'Start',
-              value: _start,
-              use24Hour: widget.use24Hour,
-              onPickDate: () => _pickDate(start: true),
-              onPickTime: () => _pickTime(start: true),
-            ),
-            const SizedBox(height: 8),
-            _RangeField(
-              label: 'End',
-              value: _end,
-              use24Hour: widget.use24Hour,
-              onPickDate: () => _pickDate(start: false),
-              onPickTime: () => _pickTime(start: false),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Text(
-              'Quick picks',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final preset in presets)
-                  ActionChip(
-                    label: Text(preset.$1),
-                    onPressed: () => _applyPreset(preset.$2),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            Row(
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 24),
+            child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
@@ -1146,8 +1216,8 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

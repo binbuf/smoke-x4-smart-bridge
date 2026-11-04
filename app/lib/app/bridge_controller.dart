@@ -68,6 +68,10 @@ class BridgeController extends ChangeNotifier {
   HistoryArchive? _historyArchive;
   HistoryDeletionService? _historyDeletion;
 
+  /// Full extent of the durable archive, cached from the cheap `extent` query.
+  /// Custom ranges start here even before a History window has loaded.
+  DateTimeRange? _archiveRange;
+
   /// Average SQLite cost of one stored reading. 04 §4.9 puts a 30-day archive at
   /// 5–8 MB for 86,400 readings, so 72 B is the approved mid-point. The screen
   /// labels the result "Storage used"; it is an estimate, not a file-system
@@ -119,13 +123,13 @@ class BridgeController extends ChangeNotifier {
       savedDataSize = '0 B';
       savedDataEmpty = true;
       hasSavedData = false;
+      _archiveRange = null;
     } else {
       phoneRecords = extent.count;
-      savedDataRange = dateRangeLabel(
-        DateTime.fromMillisecondsSinceEpoch(extent.minRecordedMs),
-        DateTime.fromMillisecondsSinceEpoch(extent.maxRecordedMs),
-        locale: localeName,
-      );
+      final start = DateTime.fromMillisecondsSinceEpoch(extent.minRecordedMs);
+      final end = DateTime.fromMillisecondsSinceEpoch(extent.maxRecordedMs);
+      _archiveRange = DateTimeRange(start: start, end: end);
+      savedDataRange = dateRangeLabel(start, end, locale: localeName);
       savedDataSize = storageSizeLabel(
         extent.count * estimatedStoredBytesPerReading,
         locale: localeName,
@@ -1512,6 +1516,8 @@ class BridgeController extends ChangeNotifier {
   /// Everything the phone has recorded. Custom ranges start here and can then
   /// be narrowed to any minute.
   DateTimeRange get entireHistoryRange {
+    final archive = _archiveRange;
+    if (archive != null) return archive;
     final recent = recentHistory.range;
     if (recent != null) {
       return DateTimeRange(start: recent.$1, end: recent.$2);
@@ -2092,6 +2098,53 @@ class BridgeController extends ChangeNotifier {
         start: data.entireHistory.start,
         end: data.entireHistory.end,
       ),
+    );
+  }
+
+  /// Loads a chart-only fixture for an arbitrary viewport.
+  ///
+  /// The chart uses this to prefetch a margin around the visible window while
+  /// the user pans or pinches. It deliberately skips Summary statistics and
+  /// Cook detection: those are refreshed once the gesture settles and the
+  /// committed custom range reaches [loadHistoryView].
+  Future<HistoryFixture> loadChartFixture(
+    DateTimeRange range, {
+    bool hasGap = true,
+  }) async {
+    final archive = historyArchive;
+    if (archive != null) {
+      final data = await archive.load(
+        range: HistoryRange.custom,
+        customStart: range.start,
+        customEnd: range.end,
+        includeCooks: false,
+        includeStats: false,
+      );
+      var fixture = data.fixture;
+      if (!hasGap && fixture.bands.isNotEmpty) {
+        fixture = HistoryFixture(
+          start: fixture.start,
+          end: fixture.end,
+          series: fixture.series,
+          gapStart: fixture.start,
+          gapEnd: fixture.start,
+          gapReason: HistoryGapReason.noSignal,
+          estimated: fixture.estimated,
+          missingFromBridge: false,
+          decimated: fixture.decimated,
+        );
+      }
+      return fixture;
+    }
+    return content.history(
+      HistoryRange.custom,
+      empty: isOffline && !offlineCache,
+      oneProbe: false,
+      estimated: historyEstimated,
+      missingFromBridge: historyMissingFromBridge,
+      hasGap: hasGap,
+      customStart: range.start,
+      customEnd: range.end,
     );
   }
 

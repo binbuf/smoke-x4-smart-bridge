@@ -109,17 +109,47 @@ HistoryFixture buildHistoryFixture(
   final double gapPosition;
   final double gapWidth;
   switch (range) {
+    case HistoryRange.fiveMinutes:
+      span = const Duration(minutes: 5);
+      count = 60;
+      gapPosition = 0.42;
+      gapWidth = 0.06;
+      break;
+    case HistoryRange.fifteenMinutes:
+      span = const Duration(minutes: 15);
+      count = 60;
+      gapPosition = 0.40;
+      gapWidth = 0.07;
+      break;
+    case HistoryRange.thirtyMinutes:
+      span = const Duration(minutes: 30);
+      count = 60;
+      gapPosition = 0.39;
+      gapWidth = 0.07;
+      break;
     case HistoryRange.oneHour:
       span = const Duration(hours: 1);
       count = 60;
       gapPosition = 0.38;
       gapWidth = 0.08;
       break;
+    case HistoryRange.threeHours:
+      span = const Duration(hours: 3);
+      count = 72;
+      gapPosition = 0.42;
+      gapWidth = 0.06;
+      break;
     case HistoryRange.sixHours:
       span = const Duration(hours: 6);
       count = 72;
       gapPosition = 0.46;
       gapWidth = 0.05;
+      break;
+    case HistoryRange.twelveHours:
+      span = const Duration(hours: 12);
+      count = 96;
+      gapPosition = 0.49;
+      gapWidth = 0.045;
       break;
     case HistoryRange.twentyFourHours:
       span = const Duration(hours: 24);
@@ -132,6 +162,24 @@ HistoryFixture buildHistoryFixture(
       count = 96;
       gapPosition = 0.48;
       gapWidth = 0.04;
+      break;
+    case HistoryRange.sevenDays:
+      span = const Duration(days: 7);
+      count = 120;
+      gapPosition = 0.44;
+      gapWidth = 0.035;
+      break;
+    case HistoryRange.thirtyDays:
+      span = const Duration(days: 30);
+      count = 150;
+      gapPosition = 0.51;
+      gapWidth = 0.03;
+      break;
+    case HistoryRange.all:
+      span = const Duration(days: 7);
+      count = 120;
+      gapPosition = 0.47;
+      gapWidth = 0.035;
       break;
     case HistoryRange.custom:
       final start = customStart ?? now.subtract(const Duration(hours: 24));
@@ -161,7 +209,8 @@ HistoryFixture buildHistoryFixture(
       ? start.add(
           Duration(
             milliseconds:
-                (effectiveSpan.inMilliseconds * (gapPosition + gapWidth)).round(),
+                (effectiveSpan.inMilliseconds * (gapPosition + gapWidth))
+                    .round(),
           ),
         )
       : start;
@@ -182,7 +231,7 @@ HistoryFixture buildHistoryFixture(
         Duration(milliseconds: (effectiveSpan.inMilliseconds * ratio).round()),
       );
       final inGap = hasGap && time.isAfter(gapStart) && time.isBefore(gapEnd);
-      final drift = (range == HistoryRange.twoDays || range == HistoryRange.custom)
+      final drift = effectiveSpan > const Duration(hours: 24)
           ? math.sin(ratio * math.pi * 2) * 4
           : 0.0;
       final value =
@@ -206,6 +255,7 @@ HistoryFixture buildHistoryFixture(
         : HistoryGapReason.noSignal,
     estimated: estimated,
     missingFromBridge: missingFromBridge,
+    decimated: true,
   );
 }
 

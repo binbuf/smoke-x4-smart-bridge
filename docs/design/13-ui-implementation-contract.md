@@ -141,7 +141,7 @@ class ProbeView {
 }
 
 class HistoryViewState {
-  final HistoryRange range;  // oneHour, sixHours, twentyFourHours, twoDays, custom
+  final HistoryRange range;  // fiveMinutes … thirtyDays, all, custom
   final DateTimeRange? customRange;
   final int? probe;          // null = all
   final HistorySeries series;
@@ -248,16 +248,19 @@ manual check. The wording comes from [12](12-copy-and-label-review.md).
 | State | Required UI |
 |---|---|
 | Default | `24 hours`, `All probes`, four series, Summary, Cooks |
-| Ranges | `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 2 days`, `Custom range…`; trigger `1 hour`, `6 hours`, `24 hours`, `2 days`, `Custom` |
-| Custom range | Sheet starts with all saved history; start/end date and time; `All saved history`, `Today`, `Yesterday`, `Last 6 hours`; `Apply` / `Cancel`; validates range |
+| Ranges | `Last 5 minutes`, `Last 15 minutes`, `Last 30 minutes`, `Last hour`, `Last 3 hours`, `Last 6 hours`, `Last 12 hours`, `Last 24 hours`, `Last 2 days`, `Last 7 days`, `Last 30 days`, `All saved history`, `Custom range`; trigger `5 min` … `30 days`, `All`, `Custom` plus the visible span |
+| Custom range | Sheet starts with all saved history; start/end date and time; quick picks `All saved history`, `Today`, `Yesterday`, `Last 15 minutes`, `Last hour`, `Last 6 hours`, `Last 24 hours`, `Last 7 days`; pinned `Apply` / `Cancel`; validates range |
 | Probe filter | `All probes`, `P1`–`P4`; no-data options disabled with `No data`; reset icon appears only with an active filter |
-| Chart | Shared/auto y-axis, one unit, nice ticks, crosshair + pinned tooltip, pan/zoom/fit, `Now` when panned, latest dots, gap bands, area fill for one probe |
-| Chart help | “Reading the chart” sheet; tap, pan/zoom, Cooks, gaps, shared scale, estimated times |
+| Chart | Shared/auto y-axis with a stable domain while panning, one unit, nice time/value ticks, crosshair + pinned tooltip, hold-to-scrub, pan/pinch/scroll/double-tap, `Live` when panned, latest dots, gap bands, area fill for one probe |
+| Chart range gesture | Pan/pinch/brush/double-tap settles as a custom range; the range trigger switches to `Custom` plus the visible span; Summary reloads for the visible window; a margin is prefetched around the viewport |
+| Overview brush | Always present for non-empty ranges; drag window to pan, edges to zoom, tap to centre; screen-reader increase/decrease actions |
+| Legend | `P1`–`P4` chips show latest visible value; tap focuses that probe and y-scale; `All` returns to shared scale |
+| Chart help | “Reading the chart” sheet; tap, scrub, pan/zoom, overview brush, legend probe chips, Cooks, gaps, shared scale, estimated times |
 | Summary | `Latest`, `Min`, `Max`; no deltas; unit once; `Probe order`, `Hottest`, `Highest`, `Latest reading`, `Since cook start` |
 | No cook detected | `Since cook start` disabled with `No cook detected yet` |
 | Cooks | Card label `Cooks`; “Grouped automatically from your readings”; latest three; `In progress` on the live cook; `View all` |
 | Cook view | App bar `Cook`; probe filter; `Recorded history`; end label is the cook end, not `Now`; back returns to unchanged History state |
-| Full-screen chart | Dedicated route; portrait or landscape; window label, legend, zoom, close; no orientation lock |
+| Full-screen chart | Dedicated route; portrait or landscape; window label, legend/probe chips, overview brush, zoom, close; no orientation lock |
 | No readings at all | `No readings yet`; “The Bridge records whenever it’s on and paired with the Smoke X4.”; `View Live` |
 | No data in range | `No readings in this range`; `Probe 3 has no readings in this range`; `Show all probes` |
 | Offline with cache | Banner `Showing saved readings` + last reading; chart and Summary still render |
@@ -451,9 +454,11 @@ test update:
 - Live: `status.connection`, `status.appBridgeLink`, `status.x4Link`,
   `live.probe.1`–`4`, `live.sparkline.1`–`4`, `live.smokeXWarning`,
   `live.billows`
-- History: `history.filters`, `history.range.menu`, `history.range.1h/.6h/.24h/.2d/.custom`,
+- History: `history.filters`, `history.range.menu`,
+  `history.range.5m/.15m/.30m/.1h/.3h/.6h/.12h/.24h/.2d/.7d/.30d/.all/.custom`,
   `history.filter.menu`, `history.filter.all/.p1`–`.p4`, `history.filters.reset`,
-  `history.chart`, `history.summary`, `history.cooks`, `history.cooks.open`,
+  `history.chart`, `history.overview`, `history.legend.all/.p1`–`.p4`,
+  `history.summary`, `history.cooks`, `history.cooks.open`,
   `history.zoom.out/.in/.fit/.now`
 - Cook view: `pastCook.history`
 - Settings: `settings.bridge.status`, `settings.history.logs`,
