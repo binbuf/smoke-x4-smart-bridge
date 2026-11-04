@@ -302,13 +302,17 @@ sx_protocol_result_t sx_protocol_parse_state(const char *payload,
     }
     parsed.billows_attached = billows != 0;
 
-    long new_alarm = 0;
+    uint8_t new_alarm = 0;
     token = strtok_r(NULL, ",", &save);
-    if (token == NULL || parse_long(token, &new_alarm) != 0) {
+    if (token == NULL || parse_u8(token, &new_alarm) != 0) {
         note_parse_failure();
         return SX_PROTOCOL_ERR_FORMAT;
     }
-    parsed.new_alarm = new_alarm != 0;
+    /* The trailing field is a small bitfield, not a boolean: T56 observed 8
+     * during a Billows/menu edge. Bit 0 is the alarm event; keep the raw value
+     * for diagnostics and never let a menu bit raise an alarm. */
+    parsed.new_alarm_raw = new_alarm;
+    parsed.new_alarm = (new_alarm & 0x01u) != 0;
 
     /* Strict field count: no token may follow the trailing comma. */
     if (strtok_r(NULL, ",", &save) != NULL) {

@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ble_alarm.h"
 #include "ble_control.h"
 #include "ble_adv.h"
 #include "ble_config.h"
@@ -99,6 +100,9 @@ static const ble_uuid128_t s_config_uuid = BLE_UUID128_INIT(
 static const ble_uuid128_t s_stats_uuid = BLE_UUID128_INIT(
     0x62, 0x51, 0x40, 0x3f, 0x2e, 0x1c, 0x3d, 0x9a, 0x0f, 0x4b, 0x5b, 0x4c,
     0x08, 0x00, 0x9b, 0x7f);
+static const ble_uuid128_t s_alarm_uuid = BLE_UUID128_INIT(
+    0x62, 0x51, 0x40, 0x3f, 0x2e, 0x1c, 0x3d, 0x9a, 0x0f, 0x4b, 0x5b, 0x4c,
+    0x09, 0x00, 0x9b, 0x7f);
 
 /* T47 config-applied seam (boot.c wires it to the UI). */
 static ble_service_config_applied_fn s_config_applied_cb;
@@ -112,6 +116,7 @@ static uint16_t s_sync_ctrl_handle;
 static uint16_t s_sync_data_handle;
 static uint16_t s_config_handle;
 static uint16_t s_stats_handle;
+static uint16_t s_alarm_handle;
 
 static bool s_started;
 static bool s_synced;
@@ -263,6 +268,15 @@ static const struct ble_gatt_chr_def s_characteristics[] = {
         .arg = (void *)(uintptr_t)SX4_BLE_CHAR_STATS_SLOT,
         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC,
         .val_handle = &s_stats_handle,
+    },
+    {
+        .uuid = &s_alarm_uuid.u,
+        .access_cb = ble_service_access,
+        .arg = (void *)(uintptr_t)SX4_BLE_CHAR_ALARM_SLOT,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY |
+                 BLE_GATT_CHR_F_READ_ENC |
+                 BLE_GATT_CHR_F_NOTIFY_INDICATE_ENC,
+        .val_handle = &s_alarm_handle,
     },
     {
         /* No more characteristics in this service. */
@@ -677,6 +691,7 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
                       const ble_gatt_spec_t *spec) {
     uint8_t info[SX4_INFO_SIZE];
     uint8_t live[SX4_LIVE_SIZE];
+    uint8_t alarm[SX4_ALARM_SIZE];
     uint8_t config[SX4_CONFIG_SIZE];
     uint8_t stats[SX4_STATS_SIZE];
     const uint8_t *data = NULL;
@@ -701,6 +716,18 @@ static int read_value(uint16_t conn_handle, struct ble_gatt_access_ctxt *ctxt,
         }
         data = live;
         len = sizeof(live);
+        break;
+    case SX4_BLE_CHAR_ALARM_SLOT:
+        {
+            bridge_state_live_t snapshot;
+            if (bridge_state_snapshot(&snapshot) != BRIDGE_STATE_OK ||
+                ble_alarm_encode(&snapshot, alarm, sizeof(alarm)) !=
+                    SX4_ALARM_SIZE) {
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+        }
+        data = alarm;
+        len = sizeof(alarm);
         break;
     case SX4_BLE_CHAR_CONFIG_SLOT:
         build_config(config);
@@ -1312,6 +1339,8 @@ int ble_service_gap_event(struct ble_gap_event *event, void *arg) {
          * snapshot so the app has the same value as a read would give. */
         if (event->subscribe.attr_handle == s_live_handle) {
             ble_tx_on_live_subscribe(event->subscribe.cur_notify != 0);
+        } else if (event->subscribe.attr_handle == s_alarm_handle) {
+            ble_tx_on_alarm_subscribe(event->subscribe.cur_notify != 0);
         } else if (event->subscribe.attr_handle == s_result_handle) {
             s_result_subscribed = event->subscribe.cur_notify != 0;
         } else if (event->subscribe.attr_handle == s_sync_data_handle) {
@@ -1584,6 +1613,7 @@ esp_err_t ble_service_start(void) {
         return ESP_FAIL;
     }
     ble_tx_set_live_handle(s_live_handle);
+    ble_tx_set_alarm_handle(s_alarm_handle);
     if (ble_att_set_preferred_mtu(SX4_BLE_MTU_REQUEST) != 0) {
         ESP_LOGW(TAG, "preferred MTU %u rejected", SX4_BLE_MTU_REQUEST);
     }

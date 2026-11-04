@@ -408,6 +408,74 @@ static void test_arguments(void) {
                  BRIDGE_CONFIG_ERR_INVALID);
 }
 
+static void test_alarm_latch_and_ack(void) {
+    fake_t fake;
+    fake_init(&fake);
+    config_init(&fake);
+    clock_fake_t clock = {.now_ms = 0};
+    bridge_state_time_source_t source = source_for(&clock);
+    CHECK_EQ_INT(bridge_state_core_init(&source, 0), BRIDGE_STATE_OK);
+
+    bridge_state_sample_t s = sample(1, 1100, 700, 1000, 1000);
+    s.alarm_armed_mask = 0x03u;
+    s.alarm_high_f10[0] = 1050;
+    s.alarm_low_f10[0] = 320;
+    s.alarm_high_f10[1] = 650;
+    s.alarm_low_f10[1] = 320;
+    CHECK_EQ_INT(bridge_state_update(&s), BRIDGE_STATE_OK);
+
+    bridge_state_live_t live;
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_armed_mask, 0x03u);
+    CHECK_EQ_UINT(live.alarm_active_mask, 0x03u);
+    CHECK_EQ_UINT(live.alarm_acked_mask, 0x00u);
+    CHECK_EQ_INT(live.alarm_high_f10[0], 1050);
+    CHECK_EQ_INT(live.alarm_low_f10[1], 320);
+
+    /* Acknowledging one probe does not acknowledge the other. */
+    CHECK_EQ_INT(bridge_state_alarm_ack(0x01u), BRIDGE_STATE_OK);
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_active_mask, 0x03u);
+    CHECK_EQ_UINT(live.alarm_acked_mask, 0x01u);
+
+    /* The condition persists: active and acked both stay. */
+    CHECK_EQ_INT(bridge_state_update(&s), BRIDGE_STATE_OK);
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_active_mask, 0x03u);
+    CHECK_EQ_UINT(live.alarm_acked_mask, 0x01u);
+
+    /* P1 returns inside its band: only P1 clears. */
+    s.temp_f10[0] = 1000;
+    CHECK_EQ_INT(bridge_state_update(&s), BRIDGE_STATE_OK);
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_active_mask, 0x02u);
+    CHECK_EQ_UINT(live.alarm_acked_mask, 0x00u);
+
+    /* 0 means "all active"; P2 is acknowledged. */
+    CHECK_EQ_INT(bridge_state_alarm_ack(0x00u), BRIDGE_STATE_OK);
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_acked_mask, 0x02u);
+
+    /* Both probes now sit inside the band, so the latch clears. */
+    s.temp_f10[1] = 700;
+    s.alarm_high_f10[1] = 800;
+    CHECK_EQ_INT(bridge_state_update(&s), BRIDGE_STATE_OK);
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_active_mask, 0x00u);
+    CHECK_EQ_UINT(live.alarm_acked_mask, 0x00u);
+
+    /* A new alarm edge with no out-of-band channel still latches the armed
+     * probes rather than dropping the hardware event. */
+    s.new_alarm = true;
+    CHECK_EQ_INT(bridge_state_update(&s), BRIDGE_STATE_OK);
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_active_mask, 0x03u);
+    s.new_alarm = false;
+    CHECK_EQ_INT(bridge_state_update(&s), BRIDGE_STATE_OK);
+    CHECK_EQ_INT(bridge_state_snapshot(&live), BRIDGE_STATE_OK);
+    CHECK_EQ_UINT(live.alarm_active_mask, 0x00u);
+}
+
 static void test_factory_reset_clears_anchor_pair(void) {
     fake_t fake;
     fake_init(&fake);
@@ -491,6 +559,7 @@ int main(void) {
     test_reboot_restores_estimated_anchor();
     test_snapshot_updates_on_valid_sample();
     test_liveness_timeout();
+    test_alarm_latch_and_ack();
     test_factory_reset_clears_anchor_pair();
     test_change_hook_for_live_notify();
     return sx4_test_summary("bridge-state");

@@ -290,6 +290,77 @@ bridge_state_result_t bridge_state_stamp_record(sx4_sample_rec_t *rec) {
     return BRIDGE_STATE_OK;
 }
 
+/* ---- alarm latch --------------------------------------------------------- */
+
+static bool temp_outside_band(int16_t temp_f10, int16_t high_f10,
+                              int16_t low_f10) {
+    if (temp_f10 == SX4_TEMP_DETACHED || temp_f10 == SX4_TEMP_INVALID) {
+        return false;
+    }
+    /* A zero setpoint means the field was not supplied (X2 spare channels or
+     * an old packet); it must not look like a live low alarm at 0 °F. */
+    if (high_f10 != 0 && temp_f10 >= high_f10) {
+        return true;
+    }
+    if (low_f10 != 0 && temp_f10 <= low_f10) {
+        return true;
+    }
+    return false;
+}
+
+static void apply_alarm_sample(bridge_state_live_t *live,
+                               const bridge_state_sample_t *sample) {
+    uint8_t active = live->alarm_active_mask;
+    uint8_t acked = live->alarm_acked_mask;
+    const uint8_t valid_mask =
+        (uint8_t)((1u << BRIDGE_STATE_NUM_PROBES) - 1u);
+    const uint8_t armed = (uint8_t)(sample->alarm_armed_mask & valid_mask);
+    bool out_of_band[BRIDGE_STATE_NUM_PROBES] = {false, false, false, false};
+    bool any_out_of_band = false;
+
+    for (unsigned int i = 0; i < BRIDGE_STATE_NUM_PROBES; i++) {
+        const uint8_t bit = (uint8_t)(1u << i);
+        const bool attached = (sample->attached_mask & bit) != 0u;
+        const bool probe_armed = (armed & bit) != 0u;
+        out_of_band[i] =
+            attached && probe_armed &&
+            temp_outside_band(sample->temp_f10[i], sample->alarm_high_f10[i],
+                              sample->alarm_low_f10[i]);
+        any_out_of_band = any_out_of_band || out_of_band[i];
+    }
+
+    for (unsigned int i = 0; i < BRIDGE_STATE_NUM_PROBES; i++) {
+        const uint8_t bit = (uint8_t)(1u << i);
+        live->alarm_high_f10[i] = sample->alarm_high_f10[i];
+        live->alarm_low_f10[i] = sample->alarm_low_f10[i];
+
+        const bool attached = (sample->attached_mask & bit) != 0u;
+        const bool probe_armed = (armed & bit) != 0u;
+        /* Bit 0 of the trailing field is the alarm edge. If the thresholds do
+         * not identify the channel (whole-degree rounding), latch every armed
+         * attached probe rather than inventing a channel. */
+        const bool edge =
+            sample->new_alarm && attached && probe_armed &&
+            (out_of_band[i] || !any_out_of_band);
+
+        if (!probe_armed) {
+            active &= (uint8_t)~bit;
+            acked &= (uint8_t)~bit;
+        } else if (edge || out_of_band[i]) {
+            /* Latch until the condition clears. Acknowledging does not clear
+             * the condition, so a still-hot probe stays visibly active. */
+            active |= bit;
+        } else {
+            active &= (uint8_t)~bit;
+            acked &= (uint8_t)~bit;
+        }
+    }
+
+    live->alarm_armed_mask = armed;
+    live->alarm_active_mask = (uint8_t)(active & valid_mask);
+    live->alarm_acked_mask = (uint8_t)(acked & live->alarm_active_mask);
+}
+
 /* ---- snapshot ------------------------------------------------------------ */
 
 bridge_state_result_t bridge_state_update(
@@ -318,10 +389,31 @@ bridge_state_result_t bridge_state_update(
     } else {
         live->flags &= (uint8_t)~SX4_LIVE_FLAG_BILLOWS_ATTACHED;
     }
+    apply_alarm_sample(live, sample);
     s_state.have_sample = true;
     s_state.last_sample_ms = now;
     state_write_end();
     notify_change();
+    return BRIDGE_STATE_OK;
+}
+
+bridge_state_result_t bridge_state_alarm_ack(uint8_t probe_mask) {
+    const uint8_t valid_mask =
+        (uint8_t)((1u << BRIDGE_STATE_NUM_PROBES) - 1u);
+    uint8_t requested = (uint8_t)(probe_mask & valid_mask);
+
+    state_write_begin();
+    const uint8_t active = s_state.live.alarm_active_mask;
+    if (requested == 0u) {
+        requested = active; /* 0 means "all active" */
+    }
+    const uint8_t acked = (uint8_t)(requested & active);
+    s_state.live.alarm_acked_mask |= acked;
+    s_state.live.alarm_acked_mask &= active;
+    state_write_end();
+    if (acked != 0u) {
+        notify_change();
+    }
     return BRIDGE_STATE_OK;
 }
 

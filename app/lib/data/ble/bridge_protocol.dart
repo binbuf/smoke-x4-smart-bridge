@@ -22,6 +22,8 @@ const String bleStatsCharacteristicUuid =
     '7f9b0008-4c5b-4b0f-9a3d-1c2e3f405162';
 const String bleConfigCharacteristicUuid =
     '7f9b0007-4c5b-4b0f-9a3d-1c2e3f405162';
+const String bleAlarmCharacteristicUuid =
+    '7f9b0009-4c5b-4b0f-9a3d-1c2e3f405162';
 
 const int bleProtocolMajor = 1;
 
@@ -58,7 +60,8 @@ enum BridgeControlOp {
   powerOff(4),
   clearHistory(5),
   setBillowsTarget(6),
-  unpairSmokeX(7);
+  unpairSmokeX(7),
+  ackAlarm(8);
 
   const BridgeControlOp(this.wire);
 
@@ -149,6 +152,80 @@ int unixMsOfSetTimeBody(Uint8List body) {
 int tzOffsetOfSetTimeBody(Uint8List body) {
   if (body.length < 10) throw RangeError('truncated set_time body');
   return ByteData.sublistView(body).getInt16(8, Endian.little);
+}
+
+/// `control op 8` body: bit 0..3 selects the probe(s); 0 means all active.
+Uint8List encodeAckAlarmBody({required int probeMask}) {
+  if (probeMask < 0 || probeMask > 0xFF) {
+    throw RangeError.range(probeMask, 0, 0xFF, 'probeMask');
+  }
+  return Uint8List.fromList(<int>[probeMask]);
+}
+
+/// `alarm` (protocol minor 1). Fixed 20 bytes; bit 0..3 are probes 1..4.
+class BridgeAlarm {
+  const BridgeAlarm({
+    required this.activeMask,
+    required this.armedMask,
+    required this.ackedMask,
+    required this.highF10,
+    required this.lowF10,
+  });
+
+  final int activeMask;
+  final int armedMask;
+  final int ackedMask;
+  final List<int> highF10;
+  final List<int> lowF10;
+
+  static const int size = 20;
+
+  BridgeAlarm copyWith({int? activeMask, int? ackedMask}) => BridgeAlarm(
+    activeMask: activeMask ?? this.activeMask,
+    armedMask: armedMask,
+    ackedMask: ackedMask ?? this.ackedMask,
+    highF10: highF10,
+    lowF10: lowF10,
+  );
+
+  bool get hasActive => (activeMask & 0x0F) != 0;
+  bool get hasUnacknowledged => (activeMask & ~ackedMask & 0x0F) != 0;
+
+  bool isActive(int index) => (activeMask & (1 << index)) != 0;
+  bool isArmed(int index) => (armedMask & (1 << index)) != 0;
+  bool isAcknowledged(int index) => (ackedMask & (1 << index)) != 0;
+  bool isUnacknowledged(int index) => isActive(index) && !isAcknowledged(index);
+
+  /// Canonical °F tenths, or null when the Bridge has no setpoint.
+  int? highFor(int index) =>
+      index >= 0 && index < highF10.length && highF10[index] != 0
+      ? highF10[index]
+      : null;
+
+  int? lowFor(int index) =>
+      index >= 0 && index < lowF10.length && lowF10[index] != 0
+      ? lowF10[index]
+      : null;
+
+  static BridgeAlarm decode(Uint8List bytes, [int offset = 0]) {
+    if (bytes.length - offset < size) {
+      throw RangeError('truncated alarm');
+    }
+    final view = ByteData.sublistView(bytes, offset, offset + size);
+    return BridgeAlarm(
+      activeMask: view.getUint8(1) & 0x0F,
+      armedMask: view.getUint8(2) & 0x0F,
+      ackedMask: view.getUint8(3) & 0x0F,
+      highF10: <int>[
+        for (var index = 0; index < 4; index++)
+          view.getInt16(4 + index * 2, Endian.little),
+      ],
+      lowF10: <int>[
+        for (var index = 0; index < 4; index++)
+          view.getInt16(12 + index * 2, Endian.little),
+      ],
+    );
+  }
 }
 
 /// A decoded `result` notification (05 §5.6).

@@ -34,6 +34,7 @@ Service: `7f9b0000-4c5b-4b0f-9a3d-1c2e3f405162`
 | `0006` | `sync_data` | Notify | encrypted | framed, ≤ MTU−3 |
 | `0007` | `config` | Read, Write | **encrypted + authenticated** | 80 B fixed |
 | `0008` | `stats` | Read | encrypted | 60 B fixed |
+| `0009` | `alarm` | Read, Notify | encrypted | 20 B fixed |
 
 Every characteristic with Notify has a standard CCCD (`0x2902`). Writing a CCCD
 requires the same security level as the characteristic.
@@ -128,6 +129,7 @@ the default MTU 23 (20-byte notification payload).
 |---|---|---|
 | `info` (32 B) | Read Blob (`MTU−1` per response) | — |
 | `live` (20 B) | single read or Blob | single notification, always fits |
+| `alarm` (20 B) | single read or Blob | single notification, always fits |
 | `config` (80 B) | Read Blob; write uses queued writes | — |
 | `stats` (60 B) | Read Blob | — |
 | `result` | — | split at `MTU−3`; first 5 bytes carry `len`, so the app knows the total |
@@ -262,6 +264,7 @@ must not reuse an outstanding `op_id`.
 | 5 | `clear_history` | — | Erase the sample ring; keep config/pairing; new generation |
 | 6 | `set_billows_target` | `target_f10 i16` | **Reserved.** Always `unsupported` in the MVP; the app never sends it |
 | 7 | `unpair_smoke_x` | — | Forget the Smoke X4 pairing, keep log/config/bonds, restart the 915/920 scan |
+| 8 | `ack_alarm` | `probe_mask u8` | Acknowledge active probe alarms; 0 = all active. Silences the Bridge/app alert, not the physical Smoke X |
 
 Rules:
 
@@ -546,6 +549,39 @@ Fixed 60 B.
 - Both `config` and `stats` keep the full payload in the callback; NimBLE owns
   the `MTU−1` Read Blob slicing. No callback chunks the value itself.
 
+### 5.10.1 `0009 alarm` — Read, Notify, encrypted
+
+Protocol minor **1** adds this characteristic. A protocol-1.0 Bridge does not
+have it; the app treats that as "alarms unavailable", never as a link failure.
+
+Fixed 20 B, so it also fits the default MTU 23 notification payload.
+
+| Offset | Size | Field |
+|---|---:|---|
+| 0 | 1 | `ver = 1` |
+| 1 | 1 | `active_mask` — bit 0..3, alarm active/latched |
+| 2 | 1 | `armed_mask` — bit 0..3, alarm enabled on the Smoke X |
+| 3 | 1 | `acked_mask` — bit 0..3, active alarm acknowledged in the app |
+| 4 | 8 | `high_f10[4]` i16, high setpoint in canonical °F tenths; 0 = unknown |
+| 12 | 8 | `low_f10[4]` i16, low setpoint in canonical °F tenths; 0 = unknown |
+
+Semantics:
+
+- The bridge mirrors the Smoke X per-probe `alarm`, `max` and `min` fields.
+  Thresholds are converted from the packet's active unit to canonical °F tenths,
+  so the app can render °F or °C without another wire field.
+- `active_mask` is latched from a `new_alarm` bit-0 edge or from a probe at or
+  outside its band. It clears when the probe returns inside the band, detaches,
+  or its alarm is turned off.
+- `acked_mask` is set by control op 8 for active probes only. Acknowledging
+  silences the Bridge/app notification; it does **not** stop the physical Smoke
+  X beeping. The RF link is one-way: the stock receiver cannot mute the base and
+  no receiver→base alarm-silence command is documented.
+- A notification is sent whenever the payload changes. An unchanged snapshot is
+  deduped, so the app sees one alert per transition, not one per 30 s packet.
+- `ble_alarm_encode()` masks to four probes, clears `acked_mask` bits that are
+  not active, and zeroes thresholds for a detached probe.
+
 ## 5.11 Security
 
 - **Pairing:** LE Secure Connections with Passkey Entry. The bridge has
@@ -556,8 +592,8 @@ Fixed 60 B.
   phone replacement/handoff. No eviction. `info.bonds_free` tells the app how
   many slots remain before it attempts a bond; if zero, the app explains that an
   existing phone must forget the bridge.
-- **Characteristics:** `info` open; `live`, `stats`, `sync_ctrl`, `sync_data`
-  encrypted; `control`, `config` encrypted + authenticated.
+- **Characteristics:** `info` open; `live`, `alarm`, `stats`, `sync_ctrl`,
+  `sync_data` encrypted; `control`, `config` encrypted + authenticated.
 - **Factory reset** clears config, history, and bonds.
 - **Forget this phone** removes only the current phone's bond and disconnects.
   Other bonded phones remain. Factory reset clears every bond.
@@ -672,6 +708,9 @@ timeout with the link gone.
 
 - `info.proto_major` must be `1`; an app seeing another major shows "Update the
   app or firmware" and does not write.
+- Protocol minor **1** adds `0009 alarm` and control op 8 `ack_alarm`. A
+  protocol-1.0 app ignores the unknown slot and op; a protocol-1.0 Bridge simply
+  has no alarm characteristic.
 - New characteristics are additive; unknown slots are ignored.
 - New payload trailing bytes are ignored.
 - A control op the firmware does not know returns `unsupported`.
@@ -685,6 +724,9 @@ Host tests must include at least:
 - `info` with all caps and with `billows_control = 0`;
 - `live` four attached, one detached, all detached, clock invalid, Billows
   attached;
+- `alarm` all-off, one active, multiple active, acknowledged, and a detached
+  probe with zeroed thresholds;
+- `ack_alarm` body 0 and a probe mask, including a mask with no active bits;
 - `config` min/max device name, timeout, units, and reserved control-mode refusal;
 - `stats` at empty log and full ring;
 - `control` each op, malformed bodies, wrong length, unknown op;

@@ -102,6 +102,47 @@ void main() {
       expect(harness.controller.liveView.billows, isNull);
     });
 
+    test(
+      'alarm state reaches the controller and ack_alarm clears the latch',
+      () async {
+        final harness = _Harness(
+          bridge: FakeBridge(
+            alarmActiveMask: 0x01,
+            alarmArmedMask: 0x03,
+            alarmHighF10: const <int>[1050, 1600, 0, 0],
+            alarmLowF10: const <int>[320, 320, 0, 0],
+          ),
+        );
+        addTearDown(harness.dispose);
+
+        await harness.link.connectAndSecure(harness.device);
+
+        final alarm = harness.controller.alarmView;
+        expect(alarm, isNotNull);
+        expect(alarm!.hasUnacknowledged, isTrue);
+        expect(alarm.probes[0].active, isTrue);
+        expect(alarm.probes[0].armed, isTrue);
+        expect(alarm.probes[0].acknowledged, isFalse);
+        expect(alarm.probes[0].highLabel, contains('105.0'));
+        expect(alarm.probes[0].lowLabel, contains('32.0'));
+        expect(harness.controller.pendingAlarmPopup, isTrue);
+        expect(harness.controller.consumeAlarmPopup(), isTrue);
+        expect(harness.controller.consumeAlarmPopup(), isFalse);
+
+        expect(
+          await harness.controller.acknowledgeAlarm(probeMask: 0x01),
+          isTrue,
+        );
+        expect(
+          harness.bridge.controlWrites.last.op,
+          gen.ControlOp.ackAlarm.wire,
+        );
+        expect(harness.bridge.controlBodies.last.single, 0x01);
+        expect(harness.controller.alarmView!.probes[0].acknowledged, isTrue);
+        expect(harness.controller.alarmView!.hasUnacknowledged, isFalse);
+      },
+    );
+
     test('a valid stored bond skips the passkey prompt on reconnect', () async {
       final harness = _Harness();
       addTearDown(harness.dispose);

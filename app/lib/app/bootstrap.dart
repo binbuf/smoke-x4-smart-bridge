@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../data/alarm_notifier.dart';
 import '../data/ble/ble_client.dart';
 import '../data/ble/flutter_blue_plus_ble_client.dart';
 import '../data/db/app_database.dart';
@@ -21,6 +22,7 @@ Future<BridgeController> createBridgeController({
   String? databasePath,
   BridgeRepository? repository,
   BleClient? bleClient,
+  AlarmNotifier? alarmNotifier,
   String localeName = 'en_US',
   bool use24Hour = false,
 }) async {
@@ -33,6 +35,7 @@ Future<BridgeController> createBridgeController({
     repository: data,
     bleClient: bleClient ?? FlutterBluePlusBleClient(),
     sampleDao: data is SqliteBridgeRepository ? data.dao : null,
+    alarmNotifier: alarmNotifier ?? const NoopAlarmNotifier(),
     localeName: localeName,
     use24Hour: use24Hour,
   );
@@ -50,6 +53,7 @@ Future<void> bootstrap() async {
   final localeName = _intlLocale(dispatcher.locale);
   Intl.defaultLocale = localeName;
   final controller = await createBridgeController(
+    alarmNotifier: LocalAlarmNotifier(),
     localeName: localeName,
     use24Hour: dispatcher.alwaysUse24HourFormat,
   );
@@ -58,6 +62,7 @@ Future<void> bootstrap() async {
   // real stored readings. The bounded scan then runs in the foreground.
   await controller.prepareLaunch();
   runApp(SmokeBridgeApp(controller: controller));
+  unawaited(controller.initializeAlarmNotifications());
   if (controller.hasSavedBridge) {
     unawaited(controller.connectSavedBridge());
   }

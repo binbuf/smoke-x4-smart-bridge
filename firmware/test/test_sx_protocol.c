@@ -221,6 +221,7 @@ static void check_named_vectors(void) {
             sx_protocol_parse_state(alarm->payload, PAIRED_ID, &state),
             SX_PROTOCOL_OK);
         CHECK(state.new_alarm);
+        CHECK_EQ_UINT(state.new_alarm_raw, 1u);
         CHECK_EQ_UINT(state.hdr_field3, 2u);
         CHECK(state.probes[0].alarm_armed);
         CHECK_EQ_INT(state.probes[0].temp_f10, 1052);

@@ -109,6 +109,17 @@ class DependencyGuardTest(unittest.TestCase):
         violations = guard.find_violations(self.root)
         self.assertTrue(any("esp_wifi" in item for item in violations))
 
+    def test_local_esp_wifi_override_is_allowed(self) -> None:
+        self.write(
+            "firmware/components/esp_wifi/CMakeLists.txt",
+            "idf_component_register(\n"
+            '  SRCS "esp_wifi_stub.c"\n'
+            "  INCLUDE_DIRS \"${IDF_PATH}/components/esp_wifi/include\"\n"
+            "  REQUIRES esp_event esp_netif esp_phy esp_coex\n"
+            ")\n",
+        )
+        self.assertEqual(guard.find_violations(self.root), [])
+
     def test_comments_do_not_false_positive(self) -> None:
         self.write(
             "firmware/main/CMakeLists.txt",

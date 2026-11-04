@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "ble_alarm.h"
 #include "ble_live.h"
 
 static uint32_t payload_seq(const uint8_t *payload) {
@@ -33,6 +34,8 @@ void ble_tx_core_clear(ble_tx_core_t *tx) {
     tx->have_last = false;
     tx->last_seq = 0;
     tx->last_flags = 0;
+    tx->have_last_alarm = false;
+    memset(tx->last_alarm, 0, sizeof(tx->last_alarm));
 }
 
 bool ble_tx_core_queue_live(ble_tx_core_t *tx,
@@ -43,6 +46,7 @@ bool ble_tx_core_queue_live(ble_tx_core_t *tx,
         return false;
     }
     memset(&frame, 0, sizeof(frame));
+    frame.type = BLE_TX_FRAME_LIVE;
     frame.len =
         (uint8_t)ble_live_encode(snapshot, frame.payload, sizeof(frame.payload));
     if (frame.len != SX4_LIVE_SIZE) {
@@ -67,6 +71,39 @@ bool ble_tx_core_queue_live(ble_tx_core_t *tx,
     tx->have_last = true;
     tx->last_seq = seq;
     tx->last_flags = flags;
+    return true;
+}
+
+bool ble_tx_core_queue_alarm(ble_tx_core_t *tx,
+                             const bridge_state_live_t *snapshot) {
+    ble_tx_frame_t frame;
+
+    if (tx == NULL || snapshot == NULL) {
+        return false;
+    }
+    memset(&frame, 0, sizeof(frame));
+    frame.type = BLE_TX_FRAME_ALARM;
+    frame.len =
+        (uint8_t)ble_alarm_encode(snapshot, frame.payload, sizeof(frame.payload));
+    if (frame.len != SX4_ALARM_SIZE) {
+        return false;
+    }
+    if (tx->have_last_alarm &&
+        memcmp(frame.payload, tx->last_alarm, SX4_ALARM_SIZE) == 0) {
+        return false;
+    }
+
+    if (tx->count >= BLE_TX_QUEUE_DEPTH) {
+        tx->dropped++;
+        return false;
+    }
+
+    tx->frames[tx->tail] = frame;
+    tx->tail = (uint8_t)((tx->tail + 1u) % BLE_TX_QUEUE_DEPTH);
+    tx->count++;
+    tx->queued++;
+    tx->have_last_alarm = true;
+    memcpy(tx->last_alarm, frame.payload, SX4_ALARM_SIZE);
     return true;
 }
 

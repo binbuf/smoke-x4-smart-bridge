@@ -72,6 +72,15 @@ typedef struct {
     uint8_t flags;             /* SX4_LIVE_FLAG_* */
     int16_t billows_target_f10; /* 0 when unavailable */
     bool billows_target_valid;  /* false when detached or no target was decoded */
+
+    /* Per-probe Smoke X alarm state. Bits 0..3 are probe 0..3. Thresholds are
+     * canonical tenths of °F regardless of the packet's active unit. */
+    uint8_t alarm_active_mask; /* condition active or latched from new_alarm */
+    uint8_t alarm_armed_mask;  /* alarm enabled on the Smoke X */
+    uint8_t alarm_acked_mask;  /* active alarms acknowledged in the app */
+    int16_t alarm_high_f10[BRIDGE_STATE_NUM_PROBES];
+    int16_t alarm_low_f10[BRIDGE_STATE_NUM_PROBES];
+
     uint16_t age_s;            /* seconds since the last valid state packet */
     uint32_t uptime_s;         /* device uptime at snapshot read */
     uint16_t battery_mv;
@@ -90,6 +99,10 @@ typedef struct {
     bool billows_attached;
     int16_t billows_target_f10;
     bool billows_target_valid;
+    uint8_t alarm_armed_mask; /* bit 0..3 */
+    int16_t alarm_high_f10[BRIDGE_STATE_NUM_PROBES];
+    int16_t alarm_low_f10[BRIDGE_STATE_NUM_PROBES];
+    bool new_alarm; /* trailing edge field from this packet */
     int8_t rssi_lora;
     int8_t snr_lora;
 } bridge_state_sample_t;
@@ -128,6 +141,15 @@ bridge_state_result_t bridge_state_update(const bridge_state_sample_t *sample);
 
 /* Copy the live snapshot with per-read age and clock/liveness flags. */
 bridge_state_result_t bridge_state_snapshot(bridge_state_live_t *out);
+
+/*
+ * Acknowledge active alarms. `probe_mask` bit 0..3 selects probes; 0 means
+ * "all currently active". Acknowledging silences app notifications only: the
+ * Smoke X RF protocol has no receiver-to-base alarm-silence command. Bits that
+ * are not active are ignored. Acknowledged bits clear when the alarm condition
+ * clears, so a later crossing notifies again.
+ */
+bridge_state_result_t bridge_state_alarm_ack(uint8_t probe_mask);
 
 /*
  * Stamp a record with the current time and clock-valid flag. While the clock is

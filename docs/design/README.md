@@ -17,8 +17,10 @@ The product is deliberately small:
 > Smoke X4, forget phones, and factory-reset the device. It cannot set the
 > Billows target; that stays on the Smoke X4.
 
-There is **no Wi-Fi, HTTP, WebSocket, MQTT, cloud, OTA, alarm engine, cook
-session model, or notification stack** in this MVP.
+There is **no Wi-Fi, HTTP, WebSocket, MQTT, cloud, OTA, cook session model, or
+cloud notification stack** in this MVP. Alarms are mirrored from the Smoke X and
+delivered locally by the app; the Bridge never transmits an alarm-silence
+command because the RF link is one-way.
 
 ## Repository tree
 
@@ -74,7 +76,7 @@ design, rather than rewriting history.
 | **D6** | **LE Secure Connections + passkey + bonding.** | The bridge displays a six-digit code; the phone's OS asks for it. This is the only pairing flow. |
 | **D7** | **Firmware update is USB only.** | OTA is a large, risky subsystem with no MVP user. USB is acceptable for a bench product and keeps the partition simple. |
 | **D8** | **Billows is observation-only.** The app shows attached/status and a validated target; it never sets the target. | ThermoWorks documents that a Smoke X4 receiver cannot change set points or the Billows; only the base can. The bridge sees the same one-way broadcast. Signals has an app; Smoke X4 does not. See [08](08-billows.md) and [`../billows-decision.md`](../billows-decision.md). |
-| **D9** | **No alarms, notifications, cook timers, marks, CSV export, multi-bridge, or diagnostics console.** | Not in the requested feature set. The OLED and app still expose live health and storage. |
+| **D9** | **Alarms are mirrored; notifications are local.** The app shows per-probe alarm on/off, high/low setpoints, active/acknowledged state, and posts a local alert. There is no cook timer, marks, CSV export, multi-bridge, diagnostics console, or cloud notification stack. | The Smoke X RF link is one-way; the Bridge can latch/acknowledge an alarm but cannot silence the physical base. See ADR 0062. |
 | **D10** | **Reuse only communication/protocol code and hardware facts from `legacy/`.** | The parser, SX1262 integration, pairing knowledge, and low-level BLE patterns are valuable. The UI, session model, alarm engine, network stack, and app architecture are not. |
 | **D11** | **The device rotates old data automatically; the app never deletes data without a user action.** | Matches the requirement exactly. The app is the durable archive; the device is the rolling buffer. |
 | **D12** | **Smoke X4 only.** | The X2 parser shape may be accepted defensively, but no X2-specific UI or acceptance work is in scope. |

@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0062](0062-mirrored-alarms-and-local-notifications.md) for
+alarms/notifications. The export/cloud/accounts exclusions still stand.
 
 ## Context
 

@@ -204,6 +204,20 @@ bool sx4_control_set_billows_target_body_decode(const uint8_t *in, size_t len, s
     return true;
 }
 
+size_t sx4_control_ack_alarm_body_encode(const sx4_control_ack_alarm_body_t *v, uint8_t *out, size_t cap) {
+    if (!v || !out || cap < SX4_CONTROL_ACK_ALARM_BODY_SIZE) return 0;
+    memset(out, 0, SX4_CONTROL_ACK_ALARM_BODY_SIZE);
+    sx4_put_u8(out + 0, (uint8_t)v->probe_mask);
+    return SX4_CONTROL_ACK_ALARM_BODY_SIZE;
+}
+
+bool sx4_control_ack_alarm_body_decode(const uint8_t *in, size_t len, sx4_control_ack_alarm_body_t *v) {
+    if (!in || !v || len < SX4_CONTROL_ACK_ALARM_BODY_SIZE) return false;
+    memset(v, 0, sizeof(*v));
+    v->probe_mask = sx4_get_u8(in + 0);
+    return true;
+}
+
 size_t sx4_result_encode(const sx4_result_t *v, uint8_t *out, size_t cap) {
     size_t n = 0;
     if (!v || !out) return 0;
@@ -351,6 +365,38 @@ bool sx4_config_decode(const uint8_t *in, size_t len, sx4_config_t *v) {
     v->billows_mode = sx4_get_u8(in + 22);
     for (size_t i = 0; i < 57; i++) {
         v->reserved0[i] = sx4_get_u8(in + 23 + i * 1);
+    }
+    return true;
+}
+
+size_t sx4_alarm_encode(const sx4_alarm_t *v, uint8_t *out, size_t cap) {
+    if (!v || !out || cap < SX4_ALARM_SIZE) return 0;
+    memset(out, 0, SX4_ALARM_SIZE);
+    sx4_put_u8(out + 0, 1u);
+    sx4_put_u8(out + 1, (uint8_t)v->active_mask);
+    sx4_put_u8(out + 2, (uint8_t)v->armed_mask);
+    sx4_put_u8(out + 3, (uint8_t)v->acked_mask);
+    for (size_t i = 0; i < 4; i++) {
+        sx4_put_u16(out + 4 + i * 2, (uint16_t)v->high_f10[i]);
+    }
+    for (size_t i = 0; i < 4; i++) {
+        sx4_put_u16(out + 12 + i * 2, (uint16_t)v->low_f10[i]);
+    }
+    return SX4_ALARM_SIZE;
+}
+
+bool sx4_alarm_decode(const uint8_t *in, size_t len, sx4_alarm_t *v) {
+    if (!in || !v || len < SX4_ALARM_SIZE) return false;
+    memset(v, 0, sizeof(*v));
+    v->ver = sx4_get_u8(in + 0);
+    v->active_mask = sx4_get_u8(in + 1);
+    v->armed_mask = sx4_get_u8(in + 2);
+    v->acked_mask = sx4_get_u8(in + 3);
+    for (size_t i = 0; i < 4; i++) {
+        v->high_f10[i] = (int16_t)sx4_get_u16(in + 4 + i * 2);
+    }
+    for (size_t i = 0; i < 4; i++) {
+        v->low_f10[i] = (int16_t)sx4_get_u16(in + 12 + i * 2);
     }
     return true;
 }

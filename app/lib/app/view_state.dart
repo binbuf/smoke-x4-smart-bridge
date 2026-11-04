@@ -38,6 +38,7 @@ class LiveViewState {
     required this.units,
     required this.billows,
     required this.billowsLostThisSession,
+    this.alarm,
     required this.showSavedReadings,
     required this.lastSyncedLabel,
     required this.hiddenProbeCount,
@@ -91,6 +92,10 @@ class LiveViewState {
   final BillowsView? billows;
   final bool billowsLostThisSession;
 
+  /// Per-probe alarm state from the Bridge. Null on a protocol-1.0 Bridge or
+  /// before the first `alarm` read/notification.
+  final AlarmView? alarm;
+
   /// True when the offline surface is backed by saved readings. False means
   /// "nothing saved yet": probe values must render empty, never as current.
   final bool showSavedReadings;
@@ -132,6 +137,7 @@ class ProbeView {
     required this.changeDirection,
     required this.changeWindowLabel,
     required this.semanticsLabel,
+    this.alarm,
   });
 
   final int number;
@@ -157,7 +163,60 @@ class ProbeView {
   final String changeWindowLabel;
   final String semanticsLabel;
 
+  /// Per-probe alarm state; null on a protocol-1.0 Bridge or before the first
+  /// alarm read/notification.
+  final AlarmProbeView? alarm;
+
   String get tempLabel => connected ? '$valueText$unitSuffix' : '—';
+}
+
+/// One probe's alarm state, pre-formatted for the Live card and the alarm
+/// dialog. `stateLabel` is the visible word; colours never carry it alone.
+class AlarmProbeView {
+  const AlarmProbeView({
+    required this.number,
+    required this.active,
+    required this.armed,
+    required this.acknowledged,
+    required this.stateLabel,
+    required this.highLabel,
+    required this.lowLabel,
+  });
+
+  final int number;
+  final bool active;
+  final bool armed;
+  final bool acknowledged;
+  final String stateLabel;
+  final String highLabel;
+  final String lowLabel;
+
+  bool get unacknowledged => active && !acknowledged;
+}
+
+/// The read-only alarm mirror shown on Live and in the in-app alert.
+class AlarmView {
+  const AlarmView({
+    required this.hasActive,
+    required this.hasUnacknowledged,
+    required this.probes,
+    required this.title,
+    required this.summary,
+    required this.physicalHint,
+  });
+
+  final bool hasActive;
+  final bool hasUnacknowledged;
+  final List<AlarmProbeView> probes;
+  final String title;
+  final String summary;
+
+  /// The RF protocol has no receiver-to-base silence command. The UI states
+  /// that the physical Smoke X must be muted at the base or its receiver.
+  final String physicalHint;
+
+  List<AlarmProbeView> get unacknowledgedProbes =>
+      probes.where((probe) => probe.unacknowledged).toList(growable: false);
 }
 
 class BillowsView {

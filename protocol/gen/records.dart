@@ -13,7 +13,7 @@ import 'dart:typed_data';
 // ── Contract version and constants ─────────────────────────────────
 
 const int protocolMajor = 1;
-const int protocolMinor = 0;
+const int protocolMinor = 1;
 const int recordVersion = 1;
 const int recordSize = 18;
 const int tempDetached = -32768;
@@ -134,6 +134,15 @@ const List<BleCharacteristic> bleCharacteristics = <BleCharacteristic>[
     security: 'encrypted',
     payload: 'stats',
     doc: 'Fixed 60-byte snapshot; re-read to refresh.',
+  ),
+  BleCharacteristic(
+    slot: '0009',
+    uuid: '7f9b0009-4c5b-4b0f-9a3d-1c2e3f405162',
+    name: 'alarm',
+    properties: <String>['read', 'notify'],
+    security: 'encrypted',
+    payload: 'alarm',
+    doc: '20-byte per-probe alarm state, thresholds and acknowledgement.',
   ),
 ];
 
@@ -287,7 +296,8 @@ enum ControlOp {
   powerOff(4),
   clearHistory(5),
   setBillowsTarget(6),
-  unpairSmokeX(7);
+  unpairSmokeX(7),
+  ackAlarm(8);
 
   const ControlOp(this.wire);
   final int wire;
@@ -760,6 +770,36 @@ class ControlSetBillowsTargetBody {
   }
 }
 
+/// control_ack_alarm_body — 1 bytes, fixed.
+class ControlAckAlarmBody {
+  ControlAckAlarmBody({
+    this.probeMask = 0,
+  });
+
+  static const int size = 1;
+  static const int maxSize = 1;
+
+  final int probeMask;
+
+
+  factory ControlAckAlarmBody.decode(Uint8List bytes, [int offset = 0]) {
+    if (bytes.length - offset < size) {
+      throw RangeError('truncated control_ack_alarm_body');
+    }
+    final bd = ByteData.sublistView(bytes, offset, offset + size);
+    return ControlAckAlarmBody(
+        probeMask: bd.getUint8(0),
+    );
+  }
+
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, probeMask);
+    return out;
+  }
+}
+
 /// result — 64 bytes, variable length.
 class Result {
   Result({
@@ -1069,6 +1109,66 @@ class Config {
     bd.setInt16(20, billowsTargetF10, Endian.little);
     bd.setUint8(22, billowsMode);
     bd.setUint8(23, 0);
+    return out;
+  }
+}
+
+/// alarm — 20 bytes, fixed.
+class Alarm {
+  Alarm({
+    this.ver = 0,
+    this.activeMask = 0,
+    this.armedMask = 0,
+    this.ackedMask = 0,
+    List<int>? highF10,
+    List<int>? lowF10,
+  }) : highF10 = highF10 ?? List<int>.filled(4, 0),
+        lowF10 = lowF10 ?? List<int>.filled(4, 0);
+
+  static const int size = 20;
+  static const int maxSize = 20;
+
+  final int ver;
+  final int activeMask;
+  /// Bit 0..3: alarm active (ringing/latched).
+  final int armedMask;
+  /// Bit 0..3: alarm enabled on the Smoke X.
+  final int ackedMask;
+  /// Bit 0..3: active alarm acknowledged in the app.
+  final List<int> highF10;
+  /// High setpoint, canonical F tenths; 0 = unknown.
+  final List<int> lowF10;
+  /// Low setpoint, canonical F tenths; 0 = unknown.
+
+
+  factory Alarm.decode(Uint8List bytes, [int offset = 0]) {
+    if (bytes.length - offset < size) {
+      throw RangeError('truncated alarm');
+    }
+    final bd = ByteData.sublistView(bytes, offset, offset + size);
+    return Alarm(
+        ver: bd.getUint8(0),
+        activeMask: bd.getUint8(1),
+        armedMask: bd.getUint8(2),
+        ackedMask: bd.getUint8(3),
+        highF10: [for (var i = 0; i < 4; i++) bd.getInt16(4 + i * 2, Endian.little)],
+        lowF10: [for (var i = 0; i < 4; i++) bd.getInt16(12 + i * 2, Endian.little)],
+    );
+  }
+
+  Uint8List encode() {
+    final out = Uint8List(size);
+    final bd = ByteData.sublistView(out);
+    bd.setUint8(0, 1);
+    bd.setUint8(1, activeMask);
+    bd.setUint8(2, armedMask);
+    bd.setUint8(3, ackedMask);
+    for (var i = 0; i < 4; i++) {
+      bd.setInt16(4 + i * 2, highF10[i], Endian.little);
+    }
+    for (var i = 0; i < 4; i++) {
+      bd.setInt16(12 + i * 2, lowF10[i], Endian.little);
+    }
     return out;
   }
 }

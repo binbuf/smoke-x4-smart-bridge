@@ -10,7 +10,7 @@
 
 meta:
   protocol_major: 1
-  protocol_minor: 0
+  protocol_minor: 1
   base_uuid: "7f9bXXXX-4c5b-4b0f-9a3d-1c2e3f405162"
   service_uuid: "7f9b0000-4c5b-4b0f-9a3d-1c2e3f405162"
   mtu_default: 23
@@ -72,6 +72,12 @@ characteristics:
     security: encrypted
     payload: stats
     doc: "Fixed 60-byte snapshot; re-read to refresh."
+  - slot: "0009"
+    name: alarm
+    properties: [read, notify]
+    security: encrypted
+    payload: alarm
+    doc: "20-byte per-probe alarm state, thresholds and acknowledgement."
 
 control_ops:
   set_time:
@@ -102,6 +108,10 @@ control_ops:
     op: 7
     body: null
     doc: "Forget the Smoke X4 pairing; keep log/config/bonds."
+  ack_alarm:
+    op: 8
+    body: control_ack_alarm_body
+    doc: "Acknowledge one or more active alarms on the bridge."
 
 result_statuses:
   ok: 0
@@ -222,6 +232,12 @@ payloads:
     fields:
       - {name: target_f10, type: i16}
 
+  control_ack_alarm_body:
+    size: 1
+    doc: "control op 8 body. Bit 0..3 = probe to acknowledge; 0 = all active."
+    fields:
+      - {name: probe_mask, type: u8}
+
   result:
     max_size: 64
     variable: true
@@ -289,6 +305,17 @@ payloads:
       - {name: billows_target_f10, type: i16, doc: "Reserved; ignored/unwritten in the MVP."}
       - {name: billows_mode, type: u8, enum: billows_mode, doc: "Must be 0 (observe) in the MVP."}
       - {name: reserved0, type: u8, count: 57, const: 0}
+
+  alarm:
+    size: 20
+    doc: "0009 alarm: Read, Notify, encrypted. Fixed 20 bytes."
+    fields:
+      - {name: ver, type: u8, const: 1}
+      - {name: active_mask, type: u8, doc: "Bit 0..3: alarm active (ringing/latched)."}
+      - {name: armed_mask, type: u8, doc: "Bit 0..3: alarm enabled on the Smoke X."}
+      - {name: acked_mask, type: u8, doc: "Bit 0..3: active alarm acknowledged in the app."}
+      - {name: high_f10, type: i16, count: 4, doc: "High setpoint, canonical F tenths; 0 = unknown."}
+      - {name: low_f10, type: i16, count: 4, doc: "Low setpoint, canonical F tenths; 0 = unknown."}
 
   stats:
     size: 60

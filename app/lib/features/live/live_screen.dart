@@ -301,6 +301,14 @@ class LiveScreen extends StatelessWidget {
                               ),
                               onTap: () =>
                                   controller.openProbeHistory(probe.number - 1),
+                              onAlarmTap: probe.alarm == null
+                                  ? null
+                                  : () => _showAlarmProbe(
+                                      context,
+                                      controller,
+                                      probe.alarm!,
+                                      view.alarm?.physicalHint,
+                                    ),
                             );
                           },
                         );
@@ -334,6 +342,84 @@ class LiveScreen extends StatelessWidget {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showAlarmProbe(
+    BuildContext context,
+    BridgeController controller,
+    AlarmProbeView alarm,
+    String? physicalHint,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
+        final color = alarm.active
+            ? (alarm.acknowledged
+                  ? StatusColors.aging(dialogContext)
+                  : scheme.error)
+            : (alarm.armed ? scheme.primary : scheme.onSurfaceVariant);
+        return AlertDialog(
+          icon: Icon(
+            alarm.active
+                ? Icons.notifications_active
+                : alarm.armed
+                ? Icons.notifications
+                : Icons.notifications_none,
+            color: color,
+          ),
+          title: Text('P${alarm.number} alarms'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                alarm.stateLabel,
+                style: Theme.of(dialogContext).textTheme.titleSmall
+                    ?.copyWith(color: color, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              _AlarmThresholdRow(
+                label: 'High alarm',
+                value: alarm.highLabel,
+                color: scheme.error,
+              ),
+              const SizedBox(height: 8),
+              _AlarmThresholdRow(
+                label: 'Low alarm',
+                value: alarm.lowLabel,
+                color: scheme.primary,
+              ),
+              if (alarm.active && physicalHint != null) ...[
+                const SizedBox(height: 14),
+                Text(
+                  physicalHint,
+                  style: Theme.of(dialogContext).textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant, height: 1.35),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+            if (alarm.unacknowledged)
+              FilledButton(
+                key: const Key('alarm.probe.acknowledge'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  controller.acknowledgeAlarm(
+                    probeMask: 1 << (alarm.number - 1),
+                  );
+                },
+                child: const Text('Acknowledge'),
+              ),
+          ],
         );
       },
     );
@@ -409,6 +495,45 @@ class LiveScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AlarmThresholdRow extends StatelessWidget {
+  const _AlarmThresholdRow({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 }

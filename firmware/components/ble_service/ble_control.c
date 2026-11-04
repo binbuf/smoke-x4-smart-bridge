@@ -136,6 +136,8 @@ void ble_control_set_action_handler(ble_control_action_fn fn, void *ctx) {
 
 static uint8_t set_time(uint8_t op_id, const uint8_t *body, size_t body_len,
                         ble_control_result_t *out);
+static uint8_t ack_alarm(uint8_t op_id, const uint8_t *body, size_t body_len,
+                         ble_control_result_t *out);
 static uint8_t destructive_op(uint8_t op, uint8_t op_id,
                               ble_control_result_t *out);
 
@@ -182,6 +184,8 @@ uint8_t ble_control_handle(const uint8_t *in, size_t in_len,
     switch (out->op) {
     case SX4_CONTROL_OP_SET_TIME:
         return set_time(out->op_id, body, body_len, out);
+    case SX4_CONTROL_OP_ACK_ALARM:
+        return ack_alarm(out->op_id, body, body_len, out);
     case SX4_CONTROL_OP_FORGET_PHONE:
     case SX4_CONTROL_OP_FACTORY_RESET:
     case SX4_CONTROL_OP_POWER_OFF:
@@ -212,6 +216,30 @@ uint8_t ble_control_handle(const uint8_t *in, size_t in_len,
         out->op_id = in[2];
         return out->status;
     }
+}
+
+static uint8_t ack_alarm(uint8_t op_id, const uint8_t *body, size_t body_len,
+                         ble_control_result_t *out) {
+    if (body_len != SX4_CONTROL_ACK_ALARM_BODY_SIZE) {
+        result_reset(out, SX4_RESULT_STATUS_INVALID, "bad ack_alarm length");
+        out->op = SX4_CONTROL_OP_ACK_ALARM;
+        out->op_id = op_id;
+        return out->status;
+    }
+
+    sx4_control_ack_alarm_body_t request;
+    if (!sx4_control_ack_alarm_body_decode(body, body_len, &request)) {
+        result_reset(out, SX4_RESULT_STATUS_INVALID, "malformed ack_alarm");
+        out->op = SX4_CONTROL_OP_ACK_ALARM;
+        out->op_id = op_id;
+        return out->status;
+    }
+
+    (void)bridge_state_alarm_ack(request.probe_mask);
+    result_reset(out, SX4_RESULT_STATUS_OK, "alarm acknowledged");
+    out->op = SX4_CONTROL_OP_ACK_ALARM;
+    out->op_id = op_id;
+    return out->status;
 }
 
 static uint8_t destructive_op(uint8_t op, uint8_t op_id,

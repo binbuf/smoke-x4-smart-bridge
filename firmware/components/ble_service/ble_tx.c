@@ -36,7 +36,9 @@ static SemaphoreHandle_t s_wake;
 static bool s_started;
 static uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t s_live_handle;
-static volatile bool s_subscribed;
+static uint16_t s_alarm_handle;
+static volatile bool s_live_subscribed;
+static volatile bool s_alarm_subscribed;
 
 static void wake_writer(void) {
     if (s_wake != NULL) {
@@ -45,19 +47,23 @@ static void wake_writer(void) {
 }
 
 static void ble_tx_send(const ble_tx_frame_t *frame) {
-    if (!s_subscribed || s_conn_handle == BLE_HS_CONN_HANDLE_NONE ||
-        s_live_handle == 0u) {
+    const bool alarm = frame->type == BLE_TX_FRAME_ALARM;
+    const uint16_t handle = alarm ? s_alarm_handle : s_live_handle;
+    const bool subscribed = alarm ? s_alarm_subscribed : s_live_subscribed;
+
+    if (!subscribed || s_conn_handle == BLE_HS_CONN_HANDLE_NONE ||
+        handle == 0u) {
         return;
     }
     struct os_mbuf *om =
         ble_hs_mbuf_from_flat(frame->payload, frame->len);
     if (om == NULL) {
-        ESP_LOGW(TAG, "no mbuf for live notification");
+        ESP_LOGW(TAG, "no mbuf for %s notification", alarm ? "alarm" : "live");
         return;
     }
-    int rc = ble_gatts_notify_custom(s_conn_handle, s_live_handle, om);
+    int rc = ble_gatts_notify_custom(s_conn_handle, handle, om);
     if (rc != 0) {
-        ESP_LOGD(TAG, "live notify failed (%d)", rc);
+        ESP_LOGD(TAG, "%s notify failed (%d)", alarm ? "alarm" : "live", rc);
     }
 }
 
@@ -87,7 +93,7 @@ static void ble_tx_task(void *argument) {
 
 void ble_tx_live_changed(void *ctx) {
     (void)ctx;
-    if (!s_started || !s_subscribed) {
+    if (!s_started || (!s_live_subscribed && !s_alarm_subscribed)) {
         return;
     }
 
@@ -96,9 +102,16 @@ void ble_tx_live_changed(void *ctx) {
         return;
     }
 
-    bool queued;
+    bool queued = false;
     taskENTER_CRITICAL(&s_mux);
-    queued = ble_tx_core_queue_live(&s_tx, &snapshot);
+    /* Alarm first: a transition is the more important frame when the queue is
+     * nearly full. Both encoders dedupe unchanged snapshots. */
+    if (s_alarm_subscribed) {
+        queued = ble_tx_core_queue_alarm(&s_tx, &snapshot) || queued;
+    }
+    if (s_live_subscribed) {
+        queued = ble_tx_core_queue_live(&s_tx, &snapshot) || queued;
+    }
     taskEXIT_CRITICAL(&s_mux);
     if (queued) {
         wake_writer();
@@ -109,37 +122,61 @@ void ble_tx_set_live_handle(uint16_t attr_handle) {
     s_live_handle = attr_handle;
 }
 
+void ble_tx_set_alarm_handle(uint16_t attr_handle) {
+    s_alarm_handle = attr_handle;
+}
+
 void ble_tx_on_connect(uint16_t conn_handle) {
     s_conn_handle = conn_handle;
 }
 
 void ble_tx_on_disconnect(void) {
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
-    s_subscribed = false;
+    s_live_subscribed = false;
+    s_alarm_subscribed = false;
     taskENTER_CRITICAL(&s_mux);
     ble_tx_core_clear(&s_tx);
     taskEXIT_CRITICAL(&s_mux);
 }
 
-void ble_tx_on_live_subscribe(bool subscribed) {
-    s_subscribed = subscribed;
-
+static void prime_queue(bool live, bool alarm) {
     bool queued = false;
-    if (subscribed) {
-        bridge_state_live_t snapshot;
-        if (bridge_state_snapshot(&snapshot) == BRIDGE_STATE_OK) {
-            taskENTER_CRITICAL(&s_mux);
-            ble_tx_core_clear(&s_tx);
-            queued = ble_tx_core_queue_live(&s_tx, &snapshot);
-            taskEXIT_CRITICAL(&s_mux);
-        }
-    } else {
+    bridge_state_live_t snapshot;
+    if (bridge_state_snapshot(&snapshot) == BRIDGE_STATE_OK) {
         taskENTER_CRITICAL(&s_mux);
         ble_tx_core_clear(&s_tx);
+        if (alarm) {
+            queued = ble_tx_core_queue_alarm(&s_tx, &snapshot) || queued;
+        }
+        if (live) {
+            queued = ble_tx_core_queue_live(&s_tx, &snapshot) || queued;
+        }
         taskEXIT_CRITICAL(&s_mux);
     }
     if (queued) {
         wake_writer();
+    }
+}
+
+void ble_tx_on_live_subscribe(bool subscribed) {
+    s_live_subscribed = subscribed;
+    if (subscribed) {
+        prime_queue(true, s_alarm_subscribed);
+    } else if (!s_alarm_subscribed) {
+        taskENTER_CRITICAL(&s_mux);
+        ble_tx_core_clear(&s_tx);
+        taskEXIT_CRITICAL(&s_mux);
+    }
+}
+
+void ble_tx_on_alarm_subscribe(bool subscribed) {
+    s_alarm_subscribed = subscribed;
+    if (subscribed) {
+        prime_queue(s_live_subscribed, true);
+    } else if (!s_live_subscribed) {
+        taskENTER_CRITICAL(&s_mux);
+        ble_tx_core_clear(&s_tx);
+        taskEXIT_CRITICAL(&s_mux);
     }
 }
 
@@ -151,7 +188,9 @@ esp_err_t ble_tx_start(void) {
     ble_tx_core_init(&s_tx);
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
     s_live_handle = 0;
-    s_subscribed = false;
+    s_alarm_handle = 0;
+    s_live_subscribed = false;
+    s_alarm_subscribed = false;
 
     s_wake = xSemaphoreCreateBinary();
     if (s_wake == NULL) {

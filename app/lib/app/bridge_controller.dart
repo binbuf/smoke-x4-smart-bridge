@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../data/alarm_notifier.dart';
 import '../data/ble/ble_client.dart';
 import '../data/ble/bridge_codecs.dart';
 import '../data/ble/bridge_link.dart';
@@ -49,6 +50,7 @@ class BridgeController extends ChangeNotifier {
     this.content = const EmptyBridgeContent(),
     this.bleClient,
     this.sampleDao,
+    this.alarmNotifier = const NoopAlarmNotifier(),
     this.localeName = 'en_US',
     this.use24Hour = false,
   }) : repository = repository ?? EmptyBridgeRepository(),
@@ -60,6 +62,10 @@ class BridgeController extends ChangeNotifier {
 
   final BridgeRepository repository;
   final BridgeContent content;
+
+  /// Local-notification delivery for alarm transitions. No-op in tests and
+  /// review builds; the Bridge remains the source of alarm truth.
+  final AlarmNotifier alarmNotifier;
 
   /// The durable archive seam. Null for review builds and tests that have no
   /// database; then the link keeps the V0 in-memory path.
@@ -106,6 +112,20 @@ class BridgeController extends ChangeNotifier {
     // estimate; the small repository snapshot only carries the count.
     await refreshLocalHistorySummary();
     notifyListeners();
+  }
+
+  /// Initialises local notification delivery. A notification tap is treated as
+  /// an acknowledgement: the probe mask is sent to the Bridge (or queued until
+  /// the link is healthy) and Live becomes the visible tab.
+  Future<void> initializeAlarmNotifications() async {
+    await alarmNotifier.initialize(
+      onOpen: (probeMask) {
+        tab = AppTab.live;
+        pendingAlarmPopup = false;
+        unawaited(acknowledgeAlarm(probeMask: probeMask));
+        notifyListeners();
+      },
+    );
   }
 
   /// Re-reads the phone copy's count, real date range and estimated storage.
@@ -560,6 +580,7 @@ class BridgeController extends ChangeNotifier {
         onInfo: _onLinkInfo,
         onStats: _onLinkStats,
         onConfig: _onLinkConfig,
+        onAlarm: _onLinkAlarm,
         onSync: _onLinkSync,
         onReconnect: _onLinkReconnect,
         onRssi: _onLinkRssi,
@@ -683,6 +704,9 @@ class BridgeController extends ChangeNotifier {
       if (_pendingUnitsWrite) {
         unawaited(_writeUnits(units));
       }
+      if (_pendingAlarmAckMask != 0) {
+        unawaited(_sendPendingAlarmAck());
+      }
     }
     switch (value) {
       case ConnectionPhase.live:
@@ -786,11 +810,177 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _onLinkAlarm(BridgeAlarm alarm) {
+    final previousUnacked = _alarm == null
+        ? 0
+        : _alarm!.activeMask & ~_alarm!.ackedMask & 0x0F;
+    final nextUnacked = alarm.activeMask & ~alarm.ackedMask & 0x0F;
+    final newBits = nextUnacked & ~previousUnacked;
+
+    _alarm = alarm;
+    alarmReceivedAt = DateTime.now();
+
+    if (newBits != 0) {
+      pendingAlarmPopup = true;
+      final view = _alarmView;
+      if (view != null) {
+        unawaited(
+          alarmNotifier.showAlarm(
+            probeMask: nextUnacked,
+            title: view.title,
+            body: view.summary,
+          ),
+        );
+      }
+    } else if (nextUnacked == 0) {
+      pendingAlarmPopup = false;
+      unawaited(alarmNotifier.cancelAlarm());
+    }
+
+    if (_pendingAlarmAckMask != 0 && isConnected) {
+      unawaited(_sendPendingAlarmAck());
+    }
+    notifyListeners();
+  }
+
+  /// Acknowledges active alarms on the Bridge. `probeMask` bit 0..3 selects
+  /// probes; 0 means every currently unacknowledged probe. The physical Smoke X
+  /// has no remote-silence command, so this only clears the Bridge/app alert.
+  Future<bool> acknowledgeAlarm({int probeMask = 0}) async {
+    final current = _alarm;
+    if (current == null) {
+      _pendingAlarmAckMask |= probeMask == 0 ? 0x0F : probeMask & 0x0F;
+      notifyListeners();
+      return true;
+    }
+
+    var mask = probeMask == 0
+        ? current.activeMask & ~current.ackedMask
+        : probeMask;
+    mask &= current.activeMask & 0x0F;
+    if (mask == 0) {
+      pendingAlarmPopup = false;
+      unawaited(alarmNotifier.cancelAlarm());
+      notifyListeners();
+      return true;
+    }
+
+    _setLocalAlarmAck(mask);
+    pendingAlarmPopup = false;
+    unawaited(alarmNotifier.cancelAlarm());
+
+    final currentLink = link;
+    if (currentLink == null || !isConnected) {
+      _pendingAlarmAckMask |= mask;
+      notifyListeners();
+      return true;
+    }
+
+    try {
+      final result = await currentLink.ackAlarm(probeMask: mask);
+      if (result.status == BridgeResultStatus.ok) {
+        _pendingAlarmAckMask &= ~mask;
+        notifyListeners();
+        return true;
+      }
+    } catch (_) {
+      // Queue for the next healthy link; the local alert stays silenced.
+    }
+    _pendingAlarmAckMask |= mask;
+    notifyListeners();
+    return false;
+  }
+
+  void _setLocalAlarmAck(int mask) {
+    final current = _alarm;
+    if (current == null) return;
+    _alarm = current.copyWith(
+      ackedMask: (current.ackedMask | mask) & current.activeMask,
+    );
+  }
+
+  Future<void> _sendPendingAlarmAck() async {
+    final currentLink = link;
+    final mask = _pendingAlarmAckMask;
+    if (currentLink == null || mask == 0 || !isConnected) return;
+    try {
+      final result = await currentLink.ackAlarm(probeMask: mask);
+      if (result.status == BridgeResultStatus.ok) {
+        _pendingAlarmAckMask &= ~mask;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Retried on the next healthy transition.
+    }
+  }
+
+  /// True once for the shell, which owns the in-app dialog.
+  bool consumeAlarmPopup() {
+    if (!pendingAlarmPopup) return false;
+    pendingAlarmPopup = false;
+    return true;
+  }
+
+  AlarmView? get alarmView => _alarmView;
+
+  AlarmProbeView _alarmProbe(int index, BridgeAlarm alarm) => AlarmProbeView(
+    number: index + 1,
+    active: alarm.isActive(index),
+    armed: alarm.isArmed(index),
+    acknowledged: alarm.isAcknowledged(index),
+    stateLabel: alarm.isActive(index)
+        ? (alarm.isAcknowledged(index) ? 'Acknowledged' : 'Alarm active')
+        : (alarm.isArmed(index) ? 'Alarm on' : 'Alarm off'),
+    highLabel: alarm.highFor(index) == null
+        ? '—'
+        : tempFor(alarm.highFor(index)! / 10),
+    lowLabel: alarm.lowFor(index) == null
+        ? '—'
+        : tempFor(alarm.lowFor(index)! / 10),
+  );
+
+  AlarmProbeView? _probeAlarm(int index) {
+    final alarm = _alarm;
+    if (alarm == null || index < 0 || index >= probeCount) return null;
+    return _alarmProbe(index, alarm);
+  }
+
+  AlarmView? get _alarmView {
+    final alarm = _alarm;
+    if (alarm == null) return null;
+    final probes = <AlarmProbeView>[
+      for (var index = 0; index < probeCount; index++)
+        _alarmProbe(index, alarm),
+    ];
+    final active = probes.where((probe) => probe.active).toList();
+    final unacked = probes.where((probe) => probe.unacknowledged).toList();
+    final names = active.map((probe) => 'P${probe.number}').join(', ');
+    final title = unacked.isEmpty
+        ? (active.isEmpty ? 'Alarms' : 'Alarm acknowledged')
+        : 'Smoke X alarm';
+    final summary = active.isEmpty
+        ? 'No probe is outside its alarm band.'
+        : '$names ${active.length == 1 ? 'is' : 'are'} outside the alarm band. '
+              'High/low: ${active.map((probe) => 'P${probe.number} ${probe.highLabel} / ${probe.lowLabel}').join(' · ')}.';
+    return AlarmView(
+      hasActive: active.isNotEmpty,
+      hasUnacknowledged: unacked.isNotEmpty,
+      probes: probes,
+      title: title,
+      summary: summary,
+      physicalHint:
+          'The Bridge acknowledged this alert. To stop the Smoke X beeping, '
+          'press any button on the Smoke X base or its receiver — the RF link '
+          'is one-way and cannot silence the base remotely.',
+    );
+  }
+
   void _onLinkInfo(BridgeInfo info) {
     _noteBridgeUpdate();
     deviceId = info.deviceId;
     firmware = info.firmware;
     protocol = '${info.protoMajor}.${info.protoMinor}';
+    probeCount = info.probes == 2 ? 2 : 4;
     // `caps.billows_observe` gates the Live card before the first paint.
     billowsObserveCap = info.billowsObserve;
   }
@@ -1090,6 +1280,18 @@ class BridgeController extends ChangeNotifier {
   /// the lost notice and connection log age from a real event, not a guess.
   DateTime? billowsLostAt;
 
+  /// Last per-probe alarm snapshot from the Bridge. Null until protocol minor 1
+  /// answers or before the first alarm read/notification.
+  BridgeAlarm? _alarm;
+  DateTime? alarmReceivedAt;
+
+  /// True when an unacknowledged alarm transition still needs an in-app popup.
+  bool pendingAlarmPopup = false;
+
+  /// Probes the user acknowledged while the link was down. Sent as one
+  /// `ack_alarm` on the next healthy connect.
+  int _pendingAlarmAckMask = 0;
+
   HistoryRange historyRange = HistoryRange.twentyFourHours;
   int? historyProbe;
   DateTimeRange? historyCustomRange;
@@ -1165,6 +1367,10 @@ class BridgeController extends ChangeNotifier {
   String deviceId = 'A4F2';
   String firmware = '0.1.0';
   String protocol = '1.0';
+
+  /// Probe count reported by `info` (2 for a Smoke X2, 4 for an X4). The
+  /// bridge always carries four live slots; the app hides the unused pair.
+  int probeCount = 4;
   int batteryPercent = 87;
   int rssi = -71;
 
@@ -1874,7 +2080,7 @@ class BridgeController extends ChangeNotifier {
     final temps = liveProbeTemps ?? content.probeTemps;
     final health = effectiveHealth;
     final allProbeViews = <ProbeView>[
-      for (var index = 0; index < math.max(4, temps.length); index++)
+      for (var index = 0; index < probeCount; index++)
         _probeView(index, index < temps.length ? temps[index] : null, health),
     ];
     final probeViews = hideEmptyProbes
@@ -1914,6 +2120,7 @@ class BridgeController extends ChangeNotifier {
       units: units,
       billows: billowsObserveCap && billowsDetected ? _billowsView : null,
       billowsLostThisSession: billowsObserveCap && billowsLostThisSession,
+      alarm: _alarmView,
       showSavedReadings: offlineCache,
       lastSyncedLabel: lastSyncedLabel,
       hiddenProbeCount: allProbeViews.length - probeViews.length,
@@ -1991,6 +2198,7 @@ class BridgeController extends ChangeNotifier {
       changeDirection: changeDirection,
       changeWindowLabel: '${tempChangeWindowMinutes}m',
       semanticsLabel: _probeSemantics(index, temp, status, change),
+      alarm: _probeAlarm(index),
     );
   }
 
@@ -2749,6 +2957,10 @@ class BridgeController extends ChangeNotifier {
     billowsSeenThisSession = false;
     billowsLastDetectedAt = null;
     billowsLostAt = null;
+    _alarm = null;
+    alarmReceivedAt = null;
+    pendingAlarmPopup = false;
+    _pendingAlarmAckMask = 0;
     notifyListeners();
   }
 

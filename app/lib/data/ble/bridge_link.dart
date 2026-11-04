@@ -24,6 +24,7 @@ class BridgeLinkHost {
     this.onInfo,
     this.onStats,
     this.onConfig,
+    this.onAlarm,
     this.onSync,
     this.onReconnect,
     this.onRssi,
@@ -36,6 +37,7 @@ class BridgeLinkHost {
   final void Function(BridgeInfo info)? onInfo;
   final void Function(BridgeStats stats)? onStats;
   final void Function(BridgeConfig config)? onConfig;
+  final void Function(BridgeAlarm alarm)? onAlarm;
   final void Function(BridgeSyncProgress progress)? onSync;
 
   /// RSSI of the phone→Bridge Bluetooth link.
@@ -282,6 +284,7 @@ class BridgeLink implements SyncTransport {
   StreamSubscription<BleConnectionState>? _connectionSubscription;
   StreamSubscription<BleAppState>? _platformSubscription;
   StreamSubscription<Uint8List>? _liveSubscription;
+  StreamSubscription<Uint8List>? _alarmSubscription;
   StreamSubscription<Uint8List>? _resultSubscription;
   StreamSubscription<Uint8List>? _syncSubscription;
 
@@ -418,6 +421,7 @@ class BridgeLink implements SyncTransport {
     await _subscribeAll();
     await _refreshStats();
     await _refreshConfig();
+    await _refreshAlarm();
 
     final live = await _readLiveWithBond();
     await _setTimeIfNeeded(force: firstSync, live: live);
@@ -483,6 +487,20 @@ class BridgeLink implements SyncTransport {
       host.onConfig?.call(value);
     } catch (_) {
       // The settings rows keep their last-known values; the next connect retries.
+    }
+  }
+
+  /// Best-effort `alarm` read. A protocol-1.0 Bridge has no such
+  /// characteristic, so a failure is silent rather than a link failure.
+  Future<void> _refreshAlarm() async {
+    if (_disposed || !_secure || host.onAlarm == null) return;
+    if (!(_info?.supportsAlarms ?? true)) return;
+    try {
+      host.onAlarm?.call(
+        BridgeAlarm.decode(await client.read(bleAlarmCharacteristicUuid)),
+      );
+    } catch (_) {
+      // Alarm support is optional until the Bridge reports protocol minor 1.
     }
   }
 
@@ -683,6 +701,17 @@ class BridgeLink implements SyncTransport {
         .notifications(bleLiveCharacteristicUuid)
         .listen(_onLiveChunk, onError: _onNotificationError);
 
+    if (_info?.supportsAlarms ?? true) {
+      try {
+        await client.setNotify(bleAlarmCharacteristicUuid, enabled: true);
+        _alarmSubscription ??= client
+            .notifications(bleAlarmCharacteristicUuid)
+            .listen(_onAlarmChunk, onError: _onNotificationError);
+      } catch (_) {
+        // Protocol 1.0 Bridge: keep the live/history link usable.
+      }
+    }
+
     _resultAssembler.reset();
     await client.setNotify(bleResultCharacteristicUuid, enabled: true);
     _resultSubscription ??= client
@@ -732,6 +761,21 @@ class BridgeLink implements SyncTransport {
       // A truncated notification is noise; the next sample replaces it.
     }
   }
+
+  void _onAlarmChunk(Uint8List chunk) {
+    if (_disposed) return;
+    try {
+      host.onAlarm?.call(BridgeAlarm.decode(chunk));
+    } on RangeError {
+      // A truncated alarm notification is noise; the next sample replaces it.
+    }
+  }
+
+  /// Acknowledge active alarms. `probeMask` bit 0..3; 0 means all active.
+  Future<BridgeResult> ackAlarm({int probeMask = 0}) => sendControl(
+    BridgeControlOp.ackAlarm,
+    encodeAckAlarmBody(probeMask: probeMask),
+  );
 
   BridgeLive _applyLive(BridgeLive live) {
     _lastLive = live;
@@ -1445,9 +1489,11 @@ class BridgeLink implements SyncTransport {
 
   void _cleanupSubscriptions() {
     unawaited(_liveSubscription?.cancel());
+    unawaited(_alarmSubscription?.cancel());
     unawaited(_resultSubscription?.cancel());
     unawaited(_syncSubscription?.cancel());
     _liveSubscription = null;
+    _alarmSubscription = null;
     _resultSubscription = null;
     _syncSubscription = null;
     _resultAssembler.reset();

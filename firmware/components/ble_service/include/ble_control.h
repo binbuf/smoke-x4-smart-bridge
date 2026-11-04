@@ -6,9 +6,10 @@
  * one result record. The NimBLE access callback only copies the mbuf, calls
  * ble_control_handle(), then splits the encoded result at MTU-3.
  *
- * Op coverage in T29:
+ * Op coverage:
  *   - op 1 set_time is live and updates bridge_state;
  *   - op 6 set_billows_target is reserved and always unsupported;
+ *   - op 8 ack_alarm clears the app-side unacknowledged latch on the bridge;
  *   - ops 2,3,4,5,7 understand their body shape but answer unsupported until
  *     T48 installs the destructive handlers. Their reply-first contract is the
  *     action + delay pair in ble_control_result_t.

@@ -250,6 +250,7 @@ add_test(NAME ble-info COMMAND test_ble_info)
 # snapshot states and the queue semantics are the host gate.
 add_library(sx4_ble_live STATIC
     "${REPO_ROOT}/firmware/components/ble_service/ble_live.c"
+    "${REPO_ROOT}/firmware/components/ble_service/ble_alarm.c"
     "${REPO_ROOT}/firmware/components/ble_service/ble_tx_core.c"
 )
 target_include_directories(sx4_ble_live
@@ -262,6 +263,10 @@ target_link_libraries(sx4_ble_live
 add_executable(test_ble_live test_ble_live.c)
 target_link_libraries(test_ble_live PRIVATE sx4_ble_live sx4_test_support)
 add_test(NAME ble-live COMMAND test_ble_live)
+
+add_executable(test_ble_alarm test_ble_alarm.c)
+target_link_libraries(test_ble_alarm PRIVATE sx4_ble_live sx4_test_support)
+add_test(NAME ble-alarm COMMAND test_ble_alarm)
 
 # The control dispatcher and result encoder are pure C11 over the real
 # bridge_state clock core (T29). NimBLE is not linked; the ATT error values,

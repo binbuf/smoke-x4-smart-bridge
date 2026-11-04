@@ -24,11 +24,19 @@
 extern "C" {
 #endif
 
-/* Fixed depth of the live queue. A full queue drops the newest frame. */
+/* Fixed depth of the notification queue. A full queue drops the newest frame. */
 #define BLE_TX_QUEUE_DEPTH 8u
+#define BLE_TX_PAYLOAD_MAX                                                    \
+    (SX4_LIVE_SIZE > SX4_ALARM_SIZE ? SX4_LIVE_SIZE : SX4_ALARM_SIZE)
+
+typedef enum {
+    BLE_TX_FRAME_LIVE = 0,
+    BLE_TX_FRAME_ALARM = 1,
+} ble_tx_frame_type_t;
 
 typedef struct {
-    uint8_t payload[SX4_LIVE_SIZE];
+    uint8_t type; /* ble_tx_frame_type_t */
+    uint8_t payload[BLE_TX_PAYLOAD_MAX];
     uint8_t len;
 } ble_tx_frame_t;
 
@@ -43,6 +51,8 @@ typedef struct {
     bool have_last;
     uint32_t last_seq;
     uint8_t last_flags;
+    bool have_last_alarm;
+    uint8_t last_alarm[SX4_ALARM_SIZE];
 } ble_tx_core_t;
 
 void ble_tx_core_init(ble_tx_core_t *tx);
@@ -59,6 +69,13 @@ void ble_tx_core_clear(ble_tx_core_t *tx);
 bool ble_tx_core_queue_live(ble_tx_core_t *tx,
                             const bridge_state_live_t *snapshot);
 
+/*
+ * Encode and queue one `alarm` notification. An identical payload is a no-op.
+ * Returns true when a frame was appended; a full queue drops it.
+ */
+bool ble_tx_core_queue_alarm(ble_tx_core_t *tx,
+                             const bridge_state_live_t *snapshot);
+
 /* Pop the oldest frame. Returns false when empty. */
 bool ble_tx_core_take(ble_tx_core_t *tx, ble_tx_frame_t *out);
 
@@ -68,13 +85,15 @@ bool ble_tx_core_take(ble_tx_core_t *tx, ble_tx_frame_t *out);
 /* Create the ble_tx task and install the bridge_state change hook. */
 esp_err_t ble_tx_start(void);
 
-/* The GATT value handle of `live`; set after service registration. */
+/* The GATT value handles; set after service registration. */
 void ble_tx_set_live_handle(uint16_t attr_handle);
+void ble_tx_set_alarm_handle(uint16_t attr_handle);
 
 /* GAP events. A subscription change also primes the queue with the snapshot. */
 void ble_tx_on_connect(uint16_t conn_handle);
 void ble_tx_on_disconnect(void);
 void ble_tx_on_live_subscribe(bool subscribed);
+void ble_tx_on_alarm_subscribe(bool subscribed);
 
 /* bridge_state change hook: non-blocking producer, safe from any task. */
 void ble_tx_live_changed(void *ctx);

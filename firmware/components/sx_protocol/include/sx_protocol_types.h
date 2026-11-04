@@ -53,7 +53,8 @@ typedef struct {
     bool source_celsius; /* provenance: true when the wire unit was C */
     uint8_t hdr_field3;  /* diagnostic only; role unknown */
     bool billows_attached;
-    bool new_alarm; /* trailing edge-triggered field; preserved, unused */
+    uint8_t new_alarm_raw; /* trailing field; bit 0 is the alarm edge */
+    bool new_alarm; /* true when new_alarm_raw bit 0 is set */
 
     /* Billows target: probe 4 `max` while billows_attached is set, in
      * `billows_target_units`. T56 confirmed max == the base set temp at

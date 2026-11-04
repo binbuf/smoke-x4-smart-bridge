@@ -2,10 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'ble_client.dart';
-import 'bridge_protocol.dart' show
-    bleBatteryUnknown,
-    bleTempDetached,
-    bleTempInvalid;
+import 'bridge_protocol.dart'
+    show bleBatteryUnknown, bleTempDetached, bleTempInvalid;
 
 /// The contract's `info` characteristic. Open, so setup can read identity and
 /// `bonds_free` before asking Android to bond.
@@ -23,6 +21,7 @@ class BridgeInfo {
     required this.protoMajor,
     required this.protoMinor,
     required this.caps,
+    this.probes = 4,
     required this.deviceId,
     required this.firmware,
     required this.model,
@@ -32,6 +31,7 @@ class BridgeInfo {
   final int protoMajor;
   final int protoMinor;
   final int caps;
+  final int probes;
   final String deviceId;
   final String firmware;
   final String model;
@@ -42,6 +42,9 @@ class BridgeInfo {
   /// `caps.billows_observe` (`1 << 0`).
   bool get billowsObserve => (caps & 0x01) != 0;
 
+  /// Protocol minor 1 adds the `alarm` characteristic and `ack_alarm`.
+  bool get supportsAlarms => protoMinor >= 1;
+
   static BridgeInfo decode(Uint8List bytes) {
     if (bytes.length < 32) {
       throw const FormatException('truncated info');
@@ -50,6 +53,7 @@ class BridgeInfo {
       protoMajor: bytes[1],
       protoMinor: bytes[2],
       caps: bytes[3],
+      probes: bytes[4],
       deviceId: _readString(bytes, 6, 4),
       firmware: _readString(bytes, 10, 12),
       model: _readString(bytes, 22, 8),
@@ -80,7 +84,8 @@ class BridgeAdvertisement {
   final int batteryPercent;
 
   bool get hasReading =>
-      pitTempF10 != 0 && pitTempF10 != bleTempDetached &&
+      pitTempF10 != 0 &&
+      pitTempF10 != bleTempDetached &&
       pitTempF10 != bleTempInvalid;
 
   bool get hasBattery => batteryPercent != bleBatteryUnknown;

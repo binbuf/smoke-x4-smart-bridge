@@ -28,6 +28,25 @@ the MVP.
 
 https://github.com/G-Two/smoke-x-receiver
 
+## Alarms
+
+The app mirrors the Smoke X alarm state per probe: alarm on/off, high/low
+setpoints, and active/acknowledged state. A new alarm opens an in-app dialog and
+posts a local notification; tapping either acknowledges the Bridge/app alert.
+
+The physical Smoke X alarm is one-way. The stock receiver cannot transmit, and
+no receiver→base alarm-silence command is documented. To stop the base beeping,
+press any button on the Smoke X base or its receiver. The Bridge never invents an
+alarm-silence RF frame.
+
+Local notification delivery is best-effort while Android keeps the app process
+alive. A foreground service is not part of this build, so a fully killed app
+cannot receive live BLE alarms until it reconnects.
+
+After a firmware update that adds a BLE characteristic, Android may keep the old
+GATT table cached. Forget this phone in the app and pair again once; history and
+the Smoke X pairing are preserved.
+
 ## Notes
 
 Not affiliated with or endorsed by ThermoWorks. Smoke X is a trademark of its owner.

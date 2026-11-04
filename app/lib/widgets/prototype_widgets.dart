@@ -230,6 +230,7 @@ class ProbeCard extends StatelessWidget {
     required this.isOffline,
     required this.accent,
     required this.onTap,
+    this.onAlarmTap,
   });
 
   final ProbeView probe;
@@ -237,6 +238,9 @@ class ProbeCard extends StatelessWidget {
   final bool isOffline;
   final Color accent;
   final VoidCallback onTap;
+
+  /// Opens the per-probe alarm threshold popup. Null hides the alarm control.
+  final VoidCallback? onAlarmTap;
 
   @override
   Widget build(BuildContext context) {
@@ -288,6 +292,23 @@ class ProbeCard extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
+                    if (probe.alarm != null)
+                      IconButton(
+                        key: Key('live.probe.${probe.number}.alarm'),
+                        tooltip: _alarmTooltip(probe.alarm!),
+                        onPressed: onAlarmTap,
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        iconSize: 18,
+                        icon: Icon(
+                          _alarmIcon(probe.alarm!),
+                          color: _alarmColor(context, probe.alarm!),
+                        ),
+                      ),
                     if (connected && probe.health == ProbeHealth.aging)
                       Icon(
                         Icons.schedule,
@@ -419,6 +440,23 @@ class ProbeCard extends StatelessWidget {
     );
   }
 }
+
+IconData _alarmIcon(AlarmProbeView alarm) {
+  if (alarm.active) return Icons.notifications_active;
+  return alarm.armed ? Icons.notifications : Icons.notifications_none;
+}
+
+Color _alarmColor(BuildContext context, AlarmProbeView alarm) {
+  final scheme = Theme.of(context).colorScheme;
+  if (alarm.active) {
+    return alarm.acknowledged ? StatusColors.aging(context) : scheme.error;
+  }
+  if (alarm.armed) return scheme.primary;
+  return scheme.onSurfaceVariant.withValues(alpha: 0.42);
+}
+
+String _alarmTooltip(AlarmProbeView alarm) =>
+    'P${alarm.number} ${alarm.stateLabel} · High ${alarm.highLabel} · Low ${alarm.lowLabel}';
 
 class _ProbeChange extends StatelessWidget {
   const _ProbeChange({required this.probe});

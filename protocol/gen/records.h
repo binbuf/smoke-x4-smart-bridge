@@ -20,7 +20,7 @@ extern "C" {
 /* ── Contract version and fixed sizes ─────────────────────────────── */
 
 #define SX4_PROTOCOL_MAJOR 1u
-#define SX4_PROTOCOL_MINOR 0u
+#define SX4_PROTOCOL_MINOR 1u
 #define SX4_RECORD_VERSION 1u
 #define SX4_RECORD_SIZE 18u
 
@@ -89,6 +89,10 @@ extern "C" {
 #define SX4_BLE_CHAR_STATS_UUID "7f9b0008-4c5b-4b0f-9a3d-1c2e3f405162"
 #define SX4_BLE_CHAR_STATS_PROPS (SX4_BLE_PROP_READ)
 #define SX4_BLE_CHAR_STATS_SECURITY SX4_BLE_SEC_ENCRYPTED
+#define SX4_BLE_CHAR_ALARM_SLOT 0x0009u
+#define SX4_BLE_CHAR_ALARM_UUID "7f9b0009-4c5b-4b0f-9a3d-1c2e3f405162"
+#define SX4_BLE_CHAR_ALARM_PROPS (SX4_BLE_PROP_READ | SX4_BLE_PROP_NOTIFY)
+#define SX4_BLE_CHAR_ALARM_SECURITY SX4_BLE_SEC_ENCRYPTED
 
 /* ── Enums (wire values) ──────────────────────────────────────────── */
 
@@ -192,6 +196,7 @@ typedef enum {
     SX4_CONTROL_OP_CLEAR_HISTORY = 5,
     SX4_CONTROL_OP_SET_BILLOWS_TARGET = 6,
     SX4_CONTROL_OP_UNPAIR_SMOKE_X = 7,
+    SX4_CONTROL_OP_ACK_ALARM = 8,
 } sx4_control_op_t;
 
 static inline const char *sx4_control_op_str(int v) {
@@ -210,6 +215,8 @@ static inline const char *sx4_control_op_str(int v) {
         return "set_billows_target";
     case 7:
         return "unpair_smoke_x";
+    case 8:
+        return "ack_alarm";
     default:
         return "";
     }
@@ -544,6 +551,19 @@ _Static_assert(sizeof(sx4_control_set_billows_target_body_t) == SX4_CONTROL_SET_
 size_t sx4_control_set_billows_target_body_encode(const sx4_control_set_billows_target_body_t *v, uint8_t *out, size_t cap);
 bool sx4_control_set_billows_target_body_decode(const uint8_t *in, size_t len, sx4_control_set_billows_target_body_t *v);
 
+/* ── control_ack_alarm_body (1 B) ── */
+
+#define SX4_CONTROL_ACK_ALARM_BODY_SIZE 1u
+
+typedef struct __attribute__((packed)) {
+    uint8_t probe_mask;
+} sx4_control_ack_alarm_body_t;
+
+_Static_assert(sizeof(sx4_control_ack_alarm_body_t) == SX4_CONTROL_ACK_ALARM_BODY_SIZE, "control_ack_alarm_body must pack to 1 bytes");
+
+size_t sx4_control_ack_alarm_body_encode(const sx4_control_ack_alarm_body_t *v, uint8_t *out, size_t cap);
+bool sx4_control_ack_alarm_body_decode(const uint8_t *in, size_t len, sx4_control_ack_alarm_body_t *v);
+
 /* ── result (64 B, variable) ── */
 
 #define SX4_RESULT_SIZE 64u
@@ -659,6 +679,24 @@ _Static_assert(sizeof(sx4_config_t) == SX4_CONFIG_SIZE, "config must pack to 80 
 
 size_t sx4_config_encode(const sx4_config_t *v, uint8_t *out, size_t cap);
 bool sx4_config_decode(const uint8_t *in, size_t len, sx4_config_t *v);
+
+/* ── alarm (20 B) ── */
+
+#define SX4_ALARM_SIZE 20u
+
+typedef struct __attribute__((packed)) {
+    uint8_t ver;
+    uint8_t active_mask;
+    uint8_t armed_mask;
+    uint8_t acked_mask;
+    int16_t high_f10[4];
+    int16_t low_f10[4];
+} sx4_alarm_t;
+
+_Static_assert(sizeof(sx4_alarm_t) == SX4_ALARM_SIZE, "alarm must pack to 20 bytes");
+
+size_t sx4_alarm_encode(const sx4_alarm_t *v, uint8_t *out, size_t cap);
+bool sx4_alarm_decode(const uint8_t *in, size_t len, sx4_alarm_t *v);
 
 /* ── stats (60 B) ── */
 

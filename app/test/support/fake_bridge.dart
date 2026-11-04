@@ -19,6 +19,7 @@ class FakeBridge implements FakeGattServer {
     this.firmware = '0.1.0',
     this.bondsFree = 3,
     this.protoMajor = protocolMajor,
+    this.protoMinor = protocolMinor,
     this.batteryPct = 87,
     this.rssiLora = -71,
     this.ageS = 12,
@@ -36,9 +37,23 @@ class FakeBridge implements FakeGattServer {
     this.dropControlResults = false,
     this.forcedControlStatus,
     this.forcedConfigAttStatus,
+    int alarmActiveMask = 0,
+    int alarmArmedMask = 0x0F,
+    int alarmAckedMask = 0,
+    List<int>? alarmHighF10,
+    List<int>? alarmLowF10,
     int mtu = bleMtuDefault,
   }) : _tempsF10 = List<int>.from(
          tempsF10 ?? const <int>[2250, 1652, tempDetached, 800],
+       ),
+       _alarmActiveMask = alarmActiveMask & 0x0F,
+       _alarmArmedMask = alarmArmedMask & 0x0F,
+       _alarmAckedMask = alarmAckedMask & 0x0F,
+       _alarmHighF10 = List<int>.from(
+         alarmHighF10 ?? const <int>[1600, 1600, 1600, 2250],
+       ),
+       _alarmLowF10 = List<int>.from(
+         alarmLowF10 ?? const <int>[320, 320, 320, 320],
        ),
        _billowsTargetF10 = billowsTargetF10 ?? 2250,
        _config =
@@ -58,6 +73,7 @@ class FakeBridge implements FakeGattServer {
   final String firmware;
   final int bondsFree;
   final int protoMajor;
+  final int protoMinor;
 
   int batteryPct;
   int rssiLora;
@@ -90,6 +106,11 @@ class FakeBridge implements FakeGattServer {
   final List<SyncCtrl> syncRequests = <SyncCtrl>[];
 
   final List<int> _tempsF10;
+  int _alarmActiveMask;
+  int _alarmArmedMask;
+  int _alarmAckedMask;
+  final List<int> _alarmHighF10;
+  final List<int> _alarmLowF10;
   int _billowsTargetF10;
   Config _config;
   final List<SampleRec> _records;
@@ -119,7 +140,41 @@ class FakeBridge implements FakeGattServer {
     ageS: ageS,
   );
 
+  Alarm get alarm => Alarm(
+    activeMask: _alarmActiveMask,
+    armedMask: _alarmArmedMask,
+    ackedMask: _alarmAckedMask,
+    highF10: _alarmHighF10,
+    lowF10: _alarmLowF10,
+  );
+
   Config get config => _config;
+
+  /// Scripts one alarm state and publishes it on `0009 alarm`.
+  Alarm publishAlarm({
+    int? activeMask,
+    int? armedMask,
+    int? ackedMask,
+    List<int>? highF10,
+    List<int>? lowF10,
+  }) {
+    if (activeMask != null) _alarmActiveMask = activeMask & 0x0F;
+    if (armedMask != null) _alarmArmedMask = armedMask & 0x0F;
+    if (ackedMask != null) _alarmAckedMask = ackedMask & 0x0F;
+    if (highF10 != null) {
+      _alarmHighF10
+        ..clear()
+        ..addAll(highF10);
+    }
+    if (lowF10 != null) {
+      _alarmLowF10
+        ..clear()
+        ..addAll(lowF10);
+    }
+    final value = alarm;
+    _notify(_uuid('alarm'), value.encode());
+    return value;
+  }
 
   List<SampleRec> get records => List<SampleRec>.unmodifiable(_records);
 
@@ -147,7 +202,7 @@ class FakeBridge implements FakeGattServer {
 
   Info get info => Info(
     protoMajor: protoMajor,
-    protoMinor: protocolMinor,
+    protoMinor: protoMinor,
     caps:
         capsFlagBillowsObserve |
         capsFlagHistory |
@@ -278,6 +333,7 @@ class FakeBridge implements FakeGattServer {
     final uuid = characteristicUuid.toLowerCase();
     if (uuid == _uuid('info')) return info.encode();
     if (uuid == _uuid('live')) return live.encode();
+    if (uuid == _uuid('alarm')) return alarm.encode();
     if (uuid == _uuid('config')) return _config.encode();
     if (uuid == _uuid('stats')) return stats.encode();
     throw BleException(
@@ -364,6 +420,17 @@ class FakeBridge implements FakeGattServer {
       status = ResultStatus.invalid;
     } else if (op == ControlOp.setBillowsTarget || op == null) {
       status = ResultStatus.unsupported;
+    } else if (op == ControlOp.ackAlarm) {
+      if (body.length != ControlAckAlarmBody.size) {
+        status = ResultStatus.invalid;
+      } else {
+        final request = ControlAckAlarmBody.decode(body);
+        var mask = request.probeMask & 0x0F;
+        if (mask == 0) mask = _alarmActiveMask;
+        _alarmAckedMask =
+            (_alarmAckedMask | (mask & _alarmActiveMask)) & _alarmActiveMask;
+        _notify(_uuid('alarm'), alarm.encode());
+      }
     } else if (op == ControlOp.setTime) {
       ControlSetTimeBody.decode(body);
     }

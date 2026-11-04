@@ -39,18 +39,41 @@ static int16_t celsius_deg_to_f10(int16_t c_deg) {
     return (int16_t)f10;
 }
 
+static int16_t alarm_deg_to_f10(int16_t deg, sx_protocol_units_t units) {
+    int32_t f10 = units == SX_PROTOCOL_UNITS_FAHRENHEIT
+                      ? (int32_t)deg * 10
+                      : (int32_t)deg * 18 + 320;
+    if (f10 > INT16_MAX) {
+        f10 = INT16_MAX;
+    }
+    if (f10 < INT16_MIN) {
+        f10 = INT16_MIN;
+    }
+    return (int16_t)f10;
+}
+
 static void build_pending(const sx_protocol_state_t *state, int8_t rssi,
                           int8_t snr, sample_pipe_pending_t *pending) {
     memset(pending, 0, sizeof(*pending));
 
     uint8_t attached_mask = 0;
+    uint8_t alarm_armed_mask = 0;
     for (unsigned int i = 0; i < BRIDGE_STATE_NUM_PROBES; i++) {
         int16_t temp = SX4_TEMP_DETACHED;
         bool attached = false;
+        pending->sample.alarm_high_f10[i] = 0;
+        pending->sample.alarm_low_f10[i] = 0;
         if (i < state->num_probes) {
             attached = state->probes[i].attached;
             /* Detached probes must never carry the X4's frozen wire value. */
             temp = attached ? state->probes[i].temp_f10 : SX4_TEMP_DETACHED;
+            pending->sample.alarm_high_f10[i] = alarm_deg_to_f10(
+                state->probes[i].alarm_high_deg, state->units);
+            pending->sample.alarm_low_f10[i] = alarm_deg_to_f10(
+                state->probes[i].alarm_low_deg, state->units);
+            if (state->probes[i].alarm_armed) {
+                alarm_armed_mask |= (uint8_t)(1u << i);
+            }
         }
         pending->rec.temp[i] = temp;
         pending->sample.temp_f10[i] = temp;
@@ -58,6 +81,8 @@ static void build_pending(const sx_protocol_state_t *state, int8_t rssi,
             attached_mask |= (uint8_t)(1u << i);
         }
     }
+    pending->sample.alarm_armed_mask = alarm_armed_mask;
+    pending->sample.new_alarm = state->new_alarm;
 
     pending->rec.flags = attached_mask;
     if (state->billows_attached) {

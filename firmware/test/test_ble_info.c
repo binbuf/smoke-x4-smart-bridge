@@ -2,7 +2,7 @@
  * test_ble_info.c - host byte-vector tests for the T27 BLE surface.
  *
  * Covers the fixed 32-byte `info` payload (all caps and billows_control = 0)
- * and the static GATT slot table: eight slots, the contract's properties and
+ * and the static GATT slot table: nine slots, the contract's properties and
  * security levels, a CCCD on every Notify characteristic, no Wi-Fi/OTA slot.
  */
 #include <stdint.h>
@@ -15,11 +15,11 @@
 #include "test_util.h"
 
 /*
- * info: ver 1, proto 1.0, caps 0xFD, probes 4, reserved 0,
+ * info: ver 1, proto 1.1, caps 0xFD, probes 4, reserved 0,
  * device_id "A4F2", fw "0.1.0", model "heltec3", bonds_free 2, reserved 0.
  */
 static const uint8_t VECTOR_INFO_ALL_CAPS[SX4_INFO_SIZE] = {
-    0x01, 0x01, 0x00, 0xFD, 0x04, 0x00,
+    0x01, 0x01, 0x01, 0xFD, 0x04, 0x00,
     0x41, 0x34, 0x46, 0x32,
     0x30, 0x2E, 0x31, 0x2E, 0x30, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00,
@@ -154,11 +154,13 @@ static const struct {
     {0x0007, "config", SX4_BLE_PROP_READ | SX4_BLE_PROP_WRITE,
      SX4_BLE_SEC_AUTHENTICATED},
     {0x0008, "stats", SX4_BLE_PROP_READ, SX4_BLE_SEC_ENCRYPTED},
+    {0x0009, "alarm", SX4_BLE_PROP_READ | SX4_BLE_PROP_NOTIFY,
+     SX4_BLE_SEC_ENCRYPTED},
 };
 
 static void check_gatt_spec(void) {
-    CHECK_EQ_UINT(ble_gatt_spec_count, 8u);
-    CHECK_EQ_UINT(sizeof(EXPECTED) / sizeof(EXPECTED[0]), 8u);
+    CHECK_EQ_UINT(ble_gatt_spec_count, 9u);
+    CHECK_EQ_UINT(sizeof(EXPECTED) / sizeof(EXPECTED[0]), 9u);
 
     for (size_t i = 0; i < ble_gatt_spec_count; i++) {
         const ble_gatt_spec_t *spec = &ble_gatt_specs[i];
@@ -186,11 +188,12 @@ static void check_gatt_spec(void) {
     }
 
     CHECK(ble_gatt_spec_by_slot(0x0000) == NULL);
-    CHECK(ble_gatt_spec_by_slot(0x0009) == NULL);
+    CHECK(ble_gatt_spec_by_slot(0x000A) == NULL);
     CHECK(ble_gatt_spec_by_slot(0x7f9b) == NULL);
     CHECK(!ble_gatt_spec_needs_cccd(NULL));
     CHECK_STR_EQ(ble_gatt_specs[0].uuid, SX4_BLE_CHAR_INFO_UUID);
     CHECK_STR_EQ(ble_gatt_specs[7].uuid, SX4_BLE_CHAR_STATS_UUID);
+    CHECK_STR_EQ(ble_gatt_specs[8].uuid, SX4_BLE_CHAR_ALARM_UUID);
     CHECK_STR_EQ(SX4_BLE_SERVICE_UUID, "7f9b0000-4c5b-4b0f-9a3d-1c2e3f405162");
 }
 

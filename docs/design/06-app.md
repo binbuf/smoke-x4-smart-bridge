@@ -438,6 +438,12 @@ Rules:
 - No aggregate preview graph and no footer instruction text on Live.
 - Pull-to-refresh reads `live`, runs a forward sync, and reports failure with a
   named error. It is the one action allowed to throw visibly.
+- **Alarms** mirror the Smoke X per probe. The Live card lists `Alarm on/off`,
+  the high and low setpoints, and `Alarm active` / `Acknowledged`. A new
+  unacknowledged alarm opens an in-app dialog and posts a local notification;
+  tapping either sends `ack_alarm` to the Bridge. The dialog/card also states
+  that the physical Smoke X must be muted on the base or its receiver because
+  the RF link is one-way. On a protocol-1.0 Bridge the card is absent.
 - Billows appears **automatically when detected**. There is no off switch, no
   mode switch, no target setter, and no second “Connected” pill. `Detected` comes
   only from the `billows_attached` field in a recent valid X4 packet; never claim

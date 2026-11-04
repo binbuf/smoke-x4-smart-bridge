@@ -64,6 +64,13 @@ const ble_gatt_spec_t ble_gatt_specs[] = {
         .props = SX4_BLE_CHAR_STATS_PROPS,
         .security = SX4_BLE_CHAR_STATS_SECURITY,
     },
+    {
+        .slot = SX4_BLE_CHAR_ALARM_SLOT,
+        .name = "alarm",
+        .uuid = SX4_BLE_CHAR_ALARM_UUID,
+        .props = SX4_BLE_CHAR_ALARM_PROPS,
+        .security = SX4_BLE_CHAR_ALARM_SECURITY,
+    },
 };
 
 const size_t ble_gatt_spec_count = sizeof(ble_gatt_specs) / sizeof(ble_gatt_specs[0]);

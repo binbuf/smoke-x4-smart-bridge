@@ -235,7 +235,8 @@ finding, not a reason to lower the bar after the fact.
 - [ ] Release APK signed (or a documented debug-only bench build).
 - [ ] Android permissions verified on Android 12+ and one older device if
       supported.
-- [ ] No HTTP/notification/foreground-service permissions or dependencies.
+- [ ] No HTTP or foreground-service permissions/dependencies. POST_NOTIFICATIONS
+      is expected for local alarms.
 - [ ] Fresh install, upgrade, and “clear data” paths tested.
 - [ ] App version and bridge firmware version visible in About.
 - [ ] Privacy statement: no cloud, no account.
@@ -253,8 +254,10 @@ finding, not a reason to lower the bar after the fact.
 - [ ] Billows decision recorded as observation only; owner acceptance is in
       `docs/billows-decision.md`; release notes say "Set the target on the
       Smoke X4."
-- [ ] Known limitations written down (no OTA, no alarms, no iOS, BLE range,
-      battery runtime, lost-phone recovery).
+- [ ] Known limitations written down (no OTA, no iOS, BLE range, battery
+      runtime, lost-phone recovery, alarms are mirrored and the physical Smoke X
+      cannot be silenced remotely, background delivery is best-effort without a
+      foreground service).
 - [ ] A new user can follow the README from a blank phone/board to live data
       without external prose.
 
@@ -300,7 +303,10 @@ Verified:
 
 Known limitations:
 - USB firmware update only
-- no alarms/notifications (use the Smoke X4's alarm)
+- alarms are mirrored and notify locally; the physical Smoke X alarm must be
+  muted on the base or its receiver (the RF link is one-way)
+- background notification delivery is best-effort; a foreground service is not
+  part of this build
 - Billows: observed only; set the target on the Smoke X4
 - BLE range and phone-background behavior
 - recovery if all bonded phones are lost

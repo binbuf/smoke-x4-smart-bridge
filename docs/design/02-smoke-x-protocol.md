@@ -148,6 +148,14 @@ Do not reinterpret them without a capture.
 | +3 | `max` | High alarm setpoint, whole degrees; in fan mode it may carry the target **or** target+25 °F — unvalidated | [K]/[?] |
 | +4 | `min` | Low alarm setpoint, whole degrees | [K] |
 
+The bridge exposes all four fields per probe (X2: the first two) to the app as
+`alarm` state. The setpoints stay in the packet's active unit on the wire and
+are converted to canonical °F tenths for the BLE `alarm` payload. An alarm is
+**armed** when `alarm` is non-zero; it is **active** when the probe is attached,
+armed, and its temperature is at/above `max` or at/below `min`, or when a
+`new_alarm` edge identifies it. Acknowledging in the app clears the app-side
+unacknowledged latch only.
+
 Detached behavior:
 
 - X4 sets `state == 3` and **freezes** the last temperature; it does not zero it.
@@ -160,11 +168,14 @@ Detached behavior:
 | Index | Name | Meaning | Confidence |
 |---|---|---|---|
 | −2 | `billows_attached` | Non-zero = Billows fan controller connected to the Smoke X4 | [K] |
-| −1 | `new_alarm` | Non-zero = an alarm newly triggered on this packet; edge-triggered | [K] |
+| −1 | `new_alarm` | Small bitfield; bit 0 = an alarm newly triggered on this packet. Edge-triggered. | [K] |
 
-The trailing `new_alarm` field is the real alarm edge. Header field 3 is not
-`new_alarm` on a real X4; the upstream reference was wrong about that. The MVP
-does not implement alarms, but the parser preserves the bit.
+The trailing field is the real alarm edge, but it is **not a boolean**. T56
+observed `8` during a Billows/menu edge, so the parser preserves the raw byte
+and treats only bit 0 as the alarm event. Header field 3 is not `new_alarm` on a
+real X4; the upstream reference was wrong about that. The bridge latches an
+active alarm until the probe returns inside its band or the user acknowledges
+it in the app.
 
 ### Units and canonical storage
 
@@ -200,8 +211,8 @@ from the legacy `smoke_x_types.h` shape) are in
   The Celsius conversion is exactly `F10 = (C10 x 9) / 5 + 320`.
 - `alarm_high_deg` / `alarm_low_deg` stay in the packet's active unit; they
   are setpoints, not canonical temperatures.
-- `new_alarm` is preserved from the trailing field. `billows_attached` is
-  preserved; probe 4 `max` is surfaced only as
+- `new_alarm_raw` preserves the trailing field and `new_alarm` is its bit 0.
+  `billows_attached` is preserved; probe 4 `max` is surfaced only as
   `billows_target_deg` with `billows_target_valid == false` until M5
   validates the max↔target relation.
 - No heap, no I/O, `strtok_r` over a fixed 128-byte stack copy. Output is
@@ -351,5 +362,5 @@ through the product parser (`sx-protocol` CTest).
 | Q2 | What is state header field 3? | Capture around alarm/menu activity | None for MVP; diagnostics only |
 | Q3 | Do other probe `state` values exist (shorted/open)? | Bench fault injection | Display would need an "invalid" state |
 | Q4 | Is Billows target probe 4 `max`, `max − 25`, or another relation? | Passive capture with a Billows attached while changing the base target | Billows target display |
-| Q5 | Is there any receiver→base command traffic? | Public docs say the receiver has no setpoint controls; a passive capture is post-MVP confirmation only | None for MVP; no control path |
+| Q5 | Is there any receiver→base command traffic? | Public docs say the receiver has no setpoint controls and cannot mute the base; a passive capture is post-MVP confirmation only | No remote alarm-silence path; the app acknowledges only the Bridge/app latch |
 | Q6 | Does the X4 change operating frequency without re-sync? | Long soak | Pairing recovery behavior |

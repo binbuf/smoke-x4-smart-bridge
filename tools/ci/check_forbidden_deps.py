@@ -10,8 +10,9 @@ Checked surfaces:
 - ``app/pubspec.yaml`` direct dependencies (including dev dependencies);
 - ``app/pubspec.lock`` resolved packages, so a forbidden transitive package
   cannot slip in;
-- the release Android manifest, for INTERNET/network/notification/foreground
-  permissions (the debug/profile manifests need INTERNET for the Flutter tool);
+- the release Android manifest, for INTERNET/network/foreground permissions
+  (POST_NOTIFICATIONS is allowed for local alarms; the debug/profile manifests
+  need INTERNET for the Flutter tool);
 - every tracked ``firmware/**/idf_component.yml``;
 - ``firmware/**/CMakeLists.txt`` component lists (``set(COMPONENTS ...)``,
   ``REQUIRES`` and ``PRIV_REQUIRES``);
@@ -83,7 +84,6 @@ FORBIDDEN_PERMISSIONS = {
     "android.permission.INTERNET",
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.FOREGROUND_SERVICE",
-    "android.permission.POST_NOTIFICATIONS",
     "android.permission.RECEIVE_BOOT_COMPLETED",
 }
 
@@ -199,6 +199,12 @@ def _check_firmware_manifests(root: Path) -> list[str]:
                 )
 
     for path in _walk(firmware, "CMakeLists.txt"):
+        # The local esp_wifi override is the mechanism that keeps Wi-Fi out of
+        # the image: it exposes IDF headers but builds no Wi-Fi source. Its
+        # INCLUDE_DIRS/REQUIRES names are therefore intentional, not a network
+        # dependency.
+        if path == firmware / "components" / "esp_wifi" / "CMakeLists.txt":
+            continue
         original = path.read_text(encoding="utf-8").splitlines()
         for lineno, line in enumerate(original, start=1):
             if line.lstrip().startswith("#"):

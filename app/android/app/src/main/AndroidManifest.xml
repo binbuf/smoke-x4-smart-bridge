@@ -6,6 +6,10 @@
         android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- Alarm notifications. The Bridge owns alarm state; this permission only
+         lets the app show the local alert while it is not on screen. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Android 11 and below require location for BLE scanning. Never request
          it on 12+. -->
     <uses-permission

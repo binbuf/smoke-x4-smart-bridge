@@ -25,11 +25,79 @@ class SmokeBridgeApp extends StatefulWidget {
 
 class _SmokeBridgeAppState extends State<SmokeBridgeApp>
     with WidgetsBindingObserver {
+  bool _alarmDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.controller.addListener(_onControllerChanged);
     _syncPlatformFormatting();
+  }
+
+  void _onControllerChanged() {
+    if (!mounted || _alarmDialogOpen) return;
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    if (!widget.controller.consumeAlarmPopup()) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showAlarmDialog());
+  }
+
+  Future<void> _showAlarmDialog() async {
+    if (!mounted || _alarmDialogOpen) return;
+    final alarm = widget.controller.alarmView;
+    if (alarm == null) return;
+    _alarmDialogOpen = true;
+    final acknowledge = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.notifications_active,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: Text(alarm.title),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(alarm.summary),
+              const SizedBox(height: 12),
+              for (final probe in alarm.probes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'P${probe.number}  ${probe.stateLabel}  ·  '
+                    'High ${probe.highLabel}  Low ${probe.lowLabel}',
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text(
+                alarm.physicalHint,
+                style: Theme.of(dialogContext).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            key: const Key('alarm.dialog.acknowledge'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Acknowledge'),
+          ),
+        ],
+      ),
+    );
+    _alarmDialogOpen = false;
+    if (acknowledge == true) {
+      await widget.controller.acknowledgeAlarm();
+    }
   }
 
   @override
@@ -63,6 +131,7 @@ class _SmokeBridgeAppState extends State<SmokeBridgeApp>
 
   @override
   void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -73,6 +142,7 @@ class _SmokeBridgeAppState extends State<SmokeBridgeApp>
     // No background scanning or foreground service (06 §6.3).
     if (state == AppLifecycleState.resumed) {
       widget.controller.onAppResume();
+      _onControllerChanged();
     }
   }
 
