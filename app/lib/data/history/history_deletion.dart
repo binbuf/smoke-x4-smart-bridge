@@ -170,10 +170,20 @@ class HistoryDeletionService {
       bridgeId: saved.id,
       generation: saved.generation,
     );
+    // The remaining rows can still contain a hole from an older sync bug. Use
+    // the contiguous end, not the absolute maximum, so the next pass re-reads
+    // the hole instead of trusting a cursor above it.
+    final cursorAfter = extent == null
+        ? null
+        : await dao.contiguousMaxSeq(
+            bridgeId: saved.id,
+            generation: saved.generation,
+            fromSeq: extent.minSeq,
+          );
     await dao.updateSyncCursors(
       bridgeId: saved.id,
       generation: saved.generation,
-      cursorAfter: extent?.maxSeq,
+      cursorAfter: cursorAfter,
       cursorBefore: extent?.minSeq,
       deviceMinSeq: saved.deviceMinSeq,
       deviceMaxSeq: saved.deviceMaxSeq,

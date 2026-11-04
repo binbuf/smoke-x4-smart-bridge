@@ -40,7 +40,8 @@ later tasks (T39–T41, T47).
    without a notification and maps fresh/quiet/failure to LIVE/STALE/RECONNECT.
 6. First sync is a backward read of the last **15 minutes** (V0), not 24 h, and
    moves the local cursor to the bridge max. A reconnect with a cursor syncs
-   forward from the local max immediately. Records are handed to a
+   forward from the contiguous local cursor immediately (ADR 0061). Records are
+   handed to a
    `BridgeSyncSink`; V0 uses a no-op sink and T39–T41 implement the store.
 
 ## Consequences

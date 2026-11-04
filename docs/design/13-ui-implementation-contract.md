@@ -334,8 +334,8 @@ tapping a frame opens the live screen with that exact state.
 
 1. Load saved Bridge and local history.
 2. Scan for the remembered Bridge.
-3. Found → connect → secure → read live → set time → forward catch-up from local
-   max; no 24 h re-read.
+3. Found → connect → secure → read live → set time → forward catch-up from the
+   contiguous local cursor; no 24 h re-read.
 4. Not found after 10 s → last-known Live with `Looking for the Bridge…` and a
    manual Connect action; History remains usable.
 5. App resume → health check + forward sync. No background scanning or

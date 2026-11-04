@@ -445,6 +445,19 @@ abstract interface class SampleDao {
   /// Min/max sequence and time extent, or null when no row matches.
   Future<SampleExtent?> extent({String? bridgeId, int? generation});
 
+  /// The highest sequence such that every sequence in
+  /// `[fromSeq, returned value]` is stored.
+  ///
+  /// Returns null when [fromSeq] itself is not stored. This is deliberately
+  /// different from [extent]'s `maxSeq`: live notifications can be stored above
+  /// a missed sequence, so the absolute maximum may sit beyond a hole. Forward
+  /// sync must resume from the contiguous end or the hole becomes permanent.
+  Future<int?> contiguousMaxSeq({
+    required String bridgeId,
+    required int generation,
+    required int fromSeq,
+  });
+
   Future<List<StoredGap>> gaps({String? bridgeId, int? generation});
 
   /// Deletes readings in `[fromMs, toMs)` and any gap rows they described.
@@ -951,6 +964,37 @@ class SqfliteSampleDao implements SampleDao {
       minRecordedMs: row['min_ms']! as int,
       maxRecordedMs: row['max_ms']! as int,
     );
+  }
+
+  @override
+  Future<int?> contiguousMaxSeq({
+    required String bridgeId,
+    required int generation,
+    required int fromSeq,
+  }) async {
+    // The anchor row must exist; otherwise the MIN below would report a gap
+    // start above a missing `fromSeq` instead of "no contiguous run".
+    final rows = await _db.rawQuery(
+      '''
+      SELECT MIN(s.seq + 1) AS next_seq
+      FROM sample s
+      WHERE s.bridge_id = ? AND s.generation = ? AND s.seq >= ?
+        AND EXISTS (
+          SELECT 1 FROM sample a
+          WHERE a.bridge_id = ? AND a.generation = ?
+            AND a.seq = ?
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM sample n
+          WHERE n.bridge_id = s.bridge_id
+            AND n.generation = s.generation
+            AND n.seq = s.seq + 1
+        )
+      ''',
+      <Object?>[bridgeId, generation, fromSeq, bridgeId, generation, fromSeq],
+    );
+    final next = rows.first['next_seq'] as int?;
+    return next == null ? null : next - 1;
   }
 
   @override

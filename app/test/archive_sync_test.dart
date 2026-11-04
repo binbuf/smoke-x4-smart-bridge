@@ -16,6 +16,16 @@ const int _seqNone = 0xFFFFFFFF;
 final DateTime _now = DateTime.utc(2026, 10, 27, 12);
 const int _baseSec = 1700000000;
 
+BridgeLive _liveAt(int seq) => BridgeLive(
+  flags: 0x20,
+  tempsF10: const <int>[700, 710, 720, 730],
+  seq: seq,
+  billowsTargetF10: 0,
+  batteryPct: 87,
+  rssiLora: -60,
+  ageS: 2,
+);
+
 /// A deterministic bridge ring with the T39 cursor rules.
 class FakeRing implements SyncTransport {
   FakeRing({this.generation = 7, required this.minSeq, required this.maxSeq});
@@ -487,6 +497,88 @@ void main() {
       expect((await dao.bridgeById('bridge-a'))!.cursorAfter, 11);
     },
   );
+
+  test(
+    'the next catch-up fills sequences missed while the app was frozen',
+    () async {
+      final ring = FakeRing(minSeq: 0, maxSeq: 10);
+      final sync = coordinator();
+      await connect(sync, ring);
+      expect(await dao.countSamples(bridgeId: 'bridge-a'), 11);
+
+      // The Bridge recorded 11..13 while Android had the app frozen. Only the
+      // newest notification (13) reached the app on unfreeze.
+      ring.maxSeq = 13;
+      await sync.recordLive(live: _liveAt(13), receivedAt: _now);
+      expect(await dao.countSamples(bridgeId: 'bridge-a'), 12);
+      expect((await dao.bridgeById('bridge-a'))!.cursorAfter, 10);
+
+      final result = await sync.catchUp(transport: ring);
+      expect(result.status, SyncStatus.complete);
+      expect(await dao.countSamples(bridgeId: 'bridge-a'), 14);
+      final saved = await dao.bridgeById('bridge-a');
+      expect(saved!.cursorAfter, 13);
+      final rows = await dao.samplesInRange(
+        fromMs: 0,
+        toMs: 0x7FFFFFFFFFFFFFFF,
+        bridgeId: 'bridge-a',
+      );
+      expect(
+        rows.map((row) => row.seq).toList(),
+        List<int>.generate(14, (index) => index),
+        reason: 'the missed 11 and 12 are re-read instead of skipped',
+      );
+    },
+  );
+
+  test('a relaunch repairs a cursor stored above a missed sequence', () async {
+    final ring = FakeRing(minSeq: 0, maxSeq: 10);
+    final first = coordinator();
+    await connect(first, ring);
+
+    // Model the old failure mode: the live record at 13 was stored and the
+    // saved forward cursor advanced to it even though 11..12 were never read.
+    await dao.insertSamples(<StoredSample>[
+      StoredSample.fromDevice(
+        bridgeId: 'bridge-a',
+        generation: 7,
+        sample: const DeviceSample(
+          seq: 13,
+          unixS: _baseSec + 13 * 30,
+          tempsF10: <int>[700, 710, 720, 730],
+          flags: 0x20,
+          clockValid: true,
+        ),
+        syncWallMs: _now.millisecondsSinceEpoch,
+        deviceMaxSeq: 13,
+      ),
+    ]);
+    await dao.updateSyncCursors(
+      bridgeId: 'bridge-a',
+      generation: 7,
+      cursorAfter: 13,
+      cursorBefore: 0,
+      deviceMinSeq: 0,
+      deviceMaxSeq: 13,
+      lastSeenMs: _now.millisecondsSinceEpoch,
+    );
+    ring.maxSeq = 13;
+
+    final second = coordinator();
+    final result = await connect(second, ring);
+    expect(result.status, SyncStatus.complete);
+    expect(await dao.countSamples(bridgeId: 'bridge-a'), 14);
+    expect((await dao.bridgeById('bridge-a'))!.cursorAfter, 13);
+    final rows = await dao.samplesInRange(
+      fromMs: 0,
+      toMs: 0x7FFFFFFFFFFFFFFF,
+      bridgeId: 'bridge-a',
+    );
+    expect(
+      rows.map((row) => row.seq).toList(),
+      List<int>.generate(14, (index) => index),
+    );
+  });
 
   test(
     'BridgeLink writes its first sync through the durable archive',

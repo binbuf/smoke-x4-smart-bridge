@@ -27,7 +27,8 @@ path; adding another cadence would race the same `sync_ctrl` characteristic.
     older records in a background future;
   - local rows but `cursor_before > device_min_seq` -> `partial` and resume the
     background backfill from `cursor_before`;
-  - otherwise forward catch-up from the local maximum `seq`.
+  - otherwise forward catch-up from the contiguous local cursor
+    (`cursor_after`, never the absolute maximum; ADR 0061).
 - `catchUp` is the existing 30 s pass. It re-reads status (generation/extent),
   finishes an interrupted backfill if needed, then catches forward. Transport
   calls are serialised, so the background backfill and the timer never

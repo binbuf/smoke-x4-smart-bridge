@@ -295,17 +295,11 @@ class ArchiveSyncCoordinator {
 
     final local = await dao.extent(bridgeId: bridgeId, generation: _generation);
     if (local == null) {
+      _cursorAfter = null;
+      _cursorBefore = null;
       return _backwardRecentFirst(transport, recentOnly: true);
     }
-    _cursorAfter = local.maxSeq;
-    _cursorBefore = local.minSeq;
-    if (_deviceMin != null && local.minSeq > _deviceMin!) {
-      // Recent-first finished but the older backfill did not: tell the caller
-      // the archive is partial and continue in the background.
-      _emit(SyncStatus.partial, SyncPhase.backfill);
-      return _snapshot;
-    }
-    return _forwardCatchUp(transport, from: local.maxSeq);
+    return _resumeFromLocal(transport, local);
   }
 
   /// The 30 s quiet pass and reconnect catch-up. It never re-reads the recent
@@ -370,15 +364,74 @@ class ArchiveSyncCoordinator {
 
     final local = await dao.extent(bridgeId: bridgeId, generation: _generation);
     if (local == null) {
+      _cursorAfter = null;
+      _cursorBefore = null;
       return _backwardRecentFirst(transport, recentOnly: true);
     }
-    _cursorAfter = local.maxSeq;
-    _cursorBefore = local.minSeq;
-    if (_deviceMin != null && local.minSeq > _deviceMin!) {
+    return _resumeFromLocal(transport, local);
+  }
+
+  /// Resumes from the durable contiguous cursors after the device extent was
+  /// read.
+  ///
+  /// The absolute [SampleExtent.maxSeq] is not a forward cursor. Android can
+  /// freeze the app while the Bridge keeps recording, so the next live
+  /// notification may be stored above a missed sequence. Forward-syncing from
+  /// that stored maximum skips the hole permanently, and History later paints
+  /// it as `No signal` even though the Bridge still has every record. The
+  /// contiguous end is the only safe cursor.
+  Future<SyncStatusSnapshot> _resumeFromLocal(
+    SyncTransport transport,
+    SampleExtent local,
+  ) async {
+    final bridgeId = _bridgeId!;
+    final savedAfter = _cursorAfter;
+    final cursorBefore = local.minSeq;
+    if (savedAfter == null || savedAfter < cursorBefore) {
+      // Rows exist without a usable forward cursor (for example an interrupted
+      // first pass). Re-establish the newest contiguous window; the background
+      // backfill then covers the older tail.
+      _cursorAfter = null;
+      _cursorBefore = null;
+      return _backwardRecentFirst(transport, recentOnly: true);
+    }
+
+    final contiguous = await dao.contiguousMaxSeq(
+      bridgeId: bridgeId,
+      generation: _generation,
+      fromSeq: cursorBefore,
+    );
+    if (contiguous == null) {
+      _cursorAfter = null;
+      _cursorBefore = null;
+      return _backwardRecentFirst(transport, recentOnly: true);
+    }
+
+    final cursorMoved = contiguous != savedAfter;
+    _cursorAfter = contiguous;
+    _cursorBefore = cursorBefore;
+    if (cursorMoved) {
+      // Lowering the cursor repairs a hole left by a missed notification;
+      // raising it trusts contiguous rows already stored. Persist either way so
+      // a relaunch resumes from the same honest position.
+      await dao.updateSyncCursors(
+        bridgeId: bridgeId,
+        generation: _generation,
+        cursorAfter: _cursorAfter,
+        cursorBefore: cursorBefore,
+        deviceMinSeq: _deviceMin,
+        deviceMaxSeq: _deviceMax,
+        lastSeenMs: _now().millisecondsSinceEpoch,
+      );
+    }
+
+    if (_deviceMin != null && cursorBefore > _deviceMin!) {
+      // Recent-first finished but the older backfill did not: tell the caller
+      // the archive is partial and continue in the background.
       _emit(SyncStatus.partial, SyncPhase.backfill);
       return _snapshot;
     }
-    return _forwardCatchUp(transport, from: local.maxSeq);
+    return _forwardCatchUp(transport, from: _cursorAfter!);
   }
 
   void _startBackfill(SyncTransport transport) {

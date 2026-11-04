@@ -163,8 +163,8 @@ Config/stats are read once the firmware serves them (M4); V0 needs only
   `live`. Read `config`/`stats` when the firmware serves them.
 - **Syncing**: first sync after pairing sets the clock and pulls the recent
   window — **15 minutes in V0**, not the full 24 h. A reconnect with existing
-  data sets the clock when needed and pulls **forward from the local max**
-  immediately; it does not re-read 24 h. The UI says `Syncing saved readings`
+  data sets the clock when needed and pulls **forward from the contiguous
+  local cursor** immediately; it does not re-read 24 h. The UI says `Syncing saved readings`
   for the recent pass and `Loading saved readings` for background backfill;
   `Syncing` or `backfill` alone never reaches a product screen. The procedure
   and its local-max seam live in `data/ble/bridge_link.dart`; T39–T41 replace

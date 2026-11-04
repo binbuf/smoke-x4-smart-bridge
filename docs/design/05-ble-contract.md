@@ -604,7 +604,7 @@ app: scan/filter; prefer remembered device id
 app: connect; link encrypts with stored bond
 app: request MTU; subscribe; read live/stats
 app: control(set_time) if clock differs > 2 s
-app: sync forward from local max seq
+app: sync forward from the contiguous local cursor (cursor_after)
 ```
 
 No passkey prompt on a valid bond.

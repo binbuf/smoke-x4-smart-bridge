@@ -118,9 +118,7 @@ void main() {
       _sample(
         0,
         _ago(
-          Duration(
-            milliseconds: const Duration(days: 90).inMilliseconds + 1,
-          ),
+          Duration(milliseconds: const Duration(days: 90).inMilliseconds + 1),
         ),
       ),
       _sample(1, _ago(const Duration(days: 90))),
@@ -243,6 +241,46 @@ void main() {
       expect(saved!.cursorBefore, 5);
       expect(saved.cursorAfter, 9);
       expect(saved.deviceMaxSeq, 9);
+    },
+  );
+
+  test(
+    'deletion never leaves the forward cursor above a remaining hole',
+    () async {
+      await dao.saveBridge(
+        const SavedBridge(
+          id: 'bridge-a',
+          name: 'Backyard Bridge',
+          lastSeenMs: 1,
+          generation: 7,
+          cursorAfter: 9,
+          cursorBefore: 0,
+          deviceMinSeq: 0,
+          deviceMaxSeq: 9,
+        ),
+      );
+      await dao.insertSamples(<StoredSample>[
+        for (var seq = 0; seq < 10; seq++)
+          if (seq != 7)
+            _sample(
+              seq,
+              seq < 5
+                  ? _ago(const Duration(days: 40))
+                  : _ago(const Duration(days: 2)),
+              generation: 7,
+            ),
+      ]);
+
+      final plan = await service.plan(HistoryDeletionScope.olderThan30Days);
+      await service.delete(plan);
+
+      final saved = await dao.savedBridge();
+      expect(saved!.cursorBefore, 5);
+      expect(
+        saved.cursorAfter,
+        6,
+        reason: 'the next forward pass must re-read the missing seq 7',
+      );
     },
   );
 

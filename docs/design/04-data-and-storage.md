@@ -394,9 +394,9 @@ T39 completes the cursor rules on the same stream (ADR 0044):
 ### Ongoing sync
 
 - Every `live` notification is appended immediately by `seq`.
-- Every 30 s while connected, request forward from the local maximum `seq` to
-  catch any missed notification. The pass is quiet: it updates the cursor and
-  `lastSyncedAt` but does not show the sync card.
+- Every 30 s while connected, request forward from the contiguous local cursor
+  (`cursor_after`) to catch any missed notification. The pass is quiet: it
+  updates the cursor and `lastSyncedAt` but does not show the sync card.
 - On reconnect, do the same before enabling live display.
 
 ## 4.6 Gaps and rotation
@@ -501,8 +501,9 @@ implements the 4.5 sequence over one `SyncTransport` request at a time:
   It then reports `partial` and returns, so Live is available immediately; the
   older backfill continues in the background with 64-record pages.
 - A resumed session finishes an interrupted backfill when
-  `cursor_before > device_min_seq`, then uses forward catch-up from the local
-  maximum `seq`. The 30 s quiet pass runs the same forward request path.
+  `cursor_before > device_min_seq`, then uses forward catch-up from the
+  contiguous local cursor (`cursor_after`), never the archive's absolute
+  maximum. The 30 s quiet pass runs the same forward request path.
 - One request/batch is one transaction: `SampleDao.storeSyncBatch` writes the
   rows, gap rows and `cursor_after`/`cursor_before` together. A crash or link
   drop therefore resumes at the last fully stored `seq`.

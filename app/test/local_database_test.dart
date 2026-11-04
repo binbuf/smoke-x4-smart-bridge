@@ -146,6 +146,51 @@ void main() {
     expect(await dao.countSamples(bridgeId: 'bridge-a'), 1);
   });
 
+  test('contiguousMaxSeq stops at the first missing sequence', () async {
+    await dao.insertSamples(<StoredSample>[
+      _stored(0),
+      _stored(1),
+      _stored(2),
+      _stored(4),
+      _stored(5),
+      _stored(3, generation: 2),
+    ]);
+
+    expect(
+      await dao.contiguousMaxSeq(
+        bridgeId: 'bridge-a',
+        generation: 1,
+        fromSeq: 0,
+      ),
+      2,
+    );
+    expect(
+      await dao.contiguousMaxSeq(
+        bridgeId: 'bridge-a',
+        generation: 1,
+        fromSeq: 4,
+      ),
+      5,
+    );
+    expect(
+      await dao.contiguousMaxSeq(
+        bridgeId: 'bridge-a',
+        generation: 1,
+        fromSeq: 3,
+      ),
+      isNull,
+      reason: 'the anchor row is missing',
+    );
+    expect(
+      await dao.contiguousMaxSeq(
+        bridgeId: 'bridge-a',
+        generation: 3,
+        fromSeq: 0,
+      ),
+      isNull,
+    );
+  });
+
   test('re-sync keeps an exact clock and upgrades an estimated one', () async {
     final estimated = _stored(
       4,
@@ -376,7 +421,10 @@ void main() {
     final inserted = await dao.storeSyncBatch(
       bridgeId: 'bridge-a',
       generation: 7,
-      samples: <StoredSample>[_stored(10, generation: 7), _stored(11, generation: 7)],
+      samples: <StoredSample>[
+        _stored(10, generation: 7),
+        _stored(11, generation: 7),
+      ],
       cursorAfter: 11,
       cursorBefore: 10,
       deviceMinSeq: 10,
