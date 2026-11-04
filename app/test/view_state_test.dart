@@ -54,6 +54,7 @@ void main() {
     expect(view.stats, hasLength(4));
     expect(view.cooks, isNotEmpty);
     expect(view.lastSyncedLabel, 'Synced 2 min ago');
+    expect(view.cookElapsedLabel, '9h 20m 0s');
 
     controller.setHistorySort(HistorySort.hottest);
     final hottest = controller.historyViewFor();

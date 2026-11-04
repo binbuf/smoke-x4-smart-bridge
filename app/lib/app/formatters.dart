@@ -342,6 +342,18 @@ String durationShort(Duration duration) {
   return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
 }
 
+/// Elapsed time for the History cook timer: `9h 20m 0s`, `4m 12s`, `12s`.
+/// Hours are omitted below one hour so a short cook does not start with `0h`.
+String durationClock(Duration duration) {
+  final value = duration.abs();
+  final hours = value.inHours;
+  final minutes = value.inMinutes % 60;
+  final seconds = value.inSeconds % 60;
+  if (hours > 0) return '${hours}h ${minutes}m ${seconds}s';
+  if (minutes > 0) return '${minutes}m ${seconds}s';
+  return '${seconds}s';
+}
+
 String durationLong(Duration duration) {
   final value = duration.abs();
   if (value.inMinutes < 1) {

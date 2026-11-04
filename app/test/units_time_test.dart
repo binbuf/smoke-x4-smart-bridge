@@ -101,6 +101,16 @@ void main() {
       expect(shortDate(DateTime(2026, 3, 1), locale: 'fr_FR'), contains('mars'));
     });
 
+    test('cook elapsed time keeps hours, minutes and seconds', () {
+      expect(
+        durationClock(const Duration(hours: 9, minutes: 20)),
+        '9h 20m 0s',
+      );
+      expect(durationClock(const Duration(minutes: 4, seconds: 12)), '4m 12s');
+      expect(durationClock(const Duration(seconds: 12)), '12s');
+      expect(durationClock(const Duration(seconds: -12)), '12s');
+    });
+
     test('a 24-hour controller formats Bridge reading dates without AM/PM', () {
       final controller = BridgeController(use24Hour: true)
         ..bridgeOldestReadingAt = DateTime(2026, 10, 27, 13, 5);

@@ -225,6 +225,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
     final fixture = view.fixture;
     final window = view.windowLabel(use24Hour: use24Hour);
+    // The header follows the cook the app believes is in progress. A Cook view
+    // has no live clock, so it shows the length of the cook being viewed.
+    final elapsed = widget.historical
+        ? durationClock(fixture.end.difference(fixture.start))
+        : view.cookElapsedLabel;
+    final headerTime = elapsed ?? window;
     final probeMeta = view.probeMeta;
     final metaLead = view.noData
         ? 'No readings'
@@ -241,47 +247,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              key: const Key('history.filters'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!widget.historical)
-                  _FilterMenuIcon<HistoryRange>(
-                    key: const Key('history.range.menu'),
-                    icon: Icons.schedule_outlined,
-                    tooltip: 'History range',
-                    active: rangeActive,
-                    items: _rangeMenuItems(context, view),
-                    onSelected: (range) => _selectRange(range, view),
-                  ),
-                _FilterMenuIcon<int>(
-                  key: const Key('history.filter.menu'),
-                  icon: Icons.linear_scale,
-                  tooltip: 'Filter by probe',
-                  active: view.probe != null,
-                  items: _probeMenuItems(context, view),
-                  onSelected: (value) {
-                    controller.setHistoryProbe(value == 0 ? null : value);
-                  },
-                ),
-                if (view.hasActiveFilters && !widget.historical)
-                  IconButton(
-                    key: const Key('history.filters.reset'),
-                    tooltip: 'Reset filters',
-                    onPressed: _resetFilters,
-                    icon: const Icon(Icons.restart_alt, size: 19),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 2),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 10, right: 2),
+                padding: const EdgeInsets.only(top: 10, left: 2, right: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      window,
+                      headerTime,
+                      key: const Key('history.header.time'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall,
@@ -322,27 +296,67 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
             ),
-            IconButton(
-              key: const Key('history.chart.help'),
-              tooltip: 'How to read this chart',
-              onPressed: () => _showChartHelp(context),
-              icon: const Icon(Icons.help_outline, size: 19),
-            ),
-            if (widget.showFullscreenAction)
-              IconButton(
-                key: const Key('history.chart.fullscreen'),
-                tooltip: 'Full-screen chart',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => HistoryFullScreenScreen(
-                      controller: controller,
-                      historical: widget.historical,
-                      gapOverride: widget.gapOverride,
-                    ),
+            Row(
+              key: const Key('history.filters'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _FilterMenuIcon<int>(
+                  key: const Key('history.filter.menu'),
+                  icon: _ProbeGlyph(
+                    color: view.probe != null
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
                   ),
+                  tooltip: 'Filter by probe',
+                  items: _probeMenuItems(context, view),
+                  onSelected: (value) {
+                    controller.setHistoryProbe(value == 0 ? null : value);
+                  },
                 ),
-                icon: const Icon(Icons.open_in_full, size: 19),
-              ),
+                if (!widget.historical)
+                  _FilterMenuIcon<HistoryRange>(
+                    key: const Key('history.range.menu'),
+                    icon: Icon(
+                      Icons.schedule_outlined,
+                      size: 20,
+                      color: rangeActive
+                          ? scheme.primary
+                          : scheme.onSurfaceVariant,
+                    ),
+                    tooltip: 'History range',
+                    items: _rangeMenuItems(context, view),
+                    onSelected: (range) => _selectRange(range, view),
+                  ),
+                if (view.hasActiveFilters && !widget.historical)
+                  IconButton(
+                    key: const Key('history.filters.reset'),
+                    tooltip: 'Reset filters',
+                    onPressed: _resetFilters,
+                    icon: const Icon(Icons.restart_alt, size: 19),
+                  ),
+                IconButton(
+                  key: const Key('history.chart.help'),
+                  tooltip: 'How to read this chart',
+                  onPressed: () => _showChartHelp(context),
+                  icon: const Icon(Icons.help_outline, size: 19),
+                ),
+                if (widget.showFullscreenAction)
+                  IconButton(
+                    key: const Key('history.chart.fullscreen'),
+                    tooltip: 'Full-screen chart',
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => HistoryFullScreenScreen(
+                          controller: controller,
+                          historical: widget.historical,
+                          gapOverride: widget.gapOverride,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.open_in_full, size: 19),
+                  ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 2),
@@ -772,25 +786,42 @@ class _PastCookScreenState extends State<PastCookScreen> {
   }
 }
 
+/// The probe filter's meat-thermometer mark. The source PNG is a black
+/// silhouette on transparency, so [BlendMode.srcIn] tints it for either theme.
+class _ProbeGlyph extends StatelessWidget {
+  const _ProbeGlyph({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      'assets/images/probe_thermometer.png',
+      width: 20,
+      height: 20,
+      color: color,
+      colorBlendMode: BlendMode.srcIn,
+      filterQuality: FilterQuality.medium,
+    );
+  }
+}
+
 class _FilterMenuIcon<T> extends StatelessWidget {
   const _FilterMenuIcon({
     super.key,
     required this.icon,
     required this.tooltip,
-    required this.active,
     required this.items,
     required this.onSelected,
   });
 
-  final IconData icon;
+  final Widget icon;
   final String tooltip;
-  final bool active;
   final List<PopupMenuEntry<T>> items;
   final ValueChanged<T> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return PopupMenuButton<T>(
       tooltip: tooltip,
       position: PopupMenuPosition.under,
@@ -799,8 +830,7 @@ class _FilterMenuIcon<T> extends StatelessWidget {
       ),
       onSelected: onSelected,
       itemBuilder: (context) => items,
-      icon: Icon(icon, size: 20),
-      iconColor: active ? scheme.primary : scheme.onSurfaceVariant,
+      icon: icon,
     );
   }
 }

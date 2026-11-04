@@ -412,6 +412,15 @@ class HistoryViewState {
     if (activeCook != null) return 'Cooking for $elapsed · in progress';
     return 'Last cook began $elapsed ago';
   }
+
+  /// Time since the in-progress cook began, in whole hours, minutes and
+  /// seconds. Null when no cook is in progress, so the History header can fall
+  /// back to the selected window.
+  String? get cookElapsedLabel {
+    final cook = activeCook;
+    if (cook == null) return null;
+    return durationClock(now.difference(cook.start));
+  }
 }
 
 class SetupViewState {
