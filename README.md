@@ -1,51 +1,44 @@
 # Smoke X4 Smart Bridge
 
-Connect your **Thermoworks Smart X4** to your Android smart device using an inexpensive **ESP32 LoRa V3 Development Board**, 3D printed enclosure, and a Flutter mobile app.
+Add new wireless smart capabilities to your **Thermoworks Smoke X4** BBQ meat thermometer using your Android or iOS device with a Flutter app and an inexpensive **ESP32 LoRa V3 Development Board** allows your smart device to get live temps, alarms, and see session history.
 
 ## Getting Started
 
-TODO
+### Android app
 
-## Development checks
+Requires Flutter 3.47.8+ (Dart 3.13.7+) with the Android toolchain.
 
 ```bash
-make host-test      # firmware host suite
-make protocol-check # generated protocol drift
-make app-check      # flutter analyze + flutter test
-make capture        # fresh 3x captures of every approved screen
-make design-diff    # baselines vs those captures (blend + delta)
-make design-approve # accept a reviewed visual change: goldens, manifest, thumbs
+cd app
+flutter pub get
+flutter run            # debug build on a connected phone or emulator
+flutter build apk      # release APK in build/app/outputs/flutter-apk/
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same checks plus the protocol
-generation/drift gate, the ESP-IDF firmware build, the UI golden comparison and
-the no-network/no-OTA dependency guard on every pull request.
+`make app-check` from the repository root runs the analyzer and tests.
 
-The app is Android-only; the iOS, web and desktop Flutter targets are not part of
-the MVP.
+### iOS app
+
+TODO
+
+### Firmware (ESP32-S3 over USB)
+
+Requires ESP-IDF 6.0.2 and the Heltec WiFi LoRa 32 V3 connected over USB.
+Activate ESP-IDF first (`export.sh` or `export.ps1`), then build and flash from
+`firmware/`:
+
+```bash
+cd firmware
+idf.py -B build "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.heltec-v3" build
+idf.py -B build -p <PORT> flash monitor
+```
+
+Replace `<PORT>` with `COM5` on Windows, `/dev/ttyUSB0` on Linux, or
+`/dev/cu.usbserial-*` on macOS. Press `Ctrl+]` to exit the monitor.
 
 ## Credit
 
 https://github.com/G-Two/smoke-x-receiver
-
-## Alarms
-
-The app mirrors the Smoke X alarm state per probe: alarm on/off, high/low
-setpoints, and active/acknowledged state. A new alarm opens an in-app dialog and
-posts a local notification; tapping either acknowledges the Bridge/app alert.
-
-The physical Smoke X alarm is one-way. The stock receiver cannot transmit, and
-no receiver→base alarm-silence command is documented. To stop the base beeping,
-press any button on the Smoke X base or its receiver. The Bridge never invents an
-alarm-silence RF frame.
-
-Local notification delivery is best-effort while Android keeps the app process
-alive. A foreground service is not part of this build, so a fully killed app
-cannot receive live BLE alarms until it reconnects.
-
-After a firmware update that adds a BLE characteristic, Android may keep the old
-GATT table cached. Forget this phone in the app and pair again once; history and
-the Smoke X pairing are preserved.
 
 ## Notes
 
