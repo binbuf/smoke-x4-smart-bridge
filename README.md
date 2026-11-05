@@ -1,10 +1,10 @@
 # Smoke X4 Smart Bridge
 
-Add Bluetooth and WiFi capabilities to your **Thermoworks Smoke X4**. Use your Android or iOS device and an inexpensive **Heltec WiFi LoRa 32 V3 Development Board** to use as a wireless Smart Bridge to Smoke X4. See live temps, alarms, and get session cook history.
+Add Bluetooth and WiFi capabilities to your **Thermoworks Smoke X4**. Use your Android or iOS device and an inexpensive **Heltec WiFi LoRa 32 (V3)** to use as a wireless Smart Bridge to Smoke X4. See live temps, alarms, and get session cook history.
 
 ## Getting Started
 
-Requires Flutter 3.47.8+ (Dart 3.13.7+). 
+Building the mobile app requires Flutter 3.47.8+ (Dart 3.13.7+). 
 
 ### Android app
 
@@ -21,12 +21,9 @@ Requires Android toolchain.
 
 TODO
 
-### Firmware (ESP32-S3 over USB)
+### ESP32 Bridge Firmware
 
-Requires ESP-IDF 6.0.2 or later.
-
-Activate ESP-IDF first (`export.sh` or `export.ps1`), then build and flash from
-`firmware/`:
+Requires ESP-IDF 6.0.2 or later. Build and flash from `firmware/`:
 
 ```bash
 cd firmware
