@@ -2,7 +2,7 @@
 Smoke X4 smart bridge - enclosure v2 (parametric, CadQuery).
 
 A thinner, stronger, nicer-to-hold take on the v1 Heltec V3 case in
-`enclosure/docs/reference`.
+`enclosure/temp`.
 
 Design/print axes used below (all millimetres):
 
@@ -48,6 +48,7 @@ class Params:
 
     # ---- walls ----------------------------------------------------------
     wall: float = 1.2        # front housing wall (PETG/ASA, 3 perimeters)
+    face_t: float = 1.6002   # original front floor, independent of side-wall thickness
     lid_wall: float = 1.2    # lid wall / battery pocket wall
     tongue_step: float = 1.35  # radial inset of the joint tongue
     # The visible front wall must clear the 1.0 mm front round-over and the
@@ -59,18 +60,18 @@ class Params:
     seam_gap: float = 0.0    # parting line is closed; chamfer = shadow line
 
     # ---- display --------------------------------------------------------
-    win_w: float = 14.09     # reference window width (aligned to the OLED)
-    win_h: float = 26.28     # reference window height
-    win_cy: float = 4.40     # reference window centre in Y (case centre = 0)
+    win_w: float = 12.446    # original window throat, behind the rounded entrance
+    win_h: float = 24.638
+    win_cy: float = 4.4069
     win_r: float = 0.0       # through-window corner radius (0 = square)
-    win_chamfer: float = 0.5
+    win_roundover: float = 1.524  # original entrance is 15.494 x 27.686 mm
 
     # ---- buttons --------------------------------------------------------
     # The two PCB switches are not symmetric about the board centre: they
     # straddle the USB-C shell, which sits 1.46 mm right of centre.
-    btn_rst_x: float = -6.47  # reference bore centre, left of centre
-    btn_prg_x: float = 9.53   # reference bore centre, right of centre
-    btn_cy: float = 32.38     # reference switch/bore centre in Y
+    btn_rst_x: float = -6.477
+    btn_prg_x: float = 9.525
+    btn_cy: float = 32.385
     # The right-hand (PRG) switch is close to the USB end wall.  A 7 mm cap
     # left only ~0.2 mm of front wall there, which prints as a notch.  Keep
     # the reference-sized cap (the v1 cap head was 6.12 mm) so the wall stays
@@ -90,6 +91,14 @@ class Params:
     # ---- board (Heltec WiFi LoRa 32 V3) ---------------------------------
     board_l: float = 51.69
     board_w: float = 25.4
+    board_x: float = 1.4605  # original pocket and USB offset from case centre
+    board_clear: float = 0.1905  # clearance per PCB side in the original pocket
+    board_pocket_y0: float = -15.9639
+    board_pocket_y1: float = 36.1315
+    board_left_y0: float = -10.8839  # opening for the antenna lead at lower left
+    board_end_x0: float = -5.5245
+    board_guide_top: float = 9.6012
+    usb_joint_y: float = 33.1315  # end of the side lap, leaving the PCB insertion path open
     board_t: float = 1.12
     board_usb_tip: float = -1.27  # board-local X of the PCB's USB end
     # The USB-C shell is on the component side and sits 1.65 mm above the
@@ -101,7 +110,7 @@ class Params:
     board_switch_y: float = 8.0  # board-local +/- from the USB centreline
     board_usb_front: float = -1.6  # board-local x of the USB tip
     board_switch_dZ: float = 2.0   # switch top above PCB top
-    board_cy: float = 32.38      # case Y of the switch centres (reference;
+    board_cy: float = 32.385     # case Y of the switch centres (reference;
                                  # seats the USB-C tip in the end-wall pocket)
 
     # ---- battery (Heltec PL103665 3000 mAh LiPo) ------------------------
@@ -113,10 +122,10 @@ class Params:
     bat_gap_back: float = 0.2    # battery to lid back wall
 
     # ---- ports ----------------------------------------------------------
-    usb_x: float = 1.46          # USB-C centre, offset like the PCB connector
-    usb_w: float = 9.13
-    usb_h: float = 3.43
-    usb_z0: float = 3.27         # bottom of the USB opening
+    usb_x: float = 1.4605
+    usb_w: float = 9.144
+    usb_h: float = 3.429
+    usb_z0: float = 3.2512
     usb_pocket_w: float = 18.2   # inner counterbore for the connector body
     usb_pocket_h: float = 5.25   # top at z=7.4, below the tongue step
     usb_pocket_z0: float = 2.15
@@ -128,10 +137,9 @@ class Params:
     # end wall. build_front thickens that end wall so the nut has a flat
     # seat and the outside keeps the original rounded shape.
     ant_x: float = -10.20        # in the flat end wall, left of centre
-    # Sit the hole between the 1.0 mm front round-over and the tongue step:
-    # bottom 1.45, top 7.95, with 0.45 mm clearance at each end.
+    # The 6.8 mm hole spans Z=1.3..8.1, below the joint step at Z=8.4.
     ant_z: float = 4.70
-    ant_d: float = 6.5
+    ant_d: float = 6.8          # +0.3 mm diametral ASA clearance over the tested hole
     ant_seat_d: float = 10.0     # kept for reference; no exterior pad
     ant_seat_depth: float = 0.0
 
@@ -221,7 +229,7 @@ def describe(name: str, wp: cq.Workplane) -> dict:
 
 
 def antenna_cutter(p: Params = P) -> cq.Workplane:
-    """Circular SMA bulkhead clearance hole (6.5 mm), through the end wall."""
+    """Circular SMA bulkhead clearance hole, through the end wall."""
     return (
         cq.Workplane("XZ").center(p.ant_x, p.ant_z)
         .circle(p.ant_d / 2.0).extrude(-4.0)
@@ -233,8 +241,8 @@ def antenna_cutter(p: Params = P) -> cq.Workplane:
 # front housing
 # --------------------------------------------------------------------------
 def build_front(p: Params = P) -> cq.Workplane:
-    z_step = p.seam - p.tongue_h          # 7.4: visible parting line / step
-    z_land = p.board_pcb_bot + 0.18        # land level; also the back-shelf floor
+    z_step = p.seam - p.tongue_h          # 8.4: visible parting line / step
+    z_land = z_step
     t_od_w = p.W - 2 * p.tongue_step
     t_od_l = p.L - 2 * p.tongue_step
     t_id_w = t_od_w - 2 * p.wall
@@ -260,30 +268,44 @@ def build_front(p: Params = P) -> cq.Workplane:
     # instead of a local boss stuck onto the inside.
     ant_wall = p.tongue_step + p.wall
     c_main_l = p.L - p.wall - ant_wall
+    # Each millimetre of inward offset is supported by a millimetre of rise.
+    z_ramp = z_land - p.tongue_step
     c_main = (
         rr_prism(p.W - 2 * p.wall, c_main_l,
-                 z_land - p.wall, p.r_side - p.wall, z0=p.wall)
+                 z_ramp - p.face_t, p.r_side - p.wall, z0=p.face_t)
         .translate((0, p.tongue_step / 2.0, 0))
     )
-    # cavity 2: narrowed at the land, continues through the tongue to the top
+    ramp_bottom = rr_prism(
+        p.W - 2 * p.wall, c_main_l, 0.01, p.r_side - p.wall,
+        z0=z_ramp).translate((0, p.tongue_step / 2.0, 0)).faces("<Z").wires().val()
+    ramp_top = rr_prism(
+        t_id_w, t_id_l, 0.01, p.r_side - p.tongue_step - p.wall,
+        z0=z_land).faces("<Z").wires().val()
+    ramp = cq.Solid.makeLoft([ramp_bottom, ramp_top], ruled=True)
     c_upper = rr_prism(t_id_w, t_id_l, p.seam - z_land + 0.4,
-                       p.r_side - p.tongue_step - p.wall, z0=z_land)
-    front = front.cut(c_main).cut(c_upper)
-
+                      p.r_side - p.tongue_step - p.wall, z0=z_land)
+    front = front.cut(c_main).cut(ramp).cut(c_upper)
+    # The USB end must stay open above the PCB. A full-thickness end wall
+    # meets the lid at guide height here, while the side lap retains the lid.
+    end_zone = (cq.Workplane("XY").center(0, (p.usb_joint_y + p.L / 2 + 1) / 2)
+                .rect(p.W + 2, p.L / 2 + 1 - p.usb_joint_y)
+                .extrude(p.seam + 1))
+    end_wall = rr_prism(p.W, p.L, p.board_guide_top - z_step + 0.01,
+                        p.r_side, z0=z_step - 0.01).intersect(end_zone)
+    end_cavity = (rr_prism(p.W - 2 * p.wall, c_main_l,
+                          p.board_guide_top - p.face_t + 0.01,
+                          p.r_side - p.wall, z0=p.face_t)
+                  .translate((0, p.tongue_step / 2, 0)).intersect(end_zone))
+    end_top = (cq.Workplane("XY").workplane(offset=p.board_guide_top)
+               .rect(p.W + 2, p.L + 2).extrude(p.seam + 1).intersect(end_zone))
+    front = front.union(end_wall).cut(end_cavity).cut(end_top)
     # --- display window --------------------------------------------------
-    front = front.cut(rr_slot(p.win_w, p.win_h, p.wall + 1.0, p.win_r,
+    front = front.cut(rr_slot(p.win_w, p.win_h, p.face_t + 1.0, p.win_r,
                               0, p.win_cy, -0.5))
-    # outside chamfer: loft from a slightly larger rect at the surface
-    ch = (
-        cq.Workplane("XY").workplane(offset=-0.01)
-        .rect(p.win_w + 2 * p.win_chamfer, p.win_h + 2 * p.win_chamfer)
-        .workplane(offset=p.win_chamfer + 0.01)
-        .rect(p.win_w, p.win_h)
-        .loft(combine=True)
-        .translate((0, p.win_cy, 0))
-    )
-    front = front.cut(ch)
-
+    front = front.edges(cq.selectors.BoxSelector(
+        (-p.win_w / 2 - 0.01, p.win_cy - p.win_h / 2 - 0.01, -0.01),
+        (p.win_w / 2 + 0.01, p.win_cy + p.win_h / 2 + 0.01, 0.01),
+    )).fillet(p.win_roundover)
     # --- button dog-bone recess + bores ----------------------------------
     # The recess is a slot between the two bores; the shallow circular
     # recesses in the old model would have grazed the USB end wall.
@@ -295,7 +317,7 @@ def build_front(p: Params = P) -> cq.Workplane:
         front = front.cut(
             cq.Workplane("XY").workplane(offset=-0.5)
             .center(cap_x, p.btn_cy)
-            .circle(p.btn_bore / 2.0).extrude(p.wall + 1.0))
+            .circle(p.btn_bore / 2.0).extrude(p.face_t + 1.0))
     # small lead-in chamfer on each bore
     for cap_x in (p.btn_rst_x, p.btn_prg_x):
         front = front.cut(
@@ -308,7 +330,7 @@ def build_front(p: Params = P) -> cq.Workplane:
 
     # --- USB-C opening (top end) -----------------------------------------
     zc = p.usb_z0 + p.usb_h / 2.0
-    usb = cutters_along_y(p.usb_w, p.usb_h, 0.8,
+    usb = cutters_along_y(p.usb_w, p.usb_h, p.usb_h / 2 - 0.001,
                           p.L / 2.0 - 2.0, p.L / 2.0 + 1.0)
     front = front.cut(usb.translate((p.usb_x, 0, zc)))
     # 0.5 mm lead-in chamfer on the outside of the USB opening
@@ -326,34 +348,24 @@ def build_front(p: Params = P) -> cq.Workplane:
                              p.L / 2.0 - p.wall + p.usb_pocket_depth)
     front = front.cut(pocket.translate((p.usb_x, 0, zp)))
 
-    # --- board cradle: slim side guides + one small back shelf ------------
-    # The board drops in from the back.  Two narrow tabs per side only set
-    # the lateral position; the Z stack is handled by the button caps /
-    # switches in front and the lid/battery behind.  One small shelf per
-    # side stops the board being pushed backwards by the buttons.  There is
-    # no front lip and no second rail tier around the PCB.
-    board_top_y = p.board_cy + p.board_switch_x - p.board_usb_tip  # 35.85
-    board_bot_y = board_top_y - p.board_l           # -15.84
-    for sx in (-1, 1):
-        for yc in (20.28, -3.72):
-            # lateral guide: 0.8 mm thick, 3 mm long, just outside the PCB
-            front = front.union(
-                cq.Workplane("XY").workplane(offset=p.wall)
-                .center(sx * 13.30, yc)
-                .rect(0.8, 3.0)
-                .extrude(p.board_pcb_bot + 0.2 - p.wall))
-            # single back shelf: the board slides under it from the back
-            front = front.union(
-                cq.Workplane("XY").workplane(offset=p.board_pcb_bot + 0.18)
-                .center(sx * 12.95, yc)
-                .rect(1.5, 4.0)
-                .extrude(0.3))
-    for xc in (7.0, -2.0):
-        front = front.union(
-            cq.Workplane("XY").workplane(offset=p.wall)
-            .center(xc, board_bot_y - 0.55)
-            .rect(6.0, 0.8).extrude(p.board_pcb_bot - p.wall + 0.18))
-
+    # --- original board pocket, with straight perpendicular guide planes --
+    # Reference front is centred in XY and raised 15.1892 mm to put its face
+    # at Z=0. These are its inner contact faces, including the RF-lead opening.
+    left = p.board_x - p.board_w / 2 - p.board_clear
+    right = p.board_x + p.board_w / 2 + p.board_clear
+    guides = (
+        (left - p.wall, left, p.board_left_y0, p.board_pocket_y1),
+        (right, right + p.wall, p.board_pocket_y0 - p.wall, p.board_pocket_y1),
+        (p.board_end_x0, right, p.board_pocket_y0 - p.wall, p.board_pocket_y0),
+        (-p.W / 2 + p.tongue_step + p.wall, left,
+         p.board_left_y0 - p.wall, p.board_left_y0),
+    )
+    for x0, x1, y0, y1 in guides:
+        guide = (cq.Workplane("XY").workplane(offset=p.face_t - 0.01)
+                 .center((x0 + x1) / 2, (y0 + y1) / 2)
+                 .rect(x1 - x0, y1 - y0)
+                 .extrude(p.board_guide_top - p.face_t + 0.01))
+        front = front.union(guide)
     # --- antenna bulkhead: straight hole through the thick end wall --------
     # The end wall is already thickened to the tongue-wall depth above, so
     # there is no local boss: the hole passes through one continuous wall
@@ -362,7 +374,6 @@ def build_front(p: Params = P) -> cq.Workplane:
 
     # --- snap bumps on the tongue ---------------------------------------
     tx = p.W / 2.0 - p.tongue_step
-    ty = p.L / 2.0 - p.tongue_step
     z_bump = z_step + 1.2
     bumps = []
     for sy in (-1, 1):
@@ -371,11 +382,6 @@ def build_front(p: Params = P) -> cq.Workplane:
                 cq.Workplane("XY").workplane(offset=z_bump)
                 .center(sx * (tx + p.snap_bump / 2.0 - 0.1), sy * 18.0)
                 .rect(p.snap_bump + 0.2, 1.6).extrude(0.7))
-    for sx in (-1, 1):
-        bumps.append(
-            cq.Workplane("XY").workplane(offset=z_bump)
-            .center(sx * 8.0, ty + p.snap_bump / 2.0 - 0.1)
-            .rect(1.6, p.snap_bump + 0.2).extrude(0.7))
     for b in bumps:
         front = front.union(b)
 
@@ -399,13 +405,18 @@ def build_lid(p: Params = P) -> cq.Workplane:
                       p.T - z0 - p.lid_wall + 0.01, p.r_side - p.lid_wall,
                       z0=z0 - 0.1)
     lid = lid.cut(cavity)
+    # Match the raised front end wall, including clearance around its ends.
+    end_relief = (cq.Workplane("XY").workplane(offset=z0 - 0.1)
+                  .center(0, (p.usb_joint_y - p.joint_clear + p.L / 2 + 1) / 2)
+                  .rect(p.W + 2, p.L / 2 + 1 - p.usb_joint_y + p.joint_clear)
+                  .extrude(p.board_guide_top + p.joint_clear - z0 + 0.1))
+    lid = lid.cut(end_relief)
 
     # The SMA bulkhead now lives in the front housing (see build_front), so
     # the lid is just the battery pocket and needs no antenna hole/boss.
 
     # snap grooves in the cavity side walls
     tx = p.W / 2.0 - p.tongue_step
-    ty = p.L / 2.0 - p.tongue_step
     z_bump = p.seam - p.tongue_h + 1.2
     grooves = []
     for sy in (-1, 1):
@@ -414,11 +425,6 @@ def build_lid(p: Params = P) -> cq.Workplane:
                 cq.Workplane("XY").workplane(offset=z_bump - 0.15)
                 .center(sx * (tx + p.snap_bump / 2.0 + 0.02), sy * 18.0)
                 .rect(p.snap_groove, 1.8).extrude(0.85))
-    for sx in (-1, 1):
-        grooves.append(
-            cq.Workplane("XY").workplane(offset=z_bump - 0.15)
-            .center(sx * 8.0, ty + p.snap_bump / 2.0 + 0.02)
-            .rect(1.8, p.snap_groove).extrude(0.85))
     for g in grooves:
         lid = lid.cut(g)
 
@@ -447,9 +453,9 @@ def build_buttons(p: Params = P) -> cq.Workplane:
         )
         # soft top edge
         cap = cap.faces("<Z").edges().chamfer(0.35)
-        # retention lip just behind the 1.2 mm front wall
+        # retention lip with 0.15 mm axial clearance behind the front floor
         lip = (
-            cq.Workplane("XY").workplane(offset=p.wall - 0.05)
+            cq.Workplane("XY").workplane(offset=p.face_t + 0.15)
             .center(cap_x, p.btn_cy)
             .circle(p.btn_lip_d / 2.0).extrude(0.45)
         )
