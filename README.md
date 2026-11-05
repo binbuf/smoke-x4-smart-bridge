@@ -1,21 +1,21 @@
 # Smoke X4 Smart Bridge
 
-Add new wireless smart capabilities to your **Thermoworks Smoke X4** BBQ meat thermometer using your Android or iOS device with a Flutter app and an inexpensive **ESP32 LoRa V3 Development Board** allows your smart device to get live temps, alarms, and see session history.
+Add Bluetooth and WiFi capabilities to your **Thermoworks Smoke X4**. Use your Android or iOS device and an inexpensive **Heltec WiFi LoRa 32 V3 Development Board** to use as a wireless Smart Bridge to Smoke X4. See live temps, alarms, and get session cook history.
 
 ## Getting Started
 
-### Android app
+Requires Flutter 3.47.8+ (Dart 3.13.7+). 
 
-Requires Flutter 3.47.8+ (Dart 3.13.7+) with the Android toolchain.
+### Android app
 
 ```bash
 cd app
 flutter pub get
-flutter run            # debug build on a connected phone or emulator
+flutter run            # debug build on a connected device or emulator
 flutter build apk      # release APK in build/app/outputs/flutter-apk/
 ```
 
-`make app-check` from the repository root runs the analyzer and tests.
+Requires Android toolchain.
 
 ### iOS app
 
@@ -23,7 +23,8 @@ TODO
 
 ### Firmware (ESP32-S3 over USB)
 
-Requires ESP-IDF 6.0.2 and the Heltec WiFi LoRa 32 V3 connected over USB.
+Requires ESP-IDF 6.0.2 or later.
+
 Activate ESP-IDF first (`export.sh` or `export.ps1`), then build and flash from
 `firmware/`:
 
@@ -34,12 +35,14 @@ idf.py -B build -p <PORT> flash monitor
 ```
 
 Replace `<PORT>` with `COM5` on Windows, `/dev/ttyUSB0` on Linux, or
-`/dev/cu.usbserial-*` on macOS. Press `Ctrl+]` to exit the monitor.
+`/dev/cu.usbserial-*` on macOS.
 
 ## Credit
 
 https://github.com/G-Two/smoke-x-receiver
 
 ## Notes
+
+Should be compatible with Smoke X2 as well but untested.
 
 Not affiliated with or endorsed by ThermoWorks. Smoke X is a trademark of its owner.
