@@ -20,9 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cadence_report as cadence  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-T10_CAPTURE = ROOT / "artifacts" / "bench" / "T10" / "serial-20261026T214626.log"
+T10_CAPTURE = ROOT / "tools" / "bench" / "fixtures" / "t10-cadence.log"
 PRODUCT_FIXTURE = ROOT / "tools" / "bench" / "fixtures" / "product-cadence.log"
-TEMPLATE = ROOT / "artifacts" / "bench" / "T37" / "CADENCE-REPORT-TEMPLATE.md"
+TEMPLATE = ROOT / "tools" / "bench" / "fixtures" / "CADENCE-REPORT-TEMPLATE.md"
 
 
 class T10CaptureTest(unittest.TestCase):

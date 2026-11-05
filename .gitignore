@@ -64,3 +64,8 @@ design/figcraft/render/
 
 # added by symphony (ephemeral/secret files)
 .vscode/
+
+# Bench evidence and generated enclosure output stay local
+/artifacts/
+/enclosure/out/
+/enclosure/temp/

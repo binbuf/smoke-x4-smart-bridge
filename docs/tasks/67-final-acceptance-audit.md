@@ -23,7 +23,7 @@ Every row of the acceptance matrix and the UI/UX definition of done is marked pa
 - [ ] Confirm release notes match the capability bits (`billows_control`, `history`, `battery`, `power_off`, `factory_reset`).
 - [ ] Confirm `billows_control` is 0 and the Billows copy says "Set the target on the Smoke X4."
 - [ ] Confirm `docs/billows-decision.md` records the observation-only decision and owner acceptance.
-- [ ] Confirm UI parity, copy lint, dark/light, 320 dp, and accessibility evidence is committed.
+- [ ] Confirm UI parity, copy lint, dark/light, 320 dp, and accessibility evidence is captured locally.
 - [ ] Confirm no prototype-only surface is reachable.
 
 ## Out of scope
@@ -40,7 +40,7 @@ Every row of the acceptance matrix and the UI/UX definition of done is marked pa
 - Evidence is linked, not asserted: screenshots, test output, traces, and dated bench records.
 - The release note must match `caps`: `billows_control`, `history`, `battery`, `power_off`, `factory_reset`.
 - `billows_control` is 0; the Billows copy says "Set the target on the Smoke X4." Owner acceptance in `docs/billows-decision.md` is a release blocker.
-- UI parity, copy lint, dark/light, 320 dp, and accessibility evidence must be committed, and no prototype-only surface may be reachable.
+- UI parity, copy lint, dark/light, 320 dp, and accessibility evidence must be captured locally, and no prototype-only surface may be reachable.
 - A fail gets a named follow-up or an explicit descope with the owner; it never gets a lowered bar.
 
 ## Done when

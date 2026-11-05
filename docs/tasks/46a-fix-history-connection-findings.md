@@ -51,7 +51,7 @@ Close the app-side defects found during the T46 full-history bench, so the M3 Hi
 ## Done when
 - [x] Findings A, B, C, D, F, G, H and J have regression tests that fail on the T46 builds and pass after the fix.
 - [x] `flutter analyze` is clean and the full `flutter test` suite passes.
-- [ ] The affected states are re-checked on the real phone; before/after evidence is committed.
+- [ ] The affected states are re-checked on the real phone; before/after evidence is captured locally.
 - [x] Hand-off below filled in.
 
 ## Hand-off
@@ -133,7 +133,7 @@ Accepted by a human with the physical pass explicitly re-assigned. The Pixel was
 still PIN-locked (`deviceLocked=1`, keyguard not dismissible via `adb`), so no
 after-evidence could be captured here. `symphony accept T46a` records the host
 work as done; T55 must run A–D, F–H and J on the unlocked phone against the T46
-states and commit the images under `artifacts/bench/T46/fix-*`.
+states and keep the images under `artifacts/bench/T46/fix-*` (git-ignored).
 
 ### Docs
 

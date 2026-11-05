@@ -20,7 +20,7 @@ paths that the sitting will exercise. The physical run is executed at **T37**.
 - [ ] Write a short bench checklist for T37 covering: real X4 pair, stock
       receiver still updating, USB power cut mid-recording, detach/reattach, and
       °F/°C flip.
-- [ ] Make each step produce a serial log or a committed evidence artifact; no
+- [ ] Make each step produce a serial log or a local evidence artifact; no
       verbal-only results.
 - [ ] Reuse `firmware/bench/t10_probe/tools/capture.py` (or a product-serial
       equivalent) so T37 can capture the run without writing new tooling.

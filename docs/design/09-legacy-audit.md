@@ -111,7 +111,7 @@ These are recorded so the new implementation does not repeat them.
 | Real X4 captures | `legacy/protocol/fixtures/lora/*.loralog` | Copy the relevant captures + reports into new fixtures |
 | BLE security/chunking patterns | `legacy/firmware/components/app_ble` | Read for approach; write new service against [05](05-ble-contract.md) |
 | Hardware verified rows | `legacy/docs/hardware-verified.md` | Re-run the relevant rows; record in a new `docs/hardware-verified.md` |
-| Enclosure | `enclosure/out/*.stl` | Reuse as-is unless Billows hardware changes the case |
+| Enclosure | `enclosure/cad/*.py`, `enclosure/smoke-bridge-enclosure.3mf` | Reuse as-is unless Billows hardware changes the case |
 
 Do not copy:
 

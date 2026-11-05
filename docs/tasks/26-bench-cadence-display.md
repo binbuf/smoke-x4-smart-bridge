@@ -56,7 +56,7 @@ USB-detached wake/current at **T62**).
 ## Hand-off
 
 **Landed.** The T37 cadence report contract
-(`artifacts/bench/T37/CADENCE-REPORT-TEMPLATE.md`), the
+(`tools/bench/fixtures/CADENCE-REPORT-TEMPLATE.md`), the
 `tools/bench/cadence_report.py` extractor with 11 host tests (real T10 capture +
 product-format fixture), a golden-coverage assertion for every `UI_PAGE_*` and
 `UI_OVERLAY_MASK_*`, checklist steps 6–7 (30-minute cadence and display/PRG),

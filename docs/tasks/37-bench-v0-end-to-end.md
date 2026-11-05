@@ -9,7 +9,7 @@ Close the V0 physical checks that the automated suite and the first real-hardwar
 bring-up could not prove. This is **not** a second happy-path run: scan, first
 bond, stored-bond reconnect, `set_time`, a recent sync and four live values are
 already verified. T37 is done when every residual row below either passes with a
-committed artifact or has a named follow-up task.
+local evidence artifact or has a named follow-up task.
 
 ## Context (read first)
 - **Bench available for this run (confirmed 2026-10-27):**
@@ -27,7 +27,7 @@ committed artifact or has a named follow-up task.
     `python` lacks `pyserial`; use the IDF env:
     `C:\Users\dan\.espressif\python_env\idf6.0_py3.13_env\Scripts\python.exe`.
 - Full historical procedure and artifact names:
-  [`artifacts/bench/T37/CHECKLIST.md`](../../artifacts/bench/T37/CHECKLIST.md).
+  `artifacts/bench/T37/CHECKLIST.md`.
   Use only the residual steps in this task; do not re-run the already-verified
   happy path.
 - [10 §10.3 B2/B3](../design/10-test-and-release.md) — BLE and app bench matrix.
@@ -51,8 +51,8 @@ committed artifact or has a named follow-up task.
   states, codecs, gap splitting, probe/UI states, destructive copy.
 
 Evidence: [`hardware-verified.md`](../hardware-verified.md#lora-receive-root-cause-and-re-check-2026-10-27),
-[`T37/lora-rx-after-syncword-fix.log`](../../artifacts/bench/T37/lora-rx-after-syncword-fix.log),
-[`T37/lora-rx-ble-sync-after-fix.log`](../../artifacts/bench/T37/lora-rx-ble-sync-after-fix.log).
+`T37/lora-rx-after-syncword-fix.log`,
+`T37/lora-rx-ble-sync-after-fix.log`.
 
 ## Residual scope
 Start a capture for each step unless the step says otherwise. Every pass needs a
@@ -219,7 +219,7 @@ Evidence and the run manifest are in `artifacts/bench/T37/README.md`.
 - [x] Real History and Billows-absent checks pass on the real phone; the cached
       banner finding is routed to T45.
 - [x] `docs/hardware-verified.md` and the T37 manifest are updated.
-- [x] Evidence is committed with the T37 close-out.
+- [x] Evidence is captured locally for the T37 close-out.
 - [x] Hand-off below filled in.
 
 ## Hand-off

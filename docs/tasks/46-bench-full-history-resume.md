@@ -59,7 +59,7 @@ Prove the complete history path on the real Bridge and target phone: full-ring s
 ## Hand-off
 
 Report: [docs/progress/T46.md](../progress/T46.md). Evidence manifest:
-[artifacts/bench/T46/README.md](../../artifacts/bench/T46/README.md).
+artifacts/bench/T46/README.md.
 
 - Real 6.43 h / 696-record measured archive on the Pixel 11 Pro Fold (877 rows
   after the later tests); saved-Bridge cold launch with no Setup/passkey,

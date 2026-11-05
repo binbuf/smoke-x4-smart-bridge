@@ -117,8 +117,8 @@ Run in this order; each row is evidence, not a checkbox.
 ### B1 — Radio and storage
 
 Execute B1 at T37 with
-[`artifacts/bench/T37/CHECKLIST.md`](../../artifacts/bench/T37/CHECKLIST.md):
-every step names its serial capture, committed artifact and pass/fail rule. The
+`artifacts/bench/T37/CHECKLIST.md`:
+every step names its serial capture, local evidence file and pass/fail rule. The
 rows in `docs/hardware-verified.md` stay `⏳` until that sitting records
 evidence.
 
@@ -127,7 +127,7 @@ evidence.
 - [ ] 30-minute cadence with four probes and the OLED awake then asleep: packet
       count vs expected, interval min/mean/max, RSSI range, missed samples, and
       a cause for every gap > 90 s. Fill
-      [`CADENCE-REPORT-TEMPLATE.md`](../../artifacts/bench/T37/CADENCE-REPORT-TEMPLATE.md)
+      `CADENCE-REPORT-TEMPLATE.md`
       from the real capture with
       `python tools/bench/cadence_report.py <capture> --out <report>` (checklist
       step 6). Host parser tests: `python -m unittest discover -s tools/bench -p

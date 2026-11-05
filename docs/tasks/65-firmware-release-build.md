@@ -7,7 +7,7 @@ A versioned firmware image, merged binary, and documented USB flash command are 
 - Design: [10 §10.5](../design/10-test-and-release.md); hardware/partition details in [01 §1.8](../design/01-hardware.md).
 - Original verification: **H/B** (host/CI + bench) · **board:** yes.
 - Depends on T61, T62.
-- The 24 h soak report from T61 and the power/sleep evidence from T62 must already be committed before this build is called release.
+- The 24 h soak report from T61 and the power/sleep evidence from T62 must already be captured locally before this build is called release.
 
 ## Scope
 - [ ] Set the firmware version.

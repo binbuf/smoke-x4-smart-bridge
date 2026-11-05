@@ -41,7 +41,7 @@ NOMINAL_CADENCE_S = 30.0
 GAP_THRESHOLD_S = 90.0
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_TEMPLATE = ROOT / "artifacts" / "bench" / "T37" / "CADENCE-REPORT-TEMPLATE.md"
+DEFAULT_TEMPLATE = ROOT / "tools" / "bench" / "fixtures" / "CADENCE-REPORT-TEMPLATE.md"
 
 # ESP-IDF lines look like `I (12345) tag: msg`; a few serial captures lose the
 # level/tag prefix (`(12345) msg`).  Both are accepted.

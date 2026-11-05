@@ -1,5 +1,5 @@
 # loralog v1
-# source: D:/repos/binbuf/smoke-x4-smart-bridge/artifacts/bench/T10/serial-20261026T214626.log
+# source: artifacts/bench/T10/serial-20261026T214626.log
 # fields: boot t_ms rssi snr dir class payload
 0 142674 -28 10 rx sync6 000000,LMXC[\,160,50,191,54,
 0 143005 ? ? tx ack2 LMXC[\,SUCCESS,

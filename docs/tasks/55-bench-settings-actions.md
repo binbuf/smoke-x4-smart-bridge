@@ -56,7 +56,7 @@ Prove on the real bridge and phone that every Setting, re-pair, destructive acti
 
 ## Done when
 - [x] All nine checks pass on the real bridge and phone.
-- [x] The destructive-action evidence is committed.
+- [x] The destructive-action evidence is captured locally.
 - [x] The Settings UI matches the approved contract in both themes at 320 dp.
 - [x] Hand-off below filled in.
 
