@@ -43,32 +43,43 @@ class Params:
     T: float = 22.6          # v1: 27.0  (-4.4 mm)
     seam: float = 10.6       # front housing height (z of the hidden joint face)
     r_side: float = 5.5      # corner radius in plan view
-    r_front: float = 1.5     # round-over on the front face
+    r_front: float = 1.0     # round-over on the front face
     r_back: float = 3.0      # round-over on the back face (keeps 1.2 wall intact)
 
     # ---- walls ----------------------------------------------------------
     wall: float = 1.2        # front housing wall (PETG/ASA, 3 perimeters)
     lid_wall: float = 1.2    # lid wall / battery pocket wall
     tongue_step: float = 1.35  # radial inset of the joint tongue
-    tongue_h: float = 3.2    # how far the tongue reaches into the lid
+    # The visible front wall must clear the 1.0 mm front round-over and the
+    # 6.5 mm antenna hole.  A slightly shorter tongue moves the visible seam
+    # up 1 mm while keeping the 22.6 mm overall thickness and the battery
+    # pocket depth unchanged.
+    tongue_h: float = 2.2    # how far the tongue reaches into the lid
     joint_clear: float = 0.15  # radial clearance tongue -> lid cavity
     seam_gap: float = 0.0    # parting line is closed; chamfer = shadow line
 
     # ---- display --------------------------------------------------------
-    win_w: float = 13.2      # v1: 12.2
-    win_h: float = 26.0      # v1: 24.4
-    win_cy: float = 0.0      # window centre in Y (case centre = 0)
+    win_w: float = 14.09     # reference window width (aligned to the OLED)
+    win_h: float = 26.28     # reference window height
+    win_cy: float = 4.40     # reference window centre in Y (case centre = 0)
     win_r: float = 0.0       # through-window corner radius (0 = square)
     win_chamfer: float = 0.5
 
     # ---- buttons --------------------------------------------------------
-    btn_dx: float = 8.7      # cap centres; clears the USB-C shell by 0.23
-    btn_cy: float = 30.1     # cap centre in Y (aligned with PCB switches)
-    btn_cap_d: float = 8.0   # TPU cap OD
-    btn_bore: float = 8.22   # front bore
+    # The two PCB switches are not symmetric about the board centre: they
+    # straddle the USB-C shell, which sits 1.46 mm right of centre.
+    btn_rst_x: float = -6.47  # reference bore centre, left of centre
+    btn_prg_x: float = 9.53   # reference bore centre, right of centre
+    btn_cy: float = 32.38     # reference switch/bore centre in Y
+    # The right-hand (PRG) switch is close to the USB end wall.  A 7 mm cap
+    # left only ~0.2 mm of front wall there, which prints as a notch.  Keep
+    # the reference-sized cap (the v1 cap head was 6.12 mm) so the wall stays
+    # printable and the cap still has a comfortable press area.
+    btn_cap_d: float = 6.2    # TPU cap OD (v1 reference head: 6.12)
+    btn_bore: float = 6.4     # front bore
     btn_recess: float = 0.5  # dog-bone recess depth in the front face
-    btn_lip_d: float = 8.45  # retention lip on the cap (snaps behind wall)
-    btn_len: float = 3.0     # cap length: top -0.4 -> switch plane 2.6
+    btn_lip_d: float = 6.65   # retention lip on the cap (snaps behind wall)
+    btn_len: float = 5.02    # cap length: top -0.4 -> switch plane 4.62
     btn_web_w: float = 5.0
     btn_web_t: float = 0.5
     btn_protrude: float = 0.4
@@ -81,33 +92,48 @@ class Params:
     board_w: float = 25.4
     board_t: float = 1.12
     board_usb_tip: float = -1.27  # board-local X of the PCB's USB end
-    board_pcb_top: float = 4.6   # z of the component-side PCB face
-    board_pcb_bot: float = 5.72
+    # The USB-C shell is on the component side and sits 1.65 mm above the
+    # PCB face.  These values put its centre at z=4.97, matching the
+    # reference USB opening instead of clipping the port against the wall.
+    board_pcb_top: float = 6.62  # z of the component-side PCB face
+    board_pcb_bot: float = 7.74
     board_switch_x: float = 2.2  # board-local distance from USB tip
-    board_switch_y: float = 7.9  # board-local +/- from centreline
+    board_switch_y: float = 8.0  # board-local +/- from the USB centreline
     board_usb_front: float = -1.6  # board-local x of the USB tip
     board_switch_dZ: float = 2.0   # switch top above PCB top
-    board_cy: float = 30.1       # case Y of the switch centres (1.5 lower
-                                 # than cap centres so the JST plug clears)
+    board_cy: float = 32.38      # case Y of the switch centres (reference;
+                                 # seats the USB-C tip in the end-wall pocket)
 
     # ---- battery (Heltec PL103665 3000 mAh LiPo) ------------------------
     bat_l: float = 65.0
     bat_w: float = 36.0
     bat_t: float = 10.3
-    bat_y_top: float = 32.8      # top edge in Y (clears the SMA nut)
+    bat_y_top: float = 32.8      # top edge in Y (lid battery pocket)
     bat_gap_front: float = 0.3   # battery to front-housing seam
     bat_gap_back: float = 0.2    # battery to lid back wall
 
     # ---- ports ----------------------------------------------------------
-    usb_w: float = 9.2
-    usb_h: float = 3.4
-    usb_z0: float = 1.6          # bottom of the USB opening
+    usb_x: float = 1.46          # USB-C centre, offset like the PCB connector
+    usb_w: float = 9.13
+    usb_h: float = 3.43
+    usb_z0: float = 3.27         # bottom of the USB opening
+    usb_pocket_w: float = 18.2   # inner counterbore for the connector body
+    usb_pocket_h: float = 5.25   # top at z=7.4, below the tongue step
+    usb_pocket_z0: float = 2.15
+    usb_pocket_depth: float = 0.6
+    usb_pocket_r: float = 2.0
 
-    ant_x: float = -9.55         # same as v1
-    ant_z: float = 15.0          # lid half; nut clears the front tongue
+    # The reference SMA is at x=-11.88, but that is inside the v2 corner
+    # round-over. Move the hole just far enough inboard to sit in the flat
+    # end wall. build_front thickens that end wall so the nut has a flat
+    # seat and the outside keeps the original rounded shape.
+    ant_x: float = -10.20        # in the flat end wall, left of centre
+    # Sit the hole between the 1.0 mm front round-over and the tongue step:
+    # bottom 1.45, top 7.95, with 0.45 mm clearance at each end.
+    ant_z: float = 4.70
     ant_d: float = 6.5
-    ant_seat_d: float = 10.0     # washer seat diameter
-    ant_seat_depth: float = 0.3  # shallow flat for the kit washer
+    ant_seat_d: float = 10.0     # kept for reference; no exterior pad
+    ant_seat_depth: float = 0.0
 
     # ---- details --------------------------------------------------------
     snap_bump: float = 0.30
@@ -198,7 +224,7 @@ def antenna_cutter(p: Params = P) -> cq.Workplane:
     """Circular SMA bulkhead clearance hole (6.5 mm), through the end wall."""
     return (
         cq.Workplane("XZ").center(p.ant_x, p.ant_z)
-        .circle(p.ant_d / 2.0).extrude(-3.0)
+        .circle(p.ant_d / 2.0).extrude(-4.0)
         .translate((0, -p.L / 2.0 - 0.5, 0))
     )
 
@@ -208,7 +234,7 @@ def antenna_cutter(p: Params = P) -> cq.Workplane:
 # --------------------------------------------------------------------------
 def build_front(p: Params = P) -> cq.Workplane:
     z_step = p.seam - p.tongue_h          # 7.4: visible parting line / step
-    z_land = 6.0                          # internal shelf that supports the tongue
+    z_land = p.board_pcb_bot + 0.18        # land level; also the back-shelf floor
     t_od_w = p.W - 2 * p.tongue_step
     t_od_l = p.L - 2 * p.tongue_step
     t_id_w = t_od_w - 2 * p.wall
@@ -228,9 +254,17 @@ def build_front(p: Params = P) -> cq.Workplane:
         (p.W, p.L, p.seam + 0.1))).chamfer(0.5)
 
     # --- hollow it out ----------------------------------------------------
-    # cavity 1: full width up to the internal land
-    c_main = rr_prism(p.W - 2 * p.wall, p.L - 2 * p.wall,
-                      z_land - p.wall, p.r_side - p.wall, z0=p.wall)
+    # The antenna end wall is thickened to the same depth as the upper tongue
+    # wall (tongue_step + wall).  The main and upper cavities then share one
+    # flat inner end face, so the interior reads as a single unibody wall
+    # instead of a local boss stuck onto the inside.
+    ant_wall = p.tongue_step + p.wall
+    c_main_l = p.L - p.wall - ant_wall
+    c_main = (
+        rr_prism(p.W - 2 * p.wall, c_main_l,
+                 z_land - p.wall, p.r_side - p.wall, z0=p.wall)
+        .translate((0, p.tongue_step / 2.0, 0))
+    )
     # cavity 2: narrowed at the land, continues through the tongue to the top
     c_upper = rr_prism(t_id_w, t_id_l, p.seam - z_land + 0.4,
                        p.r_side - p.tongue_step - p.wall, z0=z_land)
@@ -246,35 +280,29 @@ def build_front(p: Params = P) -> cq.Workplane:
         .workplane(offset=p.win_chamfer + 0.01)
         .rect(p.win_w, p.win_h)
         .loft(combine=True)
+        .translate((0, p.win_cy, 0))
     )
     front = front.cut(ch)
 
     # --- button dog-bone recess + bores ----------------------------------
-    bone = None
-    for sx in (-1, 1):
-        c = (
-            cq.Workplane("XY").workplane(offset=-0.05)
-            .center(sx * p.btn_dx, p.btn_cy)
-            .circle((p.btn_bore + 0.55) / 2.0)
-            .extrude(p.btn_recess + 0.05)
-        )
-        bone = c if bone is None else bone.union(c)
-    bone = bone.union(rr_slot(p.btn_dx - p.btn_web_w / 2.0 + 0.3,
-                              p.btn_web_w + 0.6, p.btn_recess + 0.05, 0.3,
-                              0, p.btn_cy, -0.05))
+    # The recess is a slot between the two bores; the shallow circular
+    # recesses in the old model would have grazed the USB end wall.
+    bone = rr_slot(p.btn_prg_x - p.btn_rst_x, p.btn_web_w + 0.6,
+                   p.btn_recess + 0.05, 0.5,
+                   (p.btn_prg_x + p.btn_rst_x) / 2.0, p.btn_cy, -0.05)
     front = front.cut(bone)
-    for sx in (-1, 1):
+    for cap_x in (p.btn_rst_x, p.btn_prg_x):
         front = front.cut(
             cq.Workplane("XY").workplane(offset=-0.5)
-            .center(sx * p.btn_dx, p.btn_cy)
+            .center(cap_x, p.btn_cy)
             .circle(p.btn_bore / 2.0).extrude(p.wall + 1.0))
     # small lead-in chamfer on each bore
-    for sx in (-1, 1):
+    for cap_x in (p.btn_rst_x, p.btn_prg_x):
         front = front.cut(
             cq.Workplane("XY").workplane(offset=-0.01)
-            .center(sx * p.btn_dx, p.btn_cy)
-            .circle(p.btn_bore / 2.0 + 0.35)
-            .workplane(offset=0.36)
+            .center(cap_x, p.btn_cy)
+            .circle(p.btn_bore / 2.0 + 0.15)
+            .workplane(offset=0.26)
             .circle(p.btn_bore / 2.0)
             .loft(combine=True))
 
@@ -282,40 +310,55 @@ def build_front(p: Params = P) -> cq.Workplane:
     zc = p.usb_z0 + p.usb_h / 2.0
     usb = cutters_along_y(p.usb_w, p.usb_h, 0.8,
                           p.L / 2.0 - 2.0, p.L / 2.0 + 1.0)
-    front = front.cut(usb.translate((0, 0, zc)))
+    front = front.cut(usb.translate((p.usb_x, 0, zc)))
     # 0.5 mm lead-in chamfer on the outside of the USB opening
     front = front.edges(cq.selectors.BoxSelector(
-        (-p.usb_w / 2.0 - 0.6, p.L / 2.0 - 0.05, zc - p.usb_h / 2.0 - 0.6),
-        (p.usb_w / 2.0 + 0.6, p.L / 2.0 + 0.4, zc + p.usb_h / 2.0 + 0.6),
+        (p.usb_x - p.usb_w / 2.0 - 0.6, p.L / 2.0 - 0.05,
+         zc - p.usb_h / 2.0 - 0.6),
+        (p.usb_x + p.usb_w / 2.0 + 0.6, p.L / 2.0 + 0.4,
+         zc + p.usb_h / 2.0 + 0.6),
     )).chamfer(0.5)
+    # inner counterbore so the USB-C shell/body does not jack the board off
+    # the cradle; leaves a 0.6 mm outer skin around the small opening.
+    zp = p.usb_pocket_z0 + p.usb_pocket_h / 2.0
+    pocket = cutters_along_y(p.usb_pocket_w, p.usb_pocket_h, p.usb_pocket_r,
+                             p.L / 2.0 - p.wall,
+                             p.L / 2.0 - p.wall + p.usb_pocket_depth)
+    front = front.cut(pocket.translate((p.usb_x, 0, zp)))
 
-    # --- board cradle: rails on 3 sides, USB end open --------------------
-    # Two L-shaped rails per long side (fin outside the PCB edge + front lip
-    # that sets the PCB depth), and two stop fins at the antenna end. The USB
-    # end stays open for the connector and for placing the board.
-    board_top_y = p.board_cy + p.board_switch_x - p.board_usb_tip  # 33.57
-    board_bot_y = board_top_y - p.board_l           # -18.12
+    # --- board cradle: slim side guides + one small back shelf ------------
+    # The board drops in from the back.  Two narrow tabs per side only set
+    # the lateral position; the Z stack is handled by the button caps /
+    # switches in front and the lid/battery behind.  One small shelf per
+    # side stops the board being pushed backwards by the buttons.  There is
+    # no front lip and no second rail tier around the PCB.
+    board_top_y = p.board_cy + p.board_switch_x - p.board_usb_tip  # 35.85
+    board_bot_y = board_top_y - p.board_l           # -15.84
     for sx in (-1, 1):
-        for yc in (18.0, -6.0):
-            pts = [
-                (sx * 13.2, p.wall),
-                (sx * 14.0, p.wall),
-                (sx * 14.0, p.board_pcb_bot + 0.18),
-                (sx * 13.2, p.board_pcb_bot + 0.18),
-                (sx * 13.2, p.board_pcb_top),
-                (sx * 12.2, p.board_pcb_top),
-                (sx * 13.2, p.board_pcb_top - 0.5),
-            ]
-            rail = (
-                cq.Workplane("XZ").polyline(pts).close()
-                .extrude(-8.0).translate((0, yc + 4.0, 0))
-            )
-            front = front.union(rail)
+        for yc in (20.28, -3.72):
+            # lateral guide: 0.8 mm thick, 3 mm long, just outside the PCB
+            front = front.union(
+                cq.Workplane("XY").workplane(offset=p.wall)
+                .center(sx * 13.30, yc)
+                .rect(0.8, 3.0)
+                .extrude(p.board_pcb_bot + 0.2 - p.wall))
+            # single back shelf: the board slides under it from the back
+            front = front.union(
+                cq.Workplane("XY").workplane(offset=p.board_pcb_bot + 0.18)
+                .center(sx * 12.95, yc)
+                .rect(1.5, 4.0)
+                .extrude(0.3))
     for xc in (7.0, -2.0):
         front = front.union(
             cq.Workplane("XY").workplane(offset=p.wall)
-            .center(xc, board_bot_y - 0.68)
+            .center(xc, board_bot_y - 0.55)
             .rect(6.0, 0.8).extrude(p.board_pcb_bot - p.wall + 0.18))
+
+    # --- antenna bulkhead: straight hole through the thick end wall --------
+    # The end wall is already thickened to the tongue-wall depth above, so
+    # there is no local boss: the hole passes through one continuous wall
+    # and the nut seats on the same flat inner face.
+    front = front.cut(antenna_cutter(p))
 
     # --- snap bumps on the tongue ---------------------------------------
     tx = p.W / 2.0 - p.tongue_step
@@ -357,21 +400,8 @@ def build_lid(p: Params = P) -> cq.Workplane:
                       z0=z0 - 0.1)
     lid = lid.cut(cavity)
 
-    # --- antenna bulkhead: round 6.5 mm hole in the tall lid half ----------
-    # 10 mm circular flat seat for the kit washer / bulkhead flange
-    seat = (
-        cq.Workplane("XZ").center(p.ant_x, p.ant_z)
-        .circle(p.ant_seat_d / 2.0)
-        .extrude(-p.ant_seat_depth)
-        .translate((0, -p.L / 2.0 + p.ant_seat_depth, 0))
-    )
-    # internal boss: nut seat + wall reinforcement
-    boss = cutters_along_y(12.0, 7.0, 3.0,
-                           -p.L / 2.0 + p.lid_wall,
-                           -p.L / 2.0 + p.lid_wall + 0.7)
-    boss = boss.translate((p.ant_x, 0, p.ant_z))
-    lid = lid.cut(seat).union(boss)
-    lid = lid.cut(antenna_cutter(p))
+    # The SMA bulkhead now lives in the front housing (see build_front), so
+    # the lid is just the battery pocket and needs no antenna hole/boss.
 
     # snap grooves in the cavity side walls
     tx = p.W / 2.0 - p.tongue_step
@@ -409,18 +439,18 @@ def build_buttons(p: Params = P) -> cq.Workplane:
     z_top = -p.btn_protrude
     z_back = z_top + p.btn_len            # 2.5 -> switch plane
     bar = None
-    for sx in (-1, 1):
+    for cap_x in (p.btn_rst_x, p.btn_prg_x):
         cap = (
             cq.Workplane("XY").workplane(offset=z_top)
-            .center(sx * p.btn_dx, p.btn_cy)
+            .center(cap_x, p.btn_cy)
             .circle(p.btn_cap_d / 2.0).extrude(p.btn_len)
         )
         # soft top edge
         cap = cap.faces("<Z").edges().chamfer(0.35)
-        # retention lip just behind the front wall (wall ends at z=1.0)
+        # retention lip just behind the 1.2 mm front wall
         lip = (
             cq.Workplane("XY").workplane(offset=p.wall - 0.05)
-            .center(sx * p.btn_dx, p.btn_cy)
+            .center(cap_x, p.btn_cy)
             .circle(p.btn_lip_d / 2.0).extrude(0.45)
         )
         lip = lip.faces("<Z").edges().chamfer(0.15)
@@ -428,28 +458,32 @@ def build_buttons(p: Params = P) -> cq.Workplane:
         cap = cap.union(lip)
         bar = cap if bar is None else bar.union(cap)
 
-    # web is flush with the cap tops so the whole part prints on the bed
+    # web is flush with the cap tops so the whole part prints on the bed;
+    # its centre follows the asymmetric cap pair (1.53 mm right of centre)
+    bar_cx = (p.btn_prg_x + p.btn_rst_x) / 2.0
+    bar_span = p.btn_prg_x - p.btn_rst_x
     web = (
         cq.Workplane("XY").workplane(offset=z_top)
-        .center(0, p.btn_cy)
-        .rect(p.btn_dx * 2.0, p.btn_web_w)
+        .center(bar_cx, p.btn_cy)
+        .rect(bar_span, p.btn_web_w)
         .extrude(p.btn_web_t)
     )
     bar = bar.union(web)
 
     # a shallow cove where the web meets each cap (flex relief, both sides)
-    for sx in (-1, 1):
+    for cap_x, direction in ((p.btn_rst_x, 1), (p.btn_prg_x, -1)):
         bar = bar.cut(
             cq.Workplane("XY").workplane(offset=z_top + p.btn_web_t - 0.05)
-            .center(sx * (p.btn_dx - p.btn_cap_d / 2.0 - 0.15), p.btn_cy)
+            .center(cap_x + direction * (p.btn_cap_d / 2.0 + 0.15), p.btn_cy)
             .circle(0.55)
             .extrude(1.6))
 
-    # engraved labels on the cap tops
-    for label, sx in (("PRG", -1), ("RST", 1)):
+    # engraved labels on the cap tops; PRG is the +X switch, matching the
+    # board. The text is oriented to read with the antenna end up.
+    for label, cap_x in (("PRG", p.btn_prg_x), ("RST", p.btn_rst_x)):
         bar = bar.cut(
             engrave_text(label, p.label_size, p.label_depth + 0.02,
-                         sx * p.btn_dx, p.btn_cy, z_top - 0.01,
+                         cap_x, p.btn_cy, z_top - 0.01,
                          p.label_font))
 
     return bar.clean()
