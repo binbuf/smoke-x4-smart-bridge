@@ -3,6 +3,9 @@
 All dimensions are millimetres. The front exterior is Z=0, the USB end is
 positive Y, and the PCB is offset toward positive X. The front is printed
 face down. STL exports place each part on the bed, with the lid back down.
+The front exterior carries no recessed text: a label cut into that face
+opens onto the build plate, so its roof has to bridge and is not reliable in
+PLA or ASA. Labels belong on a vertical wall.
 
     python enclosure/cad/case_v2.py
     python enclosure/cad/check_fit.py
@@ -80,10 +83,6 @@ class Params:
     btn_tpu_link_t: float = 1.04
     btn_link_amplitude: float = 1.8
     btn_link_clear: float = 0.2
-    label_depth: float = 0.25
-    label_size: float = 2.4
-    label_y: float = 26.5
-    label_font: str = "Arial"
 
     # Straight contact faces measured from the centred original front mesh.
     board_l: float = 51.69
@@ -275,12 +274,11 @@ def build_front(p: Params = P) -> cq.Workplane:
                  .workplane(offset=0.16).circle(p.btn_bore / 2).loft())
         front = front.cut(bezel)
     front = front.cut(button_link(p, tpu=True, clearance=p.btn_link_clear, slot=True))
-    for label, x in (("RST", p.btn_rst_x), ("PRG", p.btn_prg_x)):
-        engraving = (cq.Workplane("XY").workplane(offset=-0.01)
-                     .text(label, p.label_size, p.label_depth + 0.01,
-                           font=p.label_font, kind="bold", halign="center", valign="center")
-                     .mirror(mirrorPlane="YZ").translate((x, p.label_y, 0)))
-        front = front.cut(engraving)
+    # No front-face text. This face is printed against the bed, so a recessed
+    # label opens onto the build plate and its roof has to bridge/sag across
+    # the letter cavities. The result is not reliable in PLA or ASA, and a
+    # larger font only widens the unsupported span. Labels would need to move
+    # to a vertical wall, or the front stays smooth.
 
     usb_z = p.usb_z0 + p.usb_h / 2
     usb = cutters_along_y(p.usb_w, p.usb_h, p.usb_h / 2 - 0.001,

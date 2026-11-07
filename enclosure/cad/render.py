@@ -118,7 +118,7 @@ def main():
     pod = asm.clip_box(bounds=(-16, 16, 23, 38, -1, 4), invert=False)
     shot(pod, "case-v2-buttons", (0.25, -0.5, -1), up=(0, -1, 0), zoom=1.0,
          size=(1200, 900))
-    # straight on, for label check
+    # straight on, for button check
     shot(pod, "case-v2-buttons-front", (0, -0.05, -1), up=(0, -1, 0), zoom=1.0,
          size=(1200, 900))
 

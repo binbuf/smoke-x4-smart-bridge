@@ -81,12 +81,6 @@ def main() -> None:
     screen = model.rr_slot(
         p.win_w, p.win_h, p.face_t + 0.5, 0, 0, p.win_cy, -0.1)
     require_clear(front, "screen throat", screen)
-    for label, x in (("RST", p.btn_rst_x), ("PRG", p.btn_prg_x)):
-        letters = (cq.Workplane("XY").workplane(offset=-0.01)
-                   .text(label, p.label_size, p.label_depth + 0.01,
-                         font=p.label_font, kind="bold", halign="center", valign="center")
-                   .mirror(mirrorPlane="YZ").translate((x, p.label_y, 0)))
-        require_clear(front, label + " engraving", letters)
 
     # Inner contact planes measured from the centred original front 3MF.
     planes = ((-11.43, 1), (14.351, -1))
