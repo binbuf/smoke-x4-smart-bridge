@@ -61,6 +61,10 @@ def main() -> None:
         switch_z = p.board_pcb_top - p.board_switch_dZ
         if abs(switch_z - contact_z - p.btn_switch_gap) > 1e-6:
             raise ValueError(name + " buttons have the wrong switch clearance")
+    # The link should lie on the bed (recess 0) or stay behind the finger
+    # faces; it must never finish behind the case front.
+    if not (0 <= p.btn_link_recess < p.btn_protrude):
+        raise ValueError("The button link is outside the printable face plane")
     require_clear(front, "antenna hole", model.antenna_cutter())
     flange = model.antenna_flange_cutter()
     require_clear(front, "antenna connector lip", flange)

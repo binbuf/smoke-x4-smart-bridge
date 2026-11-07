@@ -56,21 +56,28 @@ class Params:
     btn_prg_x: float = 9.525
     btn_cy: float = 32.385
     btn_bore: float = 6.5
-    btn_cap_d: float = 6.1
-    btn_tpu_cap_d: float = 5.95
+    btn_cap_d: float = 6.0
+    btn_tpu_cap_d: float = 5.85
     btn_stem_d: float = 3.6
     btn_tpu_stem_d: float = 4.0
-    btn_lip_d: float = 8.0
+    btn_lip_d: float = 7.9
     btn_lip_t: float = 0.6
     btn_collar_d: float = 9.4
     btn_collar_z: float = 2.1
     btn_seat_d: float = 8.2
-    btn_protrude: float = 0.6
-    btn_switch_gap: float = 0.15
+    # Finger faces sit 1.4 mm proud of the front. The link is kept on the
+    # build plate so it prints as solid material from the ground instead of
+    # needing slicer support. The cap height is not added to the ligament.
+    btn_protrude: float = 1.4
+    btn_link_recess: float = 0.0
+    # Keep the stem clear of the switch when the PCB seats fully forward in
+    # the USB-C opening. The old 0.15 mm gap could be consumed by that play
+    # before the case was closed.
+    btn_switch_gap: float = 0.6
     btn_link_w: float = 0.8
-    btn_link_t: float = 0.48
+    btn_link_t: float = 0.88
     btn_tpu_link_w: float = 1.0
-    btn_tpu_link_t: float = 0.64
+    btn_tpu_link_t: float = 1.04
     btn_link_amplitude: float = 1.8
     btn_link_clear: float = 0.2
     label_depth: float = 0.25
@@ -170,10 +177,11 @@ def antenna_flange_cutter(p: Params = P) -> cq.Workplane:
 
 def button_link(p: Params = P, *, tpu: bool = False,
                 clearance: float = 0.0, slot: bool = False) -> cq.Workplane:
-    """Flat, gently curved ligament joining the two finger faces.
+    """Flat, gently curved ligament joining the two plungers.
 
-    The matching through-slot lets the connected pair enter from the back.
-    Both material versions print the link directly on the bed with the caps.
+    The link sits at the finger-face plane so it prints directly on the bed
+    as solid material, with no support under its span. The matching
+    through-slot lets the connected pair enter from the back.
     """
     width = (p.btn_tpu_link_w if tpu else p.btn_link_w) + 2 * clearance
     thickness = p.btn_tpu_link_t if tpu else p.btn_link_t
@@ -191,7 +199,7 @@ def button_link(p: Params = P, *, tpu: bool = False,
         dy = width / (2 * normal_length)
         upper.append((x + dx, y + dy))
         lower.append((x - dx, y - dy))
-    z0 = -0.1 if slot else -p.btn_protrude
+    z0 = -0.1 if slot else -p.btn_protrude + p.btn_link_recess
     height = p.btn_collar_z + 0.2 if slot else thickness
     return (cq.Workplane("XY").workplane(offset=z0).moveTo(*upper[0])
             .spline(upper[1:], includeCurrent=True).lineTo(*lower[-1])
@@ -330,9 +338,10 @@ def build_buttons(p: Params = P, *, tpu: bool = False,
                   travel: tuple[float, float] = (0.0, 0.0)) -> cq.Workplane:
     """One connected pair of captive plungers, printed finger faces down.
 
-    The rear flange grows at 45 degrees for support-free printing. TPU uses
-    a little more sliding clearance and a thicker contact stem. A matching
-    countersink in the housing captures both versions from the front.
+    The rear flange grows at 45 degrees and the link lies on the build plate,
+    so the whole part prints without support. TPU uses a little more sliding
+    clearance and a thicker contact stem. A matching countersink in the
+    housing captures both versions from the front.
     """
     diameter = p.btn_tpu_cap_d if tpu else p.btn_cap_d
     stem_d = p.btn_tpu_stem_d if tpu else p.btn_stem_d
